@@ -1300,9 +1300,10 @@ class SslsIssuer(Issuer):
                 'ref': cid, 'acme_cert_id': self._acme_ids().get(cid)}
 
     # -- revocation, trying it, the actions ------------------------------------------------------
-    def revoke(self, cert_pem, reason='unspecified', key_pem=None):
-        raise PluginError('the API of SSLS.cz cannot revoke a certificate - revoke it at '
-                          'www.ssls.cz (My certificates) or ask its support', retry=False)
+    # The API cannot revoke (hunt R7): the base class's own revoke, so that Revoke is not
+    # offered for its certificates (certs/api.py revocable() looks for exactly that) - it was
+    # offered, and its job failed every time.
+    revoke = Issuer.revoke
 
     def test(self):
         prods, got = self.api().products(account=True)

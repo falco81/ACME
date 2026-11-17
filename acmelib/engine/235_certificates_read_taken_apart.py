@@ -203,6 +203,17 @@ def cert_bundle(cert='', key='', chain='', root='', pfx=b'', password='', pendin
     if not certs:
         raise ValueError('no certificate was found in what was sent (PEM, or a PFX / PKCS#12 '
                          'file)')
+    # each certificate once, without Windows line ends: the full chain as the certificate and
+    # the chain again (the usual fullchain.pem + chain.pem) put the intermediate into nginx's
+    # chain twice, and a leaf pasted with CRLF a second time went into the chain
+    uniq, seen = [], set()
+    for c in certs:
+        c = c.replace('\r', '')
+        k = re.sub(r'\s+', '', c)
+        if k not in seen:
+            seen.add(k)
+            uniq.append(c)
+    certs = uniq
     if len(keys) > 1:
         raise ValueError('more than one private key was sent')
     if keys:
@@ -219,7 +230,8 @@ def cert_bundle(cert='', key='', chain='', root='', pfx=b'', password='', pendin
     others = [c for c in certs if c != leaf]
     infos = {c: cert_info(c) for c in others}
     roots = [c for c in others if infos[c]['self_signed']]
-    roots += [m.group(0) for m in PEM_CERT.finditer(str(root or '')) if m.group(0) not in roots]
+    roots += [c for c in (m.group(0).replace('\r', '') for m in PEM_CERT.finditer(str(root or '')))
+              if c not in roots and c != leaf]
     inter = [c for c in others if c not in roots]
     # The chain in order: each the issuer of the one before it.
     chain_out, at = [], cert_info(leaf)

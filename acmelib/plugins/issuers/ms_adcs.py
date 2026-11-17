@@ -471,7 +471,15 @@ class MsAdcsIssuer(Issuer):
             if req_id.startswith('ok:'):
                 req_id = req_id[3:]
             else:
-                self._wait(h, req_id)
+                try:
+                    self._wait(h, req_id)
+                except PluginError as e:
+                    # Denied by the certificate manager (hunt R7): the held request let go -
+                    # it was asked for again at every try for 90 days, each one refused, and
+                    # no new request could be made meanwhile.
+                    if getattr(e, 'denied', False):
+                        sc.pending_drop(self.ctx, slot)
+                    raise
             out = self._fetch(h, req_id, r)
             if r is not req and r.key_pem:
                 out.key_pem = r.key_pem                 # the key of the request held
@@ -548,7 +556,9 @@ class MsAdcsIssuer(Issuer):
             return 'issued'
         text = data.decode('utf-8', 'replace')
         if re.search(r'denied|revoked|0x8009', text, re.I) and not re.search(r'pending', text, re.I):
-            raise self._refusal(text, req_id)
+            err = self._refusal(text, req_id)
+            err.denied = True
+            raise err
         return 'pending'
 
     def _fetch(self, h, req_id, req):

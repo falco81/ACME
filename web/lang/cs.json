@@ -68348,7 +68348,7 @@
   },
   "p0003": {
    "source": " · {0} days left",
-   "text": " · zbývá {0} dní"
+   "text": " · {0:zbývá|zbývají|zbývá} {0} {0:den|dny|dní}"
   },
   "p0004": {
    "source": " — {0}% is in use",
@@ -68436,7 +68436,7 @@
   },
   "p0025": {
    "source": "A mail not taken is tried again for {0} h (a code to sign in with only while it is good); the list keeps what went or failed for {1} days.",
-   "text": "Nepřevzatý mail se zkouší znovu {0} h (kód k přihlášení jen dokud platí); seznam drží odeslané a selhané {1} dní."
+   "text": "Nepřevzatý mail se zkouší znovu {0} h (kód k přihlášení jen dokud platí); seznam drží odeslané a selhané {1} {1:den|dny|dní}."
   },
   "p0026": {
    "source": "A mail to {0}",
@@ -68884,7 +68884,7 @@
   },
   "p0137": {
    "source": "Move {0} token(s) under @{1}?",
-   "text": "Přesunout {0} tokenů pod @{1}?"
+   "text": "Přesunout {0} {0:token|tokeny|tokenů} pod @{1}?"
   },
   "p0138": {
    "source": "Nepoužívá se, dokud je {0} vypnuto.",
@@ -69280,7 +69280,7 @@
   },
   "p0236": {
    "source": "Sending mail is switched off (Settings → Mail): nothing is sent or tried again. · A mail not taken is tried again for {0} h (a code to sign in with only while it is good); the list keeps what went or failed for {1} days.",
-   "text": "Odesílání pošty je vypnuto (Nastavení → Pošta): nic se neposílá ani nezkouší znovu. · Nepřevzatý mail se zkouší znovu {0} h (kód k přihlášení jen po dobu platnosti); seznam drží odeslané a selhané {1} dní."
+   "text": "Odesílání pošty je vypnuto (Nastavení → Pošta): nic se neposílá ani nezkouší znovu. · Nepřevzatý mail se zkouší znovu {0} h (kód k přihlášení jen po dobu platnosti); seznam drží odeslané a selhané {1} {1:den|dny|dní}."
   },
   "p0237": {
    "source": "Sent by mail to {0}",
@@ -69844,7 +69844,7 @@
   },
   "p0377": {
    "source": "To {0} · {1} · {2} recovery code(s) left",
-   "text": "Na {0} · {1} · zbývá {2} záložních kódů"
+   "text": "Na {0} · {1} · {2:zbývá|zbývají|zbývá} {2} {2:záložní kód|záložní kódy|záložních kódů}"
   },
   "p0378": {
    "source": "Told by {0}, it could not be done: {1}",
@@ -69976,11 +69976,11 @@
   },
   "p0410": {
    "source": "a member of {0} group(s) (nested counted), none of them one of: {1}",
-   "text": "člen {0} skupin (včetně vnořených), žádná z nich není: {1}"
+   "text": "člen {0} {0:skupiny|skupin|skupin} (včetně vnořených), žádná z nich není: {1}"
   },
   "p0411": {
    "source": "a member of {0} group(s), none of them one of: {1}",
-   "text": "člen {0} skupin, žádná z nich není: {1}"
+   "text": "člen {0} {0:skupiny|skupin|skupin}, žádná z nich není: {1}"
   },
   "p0412": {
    "source": "a name has no spaces, commas, semicolons or = in it, and is 180 characters at most",
@@ -70116,7 +70116,7 @@
   },
   "p0445": {
    "source": "at least {0} line(s)",
-   "text": "alespoň {0} řádků"
+   "text": "alespoň {0} {0:řádek|řádky|řádků}"
   },
   "p0446": {
    "source": "before erasing, by {0}",
@@ -70228,7 +70228,7 @@
   },
   "p0473": {
    "source": "done: {0} row(s) in {1} · a copy made first: {2}",
-   "text": "hotovo: {0} řádků v {1} · nejdřív vytvořena kopie: {2}"
+   "text": "hotovo: {0} {0:řádek|řádky|řádků} v {1} · nejdřív vytvořena kopie: {2}"
   },
   "p0474": {
    "source": "done: {0} → {1}",
@@ -70320,7 +70320,7 @@
   },
   "p0496": {
    "source": "forgotten: {0} request(s), {1} check(s) of a code",
-   "text": "zapomenuto: {0} požadavků, {1} kontrol kódu"
+   "text": "zapomenuto: {0} {0:požadavek|požadavky|požadavků}, {1} {1:kontrola|kontroly|kontrol} kódu"
   },
   "p0497": {
    "source": "found {0}",
@@ -70332,11 +70332,11 @@
   },
   "p0499": {
    "source": "from the CA - the last try failed · {0} days left",
-   "text": "od CA – poslední pokus selhal · zbývá {0} dní"
+   "text": "od CA – poslední pokus selhal · {0:zbývá|zbývají|zbývá} {0} {0:den|dny|dní}"
   },
   "p0500": {
    "source": "from the CA · {0} days left",
-   "text": "od CA · zbývá {0} dní"
+   "text": "od CA · {0:zbývá|zbývají|zbývá} {0} {0:den|dny|dní}"
   },
   "p0501": {
    "source": "going back to an older version is not offered on these pages: switch it on in Settings → Upgrades",
@@ -70360,7 +70360,7 @@
   },
   "p0506": {
    "source": "high security cannot be switched on, {0} thing(s) stand against it: {1}",
-   "text": "vysokou bezpečnost nelze zapnout, brání tomu {0} věc(í): {1}"
+   "text": "vysokou bezpečnost nelze zapnout, brání tomu {0} {0:věc|věci|věcí}: {1}"
   },
   "p0507": {
    "source": "housekeeping waits for the database: {0}",
@@ -70560,19 +70560,19 @@
   },
   "p0556": {
    "source": "last {0} days",
-   "text": "posledních {0} dní"
+   "text": "{0:poslední|poslední|posledních} {0} {0:den|dny|dní}"
   },
   "p0557": {
    "source": "last {0} hours",
-   "text": "posledních {0} hodin"
+   "text": "{0:poslední|poslední|posledních} {0} {0:hodina|hodiny|hodin}"
   },
   "p0558": {
    "source": "last {0} minutes",
-   "text": "posledních {0} minut"
+   "text": "{0:poslední|poslední|posledních} {0} {0:minuta|minuty|minut}"
   },
   "p0559": {
    "source": "last {0} weeks",
-   "text": "posledních {0} týdnů"
+   "text": "{0:poslední|poslední|posledních} {0} {0:týden|týdny|týdnů}"
   },
   "p0560": {
    "source": "let in as {0}",
@@ -70672,7 +70672,7 @@
   },
   "p0584": {
    "source": "names with {0} are here already ({1} token(s) and account(s)): {2} switched on so that they still sign in - switch it off on Settings - The tokens if they should not",
-   "text": "jména s {0} tu už jsou ({1} tokenů a účtů): zapnuto {2}, aby se dál přihlašovali – vypněte to v Nastavení – Tokeny, pokud nemají"
+   "text": "jména s {0} tu už jsou (tokeny a účty: {1}): zapnuto {2}, aby se dál přihlašovali – vypněte to v Nastavení – Tokeny, pokud nemají"
   },
   "p0585": {
    "source": "needed after the update - {0}",
@@ -70948,7 +70948,7 @@
   },
   "p0653": {
    "source": "page {0}{1} of more than {2} · more than {3} row(s)",
-   "text": "stránka {0}{1} z více než {2} · více než {3} řádků"
+   "text": "stránka {0}{1} z více než {2} · více než {3} {3:řádek|řádky|řádků}"
   },
   "p0654": {
    "source": "page {0}{1} of {2} · {3} row(s)",
@@ -71252,7 +71252,7 @@
   },
   "p0729": {
    "source": "the SMS gateway is checked against {0} certificate(s)",
-   "text": "SMS brána se ověřuje proti {0} certifikátům"
+   "text": "SMS brána se ověřuje proti {0} {0:certifikátu|certifikátům|certifikátům}"
   },
   "p0730": {
    "source": "the SSH server of {0} has not said yet how it is set",
@@ -71776,7 +71776,7 @@
   },
   "p0860": {
    "source": "the last {0} hours",
-   "text": "posledních {0} hodin"
+   "text": "{0:poslední|poslední|posledních} {0} {0:hodina|hodiny|hodin}"
   },
   "p0861": {
    "source": "the last {0} h{1}{2}",
@@ -72320,7 +72320,7 @@
   },
   "p0996": {
    "source": "this page is answered by {0} now, not {1} (the VIP address moved): the settings are drawn again from {2}; {3} change(s) not saved were put aside",
-   "text": "tuto stránku teď obsluhuje {0}, ne {1} (VIP adresa se přesunula): nastavení se znovu načetla z {2}; {3} neuložených změn bylo zahozeno"
+   "text": "tuto stránku teď obsluhuje {0}, ne {1} (VIP adresa se přesunula): nastavení se znovu načetla z {2}; {3} {3:neuložená změna byla zahozena|neuložené změny byly zahozeny|neuložených změn bylo zahozeno}"
   },
   "p0997": {
    "source": "this page is answered by {0} now, not {1} (the web address moved): the settings are drawn again from {2}",
@@ -72328,7 +72328,7 @@
   },
   "p0998": {
    "source": "this page is answered by {0} now, not {1} (the web address moved): the settings are drawn again from {2}; {3} change(s) not saved were put aside",
-   "text": "tuto stránku teď obsluhuje {0}, ne {1} (webová adresa se přesunula): nastavení se znovu načetla z {2}; {3} neuložených změn bylo zahozeno"
+   "text": "tuto stránku teď obsluhuje {0}, ne {1} (webová adresa se přesunula): nastavení se znovu načetla z {2}; {3} {3:neuložená změna byla zahozena|neuložené změny byly zahozeny|neuložených změn bylo zahozeno}"
   },
   "p0999": {
    "source": "this page was drawn by {0}, but {1} answers now (the VIP address moved): {2} belongs to one machine, so nothing was saved - load the page again",
@@ -72560,7 +72560,7 @@
   },
   "p1056": {
    "source": "{0} - good until {1} ({2} days).",
-   "text": "{0} – platí do {1} ({2} dní)."
+   "text": "{0} – platí do {1} ({2} {2:den|dny|dní})."
   },
   "p1057": {
    "source": "{0} - imported before it stopped: {1}",
@@ -72844,7 +72844,7 @@
   },
   "p1127": {
    "source": "{0} cleared the list of backups sent ({1} line(s)); the backups stay where they went",
-   "text": "{0} vymazal(a) seznam odeslaných záloh ({1} řádků); zálohy zůstávají tam, kam došly"
+   "text": "{0} vymazal(a) seznam odeslaných záloh ({1} {1:řádek|řádky|řádků}); zálohy zůstávají tam, kam došly"
   },
   "p1128": {
    "source": "{0} closed the connection",
@@ -72880,15 +72880,15 @@
   },
   "p1136": {
    "source": "{0} days ago",
-   "text": "před {0} dny"
+   "text": "před {0} {0:dnem|dny|dny}"
   },
   "p1137": {
    "source": "{0} days left",
-   "text": "zbývá {0} {0:den|dny|dní}"
+   "text": "{0:zbývá|zbývají|zbývá} {0} {0:den|dny|dní}"
   },
   "p1138": {
    "source": "{0} days {1} h",
-   "text": "{0} dní {1} h"
+   "text": "{0} {0:den|dny|dní} {1} h"
   },
   "p1139": {
    "source": "{0} dead row(s)",
@@ -73008,7 +73008,7 @@
   },
   "p1168": {
    "source": "{0} exception(s): not enforced.",
-   "text": "{0} výjimek: nevynucují se."
+   "text": "{0} {0:výjimka: nevynucuje|výjimky: nevynucují|výjimek: nevynucují} se."
   },
   "p1169": {
    "source": "{0} exported the token of {1} as a .totp file",
@@ -73040,7 +73040,7 @@
   },
   "p1176": {
    "source": "{0} forgot the requests and checks older than {1} day(s): {2}",
-   "text": "{0} zapomněl požadavky a kontroly starší než {1} dní: {2}"
+   "text": "{0} zapomněl požadavky a kontroly starší než {1} {1:den|dny|dní}: {2}"
   },
   "p1177": {
    "source": "{0} free inside",
@@ -73624,7 +73624,7 @@
   },
   "p1322": {
    "source": "{0} moved {1} token(s) under @{2} in the realm {3}",
-   "text": "{0} přesunul(a) {1} tokenů pod @{2} v realmu {3}"
+   "text": "{0} přesunul(a) {1} {1:token|tokeny|tokenů} pod @{2} v realmu {3}"
   },
   "p1323": {
    "source": "{0} must be between {1} and {2}",
@@ -74040,7 +74040,7 @@
   },
   "p1426": {
    "source": "{0} steps",
-   "text": "{0} kroků"
+   "text": "{0} {0:krok|kroky|kroků}"
   },
   "p1427": {
    "source": "{0} still reaches a database with TLS - perhaps this one: switch them off first",
@@ -74096,7 +74096,7 @@
   },
   "p1440": {
    "source": "{0} tables, {1} tokens, {2} accounts",
-   "text": "{0} tabulek, {1} tokenů, {2} účtů"
+   "text": "{0} {0:tabulka|tabulky|tabulek}, {1} {1:token|tokeny|tokenů}, {2} {2:účet|účty|účtů}"
   },
   "p1441": {
    "source": "{0} takes a number",
@@ -74128,19 +74128,19 @@
   },
   "p1448": {
    "source": "{0} thing(s) are not as high security wants them - set before it was on, or on a node: put them right.",
-   "text": "{0} věc(í) není podle vysoké bezpečnosti – nastaveno před zapnutím nebo na uzlu: opravte je."
+   "text": "{0} {0:věc není|věci nejsou|věcí není} podle vysoké bezpečnosti – nastaveno před zapnutím nebo na uzlu: opravte je."
   },
   "p1449": {
    "source": "{0} thing(s) stand against it. Set them as said - then switch it on again.",
-   "text": "Brání tomu {0} věc(í). Nastavte je podle popisu – pak ji zapněte znovu."
+   "text": "Brání tomu {0} {0:věc|věci|věcí}. Nastavte je podle popisu – pak ji zapněte znovu."
   },
   "p1450": {
    "source": "{0} thing(s) stand against it. Set them as said, or make one an exception with its switch - then switch it on again.",
-   "text": "Brání tomu {0} věc(í). Nastavte je podle popisu, nebo z některé udělejte výjimku jejím přepínačem – pak ji zapněte znovu."
+   "text": "Brání tomu {0} {0:věc|věci|věcí}. Nastavte je podle popisu, nebo z některé udělejte výjimku jejím přepínačem – pak ji zapněte znovu."
   },
   "p1451": {
    "source": "{0} thing(s) stand against switching it on.",
-   "text": "Zapnutí brání {0} věc(í)."
+   "text": "Zapnutí brání {0} {0:věc|věci|věcí}."
   },
   "p1452": {
    "source": "{0} threw away the replacement waiting for {1}",
@@ -74156,7 +74156,7 @@
   },
   "p1455": {
    "source": "{0} token(s) are kept under another suffix - made before it was one of this realm. They go on working as they are.",
-   "text": "{0} tokenů je vedeno pod jinou příponou – vznikly dřív, než patřila tomuto realmu. Fungují dál, jak jsou."
+   "text": "{0} {0:token je veden|tokeny jsou vedeny|tokenů je vedeno} pod jinou příponou – vznikly dřív, než patřila tomuto realmu. Fungují dál, jak jsou."
   },
   "p1456": {
    "source": "{0} token(s) given their owner's name; {1} not found in the directory, {2} with no directory to ask, {3} could not be asked",
@@ -74164,19 +74164,19 @@
   },
   "p1457": {
    "source": "{0} token(s) in {1}, locked",
-   "text": "{0} tokenů v {1}, zamčeno"
+   "text": "{0} {0:token|tokeny|tokenů} v {1}, zamčeno"
   },
   "p1458": {
    "source": "{0} token(s) in {1}, not locked",
-   "text": "{0} tokenů v {1}, nezamčeno"
+   "text": "{0} {0:token|tokeny|tokenů} v {1}, nezamčeno"
   },
   "p1459": {
    "source": "{0} token(s) moved under @{1}",
-   "text": "{0} tokenů přesunuto pod @{1}"
+   "text": "{0} {0:token přesunut|tokeny přesunuty|tokenů přesunuto} pod @{1}"
   },
   "p1460": {
    "source": "{0} token(s) moved under @{1}; {2} left as they are - a token is there under the new name already",
-   "text": "{0} tokenů přesunuto pod @{1}; {2} zůstává – pod novým jménem už token je"
+   "text": "{0} {0:token přesunut|tokeny přesunuty|tokenů přesunuto} pod @{1}; {2} zůstává – pod novým jménem už token je"
   },
   "p1461": {
    "source": "{0} token(s) read",
@@ -74184,11 +74184,11 @@
   },
   "p1462": {
    "source": "{0} token(s) · made {1}",
-   "text": "{0} tokenů · vytvořeno {1}"
+   "text": "{0} {0:token|tokeny|tokenů} · vytvořeno {1}"
   },
   "p1463": {
    "source": "{0} token(s) · made {1} on {2} by {3} · acme {4}",
-   "text": "{0} tokenů · vytvořeno {1} na {2}, kdo: {3} · acme {4}"
+   "text": "{0} {0:token|tokeny|tokenů} · vytvořeno {1} na {2}, kdo: {3} · acme {4}"
   },
   "p1464": {
    "source": "{0} token(s), {1} RADIUS request(s)",
@@ -74252,7 +74252,7 @@
   },
   "p1479": {
    "source": "{0} took {1} line(s) out of the log of codes",
-   "text": "{0} vyjmul {1} řádků z logu kódů"
+   "text": "{0} vyjmul {1} {1:řádek|řádky|řádků} z logu kódů"
   },
   "p1480": {
    "source": "{0} took {1} mail(s) out of the outgoing mail",
@@ -74264,7 +74264,7 @@
   },
   "p1482": {
    "source": "{0} took {1} request(s) out of the RADIUS log",
-   "text": "{0} vyjmul {1} požadavků z RADIUS logu"
+   "text": "{0} vyjmul {1} {1:požadavek|požadavky|požadavků} z RADIUS logu"
   },
   "p1483": {
    "source": "{0} trap(s) sent",
@@ -74288,7 +74288,7 @@
   },
   "p1488": {
    "source": "{0} versions there are newer than this one - choose which to go to; the newest is chosen.",
-   "text": "Na adrese je {0} verzí novějších než tato – vyberte, na kterou přejít; vybraná je nejnovější."
+   "text": "Na adrese {0:je|jsou|je} {0} {0:verze novější|verze novější|verzí novějších} než tato – vyberte, na kterou přejít; vybraná je nejnovější."
   },
   "p1489": {
    "source": "{0} waiting",
@@ -74552,7 +74552,7 @@
   },
   "pc0003": {
    "source": "expired {0} days ago",
-   "text": "vypršel před {0} dny"
+   "text": "vypršel před {0} {0:dnem|dny|dny}"
   },
   "pc0004": {
    "source": "{0} modules that would not load",
@@ -74640,11 +74640,11 @@
   },
   "pc0025": {
    "source": "Renewed {0} days before it runs out (or when the CA suggests).",
-   "text": "Obnoví se {0} dní před vypršením (nebo kdy navrhne CA)."
+   "text": "Obnoví se {0} {0:den|dny|dní} před vypršením (nebo kdy navrhne CA)."
   },
   "pc0026": {
    "source": "Deployed on {0} targets.",
-   "text": "Nasazen na {0} cílech."
+   "text": "Nasazen na {0} {0:cíli|cílech|cílech}."
   },
   "pc0027": {
    "source": "{0} failed",
@@ -74676,7 +74676,7 @@
   },
   "pc0034": {
    "source": "by itself, {0} days before the end",
-   "text": "automaticky, {0} dní před koncem"
+   "text": "automaticky, {0} {0:den|dny|dní} před koncem"
   },
   "pc0035": {
    "source": "{0} days",
@@ -74724,7 +74724,7 @@
   },
   "pc0046": {
    "source": "{0} days unless asked",
-   "text": "{0} dní, nežádá-li se jinak"
+   "text": "{0} {0:den|dny|dní}, nežádá-li se jinak"
   },
   "pc0047": {
    "source": "Reading {0}…",
@@ -74780,7 +74780,7 @@
   },
   "pc0060": {
    "source": "within {0} days",
-   "text": "do {0} dní"
+   "text": "do {0} {0:dne|dní|dní}"
   },
   "pc0061": {
    "source": "{0} renewal(s) · {1} deployment(s)",
@@ -74788,7 +74788,7 @@
   },
   "pc0062": {
    "source": "the next {0} weeks",
-   "text": "příštích {0} týdnů"
+   "text": "{0:příští|příští|příštích} {0} {0:týden|týdny|týdnů}"
   },
   "pc0063": {
    "source": "{0} certificates end",
@@ -75844,7 +75844,7 @@
   },
   "px0001": {
    "source": "The certificates that end within {0} days.",
-   "text": "Certifikáty, které skončí do {0} dní."
+   "text": "Certifikáty, které skončí do {0} {0:dne|dní|dní}."
   },
   "pc0307": {
    "source": "{0} is the default now",
@@ -77584,15 +77584,15 @@
   },
   "px2313": {
    "source": "{0}: written and reloaded - the include in {1} server block(s) of {2} file(s), nothing else changed",
-   "text": "{0}: zapsáno a načteno – include v {1} server blocích ve {2} souborech, nic jiného se nezměnilo"
+   "text": "{0}: zapsáno a načteno – include v {1} {1:server bloku|server blocích|server blocích} (souborů: {2}), nic jiného se nezměnilo"
   },
   "px2314": {
    "source": "{0}: already in place in every port-80 server block ({1} file(s))",
-   "text": "{0}: už je v každém server bloku na portu 80 ({1} souborů)"
+   "text": "{0}: už je v každém server bloku na portu 80 ({1} {1:soubor|soubory|souborů})"
   },
   "px2315": {
    "source": "{0}: the include is in every port-80 server block ({1} file(s)) - checked, nothing changed",
-   "text": "{0}: include je v každém server bloku na portu 80 ({1} souborů) – zkontrolováno, nic nezměněno"
+   "text": "{0}: include je v každém server bloku na portu 80 ({1} {1:soubor|soubory|souborů}) – zkontrolováno, nic nezměněno"
   },
   "px2316": {
    "source": "{0}: {1} answered by another block already ({2}) - the include goes into the blocks instead",
@@ -78000,11 +78000,11 @@
   },
   "pdf0006": {
    "source": "the target's, {0}, {1} lines",
-   "text": "cíle, {0}, {1} řádků"
+   "text": "cíle, {0}, {1} {1:řádek|řádky|řádků}"
   },
   "pdf0007": {
    "source": "{0}, {1} lines",
-   "text": "{0}, {1} řádků"
+   "text": "{0}, {1} {1:řádek|řádky|řádků}"
   },
   "pdf0008": {
    "source": "the preview could not be made: {0}",
@@ -79192,7 +79192,7 @@
   },
   "px2550": {
    "source": ", {0} ending within {1} days",
-   "text": ", {0} končí do {1} dní"
+   "text": ", {0} končí do {1} {1:dne|dní|dní}"
   },
   "px2551": {
    "source": "not running {0}",
@@ -80256,7 +80256,7 @@
   },
   "px2817": {
    "source": "GlobalSign Atlas answers: signed in; validity up to {0} days; issued under {1}",
-   "text": "GlobalSign Atlas odpovídá: přihlášeno; platnost až {0} dní; vydáváno pod {1}"
+   "text": "GlobalSign Atlas odpovídá: přihlášeno; platnost až {0} {0:den|dny|dní}; vydáváno pod {1}"
   },
   "px2818": {
    "source": "GlobalSign Atlas said no serial for the request (Location: {0})",
@@ -80476,7 +80476,7 @@
   },
   "px2872": {
    "source": "the order {0} ends {1} ({2} days)",
-   "text": "objednávka {0} končí {1} ({2} dní)"
+   "text": "objednávka {0} končí {1} ({2} {2:den|dny|dní})"
   },
   "px2873": {
    "source": "nothing ordered: {0}, and a new order would be a purchase. Paid orders are not allowed for this source - switch on \"Allow new orders (paid)\", or buy the order in SSLmarket's customer administration and set it as \"Order to reuse\"",
@@ -81156,7 +81156,7 @@
   },
   "px3042": {
    "source": "{0} files in {1}{2}{3}",
-   "text": "{0} souborů v {1}{2}{3}"
+   "text": "{0} {0:soubor|soubory|souborů} v {1}{2}{3}"
   },
   "px3043": {
    "source": "{0} could not be put back: {1}",
@@ -81952,7 +81952,7 @@
   },
   "px3241": {
    "source": "{0} tables, {1} rows, {2} accounts",
-   "text": "{0} tabulek, {1} řádků, {2} účtů"
+   "text": "{0} {0:tabulka|tabulky|tabulek}, {1} {1:řádek|řádky|řádků}, {2} {2:účet|účty|účtů}"
   },
   "px3242": {
    "source": "the backup {0} at {1} was tried: {2}",
@@ -82656,7 +82656,7 @@
   },
   "px3417": {
    "source": "isemon's certificate from acme's authority ({0}) ends in {1} days - make a new bundle for isemon (Settings → isemon → Encrypted sending)",
-   "text": "certifikát isemonu od autority acme ({0}) končí za {1} dní – vytvořte pro isemon nový balík (Nastavení → isemon → Šifrované odesílání)"
+   "text": "certifikát isemonu od autority acme ({0}) končí za {1} {1:den|dny|dní} – vytvořte pro isemon nový balík (Nastavení → isemon → Šifrované odesílání)"
   },
   "px3418": {
    "source": "{0} made a certificate for isemon ({1}) from acme's authority, good until {2}, and took it away in a locked file",
@@ -83396,7 +83396,7 @@
   },
   "px3602": {
    "source": "IssueCertificate at AWS Private CA ({0} days, {1})",
-   "text": "IssueCertificate u AWS Private CA ({0} dní, {1})"
+   "text": "IssueCertificate u AWS Private CA ({0} {0:den|dny|dní}, {1})"
   },
   "px3603": {
    "source": "{0} to the CMP server {1}",
@@ -83472,7 +83472,7 @@
   },
   "px3621": {
    "source": "the request goes to CA Service: {0} ({1} days)",
-   "text": "požadavek jde do CA Service: {0} ({1} dní)"
+   "text": "požadavek jde do CA Service: {0} ({1} {1:den|dny|dní})"
   },
   "px3622": {
    "source": "the request {0} waits at the CA since {1} - asked for again",
@@ -83608,11 +83608,11 @@
   },
   "px3655": {
    "source": "ACME key {0} made at SSLmarket (\"{1}\", {2}, {3} days{4}): {5}",
-   "text": "klíč ACME {0} vytvořen u SSLmarketu („{1}“, {2}, {3} dní{4}): {5}"
+   "text": "klíč ACME {0} vytvořen u SSLmarketu („{1}“, {2}, {3} {3:den|dny|dní}{4}): {5}"
   },
   "px3656": {
    "source": "ACME key {0} \"{1}\": {2}, {3}, {4} days{5}, {6}, made {7}",
-   "text": "klíč ACME {0} „{1}“: {2}, {3}, {4} dní{5}, {6}, vytvořen {7}"
+   "text": "klíč ACME {0} „{1}“: {2}, {3}, {4} {4:den|dny|dní}{5}, {6}, vytvořen {7}"
   },
   "px3657": {
    "source": "the request goes to step-ca (provisioner {0})",
@@ -84140,7 +84140,7 @@
   },
   "prp007": {
    "source": "{0} names - the profile gives at most {1}",
-   "text": "{0} jmen – profil dává nejvýše {1}"
+   "text": "{0} {0:jméno|jména|jmen} – profil dává nejvýše {1}"
   },
   "prp008": {
    "source": "not put in the certificate: {0}",
@@ -84324,7 +84324,7 @@
   },
   "sb3x03": {
    "source": "{0} job(s) running when the backup was made are marked failed",
-   "text": "{0} úloh, které běžely při vzniku zálohy, je označeno jako selhané"
+   "text": "{0} {0:úloha, která běžela při vzniku zálohy, je označena jako selhaná|úlohy, které běžely při vzniku zálohy, jsou označeny jako selhané|úloh, které běžely při vzniku zálohy, je označeno jako selhané}"
   },
   "pr4v0000": {
    "source": "{0} resolves to {1} (as the internet sees it; here it resolves to {2})",
@@ -84468,11 +84468,11 @@
   },
   "rp20p031": {
    "source": "{0} days before the end, or sooner in the window its CA suggests (ARI)",
-   "text": "{0} dní před koncem, nebo dříve v okně, které navrhne jeho CA (ARI)"
+   "text": "{0} {0:den|dny|dní} před koncem, nebo dříve v okně, které navrhne jeho CA (ARI)"
   },
   "rp20p032": {
    "source": "{0} certificates (PEM)",
-   "text": "{0} certifikáty (PEM)"
+   "text": "{0} {0:certifikát|certifikáty|certifikátů} (PEM)"
   },
   "rp20p033": {
    "source": "private key and {0} certificate(s) (PEM)",
@@ -84484,7 +84484,7 @@
   },
   "rp20p900": {
    "source": "{0} days (never past the end of the authority)",
-   "text": "{0} dní (nikdy přes konec platnosti autority)"
+   "text": "{0} {0:den|dny|dní} (nikdy přes konec platnosti autority)"
   },
   "srpph05": {
    "source": "{0} from the directory",
@@ -85140,7 +85140,7 @@
   },
   "poi014": {
    "source": "{0} certificates at {1}, {2} of them can be imported",
-   "text": "{0} certifikátů u zdroje {1}, z toho {2} lze importovat"
+   "text": "{0} {0:certifikát|certifikáty|certifikátů} u zdroje {1}, z toho {2} lze importovat"
   },
   "poi015": {
    "source": "{0} has no certificate yet",
@@ -85384,7 +85384,7 @@
   },
   "psup005": {
    "source": "{0} templates the CA offers {1}",
-   "text": "{0} šablon, které CA nabízí uživateli {1}"
+   "text": "{0} {0:šablona, kterou|šablony, které|šablon, které} CA nabízí uživateli {1}"
   },
   "psup006": {
    "source": "the CA's Web Enrollment answered {0} to the template list",
@@ -85808,7 +85808,7 @@
   },
   "psup019": {
    "source": "CZECHIA.COM: the token sees {0} domain(s){1}",
-   "text": "CZECHIA.COM: token vidí {0} domén{1}"
+   "text": "CZECHIA.COM: token vidí {0} {0:doménu|domény|domén}{1}"
   },
   "psup020": {
    "source": "CZECHIA.COM has no DNS zone {0} for this token",
@@ -85824,15 +85824,15 @@
   },
   "psup023": {
    "source": "{0} role(s) of the mount {1}",
-   "text": "{0} rolí mountu {1}"
+   "text": "{0} {0:role|role|rolí} mountu {1}"
   },
   "psup024": {
    "source": "{0} profile(s) of IPA",
-   "text": "{0} profilů IPA"
+   "text": "{0} {0:profil|profily|profilů} IPA"
   },
   "psup025": {
    "source": "{0} template(s) in {1}",
-   "text": "{0} šablon v {1}"
+   "text": "{0} {0:šablona|šablony|šablon} v {1}"
   },
   "psup026": {
    "source": "{0}: only a full administrator sets {1} of a certificate (where a file is written)",
@@ -86508,7 +86508,7 @@
   },
   "pvm27_22": {
    "source": "froxlor: signed in; the zone {0} has {1} entries of its own",
-   "text": "froxlor: přihlášeno; zóna {0} má {1} vlastních záznamů"
+   "text": "froxlor: přihlášeno; zóna {0} má {1} {1:vlastní záznam|vlastní záznamy|vlastních záznamů}"
   },
   "pvm27_23": {
    "source": "the HestiaCP address {0} has a port that is not a number",
@@ -87152,7 +87152,7 @@
   },
   "prp37_1": {
    "source": "{0} days: a warning",
-   "text": "{0} dní: varování"
+   "text": "{0} {0:den|dny|dní}: varování"
   },
   "prp37_2": {
    "source": "≈ {0} (with the real certificate and secrets: other)",
@@ -87188,7 +87188,7 @@
   },
   "pguard_1": {
    "source": "{0} row(s) of the database that would reach root were not written by acme and are not acted on: {1}",
-   "text": "{0} řádků databáze, které by vedly k root akcím, nezapsal acme a nejedná se podle nich: {1}"
+   "text": "Řádky databáze, které by vedly k root akcím, nezapsal acme a nejedná se podle nich ({0}): {1}"
   },
   "pguard_2": {
    "source": "db_guard: {0} run an older version that does not sign what it writes - upgrade them first",
@@ -87416,7 +87416,7 @@
   },
   "pdpwal_16": {
    "source": "{0} passwords",
-   "text": "{0} hesel"
+   "text": "{0} {0:heslo|hesla|hesel}"
   },
   "pdpwal_17": {
    "source": "{0}: the cap and its time are whole numbers",
@@ -87436,7 +87436,7 @@
   },
   "pdpwal_21": {
    "source": "The policy {0} locks an account after {1} wrong passwords: {2} here leave the person {3} of their own before it locks.",
-   "text": "Politika {0} zamkne účet po {1} špatných heslech: {2} tady nechá člověku {3} vlastních pokusů, než se účet zamkne."
+   "text": "Politika {0} zamkne účet po {1} {1:špatném hesle|špatných heslech|špatných heslech}: {2} tady nechá člověku {3} {3:vlastní pokus|vlastní pokusy|vlastních pokusů}, než se účet zamkne."
   },
   "posu_1": {
    "source": "+{0} more",
@@ -87456,7 +87456,7 @@
   },
   "posu_5": {
    "source": "Also the {0} accounts with no shell (they may not sign in)",
-   "text": "Také {0} účtů bez shellu (nesmí se přihlásit)"
+   "text": "Také {0} {0:účet|účty|účtů} bez shellu (nesmí se přihlásit)"
   },
   "posu_6": {
    "source": "Being done on {0}…",
@@ -87736,7 +87736,7 @@
   },
   "posupol_4": {
    "source": "It goes to the nodes as its hash only and is kept nowhere. Good for {0} days, then it is to be changed.",
-   "text": "Na uzly jde jen jako svůj hash a nikde se neuchovává. Platí {0} dní, pak se musí změnit."
+   "text": "Na uzly jde jen jako svůj hash a nikde se neuchovává. Platí {0} {0:den|dny|dní}, pak se musí změnit."
   },
   "posupol_5": {
    "source": "ran out {0}",
@@ -88008,11 +88008,11 @@
   },
   "phl_1": {
    "source": "The processor, busy over the last {0} s, all {1} core(s) together · load {2}",
-   "text": "Procesor, vytížení za posledních {0} s, všech {1} jader dohromady · load {2}"
+   "text": "Procesor, vytížení za posledních {0} s, všechna jádra dohromady ({1}) · load {2}"
   },
   "phl_2": {
    "source": "The processor, busy over the last {0} s, all {1} core(s) together",
-   "text": "Procesor, vytížení za posledních {0} s, všech {1} jader dohromady"
+   "text": "Procesor, vytížení za posledních {0} s, všechna jádra dohromady ({1})"
   },
   "phl_3": {
    "source": "hload is one of {0}",
@@ -89104,7 +89104,7 @@
   },
   "pchain_2": {
    "source": "complete - {0} certificates up to {1}",
-   "text": "úplný – {0} certifikáty až k {1}"
+   "text": "úplný – {0} {0:certifikát|certifikáty|certifikátů} až k {1}"
   },
   "pchain_3": {
    "source": " (fetched: {0} - it was not sent with the certificate)",
@@ -89152,15 +89152,15 @@
   },
   "pchain_14": {
    "source": "complete - {0} certificates up to {1} (fetched: {2} - it was not sent with the certificate)",
-   "text": "úplný – {0} certifikáty až k {1} (staženo: {2} – nepřišlo s certifikátem)"
+   "text": "úplný – {0} {0:certifikát|certifikáty|certifikátů} až k {1} (staženo: {2} – nepřišlo s certifikátem)"
   },
   "pchain_15": {
    "source": "complete - {0} certificates up to {1} - a private root: only clients that trust it take it",
-   "text": "úplný – {0} certifikáty až k {1} – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
+   "text": "úplný – {0} {0:certifikát|certifikáty|certifikátů} až k {1} – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
   },
   "pchain_16": {
    "source": "complete - {0} certificates up to {1} (fetched: {2} - it was not sent with the certificate) - a private root: only clients that trust it take it",
-   "text": "úplný – {0} certifikáty až k {1} (staženo: {2} – nepřišlo s certifikátem) – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
+   "text": "úplný – {0} {0:certifikát|certifikáty|certifikátů} až k {1} (staženo: {2} – nepřišlo s certifikátem) – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
   },
   "ppslots_1": {
    "source": "{0} slot(s)",
@@ -89184,11 +89184,11 @@
   },
   "pdsc_5": {
    "source": "{0} slot(s) given an existing certificate - being pushed; {1} certificate(s) made - each is issued and pushed by itself",
-   "text": "{0} slotům přidělen existující certifikát – právě se vkládá; {1} nových certifikátů – každý se sám vydá a vloží"
+   "text": "{0} {0:slotu|slotům|slotům} přidělen existující certifikát – právě se vkládá; {1} {1:nový certifikát|nové certifikáty|nových certifikátů} – každý se sám vydá a vloží"
   },
   "pdsc_6": {
    "source": "{0} slot(s) given an existing certificate - pushed at its next deployment; {1} certificate(s) made - each is issued and pushed by itself",
-   "text": "{0} slotům přidělen existující certifikát – vloží se při příštím nasazení; {1} nových certifikátů – každý se sám vydá a vloží"
+   "text": "{0} {0:slotu|slotům|slotům} přidělen existující certifikát – vloží se při příštím nasazení; {1} {1:nový certifikát|nové certifikáty|nových certifikátů} – každý se sám vydá a vloží"
   },
   "phj_1": {
    "source": "{0} added {1} to the chain of the certificate of {2}: {3}",
@@ -89228,7 +89228,7 @@
   },
   "phj_10": {
    "source": "{0}: Discover on {1} gave {2} slot(s) an existing certificate and made {3} new one(s)",
-   "text": "{0}: Zjistit na {1} přidělilo existující certifikát {2} slotům a vytvořilo {3} nových"
+   "text": "{0}: Zjistit na {1} přidělilo existující certifikát {2} {2:slotu|slotům|slotům} a vytvořilo {3} {3:nový|nové|nových}"
   },
   "phj_11": {
    "source": "{0}: in place - what it serves is checked by the tests attached",
@@ -90036,7 +90036,7 @@
   },
   "pmmicrosoft_45": {
    "source": "Office Online Server: the friendly name {0} is on {1} certificates - it must be unique",
-   "text": "Office Online Server: popisné jméno {0} má {1} certifikátů - musí být jedinečné"
+   "text": "Office Online Server: popisné jméno {0} má {1} {1:certifikát|certifikáty|certifikátů} - musí být jedinečné"
   },
   "pmmicrosoft_46": {
    "source": "Office Online Server already uses it ({0})",
@@ -93140,7 +93140,7 @@
   },
   "p_358": {
    "source": "the CSR's attribute {0} has {1} values - one is read: make the CSR again",
-   "text": "atribut {0} v CSR má {1} hodnot – čte se jen jedna: vytvořte CSR znovu"
+   "text": "atribut {0} v CSR má {1} {1:hodnotu|hodnoty|hodnot} – čte se jen jedna: vytvořte CSR znovu"
   },
   "p_359": {
    "source": "names of a kind no profile gives (only DNS names, IP addresses, e-mail addresses and URIs are read): {0}",
@@ -93328,7 +93328,7 @@
   },
   "p_405": {
    "source": "the answer has no next update and was made {0} - more than {1} minutes ago",
-   "text": "odpověď nemá příští aktualizaci a byla vytvořena {0} – před více než {1} minutami"
+   "text": "odpověď nemá příští aktualizaci a byla vytvořena {0} – před více než {1} {1:minutou|minutami|minutami}"
   },
   "p_406": {
    "source": "{0}, carried in an IPv6 address",
@@ -93800,7 +93800,7 @@
   },
   "pz_41": {
    "source": "makes {0} keys",
-   "text": "vytváří {0} klíčů"
+   "text": "vytváří {0} {0:klíč|klíče|klíčů}"
   },
   "pz_42": {
    "source": "Its key is made on {0} by its agent: it goes there alone, right after each issue - the deployment is made by itself.",
@@ -94380,7 +94380,7 @@
   },
   "pz_186": {
    "source": "last {0} days ago",
-   "text": "naposledy před {0} dny"
+   "text": "naposledy před {0} {0:dnem|dny|dny}"
   },
   "pz_187": {
    "source": "Put in what is selected on {0}?",

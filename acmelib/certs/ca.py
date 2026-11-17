@@ -393,7 +393,7 @@ def _csr_for_ca(key_pem, pairs, path_len=None):
     """A request for an intermediate, CA:TRUE asked for in it (AD CS's SubCA wants that)."""
     kt = pki.key_info(key_pem)['key_type']
     bc = 'critical, CA:TRUE' + (', pathlen:%d' % int(path_len) if path_len not in
-                               (None, '') else '')
+                               (None, '') and int(path_len) >= 0 else '')
     ext = ['basicConstraints = ' + bc, 'keyUsage = critical, keyCertSign, cRLSign, '
            'digitalSignature']
     with pki.workdir() as d:
@@ -439,6 +439,11 @@ def _split_held():
 
 def _child_path_len(parent_row, want):
     """The path length an authority under `parent_row` may have (None: unlimited)."""
+    if want not in (None, '') and int(want) < 0:
+        # -1 is "no limit" (as ca_renew and the pages say): under a parent with a path length
+        # it was taken as a number below the limit - a child with none, and authorities under
+        # it that no client accepts (path length constraint exceeded)
+        want = None
     if parent_row is None:
         return want
     pinfo = pki.cert_info(parent_row['cert_pem'])
@@ -492,6 +497,8 @@ def ca_create(store, name, subject, key_type='ec-384', days=3650, parent_id=None
     days = int(days or 3650)
     if days < 1:
         raise PkiError('an authority needs a validity of a day at least', retry=False)
+    if path_len not in (None, '') and int(path_len) < 0:
+        path_len = None                 # -1: no limit
     now = _now()
     key = pki.make_key(key_type)
     parent = None
@@ -915,6 +922,12 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
             raise PkiError('a certificate needs a name or a subject', retry=False)
         kt = ci['key_type']
         ku = pki._ku_value(prof.get('key_usage')) or pki.default_key_usage(kt)
+        if 'keyCertSign' in ku or 'cRLSign' in ku:
+            # RFC 5280 4.2.1.3/4.2.1.9: only an authority signs certificates or CRLs - a leaf
+            # (CA:FALSE) was signed with keyCertSign / cRLSign as a profile asked
+            raise PkiError('keyCertSign and cRLSign are for an authority only - a certificate '
+                           'that is not one (CA:FALSE) cannot have them in its key usage',
+                           retry=False)
         own = _j(row.get('profile'), {}).get('eku')
         eku = pki._eku_value(prof.get('eku') if prof.get('eku') not in (None, '', [])
                              else (own or ['serverAuth', 'clientAuth']))

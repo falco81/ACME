@@ -2062,7 +2062,12 @@ def _ca_import(h, s):
     ca = _lib('ca')
     cert_pem = str(b.get('cert_pem') or '')
     key_pem = str(b.get('key_pem') or '')
-    chain = []
+    # The chain pasted in the Import dialog (chain_pem) or given as a list (chain_pems): it was
+    # never read - an intermediate from elsewhere imported without the CAs above it, and what
+    # it signed handed out without them.
+    chain = _lib('pki').certs_in(str(b.get('chain_pem') or ''))
+    for one in (b.get('chain_pems') if isinstance(b.get('chain_pems'), list) else []):
+        chain += _lib('pki').certs_in(str(one or ''))
     if b.get('data_b64'):
         _out, got = parse_file(_b64(b.get('data_b64')), _text(b, 'filename', 300),
                                _text(b, 'password', 1000))
@@ -2071,7 +2076,7 @@ def _ca_import(h, s):
                              else 'the file is locked: give its password')
         cert_pem = got.get('leaf') or ((got.get('certs') or [''])[0])
         key_pem = key_pem or got.get('key') or ''
-        chain = list(got.get('chain') or [])
+        chain = list(got.get('chain') or []) + chain
     if b.get('key_b64'):
         kg = _lib('formats').read_any(_b64(b['key_b64'], 'key_b64'), 'key.pem',
                                       _text(b, 'key_password', 1000)) or {}

@@ -88,6 +88,13 @@ def read_any(data, filename='', password=''):
     if isinstance(data, str):
         data = data.encode('utf-8')
     data = bytes(data or b'')
+    if data[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        # PEM saved as UTF-16 (Notepad's "Unicode", PowerShell 5's > and Out-File): read as
+        # the viewer (certview) reads it - it said "not a format acme knows"
+        try:
+            data = data.decode('utf-16').encode('utf-8')
+        except UnicodeError:
+            pass
     if not data.strip():
         raise PkiError('the file is empty')
     got = _Got()
@@ -344,9 +351,16 @@ def _read_p12(der, password, got):
             got.notes.append('a PKCS#12 that cannot be read: %s' % e)
             return
     text = out.decode('utf-8', 'replace')
-    for m in re.finditer(r'friendlyName:\s*(.+)', text):
-        if m.group(1).strip() not in got.aliases:
-            got.aliases.append(m.group(1).strip())
+    for m in re.finditer(rb'friendlyName:[ \t]*([^\r\n]+)', out):
+        # openssl 3.0 prints a friendly name (a BMPString) one byte a letter - Latin-1, not
+        # UTF-8: "Ålias" came back as "\ufffdlias"
+        raw = m.group(1).strip()
+        try:
+            name = raw.decode('utf-8')
+        except UnicodeDecodeError:
+            name = raw.decode('latin-1')
+        if name and name not in got.aliases:
+            got.aliases.append(name)
     for label, pem in pki.split_pem(text):
         if label == 'CERTIFICATE':
             got.cert(pem)

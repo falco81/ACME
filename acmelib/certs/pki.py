@@ -874,8 +874,16 @@ def key_der(key_pem):
 
 def key_traditional(key_pem):
     """The key in its own type's format: PKCS#1 for RSA (BEGIN RSA PRIVATE
-    KEY), SEC1 for EC."""
-    out = openssl(['pkey', '-traditional'], data=key_plain(key_pem))
+    KEY), SEC1 for EC. Ed25519 / Ed448 have no format of their own: PKCS#8, as it is
+    (openssl refused it - "unsupported public key type" - and the deployment failed)."""
+    plain = key_plain(key_pem)
+    try:
+        alg = A.parse(pem_to_der(plain))[1][0].oid()
+    except (A.Asn1Error, IndexError, ValueError):
+        alg = ''
+    if alg in ('1.3.101.112', '1.3.101.113'):
+        return plain
+    out = openssl(['pkey', '-traditional'], data=plain)
     return out.decode('ascii')
 
 

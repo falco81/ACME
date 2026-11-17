@@ -481,10 +481,10 @@ class GoGetSslIssuer(Issuer):
             self._sleep(every)
 
     # -- no revocation; the cancellation ------------------------------------------------------
-    def revoke(self, cert_pem, reason='unspecified', key_pem=None):
-        raise PluginError('GoGetSSL\'s API cannot revoke a certificate - revoke it in the '
-                          'GoGetSSL client area, or cancel its order (the action "Cancel the '
-                          'order to reuse")', retry=False)
+    # The API cannot revoke (hunt R7): the base class's own revoke, so that Revoke is not
+    # offered for its certificates (certs/api.py revocable() looks for exactly that) - it was
+    # offered, and its job failed every time.
+    revoke = Issuer.revoke
 
     def action(self, key):
         if key == 'cancel':

@@ -230,7 +230,10 @@ class Acme(object):
         s, _ = integer(i)
         return r + s
 
-    def post(self, url, payload, use_jwk=False):
+    def post(self, url, payload, use_jwk=False, accept='application/json'):
+        # accept: what the answer is - the PEM chain only for the certificate's
+        # own URL (not every URL with "cert" in it: a CA at acme.cert.example
+        # was asked for PEM on each request and answered its JSON as an error).
         anew = False
         for attempt in (1, 2, 3):
             if not self.nonce:
@@ -246,8 +249,7 @@ class Acme(object):
             self.nonce = None
             body, headers, status = self._req(url, json.dumps(
                 {'protected': p64, 'payload': b64, 'signature': sig}).encode('utf-8'),
-                accept='application/json' if 'cert' not in url else
-                'application/pem-certificate-chain')
+                accept=accept)
             if status == 400 and b'badNonce' in body and attempt == 1:
                 continue
             if status >= 400:
@@ -429,7 +431,7 @@ class Acme(object):
         o, _ = self.post_json(got['finalize'], {'csr': _b64u(der)})
         if o.get('status') != 'valid':
             o = self._poll(order_url, ('valid',), 'the order', 120)
-        body, _ = self.post(o['certificate'], None)
+        body, _ = self.post(o['certificate'], None, accept='application/pem-certificate-chain')
         return key, body.decode('utf-8')
 
 
