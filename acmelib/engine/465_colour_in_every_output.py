@@ -3226,7 +3226,13 @@ def cli_main(argv=None):
         if args.console_at_login in ('on', 'off') or users is not None:
             on = (args.console_at_login == 'on') if args.console_at_login in ('on', 'off') \
                 else console_at_login()
-            print(pal.ok_line(console_at_login_set(on, users)))
+            said = console_at_login_set(on, users)
+            if args.json:                           # JSON with --json, as status (1.0.119)
+                print(json.dumps({'on': bool(console_at_login()), 'users': console_users(),
+                                  'profile': CONSOLE_PROFILE.exists(), 'said': said},
+                                 default=str))
+                return 0
+            print(pal.ok_line(said))
         elif args.json:                             # 1.0.80: text with --json
             print(json.dumps({'on': bool(console_at_login()), 'users': console_users(),
                               'profile': CONSOLE_PROFILE.exists()}, default=str))

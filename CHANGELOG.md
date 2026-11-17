@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Settings → The database: the card of this machine's database no longer says a MySQL 8.4 or later is not running (it has no `@@have_ssl`; its TLS is read from `performance_schema`).
+- Certificates → Import (and a CSR's answer): a file that is no base64 says "data_b64 is not base64" instead of a vague error.
+- Settings → DNS: Test in a set's form with no servers in it says so - it tried the set as saved.
+- Settings → Request profiles: a profile whose source was deleted says so in its form and keeps it until another is chosen - the box showed no source, without a word.
+- Guides: a link whose address has spaces or brackets is kept after a save.
+- Settings: a read-only account opening SSH keys or Modules from a link gets the first section it may open, not the section and a 403.
 - Settings → Message texts: the portal's and SSH's sign-in codes are listed by their whole titles - both were "The sign-in code by mail" (and "… by SMS").
 - Settings → Backups: the times of the backups sent, of those at a destination and of the one to put back are dd-mm-yyyy hh:mm:ss as everywhere else, not the browser's own format; once a backup is put back, the settings and the pane are drawn again.
 - Settings → Accounts on a phone: the box to find the directory's groups no longer makes the page wider than the screen.

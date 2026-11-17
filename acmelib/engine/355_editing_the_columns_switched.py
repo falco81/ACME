@@ -133,8 +133,11 @@ def _whoami(h):
     s = h.session('admin')
     if not s:
         return {'who': None}
-    acc = h.store.account(s['name'])
-    if not acc or acc.get('disabled'):
+    # The account as every other route reads it (1.0.119): signed by acme (db_guard), and of a
+    # role of these pages - the PHP gates (nginx's question before a big body, a package or a
+    # database sent) took the role of a row written past acme, or one of the enrolment pages.
+    acc = h.store.account(s['name'], checked=True)
+    if not acc or acc.get('disabled') or not ROLE_RANK.get(acc.get('role'), 0):
         return {'who': None}
     # Its card taken out and not put back (1.0.113).
     if cl_card_dead('admin', s, h.store):

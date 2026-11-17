@@ -2321,9 +2321,15 @@ def check_setting(key, value):
     if key == 'web_proxy_from':
         for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
             try:
-                ipaddress.ip_network(one, strict=False)
+                net = ipaddress.ip_network(one, strict=False)
             except ValueError:
                 raise BadSetting('web_proxy_from: %r is not an address or a network' % one)
+            # Never every address (1.0.119): 0.0.0.0/0 or ::/0 took the client's address from
+            # anybody's X-Forwarded-For - each guess at a password from an address of its choosing,
+            # past the counts, the sign-in protection and the networks Prometheus may ask from.
+            if net.prefixlen == 0:
+                raise BadSetting('web_proxy_from: %s is every address - name the load balancers '
+                                 'themselves (their addresses or their network)' % one)
     if key == 'certlogin_port':
         # The certificate's own port (1.0.100): never one nginx or acme already serves
         # something else on - nginx would ask every visitor there for a certificate.

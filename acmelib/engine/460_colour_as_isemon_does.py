@@ -156,7 +156,7 @@ class Palette(object):
 def colour_wanted(no_color=False, stream=None):
     """What the person asked for, then NO_COLOR, then FORCE_COLOR, then the
     terminal itself - in that order, as isemon decides it."""
-    if no_color or os.environ.get('NO_COLOR') is not None:
+    if no_color or os.environ.get('NO_COLOR'):         # set and not empty (no-color.org)
         return False
     if os.environ.get('FORCE_COLOR') or os.environ.get('CLICOLOR_FORCE'):
         return True

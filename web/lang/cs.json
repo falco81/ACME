@@ -92797,6 +92797,10 @@
   "pz_154": {
    "source": "{0}: the certificate has no chain (it is self-signed, or came without one) - the file is written empty",
    "text": "{0}: certifikát nemá řetězec (je podepsaný sám sebou, nebo přišel bez něj) – soubor se zapíše prázdný"
+  },
+  "pz_155": {
+   "source": "The source {0} of this profile is deleted: choose another.",
+   "text": "Zdroj {0} tohoto profilu je smazaný: vyberte jiný."
   }
  },
  "rich": {

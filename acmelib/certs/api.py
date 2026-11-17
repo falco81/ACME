@@ -140,10 +140,16 @@ def _dict(v, what):
 def _b64(v, what='data_b64'):
     if not v:
         raise ValueError('%s: no file was given' % what)
+    raw = str(v)
     try:
-        return base64.b64decode(str(v), validate=False)
+        data = base64.b64decode(raw, validate=False)
     except (ValueError, TypeError):
         raise ValueError('%s is not base64' % what)
+    # letters base64 has none of were dropped, and what was left read as nothing or as bytes
+    # never sent (1.0.119, as /api/certs/inspect): said so; line breaks and spaces are as before
+    if not data or re.search(r'[^A-Za-z0-9+/=_\-\s]', raw):
+        raise ValueError('%s is not base64' % what)
+    return data
 
 
 def _wake():

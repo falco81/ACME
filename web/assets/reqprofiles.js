@@ -167,13 +167,26 @@
       f.issuer = selectBox(iss.map(function (i) { return [i.name, i.name + ' · ' + tr(i.title) + (i.enabled ? '' : ' (' + tr('switched off') + ')')]; }), p.issuer);
       f.issuer.id = 'rp-f-issuer';
       noI18n(f.issuer);
+      /* its source deleted (1.0.119): the box showed none - or the first - without a word; kept
+         as it is, said, until another is chosen */
+      f.gone = !isNew && p.issuer && !issuerOf(p.issuer) ? p.issuer : '';
+      if (f.gone) {
+        var og = data('option', '', p.issuer + ' · ' + tr('deleted'));
+        og.value = p.issuer;
+        f.issuer.insertBefore(og, f.issuer.firstChild);
+        f.issuer.value = p.issuer;
+      }
       g2.appendChild(formField('Source', f.issuer, 'Certificates → Sources.'));
+      f.goneSaid = el('p', 'note ct-bad rp-gone', tr('The source {0} of this profile is deleted: choose another.').replace('{0}', f.gone));
+      noI18n(f.goneSaid);
+      f.goneSaid.hidden = !f.gone;
       f.challenge = selectBox([['', tr('choose one')]].concat((o.challenges || []).map(function (c) { return [c.name, c.name]; })), p.challenge);
       f.challenge.id = 'rp-f-challenge';
       noI18n(f.challenge);
       f.challengeField = formField('Names proved by', f.challenge, 'Certificates → Validation: how its names are proved to the CA.');
       g2.appendChild(f.challengeField);
       body.appendChild(g2);
+      body.appendChild(f.goneSaid);
       /* -- the names -- */
       body.appendChild(el('h3', 'peek-h', 'Names'));
       var g3 = el('div', 'formgrid');
@@ -323,6 +336,13 @@
       body.appendChild(f.said);
       /* What the source takes, said as it is chosen. */
       shown = function () {
+        f.goneSaid.hidden = !f.gone || f.issuer.value !== f.gone;
+        /* the source deleted: what it took is not known - the boxes left as they were */
+        if (f.gone && f.issuer.value === f.gone) {
+          f.oteamField.hidden = f.owner.value !== 'fixed';
+          f.pfxField.hidden = !f.make._get();
+          return;
+        }
         var i = issuerOf(f.issuer.value) || {};
         f.challengeField.hidden = !i.needs_validation;
         f.wild._input.disabled = i.wildcards === false;

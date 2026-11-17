@@ -430,6 +430,9 @@ def field_value(f, raw, cur=None):
             n = float(raw)
         except ValueError:
             raise SystemExit('acme: %s is a number, not %r' % (k, raw))
+        if n != n or n in (float('inf'), float('-inf')):
+            # nan and inf (1.0.119): a traceback, or "cannot convert float NaN to integer"
+            raise SystemExit('acme: %s is a number, not %r' % (k, raw))
         if 'min' in f and f['min'] is not None and n < float(f['min']):
             raise SystemExit('acme: %s: at least %s' % (k, f['min']))
         if 'max' in f and f['max'] is not None and n > float(f['max']):
@@ -555,7 +558,7 @@ class Cli(object):
         self.sets_used = True
         out = []
         for one in self.args.set or []:
-            m = re.match(r'^([A-Za-z0-9_.-]{1,80})([+-]?=)(.*)\Z', one, re.S)
+            m = re.match(r'^([A-Za-z0-9_.-]{1,80}?)([+-]?=)(.*)\Z', one, re.S)
             if not m:
                 raise SystemExit('acme: --set takes KEY=VALUE (KEY+=VALUE adds to a list)')
             out.append((m.group(1), m.group(2), m.group(3)))
@@ -1807,6 +1810,14 @@ class Cli(object):
             print('%s: %s' % (x['target'], x['said']))
         return 1 if bad else 0
 
+    def _said(self, words):
+        """What was done: the line, or {ok, message} with --json (1.0.119: text with --json)."""
+        if self.json:
+            self.out({'ok': True, 'message': words})
+        else:
+            print(words)
+        return 0
+
     def target_agent_design(self, row, rest):
         """acme --target-agent NAME design show|text|forget (1.0.118): the policy designed in
         acme for it - documentation only, acme never sends it."""
@@ -1820,8 +1831,7 @@ class Cli(object):
                 raise SystemExit('acme: the agent of %s has no saved design' % row['name'])
             self.sure('the policy design of the agent of %s is deleted' % row['name'])
             P.design_forget(self.store, row, self.WHO)
-            print('deleted: the policy design of the agent of %s' % row['name'])
-            return 0
+            return self._said('deleted: the policy design of the agent of %s' % row['name'])
         if what not in ('show', 'text'):
             raise SystemExit('acme: --target-agent NAME design show|text|forget')
         if not d:
@@ -1830,6 +1840,8 @@ class Cli(object):
             print('the agent of %s has no saved design (the builder on its card saves one)'
                   % row['name'])
             return 0
+        if what == 'text' and self.json:
+            return self.out({'text': d['text']}) or 0
         if what == 'text':
             sys.stdout.write(d['text'] if d['text'].endswith('\n') else d['text'] + '\n')
             return 0
@@ -1889,9 +1901,8 @@ class Cli(object):
                 G.confirm(self.store, row, ' '.join(rest), self.WHO)
                 info = G.look(self.store, row, self.WHO) if G.mode_of(row) == 'passive' \
                     else G.info(self.store, row)
-                print('confirmed: the agent of %s has its certificate (%s)' % (
+                return self._said('confirmed: the agent of %s has its certificate (%s)' % (
                     row['name'], info.get('state')))
-                return 0
             if what == 'look':
                 info = G.look(self.store, row, self.WHO)
             elif what == 'renew':
@@ -1899,13 +1910,11 @@ class Cli(object):
                 info = G.info(self.store, row)
             elif what == 'update':
                 got = G.update_agent(self.store, row, self.WHO)
-                print(got.get('said') or 'updated')
-                return 0
+                return self._said(got.get('said') or 'updated')
             elif what == 'forget':
                 self.sure('the agent of %s is no longer let in' % row['name'])
                 G.forget(self.store, row, self.WHO)
-                print('forgotten: the agent of %s is no longer let in' % row['name'])
-                return 0
+                return self._said('forgotten: the agent of %s is no longer let in' % row['name'])
             elif what in ('show', 'policy'):
                 info = G.info(self.store, row)
             elif what == 'design':

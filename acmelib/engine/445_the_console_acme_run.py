@@ -258,7 +258,9 @@ class Console(object):
         self.A = {'head': c.A_REVERSE, 'sel': c.A_REVERSE | c.A_BOLD, 'ok': c.A_BOLD,
                   'warn': c.A_BOLD, 'bad': c.A_BOLD, 'dim': c.A_DIM, 'key': c.A_BOLD,
                   'title': c.A_BOLD}
-        if not c.has_colors():
+        # --no-color and NO_COLOR as on the command line (1.0.119): the menus were in
+        # colour whatever was asked.
+        if not c.has_colors() or not self.pal.on:
             return
         try:
             c.start_color()
@@ -800,7 +802,13 @@ class Console(object):
         def more():
             f = st['f']
             if f is None:
-                return []
+                # Not there yet when the view opened (a daemon not started yet):
+                # followed from its first line once it is (1.0.119).
+                try:
+                    f = st['f'] = opened()
+                    st['ino'] = os.fstat(f.fileno()).st_ino
+                except OSError:
+                    return []
             out = []
             while len(out) < 5000:
                 ln = f.readline()
@@ -1148,8 +1156,10 @@ class Console(object):
         got = self.form('Make an account', [
             {'key': 'name', 'label': 'name', 'need': True,
              'help': 'What it signs in with: letters, digits, . _ -',
-             'check': lambda v, _: None if re.match(r'^[A-Za-z0-9._@-]{1,64}$', v)
-             else 'letters, digits and . _ - @ only'},
+             # beginning with a letter or a digit, as acme takes it (1.0.119: "-bob" was
+             # sent on and refused by the command line's own options)
+             'check': lambda v, _: None if re.match(r'^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}\Z', v)
+             else 'letters, digits and . _ - @ only, beginning with a letter or a digit'},
             {'key': 'role', 'label': 'role', 'kind': 'choice', 'value': 'readonly',
              'options': self.ROLES,
              'help': 'fulladmin may do everything; certadmin the certificates; readonly looks.'}]

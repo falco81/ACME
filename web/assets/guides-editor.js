@@ -31,6 +31,15 @@
   function ws(s) { return String(s).replace(/[\s ]+/g, ' '); }
   /* text that would read as Markdown kept as text: \* \` \_ (a _ inside a word is no mark) */
   function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/([*`])/g, '\\$1').replace(/(^|[^\w])_/g, '$1\\_').replace(/_(?=[^\w]|$)/g, '\\_'); }
+  /* An address as a Markdown link takes it (1.0.119): spaces, < > - and ( ) the renderer
+     would not pair - written %-encoded, else the link was lost after a save ([ ] stay: an
+     IPv6 address's). */
+  function mdUrl(u) {
+    u = String(u || '').replace(/\s/g, function (c) { return c === ' ' ? '%20' : encodeURIComponent(c); })
+      .replace(/</g, '%3C').replace(/>/g, '%3E');
+    if (!/^(?:[^()\s]|\([^()\s]*\))+$/.test(u)) u = u.replace(/\(/g, '%28').replace(/\)/g, '%29');
+    return u;
+  }
   /* `code` - fenced by more backticks than it holds in a row, so none of its own is lost */
   function codeSpan(k) {
     var runs = String(k).match(/`+/g) || [], n = 0;
@@ -59,7 +68,7 @@
       if (t === 'CODE' || t === 'KBD' || t === 'SAMP' || t === 'TT') { var k = c.textContent; if (k) out += codeSpan(k); return; }
       if (t === 'A') {
         var href = c.getAttribute('href') || '', words = inl(c).trim();
-        if (/^(https?:|mailto:|#)/i.test(href) && words) out += '[' + words + '](' + href + ')'; else out += words;
+        if (/^(https?:|mailto:|#)/i.test(href) && words) out += '[' + words + '](' + mdUrl(href) + ')'; else out += words;
         return;
       }
       if (/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|IFRAME|OBJECT|SVG|IMG|VIDEO|AUDIO|SELECT|BUTTON)$/.test(t)) return;
@@ -457,7 +466,7 @@
       go.onclick = function () {
         var url = u.value.trim();
         if (!/^(https?:\/\/|mailto:)/i.test(url)) { toast(tr('a link is an https://, http:// or mailto: address'), 'bad'); u.focus(); return; }
-        pop.remove(); done(url, w.value.trim());
+        pop.remove(); done(mdUrl(url), w.value.trim());
       };
       var keys = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); go.click(); } if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); pop.remove(); } };
       u.addEventListener('keydown', keys);

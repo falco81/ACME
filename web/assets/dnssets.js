@@ -196,6 +196,8 @@
         {words: 'Test', icon: 'play', go: function () {
           /* Over the form: closing the test gives the form back as it was left. */
           var draft = {name: f.name.value.trim(), draft: fields(f)};
+          /* No servers in the box: the daemon tried the set as saved, not this one (1.0.119). */
+          if (!draft.draft.servers.trim()) { toast('a set needs at least one DNS server, an address a line', 'bad'); return; }
           modalOver(function () { testSet(draft); });
         }},
         {words: isNew ? 'Add it' : 'Save', cls: 'primary', icon: isNew ? 'add' : 'save', go: function (b) {

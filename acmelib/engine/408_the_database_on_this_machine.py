@@ -94,7 +94,7 @@ def db_local_facts(store):
                 # its TLS channel says it; anything else is what it was.
                 if not ('have_ssl' in str(e) and 'nknown' in str(e)):
                     raise
-                r = db.row('SELECT VERSION() AS v, @@datadir AS d') or {}
+                r = dict(db.row('SELECT VERSION() AS v, @@datadir AS d') or {})
                 try:
                     r['s'] = 'YES' if str(db.value(
                         "SELECT VALUE FROM performance_schema.tls_channel_status "
