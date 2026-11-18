@@ -858,14 +858,17 @@ class ApiReplaceTest(Base):
         self.assertIn(('warn', 'web-cert was used 7 times before and 6 times now - look at '
                                'what uses it'), ctx.steps)
 
-    def test_ca_import_refused_stops_before_the_put(self):
-        self.fg.ca_error = -5
-        e, ctx, b = self.fails()
-        self.assertIn('the intermediate CA certificate cannot be imported (HTTP 500, error -5: '
-                      '-) - it goes in before the replace, so the whole chain is served; '
-                      'nothing was replaced', str(e))
-        self.assertFalse(self.fg.find('PUT', r'.'))
-        self.unchanged_target()
+    def test_ca_import_refused_warns_and_replaces(self):
+        """1.0.132: a CA import refused (FortiOS 7.6.8 EVAL said -324 to an RSA intermediate)
+        - tried in the VDOM, then a warning; the certificate is replaced all the same."""
+        self.fg.ca_error = -324
+        t, ctx, b, got = self.deploy()
+        words = ' '.join(said(ctx))
+        self.assertIn('is not imported (HTTP 500, error -324', words)
+        self.assertIn('the certificate is replaced all the same', words)
+        self.assertTrue(self.fg.find('PUT', r'/vpn\.certificate/local/'))
+        cas = self.fg.find('POST', r'/ca/import')
+        self.assertEqual([c['body']['scope'] for c in cas], ['global', 'vdom'])
 
     def test_not_found_and_factory_refused(self):
         e, ctx, b = self.fails(opts={'replace_name': 'web-certt'})

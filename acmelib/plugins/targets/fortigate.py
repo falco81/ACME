@@ -890,9 +890,30 @@ class FortiGateTarget(HttpTarget):
             if d.get('error') == -328 or text(d.get('error')) == '-328':
                 there += 1
                 continue
-            raise PluginError('the intermediate CA certificate cannot be imported (%s) - it goes '
-                              'in before the replace, so the whole chain is served; nothing '
-                              'was replaced' % self.fos_said(st, d), detail=trim_answer(d))
+            cn = self.pem_facts(pem).get('cn') or '?'
+            said = self.fos_said(st, d)
+            # 1.0.132: refused in the global scope (FortiOS 7.6.8 said -324 to a token of
+            # the least rights) - the VDOM tried, then the replace goes on with a warning
+            # (as the default mode does): the certificate is what matters, the chain can be
+            # put in by hand
+            v = self.vdom(options)
+            if v:
+                st2, d2 = self.fos('POST', CA_IMPORT, {'import_method': 'file', 'scope': 'vdom',
+                                                       'file_content': b64(pem)},
+                                   vdom=v, what='importing a CA certificate into the VDOM')
+                if self.fos_ok(st2, d2):
+                    self.ctx.step('imported the intermediate CA certificate %s into the VDOM %s '
+                                  '(the global scope refused it: %s)' % (cn, v, said), 'ok')
+                    continue
+                if d2.get('error') == -328 or text(d2.get('error')) == '-328':
+                    there += 1
+                    continue
+                said += '; in the VDOM %s: %s' % (v, self.fos_said(st2, d2))
+            self.ctx.step('the intermediate CA certificate %s is not imported (%s) - the '
+                          'certificate is replaced all the same; if the FortiGate does not know '
+                          'that authority, clients may miss it in the chain: import it by hand '
+                          '(System -> Certificates -> Import -> CA certificate)' % (cn, said),
+                          'warn')
         if there:
             self.ctx.step('the intermediate CA certificate%s on the FortiGate already' % (
                 ' is' if there == 1 else 's are'))
