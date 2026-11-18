@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.126 - not released
+
+(nothing yet)
+
 ## 1.0.125 - 2026-11-18
 
 - Enterprise teams - Settings → Owners and teams rebuilt as an organisation: a tree of units and teams (search, counts, a drawer on phones), each team's page with Overview, Members (directory search, roles, expiry), Limits (every limit with where it comes from), Devices, Certificates and Activity; the Roles matrix; Access check (what a person may and why); teams from directory groups. Nothing changes for an installation that does not use them (docs/teams.md).
