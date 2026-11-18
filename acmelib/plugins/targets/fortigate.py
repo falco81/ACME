@@ -396,6 +396,7 @@ class FortiGateTarget(HttpTarget):
             try:
                 st, d = self.api('GET', '/api/v2/monitor/system/status', vdom=vdom)
                 ver = self.parse_version(d.get('version'))
+                self._serial = text(d.get('serial'))
             except PluginError as e:
                 self.ctx.debug('the FortiOS version cannot be read: %s' % e)
             self._fos = ver
@@ -549,6 +550,7 @@ class FortiGateTarget(HttpTarget):
         iss = i.get('issuer') or {}
         return {'cn': text(i.get('cn')), 'names': [text(n).lower() for n in i.get('names') or []],
                 'not_after': i.get('not_after'), 'key': text(i.get('key_type')),
+                'bits': i.get('key_bits'),
                 'issuer': text(iss.get('CN') or iss.get('O') or i.get('issuer_dn') or ''),
                 'fp': norm_fp(i.get('sha256'))}
 
@@ -689,6 +691,7 @@ class FortiGateTarget(HttpTarget):
         old_fp = old.get('fp') or next((fp for fp, rows in found['local'].items()
                                         if name in [r['name'] for r in rows]), '')
         # 3. the intermediates missing: as CA certificates, before the PUT
+        self.eval_check(bundle, options, found)
         self.cas_before(bundle, options, found)
         # 4. there already
         if old_fp and old_fp == new_fp:
@@ -866,6 +869,39 @@ class FortiGateTarget(HttpTarget):
                 local.setdefault(fp, []).append(dict(r, name=n))
         return {'local': local, 'ca': ca, 'via': 'cmdb'}
 
+    @staticmethod
+    def key_words(f):
+        k = text(f.get('key')).upper() or '?'
+        bits = text(f.get('bits') or '')
+        return '%s %s' % (k, bits) if bits and bits not in k else k
+
+    def ca_key_rejected(self, pem, st=None, d=None):
+        """FortiOS -324 on a CA import (measured on a FortiGate-VM EVAL, 7.6.8): the CA's key
+        refused - an EVAL/trial licence takes RSA up to 512 bits only. Lasting: not tried
+        again by itself."""
+        f = self.pem_facts(pem)
+        return PluginError(
+            'the FortiGate refused the intermediate CA certificate (error -324; intermediate: '
+            '%s, CN=%s) - a FortiGate with an EVAL/trial licence takes RSA keys of 512 bits '
+            'at most: use an EC (ECDSA) certificate, or a FortiGate with a full licence; '
+            'nothing was replaced' % (self.key_words(f), f.get('cn') or '?'),
+            detail=trim_answer(d) if d else None, retry=False)
+
+    def eval_check(self, bundle, options, found=None):
+        """Before anything is written: a FortiGate-VM with an EVAL licence (serial FGVMEV...)
+        and an RSA intermediate over 512 bits - refused here, as FortiOS would (-324)."""
+        if not as_bool(self.opt(options, 'import_chain', True), True):
+            return
+        serial = text(getattr(self, '_serial', '') or '')
+        if not serial.upper().startswith('FGVMEV'):
+            return
+        for pem in chain_list(bundle):
+            f = self.pem_facts(pem)
+            if f.get('fp') and f['fp'] in (found or {}).get('ca', {}):
+                continue                                # on the FortiGate already
+            if text(f.get('key')).upper().startswith('RSA') and (f.get('bits') or 0) > 512:
+                raise self.ca_key_rejected(pem)
+
     def cas_before(self, bundle, options, found):
         """Step 3: the intermediates the FortiGate has not as CA certificates, imported before
         the PUT - FortiOS keeps the leaf only and sends the chain from its CA certificates.
@@ -890,30 +926,11 @@ class FortiGateTarget(HttpTarget):
             if d.get('error') == -328 or text(d.get('error')) == '-328':
                 there += 1
                 continue
-            cn = self.pem_facts(pem).get('cn') or '?'
-            said = self.fos_said(st, d)
-            # 1.0.132: refused in the global scope (FortiOS 7.6.8 said -324 to a token of
-            # the least rights) - the VDOM tried, then the replace goes on with a warning
-            # (as the default mode does): the certificate is what matters, the chain can be
-            # put in by hand
-            v = self.vdom(options)
-            if v:
-                st2, d2 = self.fos('POST', CA_IMPORT, {'import_method': 'file', 'scope': 'vdom',
-                                                       'file_content': b64(pem)},
-                                   vdom=v, what='importing a CA certificate into the VDOM')
-                if self.fos_ok(st2, d2):
-                    self.ctx.step('imported the intermediate CA certificate %s into the VDOM %s '
-                                  '(the global scope refused it: %s)' % (cn, v, said), 'ok')
-                    continue
-                if d2.get('error') == -328 or text(d2.get('error')) == '-328':
-                    there += 1
-                    continue
-                said += '; in the VDOM %s: %s' % (v, self.fos_said(st2, d2))
-            self.ctx.step('the intermediate CA certificate %s is not imported (%s) - the '
-                          'certificate is replaced all the same; if the FortiGate does not know '
-                          'that authority, clients may miss it in the chain: import it by hand '
-                          '(System -> Certificates -> Import -> CA certificate)' % (cn, said),
-                          'warn')
+            if d.get('error') == -324 or text(d.get('error')) == '-324':
+                raise self.ca_key_rejected(pem, st, d)
+            raise PluginError('the intermediate CA certificate cannot be imported (%s) - it goes '
+                              'in before the replace, so the whole chain is served; nothing '
+                              'was replaced' % self.fos_said(st, d), detail=trim_answer(d))
         if there:
             self.ctx.step('the intermediate CA certificate%s on the FortiGate already' % (
                 ' is' if there == 1 else 's are'))

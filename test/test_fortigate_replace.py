@@ -159,6 +159,7 @@ class FakeFortiGate(object):
         self.put_error = None           # (error, [lines]): every PUT refused so
         self.put_uses = None            # q_ref after a PUT
         self.ca_error = None            # a CA import refused with this error
+        self.serial = 'FGT60F'          # FGVMEV...: a FortiGate-VM with an EVAL licence
         self.eval_327 = False           # monitor local/import -327 (an EVAL VM, samples/11)
         self.puts = {}                  # other PUTs: path -> [bodies]
         self.lock = threading.Lock()
@@ -279,7 +280,7 @@ class FakeFortiGate(object):
     def answer(self, m, path, q, body):
         ok = {'http_method': m, 'status': 'success', 'http_status': 200}
         if path == '/api/v2/monitor/system/status':
-            return 200, dict(ok, version=self.version, serial='FGT60F', vdom='root',
+            return 200, dict(ok, version=self.version, serial=self.serial, vdom='root',
                              results={'hostname': 'fw1', 'model_name': 'FortiGate'})
         if path == '/api/v2/monitor/system/available-certificates' and m == 'GET':
             return self.avail(q)
@@ -858,17 +859,51 @@ class ApiReplaceTest(Base):
         self.assertIn(('warn', 'web-cert was used 7 times before and 6 times now - look at '
                                'what uses it'), ctx.steps)
 
-    def test_ca_import_refused_warns_and_replaces(self):
-        """1.0.132: a CA import refused (FortiOS 7.6.8 EVAL said -324 to an RSA intermediate)
-        - tried in the VDOM, then a warning; the certificate is replaced all the same."""
+    def test_ca_import_324_stops_without_retry(self):
+        """-324 on a CA import (measured: a FortiGate-VM EVAL refuses an RSA CA over 512
+        bits): stopped before the PUT, said plainly, not tried again by itself."""
         self.fg.ca_error = -324
-        t, ctx, b, got = self.deploy()
-        words = ' '.join(said(ctx))
-        self.assertIn('is not imported (HTTP 500, error -324', words)
-        self.assertIn('the certificate is replaced all the same', words)
+        e, ctx, b = self.fails()
+        self.assertIn('the FortiGate refused the intermediate CA certificate (error -324; '
+                      'intermediate: EC-256, CN=Test CA)', str(e))
+        self.assertIn('EVAL/trial licence takes RSA keys of 512 bits at most', str(e))
+        self.assertIn('nothing was replaced', str(e))
+        self.assertIs(e.retry, False)
+        self.assertFalse(self.fg.find('PUT', r'.'))
+        self.assertFalse(self.fg.find('DELETE', r'.'))
+        self.unchanged_target()
+
+    def test_ca_import_other_refusal_stops(self):
+        self.fg.ca_error = -5
+        e, ctx, b = self.fails()
+        self.assertIn('the intermediate CA certificate cannot be imported (HTTP 500, error -5',
+                      str(e))
+        self.assertFalse(self.fg.find('PUT', r'.'))
+        self.unchanged_target()
+
+    def test_eval_precheck(self):
+        """A FortiGate-VM EVAL (serial FGVMEV...) and an RSA intermediate over 512 bits not on
+        it: refused before anything is written, not tried again; an EC one (the test chain)
+        or a licensed FortiGate - replaced as usual."""
+        self.fg.serial = 'FGVMEV2DKSOJF7DA'
+        t, ctx, b, got = self.deploy()                  # the EC chain: taken
         self.assertTrue(self.fg.find('PUT', r'/vpn\.certificate/local/'))
-        cas = self.fg.find('POST', r'/ca/import')
-        self.assertEqual([c['body']['scope'] for c in cas], ['global', 'vdom'])
+        t, ctx = make(self.fg)
+        t._serial = 'FGVMEV2DKSOJF7DA'
+        rsa = {'key': 'RSA', 'bits': 2048, 'cn': 'R13', 'fp': 'ab'}
+        cls = type(t)
+        orig = cls.__dict__.get('pem_facts')
+        cls.pem_facts = staticmethod(lambda pem: rsa)
+        try:
+            with self.assertRaises(PluginError) as e:
+                t.eval_check(Bundle(), {}, {'ca': {}})
+            t.eval_check(Bundle(), {}, {'ca': {'ab': ['R13']}})     # there already: fine
+            t._serial = 'FGT60F'
+            t.eval_check(Bundle(), {}, {'ca': {}})                  # licensed: not checked
+        finally:
+            cls.pem_facts = orig
+        self.assertIn('error -324; intermediate: RSA 2048, CN=R13', str(e.exception))
+        self.assertIs(e.exception.retry, False)
 
     def test_not_found_and_factory_refused(self):
         e, ctx, b = self.fails(opts={'replace_name': 'web-certt'})

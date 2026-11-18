@@ -100157,6 +100157,10 @@
   "fgapip_16": {
    "source": "the CA certificate is not imported: {0}",
    "text": "certifikát CA se nenaimportoval: {0}"
+  },
+  "pz_fg324": {
+   "source": "the FortiGate refused the intermediate CA certificate (error -324; intermediate: {0}, CN={1}) - a FortiGate with an EVAL/trial licence takes RSA keys of 512 bits at most: use an EC (ECDSA) certificate, or a FortiGate with a full licence; nothing was replaced",
+   "text": "FortiGate odmítl mezilehlý certifikát CA (chyba -324; mezilehlý: {0}, CN={1}) - FortiGate s licencí EVAL/trial bere klíče RSA nejvýš 512 bitů: použijte certifikát EC (ECDSA), nebo FortiGate s plnou licencí; nic nebylo nahrazeno"
   }
  },
  "rich": {
