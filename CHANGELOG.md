@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.127 - not released
+## 1.0.127 - 2026-11-18
 
 - Root helper (security): a PostgreSQL error that shows the statement (a database account made for acme) could show the account's password in the message; it is hidden now.
 - Backups: a backup sent did not record how many certificates it held, so each node's card on Settings → Backups showed an empty "Certificates"; it is recorded now and shown.
