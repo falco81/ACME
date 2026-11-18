@@ -71287,6 +71287,38 @@
   "z_1672": {
    "source": "No escaped character",
    "text": "Chybí znak po zpětném lomítku"
+  },
+  "z_1673": {
+   "source": "Empty: taken away.",
+   "text": "Prázdné: odebere se."
+  },
+  "z_1674": {
+   "source": "one owner whole: its members with their roles, ends and notes, its limits (--teams cuts them)",
+   "text": "jeden vlastník celý: jeho členové s rolemi, konci a poznámkami, jeho limity (--teams je zkracuje)"
+  },
+  "z_1675": {
+   "source": "there is no owner %s (acme --teams)",
+   "text": "vlastník %s neexistuje (acme --teams)"
+  },
+  "z_1676": {
+   "source": "--members as JSON is a list: [{\"who\": ...}, ...]",
+   "text": "--members jako JSON je seznam: [{\"who\": ...}, ...]"
+  },
+  "z_1677": {
+   "source": "a member of --members as JSON is {\"who\": ...} or a word",
+   "text": "člen v --members jako JSON je {\"who\": ...} nebo slovo"
+  },
+  "z_1678": {
+   "source": "%s is not a key of a member (%s)",
+   "text": "%s není klíč člena (%s)"
+  },
+  "z_1679": {
+   "source": "until is YYYY-MM-DD or YYYY-MM-DD HH:MM, not %s",
+   "text": "until je RRRR-MM-DD nebo RRRR-MM-DD HH:MM, ne %s"
+  },
+  "z_1680": {
+   "source": "local:NAME (an account of acme), a user of the directory, group:NAME or a group's DN.",
+   "text": "local:JMÉNO (účet acme), uživatel adresáře, group:JMÉNO nebo DN skupiny."
   }
  },
  "patterns": {

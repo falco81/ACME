@@ -563,7 +563,7 @@ def _allow_of(o):
         return '\n'.join(_allow_of(a) for a in o['any'][:1])
     if 'unit' in o:
         u = o['unit'] if '.' in o['unit'] else o['unit'] + '.service'
-        return 'acme-agent allow unit %s %s' % (u, o['verb'])
+        return 'acme-agent allow unit %s %s' % (quote(u), o['verb'])
     if 'argv' in o:
         return 'acme-agent allow test -- %s' % ' '.join(quote(a) for a in o['argv'])
     return 'acme-agent allow script %s' % quote(o.get('script') or '')
