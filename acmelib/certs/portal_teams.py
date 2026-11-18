@@ -46,6 +46,7 @@ nobody (no teams, 403), the rest of the portal is as before.
 """
 from __future__ import annotations
 
+import json
 import time
 
 from acmelib import engine as E
@@ -430,10 +431,18 @@ def _action_approve(h):
     why = str(b.get('why') or '').strip()[:500]
     if not ok and not why:
         raise E.ApiError(400, 'say why it is declined - the person who asked is told')
+    before = dict(rec)
     rec = TP.action_approve(h.store, rec['id'], me.approver(), ok, why)
     said = ''
     if rec.get('state') == 'approved':
-        said = do_action(me, rec)
+        try:
+            said = do_action(me, rec)
+        except E.ApiError:
+            # not done (a job working on the certificate, a revocation refused): it waits as
+            # before this approval, to be approved again - kept 'approved', it was never done
+            # and every approval after was refused ("it is approved already")
+            h.store.set_meta(TP.ACTION_META + before['id'], json.dumps(before, sort_keys=True))
+            raise
         rec = TP._action_get(h.store, rec['id']) or rec
     elif rec.get('state') == 'declined':
         said = 'declined - %s is told' % rec.get('by')

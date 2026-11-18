@@ -5815,7 +5815,14 @@ def after_phase(store, cert, irow, dinfo):
                       'note': 'nothing secret: no password, key or token'})
     days = int(cert.get('renew_days') or E.CONFIG.get('certs_renew_days') or 30)
     auto = cert.get('auto_renew') not in (0, '0', False, None) or not cert.get('id')
-    if not auto:
+    if cert.get('state') == 'pending-approval':
+        # a request waiting for approval (its auto_renew 0 until then): it was said to be
+        # "renewed only when somebody asks" - it is issued once approved (hunt Rt2)
+        steps.append({'kind': 'wait', 'words': 'Not issued yet: it waits for approval - it is '
+                      'issued when it is approved'})
+    elif cert.get('state') == 'declined':
+        steps.append({'kind': 'info', 'words': 'Never issued: it was declined'})
+    elif not auto:
         steps.append({'kind': 'info', 'words': 'It is renewed only when somebody asks - '
                       'nothing repeats by itself'})
     elif cert.get('state') == 'failed' and cert.get('next_try'):

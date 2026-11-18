@@ -827,7 +827,9 @@
     }
     ['tmx-add-team', 'tmx-add-unit'].forEach(function (id, i) {
       var b = $(id);
-      if (b) explain(b, (i ? 'A new team under {0}' : 'A new unit (a region, a site) under {0}').replace('{0}', name));
+      /* the words of the button itself (they were swapped), and what a screen reader says
+         of it again - explain() keeps an aria-label it finds */
+      if (b) { b.removeAttribute('aria-label'); explain(b, (i ? 'A new unit (a region, a site) under {0}' : 'A new team under {0}').replace('{0}', name)); }
     });
     teamPage(page, T, T.nodes[low(name)]);
   }
@@ -1985,6 +1987,10 @@
       if (typeof explainWhatWasDrawn === 'function') { try { explainWhatWasDrawn(list); } catch (e) { } }
     }).catch(function (e) { clear(list); list.appendChild(el('p', 'bad', String(e.message || e))); });
   }
+  var CERT_STATE_WORDS = {'new': 'not issued yet', ok: 'valid', due: 'due', renewing: 'renewing', failed: 'failed',
+                          expired: 'has expired', pending: 'waiting for a CA', revoked: 'revoked',
+                          disabled: 'switched off', declined: 'declined', deleting: 'being revoked, then deleted',
+                          'revoke-failed': 'revocation failed', held: 'added, not issued'};
   function certRow(c) {
     var st = c.state || 'new';
     var tone = st === 'ok' ? (c.days_left !== null && c.days_left !== undefined && c.days_left < 15 ? 'warn' : 'ok')
@@ -2003,7 +2009,10 @@
       var dl = daysTo(c.not_after);
       right.appendChild(el('span', 'tmx-cdays ' + (dl < 0 ? 'bad' : dl < 15 ? 'warn' : ''), dl < 0 ? 'ran out' : '{0} days left'.replace('{0}', num(dl))));
     }
-    var stc = el('span', 'tag ' + (tone === 'bad' ? 'crit' : tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : tone === 'violet' ? 'violet' : 'dim'), st === 'pending-approval' ? 'waiting' : st);
+    /* the state in words, as the list of certificates says it (certs.js STATE): the bare
+       "ok" stayed English on the Czech page */
+    var stw = st === 'pending-approval' ? 'waiting' : CERT_STATE_WORDS[st] || st;
+    var stc = el('span', 'tag ' + (tone === 'bad' ? 'crit' : tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : tone === 'violet' ? 'violet' : 'dim'), stw);
     if (c.state_words) explain(stc, c.state_words);
     right.appendChild(stc);
     row.appendChild(right);
@@ -2029,6 +2038,15 @@
     more.hidden = true;
     box.appendChild(more);
     var offset = 0;
+    /* a scoped account sees only the names of the teams it is not in (GET /api/teams: their
+       tree rows left out) - their activity is refused, so it is not asked */
+    var d = TM.d || {};
+    if (d.scoped && d.scoped.view && Array.isArray(d.tree)
+        && !d.tree.some(function (x) { return low(x.name) === n.key; })) {
+      lab.hidden = true;
+      tl.appendChild(empty('history', 'Not yours to see', 'What happened in a team is shown to its members and to administrators who see every certificate.'));
+      return;
+    }
     var get = function () {
       busy(more, true);
       api('teams/activity&team=' + enc(n.name) + '&limit=40&offset=' + offset + (UI.below ? '&below=1' : '')).then(function (d) {

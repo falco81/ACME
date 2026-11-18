@@ -117,6 +117,17 @@ def _cert_csr(h):
         pcfg = R.config_of(prof)
         waits = bool(pcfg.get('approval')) or P.held_by_others(h.store, names, row.get('owner'),
                                                                  row['id'])
+        # Other names of a team's certificate: within the team's limits and its approval rule,
+        # as a new request (hunt Rt2: a team whose every request waits, and whose names are
+        # under its suffixes, had other names issued at once, outside them)
+        from acmelib.certs import teampolicy as TP
+        TP.need_request(h.store, row.get('owner'), sender, profile=prof['name'],
+                        issuer=pcfg.get('issuer'), validation=pcfg.get('challenge') or None,
+                        names=names, days=pcfg.get('days'), key_type=kt, count=False)
+        rule_waits = TP.request_waits(h.store, row.get('owner'), waits, prof['name'], names,
+                                      pcfg.get('days'), kt)
+        if rule_waits is not None:
+            waits = rule_waits or P.held_by_others(h.store, names, row.get('owner'), row['id'])
         if waits and row.get('cert_pem'):
             # one issued already is not put to approval (it would stop renewing, and declined it
             # would run out): other names are a new request
@@ -137,6 +148,10 @@ def _cert_csr(h):
                               'warn', who=s['name'])
             if held_now:
                 P.tell_holders(h.store, row['id'], held_now, sender)
+            # its team's approvers told, as of a new request (hunt Rt2: it waited for them
+            # unannounced)
+            from acmelib.certs import teampolicy as TP
+            TP.request_started_waiting(h.store, row['id'], row.get('owner'))
             return {'waits': True, 'message': 'the new CSR was taken - with other names it waits '
                                               'for approval'}
     old = {k: row.get(k) for k in fields}

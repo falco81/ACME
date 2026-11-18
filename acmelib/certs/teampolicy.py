@@ -387,11 +387,35 @@ def approval_state(store, row):
     from acmelib.certs import portal as P
     rule = rule_for(store, row)
     a = P.asker(store, row['id'])
-    approvals = [x for x in a.get('approvals') or [] if isinstance(x, dict)]
+    approvals = [x for x in a.get('approvals') or [] if isinstance(x, dict) and not x.get('over')]
     if not rule:
         return {'rule': None, 'approvals': approvals, 'complete': None, 'needed': []}
+    approvals = _of_team(store, approvals, rule['team'])
     done, needed, _c = _evaluate(rule, approvals)
     return {'rule': rule, 'approvals': approvals, 'complete': done, 'needed': needed}
+
+
+def _team_mark(store, team):
+    """The team an approval was given for: {'team', 'team_id'} (its number follows a rename)."""
+    r = T.tree(store).rows.get(_low(team)) or {}
+    return {'team': str(team)[:190], 'team_id': r.get('id')}
+
+
+def _of_team(store, approvals, team):
+    """The approvals given for this team - the same team (by its number, renamed since, or by
+    its name, in another installation after an import); one recorded without its team (before
+    hunt Rt2) as before. Hunt Rt2: a request moved to another team (the team deleted with
+    reassign, its owner changed) kept its first team's approvals - one of the new team's
+    approvers let it through where the rule wanted two."""
+    mark = _team_mark(store, team)
+    out = []
+    for x in approvals:
+        if 'team' not in x and 'team_id' not in x:
+            out.append(x)
+        elif _low(x.get('team')) == _low(mark['team']) or (
+                mark['team_id'] is not None and x.get('team_id') == mark['team_id']):
+            out.append(x)
+    return out
 
 
 def self_allowed(store, row):
@@ -426,10 +450,11 @@ def approve_step(store, row, approver, ok, why):
         _record(store, row['id'], entry)
         return {'complete': True, 'needed': [], 'rule': None}
     team = rule['team']
+    entry.update(_team_mark(store, team))
     levels = levels_of(store, team, approver)
     from acmelib.certs import portal as P
-    approvals = [x for x in P.asker(store, row['id']).get('approvals') or []
-                 if isinstance(x, dict)]
+    approvals = _of_team(store, [x for x in P.asker(store, row['id']).get('approvals') or []
+                                 if isinstance(x, dict) and not x.get('over')], team)
     who = rule.get('approvers') or 'team'
     want = {'team': {'team'}, 'parent': {'parent'}, 'team_or_parent': {'team', 'parent'},
             'both': {'team', 'parent'}}.get(who, {'team'})

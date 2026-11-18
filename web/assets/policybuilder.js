@@ -784,7 +784,9 @@ function checkWin(s) {
   pol.key_read.forEach(function (a) { L.push('allow key-read ' + siteLine(a)); });
   pol.discover = discCheck(s, R);
   if (pol.discover.length) L.push(discLine(pol.discover));
-  pol.adcs.forEach(function (x) { L.push('allow adcs "' + x.ca + '" template=' + x.templates.join(',')); });
+  /* template names with a space or brackets quoted, as the agent's adcs_names_word (hunt R t2:
+     unquoted, the agent refused the whole line) */
+  pol.adcs.forEach(function (x) { var n = x.templates.join(','); L.push('allow adcs "' + x.ca + '" template=' + (/[^A-Za-z0-9_.,*-]/.test(n) ? '"' + n + '"' : n)); });
   if (s.adcs_read) L.push('allow adcs-read');
   if (R.limits.files.level === 'ok' && Number(s.limits.files) !== F.limits.files) L.push('limit files ' + Number(s.limits.files));
   if (R.limits.size.level === 'ok' && Number(s.limits.size) !== F.limits.size) L.push('limit size ' + Number(s.limits.size));

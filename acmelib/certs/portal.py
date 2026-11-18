@@ -807,6 +807,7 @@ def note_asker(store, cid, who, held=None, ids=(), waits=False):
         if waits:
             a['waits'] = True
             a.pop('approved', None)
+            _approvals_over(a)
         lst = [str(x) for x in (a.get('askers') or []) if x]
         if who and str(who).lower() not in {x.lower() for x in lst}:
             lst.append(str(who)[:190])
@@ -1599,7 +1600,18 @@ def mark_waiting(store, cid):
     def change(a):
         a['waits'] = True
         a.pop('approved', None)
+        _approvals_over(a)
     asker_change(store, cid, change)
+
+
+def _approvals_over(a):
+    """The approvals given so far belong to what was asked before: kept for the timeline, never
+    counted for what waits now (hunt Rt2: a request of a team wanting two approvers that waited
+    again with other names was let through by one more approval - and its earlier approvers
+    were refused as "approved already")."""
+    lst = a.get('approvals')
+    if isinstance(lst, list):
+        a['approvals'] = [dict(x, over=True) if isinstance(x, dict) else x for x in lst]
 
 
 def mark_approved(store, cid, by, t=None):

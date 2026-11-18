@@ -1077,11 +1077,16 @@ def enroll_revoke(store, eid, by):
     return enroll_view(store, ec)
 
 
-def _enrolled_row(store, fqdn, fp):
-    """The target a server enrolled as before (the same name, the same key) - or None."""
+def _enrolled_row(store, fqdn, fp, team=None):
+    """The target a server enrolled as before (the same name, the same key) - or None. Only
+    one of the code's own team (acme's own for a code without one): hunt R t2 - another
+    team's code (confirming by itself) confirmed the server in the first team's target, its
+    own confirmation by a person passed over."""
+    want = str(team or '').strip().lower()
     for row in rows(store):
         en = state(store, row['id']).get('enroll')
-        if isinstance(en, dict) and en.get('fqdn') == fqdn and en.get('key_fp') == fp:
+        if isinstance(en, dict) and en.get('fqdn') == fqdn and en.get('key_fp') == fp and \
+                str(row.get('owner') or '').strip().lower() == want:
             return row
     return None
 
@@ -1211,7 +1216,7 @@ def enroll_take(store, body, ip=''):
     kind = 'agent_windows' if windows else 'agent'
     by = 'the enrollment code "%s"' % (ec.get('title') or eid)
     with LOCK:
-        row = _enrolled_row(store, fqdn, fp)
+        row = _enrolled_row(store, fqdn, fp, ec.get('team'))
         made = False
         if row is None:
             ec = enroll_get(store, eid) or ec
@@ -1546,6 +1551,10 @@ def poll(store, body, cert_pem, verify, ip=''):
 def _take(store, tid):
     out = []
     for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ?", ('agentq:%d:%%' % tid,)):
+        if len(out) >= 20:
+            # hunt R t2: the ones beyond the 20 handed over stay queued for the next poll -
+            # they were marked sent and never handed over (the job waited out its time)
+            break
         q = _jload(r['v'], {})
         if not isinstance(q, dict) or q.get('state') != 'queued':
             continue
@@ -1554,7 +1563,7 @@ def _take(store, tid):
         q['node'] = E.node_name()
         store.set_meta(r['k'], json.dumps(q))
         out.append(q['env'])
-    return out[:20]
+    return out
 
 
 RESULT_KEYS = ('ok', 'said', 'steps', 'files', 'needs', 'refused', 'unchanged', 'policy',
@@ -1694,6 +1703,14 @@ def clean_policy(p):
                                      'mode': int(f.get('mode') or 0) & 0o777})
             except (TypeError, ValueError, OverflowError):
                 continue
+        elif isinstance(f, dict) and isinstance(f.get('dir'), str) and \
+                re.match(r'[A-Za-z]:\\', f['dir']):
+            # hunt R t2: a Windows agent's folder (C:\certs, its readers) - left out, the
+            # pages and the policy builder said a Windows server's policy had no folders
+            rd = [s(x, 256) for x in (f.get('readers') if isinstance(f.get('readers'), list)
+                                      else [])[:32] if isinstance(x, str)]
+            out['files'].append({'dir': s(f['dir'], 1024), 'owner': s(','.join(rd), 1024),
+                                 'group': '', 'mode': 0o666, 'readers': rd})
     units = p.get('units') if isinstance(p.get('units'), dict) else {}
     for u, vs in list(units.items())[:200]:
         if isinstance(vs, list):
@@ -1719,6 +1736,26 @@ def clean_policy(p):
         out['adcs'] = adcs
     if p.get('adcs_read'):
         out['adcs_read'] = True
+    # hunt R t2: what a Windows agent allows besides (the machine store, IIS sites, Remote
+    # Desktop, its roles, read on the key) and the roles it knows - left out, a deployment with
+    # a Windows role was refused as if the agent knew none, the pages said none of them
+    if p.get('store'):
+        out['store'] = True
+    if p.get('rdp'):
+        out['rdp'] = True
+    for k, n in (('iis', 256), ('key_read', 256), ('roles_known', 20)):
+        if isinstance(p.get(k), list):
+            v = [s(x, n) for x in p[k][:100] if isinstance(x, str)]
+            if v or k == 'roles_known':
+                out[k] = v
+    roles = p.get('roles') if isinstance(p.get('roles'), dict) else {}
+    rl = {}
+    for k, v in list(roles.items())[:40]:
+        if isinstance(k, str) and re.fullmatch(r'[a-z0-9_-]{1,20}', k):
+            rl[k] = [s(x, 1024) for x in (v if isinstance(v, list) else [])[:20]
+                     if isinstance(x, str)]
+    if rl:
+        out['roles'] = rl
     # 1.0.125: discovery (allow discover [KIND,KIND]): ['*'] every kind, else the kinds
     disc = [s(x, 20) for x in lst('discover')[:40] if isinstance(x, str) and
             re.fullmatch(r'\*|[a-z0-9]{1,20}', x)]
