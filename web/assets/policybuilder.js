@@ -1173,7 +1173,7 @@ function build(row, d, opts) {
           if (w[0] === 'limit') s.limits[w[1]] = Number(w[2]);
           else if (w[1] === 'file') s.files.push({dir: wr[0], readers: wkv.readers ? wkv.readers.split(',') : []});
           else if (w[1] === 'service' || w[1] === 'unit') s.units.push({name: wr[0], verbs: String(wr[1] || '').split(',')});
-          else if (w[1] === 'test') s.tests.push(wr[0] === '--' ? wr.slice(1) : wr);
+          else if (w[1] === 'test') s.tests.push(w[2] === '--' ? w.slice(3) : w.slice(2));
           else if (w[1] === 'script') s.scripts.push({path: wr[0], sha256: wkv.sha256 || ''});
           else if (w[1] === 'script-hash') s.hashes.push(wr[0]);
           else if (w[1] === 'from') s.from.push(wr[0]);
@@ -1195,7 +1195,9 @@ function build(row, d, opts) {
         w.slice(2).forEach(function (x) { var m = x.match(/^([a-z0-9_-]+)=(.*)$/); if (m) kv[m[1]] = m[2]; else rest.push(x); });
         if (w[1] === 'file') { var o = (kv.owner || 'root:root').split(':'); s.files.push({dir: rest[0], owner: o[0], group: o[1] || o[0], mode: parseInt(kv.mode || '0644', 8)}); }
         else if (w[1] === 'unit') s.units.push({name: rest[0], verbs: String(rest[1] || '').split(',')});
-        else if (w[1] === 'test') s.tests.push(rest[0] === '--' ? rest.slice(1) : rest);
+        /* a test's words as they are: a word with = in it (postconf x=y) is the command's, not
+           a key of the entry - it was taken out of the command line */
+        else if (w[1] === 'test') s.tests.push(w[2] === '--' ? w.slice(3) : w.slice(2));
         else if (w[1] === 'script') s.scripts.push({path: rest[0], sha256: kv.sha256 || ''});
         else if (w[1] === 'script-hash') s.hashes.push(rest[0]);
         else if (w[1] === 'from') s.from.push(rest[0]);
@@ -1270,8 +1272,10 @@ function build(row, d, opts) {
   if (FOUND.length) SECTIONS.splice(2, 0, ['found', 'From discovery', 'eye']);
   /* a Windows server's agent (1.0.120): services, and the machine store, IIS, Remote Desktop */
   if (W()) {
-    SECTIONS[3] = ['units', 'Services', 'refresh'];
-    SECTIONS.splice(4, 0, ['store', 'Machine store', 'lock'], ['iis', 'IIS sites', 'globe'], ['rdp', 'Remote Desktop', 'screen'],
+    /* by its key: with "From discovery" before it, [3] was Folders - its button gone, two of Units */
+    var ui = SECTIONS.map(function (x) { return x[0]; }).indexOf('units');
+    SECTIONS[ui] = ['units', 'Services', 'refresh'];
+    SECTIONS.splice(ui + 1, 0, ['store', 'Machine store', 'lock'], ['iis', 'IIS sites', 'globe'], ['rdp', 'Remote Desktop', 'screen'],
       ['roles', 'Windows roles', 'wand'], ['key_read', 'Read on the key', 'key'], ['adcs', 'Microsoft CA (AD CS)', 'shield']);
   }
   function nav() {
@@ -2178,7 +2182,9 @@ function build(row, d, opts) {
     b.onclick = function () {
       if (R.counts.bad) { toast(tr('the design has lines the agent would not read - fix the red ones first'), 'bad'); return; }
       busy(b, true);
-      ask('agents/design', {id: row.id || A.id, text: fileText(R), state: S, title: t.value.trim(), note: n.value.trim()}).then(function (x) {
+      /* design_state: an object under `state` is refused by the API ("state is a piece of text
+         here") - no design was ever saved from the page */
+      ask('agents/design', {id: row.id || A.id, text: fileText(R), design_state: S, title: t.value.trim(), note: n.value.trim()}).then(function (x) {
         D = x.design;
         /* "Start from" offers the design just saved */
         if (refs.hero && refs.hero.parentNode) { var nh = hero(); refs.hero.parentNode.replaceChild(nh, refs.hero); refs.hero = nh; refresh(); }
@@ -2203,7 +2209,9 @@ function build(row, d, opts) {
     if (D.title) p.appendChild(noI18n(el('span', '', ' ' + D.title)));
     w.appendChild(p);
     var m = el('span', 'muted small');
-    m.appendChild(document.createTextNode(ago(D.at) + ' · '));
+    /* the time a text of its own: "0 s ago · " as one was left in English in Czech */
+    m.appendChild(el('span', '', ago(D.at)));
+    m.appendChild(noI18n(document.createTextNode(' · ')));
     m.appendChild(noI18n(document.createTextNode(String(D.by || ''))));
     w.appendChild(m);
     var same = D.text === fileText(R);

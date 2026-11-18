@@ -24,7 +24,7 @@ downwards) and the team's limits (teampolicy); a refusal is 403 in words and an 
     POST /api/portal/agent_refuse           {id}
     GET  /api/portal/agent?id=              the agent: its state, the server's facts
     GET  /api/portal/agent_builder?id=      the policy builder's data
-    POST /api/portal/agent_design           {id, text, state, title, note}
+    POST /api/portal/agent_design           {id, text, design_state, title, note}
     POST /api/portal/agent_update           {id}
     GET  /api/portal/deploys?team=          the deployments of the team's certificates
     POST /api/portal/deploy_save            {id?, cert_id, target, options, enabled, note}

@@ -317,20 +317,32 @@ class ZeroSslIssuer(Issuer):
                       what='the e-mail validation')
             sc.say(self.ctx, 'ZeroSSL mails %s - someone there approves the certificate'
                              % ', '.join(mails))
+        elif held.get('dcv') and all(((p.get('rec') or {}).get('type') == (
+                'file' if how == 'http' else 'cname')) for p in held['dcv']):
+            # The records of a check that failed before (domain_control_validation_failed) are
+            # in place still (put back by refresh()): the check is asked for again - they were
+            # put in place a second time, the handles of the first lost (never taken away), and
+            # an answer without the validation part refused the certificate for good.
+            self._ask_dcv(req, held, placer, how)
         else:
             recs = self.dcv_records(obj)
             if not recs:
                 raise PluginError('ZeroSSL said no file for the domains' if how == 'http' else
                                   'ZeroSSL said no CNAME record for the domains', retry=False)
+            if held.get('dcv'):
+                placer.cleanup(req, held['dcv'])    # of another way of DCV (the setting changed)
             held['dcv'] = placer.place_all(req, recs)
             sc.pending_put(self.ctx, slot, req, held, ttl_days=60)
-            if any(p.get('how') == 'placed' for p in held['dcv']):
-                placer.wait_visible(req, held['dcv'])
-            self.call('POST', '/certificates/%s/challenges' % held['id'],
-                      {'validation_method': METHODS[how]}, what='the domain validation')
-            sc.say(self.ctx, 'ZeroSSL was asked to check the domains (%s)' % METHODS[how])
+            self._ask_dcv(req, held, placer, how)
         held['asked'] = True
         sc.pending_put(self.ctx, slot, req, held, ttl_days=60)
+
+    def _ask_dcv(self, req, held, placer, how):
+        if any(p.get('how') == 'placed' for p in held['dcv']):
+            placer.wait_visible(req, held['dcv'])
+        self.call('POST', '/certificates/%s/challenges' % held['id'],
+                  {'validation_method': METHODS[how]}, what='the domain validation')
+        sc.say(self.ctx, 'ZeroSSL was asked to check the domains (%s)' % METHODS[how])
 
     def _await(self, r, req, slot, held, placer):
         cid = held['id']

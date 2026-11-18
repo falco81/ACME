@@ -194,6 +194,13 @@
       if (cur && !teamOf(cur)) add(cur, cur + ' - ' + tr('not defined'), 'tm-undef');
       sel.value = keep;
       if (sel.value !== keep) sel.value = cur;
+      /* an owner written in other letters than its team ("web" of the team Web, as the API
+         and the command line take it): that team chosen - the box showed "nobody", and the
+         owner was dropped when only the note was saved (hunt Rt4) */
+      if (sel.value !== keep && sel.value !== cur) {
+        var same = teamOf(keep) || teamOf(cur);
+        if (same) sel.value = same.name;
+      }
       paintUndef();
     };
     var paintUndef = function () {

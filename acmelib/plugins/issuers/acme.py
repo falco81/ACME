@@ -477,6 +477,7 @@ class AcmeIssuer(Issuer):
             self._say('the CA does not take it as the renewal of the one before (another '
                       'account ordered that one) - ordered as a new certificate', 'warn')
             order_url, order = cl.new_order(names, profile, None)
+            replaces = None         # not the renewal of it: info['replaces'] said it was
         self.ctx.debug('ACME order %s: %s' % (order_url, json.dumps(order)[:500]))
         if order.get('status') == 'invalid':
             raise PluginError('the CA made the order invalid at once', detail=json.dumps(order))

@@ -4158,7 +4158,8 @@ function detailsSection(c, back) {
     go.onclick = function () {
       var b = {id: c.id};
       var put = function (k, v, was) { if (JSON.stringify(v) !== JSON.stringify(was)) b[k] = v; };
-      put('owner', f.owner.value, c.owner || '');
+      /* the same team in other letters ("web" shown as Web) is no change (hunt Rt4) */
+      if (String(f.owner.value || '').toLowerCase() !== String(c.owner || '').toLowerCase()) b.owner = f.owner.value;
       put('tags', f.tags._get ? f.tags._get() : splitNames(f.tags.value), arr(c.tags));
       put('note', f.note.value, c.note || '');
       if (autoCan(c)) put('auto_renew', !!f.auto._get(), c.auto_renew === undefined || truthy(c.auto_renew));
@@ -8955,6 +8956,9 @@ function openCerts(f) {
       }
       $('ct-state').value = f.state || '';
     }
+    /* what counts it counted every certificate (a tile, "2 waiting for approval"): the search,
+       source, owner and tag chosen on the list before no longer hide part of it (hunt Rt4) */
+    ['ct-q', 'ct-issuer', 'ct-owner', 'ct-tag'].forEach(function (k) { if ($(k)) $(k).value = ''; });
     CL.page = 0;
     loadCerts();
   }, 0);

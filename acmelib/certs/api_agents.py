@@ -35,7 +35,7 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
                                         answer kept with the target. cached=1: the last one kept,
                                         the agent not asked             certificate administrator
     GET  /api/agents/design?id=         the saved design, its history, the server compared
-    POST /api/agents/design {id, text, state, title, note}   a design saved (documentation
+    POST /api/agents/design {id, text, design_state, title, note}   a design saved (documentation
                                         only - acme never sends it)          full administrator
     POST /api/agents/design/forget {id} the design deleted                   full administrator
 
@@ -190,7 +190,10 @@ def _design_save(h, s):
     row = _row(h, b)
     if not isinstance(b.get('text'), str):
         raise ValueError('text is the policy file')
-    v = P.design_save(h.store, row, b.get('text'), b.get('state'), A._text(b, 'title', 500),
+    # the builder's state as `design_state` (hunt R t4): `state` is a word of every body (the
+    # API refuses an object there) - the designer's Save said "state is a piece of text here"
+    st = b.get('design_state') if b.get('design_state') is not None else b.get('state')
+    v = P.design_save(h.store, row, b.get('text'), st, A._text(b, 'title', 500),
                       A._text(b, 'note', 4000), A.who(s))
     return {'saved': {k: v.get(k) for k in ('n', 'at', 'by', 'title', 'entries')},
             'design': P.design_view(h.store, row, G.info(h.store, row).get('policy'))}

@@ -20,6 +20,9 @@ and what the pages can do, it can do.
                         new intermediate, import)
          d acme's DNS server (its records: add, delete)
          0 Modules (Enter: what one takes)
+    o  Owners and teams (1.0.126): the tree (Enter: show, members and their roles, change,
+       limits, move, a team below, activity, delete; + add one), roles, the access check
+       of a person, what happened in a team
 
 A module's form is drawn from its `fields` (acme --plugin KIND --json): a
 choice for a select and an on/off, a secret typed as stars and handed over
@@ -28,6 +31,7 @@ a PEM read from a file (@file:PATH).
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -40,7 +44,10 @@ CONNECTOR = 'ssh_connector'
 
 
 def main_items(con):
-    return [('c', 'Certificates: renewing, deploying, authorities, DNS', lambda: menu(con))]
+    return [('c', 'Certificates: renewing, deploying, authorities, DNS', lambda: menu(con)),
+            # 1.0.126: Settings → Owners and teams of the pages (acme --teams, --roles, ...)
+            ('o', 'Owners and teams: the tree, members, roles, limits, access',
+             lambda: teams_menu(con))]
 
 
 def _when(ts, fmt='%Y-%m-%d'):
@@ -272,6 +279,9 @@ def family(con, fam):
             ('used by', lambda r: '' if r.get('_add') else r.get('used_by'), 7, None),
             ('last error', lambda r: r.get('last_error') or '', 50,
              lambda r: 'bad' if r.get('last_error') else 'dim')]
+    if fam == 'target':
+        # the team whose device it is (1.0.126, as the pages' Owner column)
+        cols.insert(4, ('owner', lambda r: r.get('owner') or '', 14, lambda r: 'dim'))
 
     def do(r):
         if r.get('_add'):
@@ -302,6 +312,13 @@ def fam_add(con, fam):
     if got is None:
         return
     argv, env = got
+    if fam == 'target':
+        # the team whose device it is (1.0.126; asked only when there are teams)
+        owner = _team_choice(con, 'Whose device is %s' % name, '', none="acme's own - no team")
+        if owner is None:
+            return
+        if owner:
+            argv = list(argv) + ['--owner', owner]
     rc = con.act('--%s-add' % word, name, '--kind', kind, *argv, env=env)
     if rc == 0 and fam != 'target' and con.confirm('Try it', 'Try %s now, changing nothing?'
                                                    % name, 'Try it', 'Later'):
@@ -327,6 +344,9 @@ def fam_do(con, fam, r):
         opts.append(('act:' + a['key'], a.get('label') or a['key']))
     if fam == 'target' and r.get('kind') != CONNECTOR:
         opts.append(('deploys', 'Its deployments'))
+    if fam == 'target':
+        opts.append(('owner', 'Its owner: the team whose device it is (now: %s)'
+                     % (r.get('owner') or "acme's own")))
     if fam == 'check':
         opts.append(('run', 'Run it now on every certificate it is attached to'))
     if any(f.get('type') == 'sshkey' for f in (_plugin(con, fam, r.get('kind')) or {}).get(
@@ -382,12 +402,17 @@ def fam_do(con, fam, r):
             con.live(lambda: (con.cmd('--%s-action' % word, name, key, '--yes'), con.pause()))
     elif what == 'deploys':
         return deploy_list(con, target=name)
+    elif what == 'owner':
+        owner = _team_choice(con, 'The owner of %s' % name, r.get('owner') or '',
+                             none="acme's own - no team", always=True)
+        if owner is not None and owner.lower() != (r.get('owner') or '').lower():
+            con.act('--target-edit', name, '--owner', owner or '-')
     elif what == 'run':
         run_tests(con, 'test:' + name, 'the test %s on its certificates' % name)
     elif what == 'key':
         ssh_key(con, word, name)
     elif what == 'agent':
-        target_agent(con, name)
+        target_agent(con, name, r.get('kind'))
     elif what == 'del':
         used = int(r.get('used_by') or 0)
         if used and word in ('target', 'check'):
@@ -540,6 +565,7 @@ def cert_add(con):
     vals = _names_of(con, '--validations')
     dflt_s = next((n for n, w in sources if w.endswith('the default')), '')
     dflt_v = next((n for n, w in vals if w.endswith('the default')), '')
+    owners = _owner_options(con, '')
     got = con.form('A certificate to keep', [
         {'key': 'name', 'label': 'its name', 'need': True,
          'help': 'What acme calls it: www, vpn-gateway, intranet...'},
@@ -551,13 +577,19 @@ def cert_add(con):
         {'key': 'challenge', 'label': 'validation', 'kind': 'choice', 'value': dflt_v,
          'options': [('', '– (not an ACME CA)')] + vals,
          'help': 'For an ACME CA: how the names are proved (Validations).'},
-        {'key': 'key_type', 'label': 'key', 'kind': 'choice', 'options': KEYS}])
+        {'key': 'key_type', 'label': 'key', 'kind': 'choice', 'options': KEYS}] + (
+        # its owner (1.0.126), as the page's new certificate - when there are teams
+        [{'key': 'owner', 'label': 'owner', 'kind': 'choice', 'options': owners,
+          'help': 'The team it belongs to (Owners and teams): its members and limits.'}]
+        if len(owners) > 1 else []))
     if not got:
         return
     args = ['--cert-add', got['name'], '--names', got['names'], '--key-type', got['key_type'],
             '--challenge', got.get('challenge') or '']
     if got.get('issuer'):
         args += ['--issuer', got['issuer']]
+    if got.get('owner'):
+        args += ['--set', 'owner=%s' % got['owner']]
     if con.act(*args) == 0 and con.confirm('Issue it', 'Issue %s now?' % got['name'],
                                            'Issue it now', 'Later'):
         con.live(lambda: (con.cmd('--renew', got['name']), con.pause()))
@@ -583,7 +615,10 @@ def cert_edit(con, r):
          'help': 'Empty or 0: the setting certs_renew_days.'},
         {'key': 'reuse_key', 'label': 'keep its key', 'kind': 'choice',
          'value': '1' if one.get('reuse_key') else '0', 'options': [('0', 'no'), ('1', 'yes')]},
-        {'key': 'owner', 'label': 'owner', 'value': one.get('owner') or ''},
+        # a team of Owners and teams, as the page's Owner offers them (1.0.126: typed as
+        # text, a misspelt team made a free-text owner no team's members or limits reach)
+        {'key': 'owner', 'label': 'owner', 'kind': 'choice', 'value': one.get('owner') or '',
+         'options': _owner_options(con, one.get('owner') or '')},
         {'key': 'tags', 'label': 'tags (comma)', 'value': ', '.join(one.get('tags') or [])},
         {'key': 'note', 'label': 'note', 'value': one.get('note') or ''}])
     if not got:
@@ -1072,10 +1107,10 @@ def ssh_key(con, word, name):
         con.act(flag, name, what)
 
 
-def target_agent(con, name):
+def target_agent(con, name, kind=None):
     """The acme-agent of a target "Server with acme-agent" (1.0.116), as its card on the page:
     acme --target-agent NAME show|system|code|confirm FP|look|policy|renew|update|forget|
-    design|discover."""
+    design|discover [cached] [--kind K,K]|adcs-templates [HOST\\CA] (the last two 1.0.126)."""
     what = con.choose('The acme-agent of %s' % name, [
         ('show', 'How it stands'),
         ('system', 'Its server: the OS, addresses, memory, disks, uptime, clock, roles'),
@@ -1086,6 +1121,12 @@ def target_agent(con, name):
         ('renew', 'Renew its certificate'), ('update', 'Update it to the agent this acme ships'),
         ('design', 'The policy designed for it in acme (never sent)'),
         ('discover', 'What its server runs that takes certificates (discovery: allow discover)'),
+        ('discover-kinds', 'The same, only some kinds of services'),
+        ('discover-cached', 'What the last discovery found (its agent not asked)')] + (
+        # a Windows member server's agent reads the Microsoft CAs (1.0.125)
+        [('adcs', 'The Microsoft CAs and their templates, as its agent reads them'),
+         ('adcs-one', 'The templates of one Microsoft CA (HOST\\CA)')]
+        if kind in (None, 'agent_windows') else []) + [
         ('forget', 'Forget it')])
     if not what:
         return
@@ -1107,6 +1148,21 @@ def target_agent(con, name):
     elif what == 'discover':
         # 1.0.125: the services and certificates its agent finds (read-only on the server)
         con.live(lambda: (con.cmd(flag, name, 'discover'), con.pause()))
+    elif what == 'discover-kinds':
+        kinds = con.ask_one('Discovery on %s' % name, 'kinds (comma)', '', 'Only these, e.g. '
+                            'nginx,apache (Linux) or iis,rdp (Windows); the agent says which it '
+                            'knows when one is not.')
+        if kinds:
+            con.live(lambda: (con.cmd(flag, name, 'discover', '--kind', kinds), con.pause()))
+    elif what == 'discover-cached':
+        con.act(flag, name, 'discover', 'cached')
+    elif what == 'adcs':
+        con.live(lambda: (con.cmd(flag, name, 'adcs-templates'), con.pause()))
+    elif what == 'adcs-one':
+        ca = con.ask_one('A Microsoft CA', 'HOST\\CA', '', 'Its configuration, as '
+                         'certutil says it: ca01.example.local\\Example Issuing CA.')
+        if ca:
+            con.live(lambda: (con.cmd(flag, name, 'adcs-templates', ca), con.pause()))
     elif what in ('look', 'renew', 'update', 'code'):
         con.live(lambda: (con.cmd(flag, name, what), con.pause()))
     else:
@@ -1189,6 +1245,8 @@ def enroll_codes(con):
 
 
 def enroll_new(con):
+    teams = [('', "none - acme's own targets")] + [(t['name'], t['name'])
+                                                   for t in _teams(con)]
     got = con.form('An enrollment code: one code for many servers', [
         {'key': 'title', 'label': 'its title', 'need': True,
          'help': 'What you call it - each server that joins with it says it.'},
@@ -1202,7 +1260,11 @@ def enroll_new(con):
         {'key': 'most', 'label': 'at most (servers)', 'kind': 'number', 'value': '10',
          'range': (1, 10000)},
         {'key': 'auto', 'label': 'confirm automatically', 'kind': 'choice',
-         'options': [('0', 'no - a person confirms each'), ('1', 'yes - nobody compares')]}],
+         'options': [('0', 'no - a person confirms each'), ('1', 'yes - nobody compares')]}] + (
+        # a team's enrollment code (1.0.125 on the pages, --owner on the command line 1.0.126)
+        [{'key': 'team', 'label': 'the servers\' team', 'kind': 'choice', 'options': teams,
+          'help': 'The servers that join with it become the targets of this team.'}]
+        if len(teams) > 1 else []),
         'Each server that joins with it (acme-agent join CODE, the MSI\'s JOINCODE=) becomes a '
         'target of its own and waits for its fingerprint to be confirmed. The agents\' port '
         '(Settings → Target agents) must be on.')
@@ -1220,6 +1282,8 @@ def enroll_new(con):
         args += ['--port', got['port']]
     if got.get('auto') == '1':
         args.append('--auto-confirm')
+    if got.get('team'):
+        args += ['--owner', got['team']]
     con.live(lambda: (con.cmd(*args), con.pause()))
 
 
@@ -1278,3 +1342,418 @@ def cert_source(con, r):
     if con.confirm('The first one', 'Issue the first certificate from the new source now? '
                    '(Otherwise at the next renewal.)', 'Issue it now', 'At the next renewal'):
         con.live(lambda: (con.cmd('--renew', name, '--force'), con.pause()))
+
+
+# ---------------------------------------------------------------------------
+# Owners and teams (1.0.126): Settings → Owners and teams of the pages - the tree of teams
+# and units, a team's members with their roles, its limits, the roles, the access check of a
+# person and what happened in a team; all of it acme --teams, --team-add/-edit/-del, --roles,
+# --team-access, --team-activity (acmelib/certs/api_teams.py)
+# ---------------------------------------------------------------------------
+def _teams(con):
+    return con._rows(con.out('--teams'), 'teams')
+
+
+def _owner_options(con, cur):
+    """A certificate's owner as the page's Owner offers it: nobody, the teams, and one typed as
+    text before (not defined) - the value it has kept as it is."""
+    opts = [('', 'nobody')]
+    have = False
+    for t in _teams(con):
+        if cur and t['name'].lower() == cur.lower():
+            opts.append((cur, t['name']))
+            have = True
+        else:
+            opts.append((t['name'], t['name'] + (' (a person)' if t.get('kind') == 'person'
+                                                  else '')))
+    if cur and not have:
+        opts.append((cur, '%s - not defined (typed as text before)' % cur))
+    return opts
+
+
+def _team_choice(con, title, cur, none, always=False, skip=()):
+    """A team chosen ('' for `none`; `none` None: no such line), None for Esc; without
+    teams '' at once - unless
+    `always`, when it is said that there are none."""
+    teams = [t for t in _teams(con) if t['name'].lower() not in {x.lower() for x in skip}]
+    if not teams and not always:
+        return ''
+    if not teams:
+        con.note(title, 'There is no team yet (Owners and teams).')
+        return None
+    opts = ([] if none is None else [('', none)]) + [
+        (t['name'], '%s%s' % ('  ' * int(t.get('depth') or 0), t['name'])) for t in teams]
+    cur_i = next((i for i, o in enumerate(opts) if o[0].lower() == (cur or '').lower()), 0)
+    return con.choose(title, opts, cur=cur_i)
+
+
+def _day(ts):
+    return time.strftime('%Y-%m-%d', time.localtime(float(ts)))
+
+
+def _member_word(m):
+    """One member as --members says it: who=rights+roles@YYYY-MM-DD."""
+    words = list(m.get('rights') or []) + list(m.get('roles') or [])
+    return '%s%s%s' % (m['who'], ('=' + '+'.join(words)) if words else '',
+                       ('@' + _day(m['until'])) if m.get('until') else '')
+
+
+def _member_said(m):
+    """Why a member cannot be written back on the command line, or ''."""
+    if any(ch in str(m.get('who') or '') for ch in ',='):
+        return 'the member %s (a DN)' % m['who']
+    if any(ch in r for r in m.get('roles') or [] for ch in ',+'):
+        return 'the role of %s' % m['who']
+    if m.get('note'):
+        return 'the note of the member %s' % m['who']
+    return ''
+
+
+def _policy_words(pol):
+    pol = dict(pol or {})
+    came = pol.pop('from', None) or {}
+    return ['%s %s%s' % (k, json.dumps(v, sort_keys=True, ensure_ascii=False),
+                         (' (from %s)' % came[k]) if came.get(k) else '')
+            for k, v in sorted(pol.items())]
+
+
+def team_text(t, teams=()):
+    """A team as words: what it is, where it is, its members with their roles, its limits."""
+    lines = ['%-14s %s' % ('kind', t.get('kind') or 'team'),
+             '%-14s %s' % ('under', t.get('parent') or '- (the top level)')]
+    below = [x['name'] for x in teams if (x.get('parent') or '').lower() == t['name'].lower()]
+    if below:
+        lines.append('%-14s %s' % ('teams below', ', '.join(below)))
+    for k, label in (('description', 'description'), ('contact_mail', 'told at'),
+                     ('contact_phone', 'phone'), ('note', 'note')):
+        if t.get(k):
+            lines.append('%-14s %s' % (label, t[k]))
+    lines.append('%-14s %s' % ('certificates', t.get('used') or 0))
+    lines.append('')
+    lines.append('members' if t.get('members') else 'members        none')
+    for m in t.get('members') or []:
+        words = list(m.get('rights') or []) + list(m.get('roles') or [])
+        lines.append('  %-30s %s%s%s' % (m['who'], '+'.join(words) or '-',
+                                        (' until %s' % _day(m['until'])) if m.get('until')
+                                        else '', ' (expired)' if m.get('expired') else ''))
+    own = _policy_words(t.get('policy'))
+    eff = _policy_words(t.get('effective'))
+    lines.append('')
+    lines.append('limits         ' + ('; '.join(own) if own else 'none of its own'))
+    if eff and eff != own:
+        lines.append('in force       ' + '; '.join(eff))
+    return '\n'.join(lines)
+
+
+def teams_menu(con):
+    return con.sub('Owners and teams', [
+        ('1', 'The teams and units, as a tree (Enter: what to do with one)',
+         lambda: teams_tree(con)),
+        ('2', 'Add a team or a unit', lambda: team_add(con)),
+        ('3', 'Roles: what each gives (Enter: show)', lambda: roles_list(con)),
+        ('4', 'What a person may, in which team, and why (the access check)',
+         lambda: team_access(con)),
+        ('5', 'What happened in a team', lambda: team_activity(con)),
+        ('6', 'The owners and the tags, as acme --teams says them', lambda: con.act('--teams')),
+    ])
+
+
+def teams_tree(con):
+    def load():
+        return [{'name': '+ add a team or a unit', '_add': True}] + _teams(con)
+
+    cols = [('team', lambda r: r['name'] if r.get('_add') else
+             '  ' * int(r.get('depth') or 0) + r['name'], 30,
+             lambda r: 'ok' if r.get('_add') else None),
+            ('kind', lambda r: r.get('kind') or '', 7, None),
+            ('members', lambda r: '' if r.get('_add') else len(r.get('members') or []), 7, None),
+            ('certs', lambda r: '' if r.get('_add') else r.get('used') or 0, 5, None),
+            ('limits', lambda r: '; '.join(_policy_words(r.get('effective'))), 50,
+             lambda r: 'dim')]
+
+    def do(r):
+        if r.get('_add'):
+            return team_add(con)
+        return team_do(con, r)
+    return con.pick('Owners and teams', load, cols, do, 'no team yet')
+
+
+def team_add(con, parent=''):
+    teams = _teams(con)
+    got = con.form('A team or a unit', [
+        {'key': 'name', 'label': 'its name', 'need': True,
+         'help': 'What certificates and devices say as their owner.'},
+        {'key': 'kind', 'label': 'kind', 'kind': 'choice',
+         'options': [('team', 'team'), ('unit', 'unit: teams below it'), ('person', 'person')]},
+        {'key': 'parent', 'label': 'under', 'kind': 'choice', 'value': parent,
+         'options': [('', '- (the top level)')] + [(t['name'], t['name']) for t in teams]},
+        {'key': 'description', 'label': 'description'},
+        {'key': 'contact_mail', 'label': 'told at (e-mail)'}])
+    if not got:
+        return
+    args = ['--team-add', got['name'].strip(), '--team-kind', got['kind']]
+    if got.get('parent'):
+        args += ['--parent', got['parent']]
+    for k, opt in (('description', '--description'), ('contact_mail', '--contact-mail')):
+        if (got.get(k) or '').strip():
+            args += [opt, got[k].strip()]
+    if con.act(*args) == 0 and con.confirm('Members', 'Add its members now?', 'Add them',
+                                           'Later'):
+        one = next((t for t in _teams(con) if t['name'].lower() ==
+                    got['name'].strip().lower()), None)
+        if one:
+            team_members(con, one['name'])
+
+
+def team_do(con, r):
+    name = r['name']
+    teams = _teams(con)
+    r = next((t for t in teams if t['name'] == name), r)
+    what = con.choose(name, [
+        ('show', 'Show it: members, roles, limits'),
+        ('members', 'Its members (add, change the roles, take away)'),
+        ('edit', 'Change it (name, kind, description, told at, note)'),
+        ('limits', 'Its limits (profiles, days, approval ...)'),
+        ('move', 'Move it under another team (now: %s)' % (r.get('parent') or 'the top level')),
+        ('below', 'Add a team below it'),
+        ('activity', 'What happened in it'),
+        ('del', 'Delete it')],
+        '%s, %d member(s), %d certificate(s)' % (r.get('kind') or 'team',
+                                                 len(r.get('members') or []),
+                                                 int(r.get('used') or 0)))
+    if what == 'show':
+        text = team_text(r, teams)
+        h, _w = con.scr.getmaxyx() if hasattr(con, 'scr') else (50, 100)
+        if text.count('\n') + 1 <= h - 8:
+            con.note(name, text)
+        else:
+            con.go_plain(lambda: con.page(name, text))
+    elif what == 'members':
+        return team_members(con, name)
+    elif what == 'edit':
+        team_edit(con, r)
+    elif what == 'limits':
+        team_limits(con, r)
+    elif what == 'move':
+        to = _team_choice(con, 'Move %s under' % name, r.get('parent') or '',
+                          '- (the top level)', always=True, skip=(name,))
+        if to is not None and to.lower() != (r.get('parent') or '').lower():
+            con.act('--team-edit', name, '--parent', to or '-')
+    elif what == 'below':
+        team_add(con, name)
+    elif what == 'activity':
+        team_activity(con, name)
+    elif what == 'del':
+        team_del(con, r, teams)
+    return None
+
+
+def team_edit(con, r):
+    name = r['name']
+    got = con.form('Change ' + name, [
+        {'key': 'name', 'label': 'its name', 'need': True, 'value': name},
+        {'key': 'kind', 'label': 'kind', 'kind': 'choice', 'value': r.get('kind') or 'team',
+         'options': [('team', 'team'), ('unit', 'unit: teams below it'), ('person', 'person')]},
+        {'key': 'description', 'label': 'description', 'value': r.get('description') or ''},
+        {'key': 'contact_mail', 'label': 'told at (e-mail)', 'value': r.get('contact_mail') or ''},
+        {'key': 'note', 'label': 'note', 'value': r.get('note') or '',
+         'help': 'Changed here, not taken away (the pages take it away).'}])
+    if not got:
+        return
+    args = ['--team-edit', name]
+    if got['name'].strip() != name:
+        args += ['--name', got['name'].strip()]
+    if got['kind'] != (r.get('kind') or 'team'):
+        args += ['--team-kind', got['kind']]
+    for k, opt in (('description', '--description'), ('contact_mail', '--contact-mail')):
+        if (got.get(k) or '').strip() != (r.get(k) or ''):
+            args += [opt, (got.get(k) or '').strip()]
+    if (got.get('note') or '').strip() and got['note'].strip() != (r.get('note') or ''):
+        args += ['--note', got['note'].strip()]
+    if len(args) == 2:
+        con.note('Change ' + name, 'Nothing was changed.')
+        return
+    con.act(*args)
+
+
+def team_limits(con, r):
+    name = r['name']
+    have = json.dumps(r.get('policy') or {}, sort_keys=True, ensure_ascii=False)
+
+    def check(v, _vals):
+        try:
+            return None if isinstance(json.loads(v or '{}'), dict) else 'a JSON object: {...}'
+        except ValueError:
+            return 'JSON, e.g. {"max_days": 90, "approval": "always"}'
+    eff = _policy_words(r.get('effective'))
+    v = con.ask_one('The limits of %s' % name, 'limits (JSON)', have, 'Its own: '
+                    '{"profiles": ["Web"], "max_days": 90, "approval": "always"} - {} none. '
+                    'In force now: %s.' % ('; '.join(eff) if eff else 'none'), need=False,
+                    check=check)
+    if v is None:
+        return
+    v = v.strip() or '{}'
+    if json.loads(v) == (r.get('policy') or {}):
+        con.note('The limits of %s' % name, 'Nothing was changed.')
+        return
+    con.act('--team-edit', name, '--policy', v)
+
+
+def _roles(con):
+    return con._rows(con.out('--roles'), 'roles')
+
+
+def team_members(con, name):
+    def team():
+        return next((t for t in _teams(con) if t['name'] == name), None)
+
+    def load():
+        t = team()
+        return [{'who': '+ add a member', '_add': True}] + list((t or {}).get('members') or [])
+
+    cols = [('member', lambda m: m['who'], 32, lambda m: 'ok' if m.get('_add') else None),
+            ('rights and roles', lambda m: '+'.join(list(m.get('rights') or []) +
+                                                    list(m.get('roles') or [])), 30, None),
+            ('until', lambda m: (_day(m['until']) + (' (expired)' if m.get('expired') else ''))
+             if m.get('until') else '', 22, lambda m: 'bad' if m.get('expired') else 'dim')]
+
+    def do(m):
+        t = team()
+        if not t:
+            return ('%s is not there any more' % name, True)
+        members = list(t.get('members') or [])
+        bad = next((w for w in (_member_said(x) for x in members) if w), '')
+        if bad:
+            con.note('Members of %s' % name, 'The members are written back whole and %s cannot '
+                     'be written on the command line - change them on the pages (Settings → '
+                     'Owners and teams).' % bad, 'bad')
+            return None
+        if m.get('_add'):
+            got = member_form(con, 'A member of %s' % name, {})
+            if not got:
+                return None
+            if any(x['who'].lower() == got['who'].lower() for x in members):
+                return ('%s is a member already' % got['who'], True)
+            members.append(got)
+        else:
+            what = con.choose(m['who'], [('edit', 'Change its rights, roles, end'),
+                                         ('del', 'Take it away from %s' % name)])
+            if what == 'edit':
+                got = member_form(con, '%s in %s' % (m['who'], name), m)
+                if not got:
+                    return None
+                members = [got if x['who'] == m['who'] else x for x in members]
+            elif what == 'del' and con.confirm('Take a member away', '%s is no longer a member '
+                                               'of %s.' % (m['who'], name), 'Take it away',
+                                               danger=True):
+                members = [x for x in members if x['who'] != m['who']]
+            else:
+                return None
+        con.act('--team-edit', name, '--members', ','.join(_member_word(x) for x in members))
+        return None
+    return con.pick('Members of %s' % name, load, cols, do, 'no member yet',
+                    'local:NAME an account of acme, a user of the directory, group:NAME')
+
+
+def member_form(con, title, m):
+    roles = _roles(con)
+    known = {r['name'].lower() for r in roles} | {'view', 'request', 'manage', 'approve'}
+
+    def check_who(v, _vals):
+        v = v.strip()
+        if any(ch in v for ch in ',='):
+            return 'a DN is given on the pages - here local:NAME, a user, group:NAME'
+        return None
+
+    def check_roles(v, _vals):
+        bad = [w for w in v.split('+') if w.strip() and w.strip().lower() not in known]
+        return ('no such role: %s' % ', '.join(bad)) if bad else None
+
+    def check_until(v, _vals):
+        if v.strip() and not re.match(r'^\d{4}-\d{2}-\d{2}$', v.strip()):
+            return 'YYYY-MM-DD, or empty'
+        return None
+    got = con.form(title, ([] if m else [
+        {'key': 'who', 'label': 'who', 'need': True, 'check': check_who,
+         'help': 'local:NAME (an account of acme), a user of the directory, group:NAME.'}]) + [
+        {'key': 'roles', 'label': 'roles (+ between)', 'need': True, 'check': check_roles,
+         'value': '+'.join(list(m.get('roles') or []) + list(m.get('rights') or [])) or
+         'Viewer', 'help': 'Roles: %s.' % ', '.join(r['name'] for r in roles)},
+        {'key': 'until', 'label': 'until (YYYY-MM-DD)', 'check': check_until,
+         'value': _day(m['until']) if m.get('until') else '',
+         'help': 'Empty: for good.'}])
+    if not got:
+        return None
+    words = [w.strip() for w in got['roles'].split('+') if w.strip()]
+    rights = [w.lower() for w in words if w.lower() in ('view', 'request', 'manage', 'approve')]
+    out = {'who': m.get('who') or got['who'].strip(), 'rights': rights,
+           'roles': [w for w in words if w.lower() not in rights]}
+    if got.get('until', '').strip():
+        out['until'] = time.mktime(time.strptime(got['until'].strip(), '%Y-%m-%d'))
+    return out
+
+
+def team_del(con, r, teams):
+    name = r['name']
+    args = ['--team-del', name]
+    below = [t for t in teams if (t.get('parent') or '').lower() == name.lower()]
+    if below:
+        to = _team_choice(con, 'The teams below %s go under' % name, r.get('parent') or '',
+                          '- (the top level)', always=True,
+                          skip=[name] + [t['name'] for t in below])
+        if to is None:
+            return
+        args += ['--parent', to or '-']
+    devices = [x for x in con._rows(con.out('--targets'), 'rows')
+               if (x.get('owner') or '').lower() == name.lower()]
+    if int(r.get('used') or 0) or devices:
+        to = _team_choice(con, 'Its %d certificate(s) and %d device(s) go to' % (
+            int(r.get('used') or 0), len(devices)), '', 'nobody (the devices: acme\'s own)',
+            skip=(name,))
+        if to is None:
+            return
+        args += ['--reassign', to or '-']
+    if con.confirm('Delete %s' % name, 'Delete the %s %s with its members and limits?' % (
+            r.get('kind') or 'team', name), 'Delete it', danger=True):
+        con.act(*(args + ['--yes']))
+
+
+def roles_list(con):
+    def load():
+        return _roles(con)
+
+    cols = [('role', lambda r: r['name'], 22, None),
+            ('', lambda r: 'built in' if r.get('builtin') else 'own', 8, lambda r: 'dim'),
+            ('members', lambda r: r.get('used') or 0, 7, None),
+            ('capabilities', lambda r: ', '.join(r.get('caps') or []), 60, lambda r: 'dim')]
+
+    def do(r):
+        con.note(r['name'], '%s\n\n%s\n\n%s' % (
+            'built in' if r.get('builtin') else 'a role of your own (acme --role-add, --role-del)',
+            r.get('description') or '-', '\n'.join(r.get('caps') or [])))
+    return con.pick('Roles', load, cols, do, 'no role')
+
+
+def team_access(con):
+    who = con.ask_one('The access check', 'who', '', 'local:NAME (an account of acme) or a user '
+                      'of the directory: the teams, what each lets and why.')
+    if who and who.strip():
+        con.act('--team-access', who.strip())
+
+
+def team_activity(con, name=None):
+    if name is None:
+        name = _team_choice(con, 'What happened in', '', None, always=True)
+        if not name:
+            return
+    got = con.form('What happened in %s' % name, [
+        {'key': 'below', 'label': 'the teams below it too', 'kind': 'choice',
+         'options': [('0', 'no'), ('1', 'yes')]},
+        {'key': 'limit', 'label': 'at most', 'kind': 'number', 'value': '40',
+         'range': (1, 10000)}])
+    if not got:
+        return
+    args = ['--team-activity', name, '--limit', got.get('limit') or '40']
+    if got.get('below') == '1':
+        args.append('--below')
+    con.act(*args)

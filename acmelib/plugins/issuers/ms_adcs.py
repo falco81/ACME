@@ -54,6 +54,20 @@ ADCS_ERRORS = {
 }
 
 
+def _pem_lines(text):
+    """PEM text with its line breaks: a key saved from a one-line box before (hunt R t4) came
+    as '-----BEGIN ...-----MIIE...-----END ...-----', which openssl does not read."""
+    text = str(text or '')
+    if '\n' in text.strip() or '-----BEGIN' not in text:
+        return text
+    out = []
+    for m in re.finditer(r'-----BEGIN ([A-Z0-9 ]+)-----\s*(.*?)\s*-----END \1-----', text, re.S):
+        body = re.sub(r'\s+', '', m.group(2))
+        out.append('-----BEGIN %s-----\n%s\n-----END %s-----\n' % (
+            m.group(1), '\n'.join(body[i:i + 64] for i in range(0, len(body), 64)), m.group(1)))
+    return ''.join(out) or text
+
+
 class AdcsHttp(object):
     """HTTP(S) to the CA on connections kept open, signing in by NTLM, Basic
     or a client certificate."""
@@ -116,7 +130,7 @@ class AdcsHttp(object):
             for p, data in ((c, self.client_cert), (k, self.client_key)):
                 fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
                 with os.fdopen(fd, 'w') as f:
-                    f.write(data)
+                    f.write(_pem_lines(data))
             try:
                 sc.load_cert_chain(c, k)
             except (ssl.SSLError, OSError) as e:
@@ -139,7 +153,8 @@ class AdcsHttp(object):
         if callable(kept):
             # a context that keeps a connection for the module itself (What happens records
             # each request there as it records ctx.http) - NTLM's three messages on it
-            cc = (self.client_cert, self.client_key) if self.auth == 'cert' else None
+            cc = (_pem_lines(self.client_cert), _pem_lines(self.client_key)) \
+                if self.auth == 'cert' else None
             status, hdrs, data = kept(method, self.url(path), body, headers, self.timeout,
                                       self.verify, self.ca_pem, cc)
             return status, {str(k).lower(): v for k, v in (hdrs or {}).items()}, data or b''
@@ -299,7 +314,10 @@ class MsAdcsIssuer(Issuer):
         field('domain', 'Domain', 'text', placeholder='EXAMPLE', cert=False, show_if={'auth': ['ntlm', 'basic']},
               help='The NetBIOS name of the domain (empty: the one the server says).'),
         field('client_cert', 'Client certificate', 'pem', show_if={'auth': ['cert']}),
-        field('client_key', 'Client certificate\'s key', 'secret', show_if={'auth': ['cert']}),
+        # multiline (hunt R t4): a one-line password box took the PEM key with its line breaks
+        # taken out by the browser - "do not go together" for every key pasted
+        field('client_key', 'Client certificate\'s key', 'secret', multiline=True,
+              show_if={'auth': ['cert']}),
         field('ca_pem', 'CA certificate of the web server', 'pem', advanced=True,
               help='Your internal root, for the TLS of the CA\'s IIS: when given, the only CA '
                    'trusted for it (the system\'s CAs are not); empty: the system\'s CAs.'),
