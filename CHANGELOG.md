@@ -4,9 +4,12 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.129 - not released
+## 1.0.129 - 2026-11-18
 
-(nothing yet)
+- FortiGate, "Replace an existing certificate in place" (1.0.128) failed on FortiOS 7.4.13: the REST
+- FortiGate replace in place: duplicates. FortiOS refuses a local certificate identical to another
+- FortiGate: an error answer of FortiOS is kept as its error lines only - its cli_error had said
+- FortiGate guides and docs: replace in place needs an SSH admin with vpngrp read-write; why the
 
 ## 1.0.128 - 2026-11-18
 
