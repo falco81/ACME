@@ -1095,8 +1095,20 @@ function actionCard(a, mayAct) {
   var meta = el('div', 'pw-req-m');
   if (a.by) { meta.appendChild(avatar(a.by)); meta.appendChild(data('span', '', whoWords(a.by))); }
   if (a.at) meta.appendChild(el('span', 'muted', agoW(a.at)));
-  if (a.words) meta.appendChild(data('span', 'muted', a.words));
+  /* the server's words are English (and for a device, a deletion or a key say again what the
+     title says): a revocation's reason in the page's language, other words as they came */
+  if (a.action === 'revoke' && a.reason) meta.appendChild(data('span', 'muted', tr(a.again ? 'reason: {0}, a new one at once' : 'reason: {0}').replace('{0}', a.reason)));
+  else if (a.words && ['device', 'delete', 'key'].indexOf(a.action) < 0) meta.appendChild(data('span', 'muted', a.words));
   w.appendChild(meta);
+  /* declined: why, as the one declining was told the person who asked sees it */
+  var no_ = arr(a.approvals).filter(function (x) { return x && !x.ok; }).pop();
+  if (a.state === 'declined' && no_ && no_.why) {
+    var dw = el('div', 'pw-req-m pw-req-why');
+    dw.appendChild(el('span', 'muted', 'declined by'));
+    dw.appendChild(data('span', '', whoWords(no_.by)));
+    dw.appendChild(data('span', '', '“' + no_.why + '”'));
+    w.appendChild(dw);
+  }
   top.appendChild(w);
   var st = {waiting: ['waiting', 'warn'], approved: ['approved', 'ok'], declined: ['declined', 'crit'], done: ['done', 'ok']}[a.state] || [a.state, 'dim'];
   top.appendChild(chip(st[0], st[1]));
@@ -1777,7 +1789,8 @@ function enrolDialog() {
   var team = mayTeams.indexOf(WS.team) >= 0 ? WS.team : mayTeams[0];
   modal(tr('Enrol servers'), function (body) { body.appendChild(skeleton(2)); }, [{words: 'Close', close: true}], 'medium');
   var ticket = modalTicket();
-  api('agents-waiting&team=' + encodeURIComponent(team)).then(function (d) {
+  /* the codes of the teams below too: a code made here for one of them is listed (and revoked) here */
+  api('agents-waiting&team=' + encodeURIComponent(team) + (mayTeams.length > 1 ? '&below=1' : '')).then(function (d) {
     if (!modalStill(ticket)) return;
     var F = {title: '', mode: 'active', days: 7, most: 10, auto: false};
     var tsel = null;
@@ -1802,13 +1815,14 @@ function enrolDialog() {
           r.appendChild(dot(st[1]));
           var w = el('div', 'pw-code-w');
           w.appendChild(data('b', '', c.title || c.id));
+          if (c.team && low(c.team) !== low(team)) w.appendChild(teamChip(c.team, 'small'));
           var m = el('span', 'muted small');
           m.appendChild(el('span', '', st[0]));
           m.appendChild(document.createTextNode(' · ' + (c.uses || 0) + ' / ' + (c.most || '∞') + ' · '));
           m.appendChild(el('span', '', tr('valid until {0}').replace('{0}', when(c.until))));
           w.appendChild(m);
           r.appendChild(w);
-          if (c.state === 'active') {
+          if (c.state === 'active' && (!c.team || mayTeams.some(function (x) { return low(x) === low(c.team); }))) {
             var rv = cmdButton('Revoke', 'ban', 'small');
             rv.onclick = function () {
               busy(rv, true);
@@ -1851,7 +1865,8 @@ function enrolDialog() {
       body.appendChild(g);
     }, [{words: 'Close', close: true}, {words: 'Make the code', cls: 'primary', icon: 'key', go: function (b) {
       busy(b, true);
-      api('enroll-code', {team: tsel ? tsel.value : team, title: F.title || tr('Servers of {0}').replace('{0}', team), mode: F.mode,
+      var forTeam = tsel ? tsel.value : team;
+      api('enroll-code', {team: forTeam, title: F.title || tr('Servers of {0}').replace('{0}', forTeam), mode: F.mode,
                           days: Number(F.days || 7), most: Number(F.most || 10), auto: F.auto ? 1 : 0}).then(function (x) {
         codeShown(tr('The enrollment code'), x);
       }).catch(oops).then(function () { busy(b, false); });
