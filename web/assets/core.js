@@ -1811,7 +1811,8 @@ function peekFacts(pairs) {
     var cell = el('div', 'fact');
     /* A long value - an address, a version - gets two columns (1.0.37). */
     var vtext = one[1] && one[1].nodeType ? (one[1].textContent || '') : String(one[1] === undefined || one[1] === null ? '' : one[1]);
-    if (vtext.length > 22) cell.className = 'fact wide';
+    /* (a node - a host name in monospace - is wider per letter: win1.example.test broke in two) */
+    if (vtext.length > (one[1] && one[1].nodeType ? 14 : 22)) cell.className = 'fact wide';
     cell.appendChild(el('span', 'k', one[0]));
     var v = el('span', 'v');
     if (one[1] && one[1].nodeType) v.appendChild(one[1]); else { v.textContent = one[1]; v.title = String(one[1] === undefined || one[1] === null ? '' : one[1]); }

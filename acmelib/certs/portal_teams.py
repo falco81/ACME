@@ -314,13 +314,9 @@ def inbox_actions(me):
         team = rec.get('team')
         if _low(team) not in me.tr.rows:
             continue
-        if not TP.levels_of(me.store, team, ap):
-            continue
-        if TP._same_person({'ids': rec.get('ids'), 'by': rec.get('by')}, ap):
-            rule = T.approval_rule(T.effective_policy(me.store, team))
-            if not rule.get('self'):
-                continue
-        if any(a.get('ok') and TP._same_person(a, ap) for a in rec.get('approvals') or []):
+        # as action_approve takes it (hunt C1: offered to a lead of the team where the rule
+        # wants the team above - and refused)
+        if not TP.may_approve_action_now(me.store, rec, ap):
             continue
         out.append(rec)
     return out
@@ -546,8 +542,58 @@ def _kinds_of(me, team):
                 continue
         elif allowed is not None and _low(k) not in {_low(x) for x in allowed}:
             continue
-        out.append(one)
+        out.append(_choices_of_team(me, team, one))
     return out
+
+
+def _choices_of_team(me, team, one):
+    """A module's form with the choices its fields read from acme (options_from) cut to what
+    the team may choose (hunt C1: every connector of acme and of the other teams was listed,
+    by name, to any member who may see devices): the connectors among the team's devices (its
+    own, above or below it, where they see devices) - of any other list only the empty choice."""
+    import copy
+    one = copy.deepcopy(one)
+    near = set(me.tr.chain(team)) | set(me.tr.descendants(team))
+    mine = None
+
+    def own():
+        got = set()
+        for r in me.store.db.rows("SELECT name, owner FROM cert_targets WHERE COALESCE(owner, "
+                                  "'') <> '' AND kind IN ('ssh_connector', 'agent', "
+                                  "'agent_windows')"):
+            o = _low(r.get('owner'))
+            if o in near and 'target.view' in me.caps(o):
+                got.add(r['name'])
+        return got
+
+    def cut(fields):
+        nonlocal mine
+        out = []
+        for f in fields or []:
+            if isinstance(f, dict) and f.get('options_from'):
+                f = dict(f)
+                if f['options_from'] in CONNECTOR_SOURCES:
+                    if mine is None:
+                        mine = own()
+                    keep = mine
+                else:
+                    keep = set()
+                f['options'] = [o for o in f.get('options') or [] if isinstance(
+                    o, (list, tuple)) and o and (o[0] == '' or o[0] in keep)]
+                if f.get('default') not in (None, '') and f['default'] not in {
+                        o[0] for o in f['options']}:
+                    f['default'] = ''
+            out.append(f)
+        return out
+    for key in ('fields', 'deploy_fields'):
+        if key in one:
+            one[key] = cut(one.get(key))
+    for v in one.get('versions') or []:
+        if isinstance(v, dict):
+            for key in ('fields', 'deploy_fields'):
+                if key in v:
+                    v[key] = cut(v.get(key))
+    return one
 
 
 def need_kind(me, team, kind):
@@ -571,18 +617,52 @@ def _kinds(h):
             'from': (eff.get('from') or {}).get('target_kinds')}
 
 
-def _via_ok(me, team, cfg):
-    """A device reached through a connector (`via`): a connector of a team they see (their
-    team, above or below it) - never acme's own, nor another team's."""
-    via = str((cfg or {}).get('via') or '').strip()
-    if not via:
-        return
-    vrow = S.plugin_row(me.store, 'target', via)
-    near = set(me.tr.chain(team)) | set(me.tr.descendants(team))
-    if not vrow or _low(vrow.get('owner')) not in near or 'target.view' not in me.caps(
-            vrow.get('owner')):
-        me.deny('the device goes through %s, which is not a connector of the team %s' % (
-            via[:120], team))
+CONNECTOR_SOURCES = ('connectors', 'agent_hops', 'test_connectors', 'ssh_targets',
+                     'targets', 'agent_windows_targets')
+
+
+def _via_keys(kind, cfg):
+    """The settings of a module that name another device to go through (`via`, `ssh_via`,
+    `stage_via` ... - a field choosing among the connectors or the targets)."""
+    keys = {k for k in (cfg or {}) if k == 'via' or str(k).endswith('_via')}
+    cls = S.given_class('target', kind, cfg) if kind else None
+    for f in (getattr(cls, 'fields', None) or []) if cls else []:
+        if isinstance(f, dict) and f.get('options_from') in CONNECTOR_SOURCES:
+            keys.add(f['key'])
+    for v in (getattr(cls, 'versions', None) or {}).values() if cls and isinstance(
+            getattr(cls, 'versions', None), dict) else []:
+        for f in getattr(v, 'fields', None) or []:
+            if isinstance(f, dict) and f.get('options_from') in CONNECTOR_SOURCES:
+                keys.add(f['key'])
+    return keys
+
+
+def _via_ok(me, team, cfg, kind=None, row=None):
+    """A device reached through a connector (`via` - and every other setting naming a device
+    to go through, `ssh_via`, `stage_via`, hunt C1): a connector of a team they see (their
+    team, above or below it) - never acme's own, nor another team's. A value the device has
+    already (set by an administrator) is kept as it is."""
+    had = S.jload((row or {}).get('config'), {}) or {} if row else {}
+    for key in sorted(_via_keys(kind, cfg)):
+        if key not in (cfg or {}):
+            continue
+        via = str((cfg or {}).get(key) or '').strip()
+        if not via or (row is not None and via == str(had.get(key) or '').strip()):
+            continue
+        # by its name alone, as the run finds it (runtime._jump): a connector of the targets,
+        # else a test's, else a target's agent - never an id ("7" was the team's device of id
+        # 7, and the run went through acme's test connector called 7)
+        vrow = me.store.db.row('SELECT * FROM cert_targets WHERE name = ?', (via,))
+        if vrow is not None and vrow.get('kind') != 'ssh_connector' and (
+                vrow.get('kind') not in AGENT_KINDS or me.store.db.value(
+                    "SELECT COUNT(*) FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'",
+                    (via,), 0)):
+            vrow = None
+        near = set(me.tr.chain(team)) | set(me.tr.descendants(team))
+        if not vrow or _low(vrow.get('owner')) not in near or 'target.view' not in me.caps(
+                vrow.get('owner')):
+            me.deny('the device goes through %s, which is not a connector of the team %s' % (
+                via[:120], team))
 
 
 @route('POST', 'device_save')
@@ -600,7 +680,8 @@ def _device_save(h):
     if cfg is not None and not isinstance(cfg, dict):
         raise E.ApiError(400, 'config is the module\'s settings {key: value}')
     if isinstance(cfg, dict):
-        _via_ok(me, team, cfg)
+        _via_ok(me, team, cfg, kind, row if row is not None and row.get('kind') == kind
+                else None)
     body = {'owner': team, 'kind': kind}
     for k in ('name', 'config', 'note', 'enabled', 'tags'):
         if k in b:
@@ -966,7 +1047,7 @@ def _members(h):
     team = me.need(h.arg('team'), 'team.members', 'see the members')
     t = T.team_get(h.store, team)
     cat = T.role_catalog(h.store)
-    mine = me.caps(team)
+    mine = _norm(me.caps(team))
     now = time.time()
     rows = []
     for m in S.jload(t.get('members'), []) or []:
@@ -978,7 +1059,7 @@ def _members(h):
         one['caps'] = _caps_list(c)
         one['expired'] = T.member_expired(m, now)
         one['me'] = _is_me(me, m.get('who'))
-        one['may_change'] = me.all or c <= mine
+        one['may_change'] = me.all or _norm(c) <= mine
         rows.append(one)
     above = []
     for k in me.tr.ancestors(team):
@@ -988,16 +1069,26 @@ def _members(h):
                               'roles': m.get('roles') or [], 'rights': m.get('rights') or [],
                               'kind': T.member_kind(m.get('who'))})
     roles = [{'name': r['name'], 'builtin': r['builtin'], 'description': r['description'],
-              'caps': _caps_list(r['caps']), 'givable': me.all or r['caps'] <= mine}
+              'caps': _caps_list(r['caps']), 'givable': me.all or _norm(r['caps']) <= mine}
              for r in T.role_catalog(h.store).values()]
     return {'team': team, 'members': rows, 'above': above[:500], 'roles': roles,
             'rights': [{'name': r, 'caps': _caps_list(T.RIGHT_CAPS[r]),
-                        'givable': me.all or (T.RIGHT_CAPS[r] - {T.LEGACY_MANAGE}) <= mine} for r in T.RIGHTS],
+                        'givable': me.all or _norm(T.RIGHT_CAPS[r]) <= mine} for r in T.RIGHTS],
             'my_caps': _caps_list(mine)}
 
 
 def _member_list(t):
     return [m for m in S.jload(t.get('members'), []) or [] if isinstance(m, dict)]
+
+
+def _norm(caps):
+    """Capabilities compared for escalation: the old right manage's marker is what it gives -
+    approving (cert.approve) - so a Team owner gives manage, and a member with manage an
+    Approver, and nobody gives approving they do not hold under another name."""
+    caps = frozenset(caps or ())
+    if T.LEGACY_MANAGE in caps:
+        caps = (caps - {T.LEGACY_MANAGE}) | {'cert.approve'}
+    return caps
 
 
 def _no_escalation(me, team, new, old):
@@ -1006,9 +1097,9 @@ def _no_escalation(me, team, new, old):
     if me.all:
         return
     cat = T.role_catalog(me.store)
-    mine = me.caps(team)
-    new_c = T.member_caps(new, cat, now=0) if new else frozenset()
-    old_c = T.member_caps(old, cat, now=0) if old else frozenset()
+    mine = _norm(me.caps(team))
+    new_c = _norm(T.member_caps(new, cat, now=0)) if new else frozenset()
+    old_c = _norm(T.member_caps(old, cat, now=0)) if old else frozenset()
     who = (new or old)['who']
     if old and not old_c <= mine:
         me.deny('%s holds more on the team %s than you do (%s) - you do not change their '
@@ -1052,6 +1143,11 @@ def _member_save(h):
     _no_escalation(me, team, new, old)
     if old is not None and _is_me(me, old['who']) and _low(new['who']) != _low(old['who']):
         me.deny('you do not give your own membership of the team %s to another' % team)
+    if old is not None and _is_me(me, new['who']) and not _is_me(me, old['who']) and \
+            not me.all:
+        # another's membership made one's own (hunt C1): adding oneself by another way
+        me.deny('you do not add yourself (or a group of yours) to the team %s - ask another '
+                'manager' % team)
     if at is None:
         ms.append(new)
     else:
@@ -1146,10 +1242,30 @@ def widened(eff_parent, new):
                     out.append((k, 'mode %s, %d approver(s)%s - above it: %s, %d%s' % (
                         vv['mode'], vv['count'], ', self' if vv['self'] else '', have['mode'],
                         have['count'], ', self' if have['self'] else '')))
+                elif v.get('approvers') and (a.get('approvers') or 'team') != v['approvers']:
+                    # fewer levels approving than above it (hunt C1)
+                    out.append((k, 'approved by %s - above it by %s' % (
+                        v['approvers'], have['approvers'])))
+                elif vv['mode'] == 'outside' and not _same_envelope(v.get('outside'),
+                                                                     a.get('outside')):
+                    # a wider envelope let through without an approval (hunt C1)
+                    out.append((k, 'what goes without an approval would be wider than above '
+                                   'it'))
     if new.get('agents_auto_confirm') and not T.policy_value(base, 'agents_auto_confirm'):
         out.append(('agents_auto_confirm', 'agents confirmed by themselves are allowed by the '
                                            'administrators only'))
     return out
+
+
+def _same_envelope(a, b):
+    """Whether two envelopes (approval.outside) let the same through - lists as sets."""
+    a, b = a or {}, b or {}
+    for k in ('profiles', 'suffixes', 'key_types'):
+        x, y = a.get(k), b.get(k)
+        if (x is None) != (y is None) or (x is not None and {_low(i) for i in x} !=
+                                          {_low(i) for i in y}):
+            return False
+    return a.get('max_days') == b.get('max_days')
 
 
 def need_policy(me, parent, policy, team):
@@ -1158,6 +1274,32 @@ def need_policy(me, parent, policy, team):
     if bad:
         me.deny('the limits of %s would be wider than those of %s: %s' % (
             team, parent, '; '.join('%s - %s' % kv for kv in bad)))
+
+
+def name_free(me, name):
+    """A name a team made (or renamed) on the portal may take (hunt C1): never one that
+    certificates or devices already carry as their owner - the team made would own them (a
+    person's own certificates, a free-text owner's), nor a name of a person (a mail or UPN, a
+    user of the directory) - what that person asks for on the portal would be the team's."""
+    low = _low(name)
+    if not low:
+        return
+    if '@' in low or '\\' in low or low.startswith(('local:', 'group:')):
+        me.deny('a team is not called as a person is (%s) - choose another name' % name[:120])
+    if low in me.tr.rows:
+        return                  # taken: save_team says so in its own words
+    for table in ('certs', 'cert_targets'):
+        if me.store.db.value('SELECT COUNT(*) FROM %s WHERE LOWER(TRIM(owner)) = ?' % table,
+                             (low,), 0):
+            me.deny('%s is the owner of certificates or devices already - a team made here '
+                    'is not given them; choose another name (or ask an administrator)'
+                    % name[:120])
+    from acmelib.certs import api_teams as AT
+    ad = AT.directory(me.h)
+    if ad is not None:
+        if AT._dir_call(lambda: ad.find_user(name, 'sam')):
+            me.deny('%s is a user of the directory - a team is not called as a person is; '
+                    'choose another name' % name[:120])
 
 
 @route('POST', 'team_save')
@@ -1194,8 +1336,13 @@ def _team_save(h):
             changes.append('move')
         if changes:
             me.need_above(parent, 'team.create', 'rename or move the team %s' % name)
+        if _low(body['name']) != k:
+            name_free(me, body['name'])
         if policy is not None and policy != (me.tr.policies.get(k) or {}):
             me.need_above(parent, 'team.policy', 'change the limits of the team %s' % name)
+            if _low(new_parent) != _low(parent):
+                # its limits set under its new place too (hunt C1: team.create there sufficed)
+                me.need_above(new_parent, 'team.policy', 'set the limits of the team %s' % name)
             need_policy(me, new_parent, policy, name)
             body['policy'] = policy
         elif new_parent != parent and me.tr.policies.get(k):
@@ -1213,6 +1360,7 @@ def _team_save(h):
             me.deny('a team made on the portal is under one of your teams - say which (parent)')
         parent = me.need(parent, 'team.create', 'create teams below')
         name = str(b.get('name') or '').strip()
+        name_free(me, name)
         body = {'name': name, 'parent': parent, 'kind': kind or 'team',
                 'description': b.get('description') or ''}
         if policy:

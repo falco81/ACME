@@ -267,6 +267,12 @@ wanted are told by mail (the team's contact addresses) and find it under "Waitin
 A full administrator counts as an approver at every level - one approval. Without a rule
 nothing changes: one approval of an approver lets it through, as before.
 
+A rule below never weakens one above: the stricter `mode` stays, `count` the larger, `self`
+only where every level allows it, the `approvers` of both (`team` above and `parent` below are
+`both`), and the envelope of `outside` what both let through. Actions waiting for an approval
+(`approve_actions`) are approved - and declined - only at the level the rule names, and an
+approved key is taken once.
+
 ### Devices and agents of a team
 
 A target has an `owner` (a team; empty - acme's own, as before). An enrollment code of the
@@ -303,7 +309,13 @@ a team above theirs. A person in no team: the portal as before.
 ### Activity
 
 `GET /api/teams/activity?team=` - the events about the team: its own changes (members added,
-removed, changed, its limits, where it is in the tree), its certificates' and its devices'.
+removed, changed, its limits, where it is in the tree, the teams made or moved under it), its
+certificates' and its devices'. Names are matched whole: the activity of `Web` never shows the
+events of `WebDev` or `Web2`, nor those of a certificate `web10` for `web1`.
+
+`GET /api/teams` gives every team its `counts` - `certs`, `certs_below` (with the teams below
+it), `expiring` (within the notice days), `failing`, `waiting`, `devices`, `agents`,
+`agents_waiting` - in the one answer; a scoped account of the teams it sees only.
 
 ## The command line
 

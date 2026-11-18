@@ -1175,6 +1175,21 @@ def enroll_take(store, body, ip=''):
                                           'new one'}
     if st_e == 'expired':
         return 403, {'ok': False, 'said': 'the enrollment code ran out - ask for a new one'}
+    if ec.get('team'):
+        # a team's code (1.0.125): its team still there, and still with agents (hunt C1: a
+        # team's code made acme's own targets once its team was gone, and the team's devices
+        # after its limits took the agents away)
+        from acmelib.certs import teams as T
+        tm = T.team_get(store, ec['team'])
+        eff = T.effective_policy(store, tm['name']) if tm else {}
+        kinds = eff.get('target_kinds')
+        kind_ = 'agent_windows' if str(body.get('platform') or '') == 'windows' else 'agent'
+        if not tm or not T.policy_value(eff, 'agents') or (
+                kinds is not None and kind_ not in {str(k).lower() for k in kinds}):
+            _enroll_refused(store, ec, ip, 'its team %s %s' % (
+                ec['team'], 'is gone' if not tm else 'has no target agents now'))
+            return 403, {'ok': False, 'said': 'the enrollment code\'s team no longer takes '
+                                              'servers - ask for a new code'}
     try:
         fp = spki_fp(csr)
     except PluginError as e:

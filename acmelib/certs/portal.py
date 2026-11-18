@@ -208,9 +208,76 @@ def owner_of(row, names, groups, teams=None, defined=()):
     return ''
 
 
+# What a list reads of each of its certificates, read for the whole page at once (hunt C1:
+# five statements a row - a page of 200 of a team's thousands was a thousand statements, and
+# `state=mine` read the meta of every certificate one by one). Per thread: a request's own.
+_PRE = threading.local()
+_PRE_CHUNK = 400
+
+
+def _pre_get(kind, cid):
+    pre = getattr(_PRE, kind, None)
+    if pre is None:
+        return False, None
+    k = str(cid)
+    if k not in pre:
+        return False, None
+    return True, pre[k]
+
+
+class prefetched(object):
+    """with prefetched(store, ids): asker() and last_job() of these certificates read from what
+    was read for all of them in a few statements (as each alone would read it)."""
+    def __init__(self, store, ids, jobs_too=True):
+        self.store, self.ids, self.jobs_too = store, [i for i in ids if i is not None], jobs_too
+        self.mine = False
+
+    def __enter__(self):
+        if getattr(_PRE, 'metas', None) is not None or not self.ids:
+            return self
+        metas, last = {}, {}
+        # a meta kept signed (dbguard) is read as get_meta reads it - one by one
+        signed = E.dbguard_on() and E.dbguard_meta_kept(META + '0')
+        ids = sorted({int(i) for i in self.ids})
+        for at in range(0, len(ids), _PRE_CHUNK):
+            part = ids[at:at + _PRE_CHUNK]
+            if not signed:
+                keys = [META + str(i) for i in part]
+                for i in part:
+                    metas[str(i)] = None
+                for r in self.store.db.rows('SELECT k, v FROM meta WHERE k IN (%s)' % ', '.join(
+                        '?' * len(keys)), tuple(keys)):
+                    metas[str(r['k'])[len(META):]] = r['v']
+            if self.jobs_too:
+                for i in part:
+                    last[str(i)] = None
+                for r in self.store.db.rows(
+                        'SELECT j.id, j.ts, j.kind, j.state, j.ok, j.finished, j.said, j.cert_id '
+                        'FROM cert_jobs j WHERE j.cert_id IN (%s) AND j.ts = (SELECT MAX(ts) FROM '
+                        'cert_jobs WHERE cert_id = j.cert_id)' % ', '.join('?' * len(part)),
+                        tuple(part)):
+                    k = str(r.pop('cert_id'))
+                    have = last.get(k)
+                    if have is None or int(r['id']) > int(have['id']):
+                        last[k] = r
+        _PRE.metas = metas if not signed else None
+        _PRE.jobs = last if self.jobs_too else None
+        self.mine = True
+        return self
+
+    def __exit__(self, *a):
+        if self.mine:
+            _PRE.metas = None
+            _PRE.jobs = None
+
+
 def last_job(store, cid):
-    r = store.db.row('SELECT id, ts, kind, state, ok, finished, said FROM cert_jobs '
-                     'WHERE cert_id = ? ORDER BY ts DESC, id DESC LIMIT 1', (cid,))
+    hit, r = _pre_get('jobs', cid)
+    if hit:
+        r = dict(r) if r else None
+    else:
+        r = store.db.row('SELECT id, ts, kind, state, ok, finished, said FROM cert_jobs '
+                         'WHERE cert_id = ? ORDER BY ts DESC, id DESC LIMIT 1', (cid,))
     if not r:
         return None
     with jobs._LOCK:
@@ -391,7 +458,8 @@ def mine_public(h, s, pairs, me=None):
         if not key_may(s, via, caps, asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
-    return [public(h.store, r, via) for r, via in pairs]
+    with prefetched(h.store, [r['id'] for r, _v in pairs]):
+        return [public(h.store, r, via) for r, via in pairs]
 
 
 def may_approve_caps(caps):
@@ -855,8 +923,9 @@ def asker_change(store, cid, change):
 
 
 def asker(store, cid):
+    hit, raw = _pre_get('metas', cid)
     try:
-        got = json.loads(store.get_meta(META + str(cid)) or 'null')
+        got = json.loads((raw if hit else store.get_meta(META + str(cid))) or 'null')
     except Exception:                                   # noqa: BLE001
         got = None
     return got if isinstance(got, dict) else {}
@@ -1040,7 +1109,8 @@ def mine_page(h, s):
         elif state == 'waiting':
             pairs = [(r, v) for r, v in pairs if r.get('state') == WAITING]
         elif state == 'mine':
-            pairs = [(r, v) for r, v in pairs if askers_of(h.store, r['id']) & me.ids]
+            with prefetched(h.store, [r['id'] for r, _v in pairs], jobs_too=False):
+                pairs = [(r, v) for r, v in pairs if askers_of(h.store, r['id']) & me.ids]
         elif state in schema.STATES:
             pairs = [(r, v) for r, v in pairs if r.get('state') == state]
         else:
@@ -1131,17 +1201,28 @@ def _portal_download(h):
         # The key, only through this route and only as a PFX with a password:
         # the setting portal_cert_keys says the people may have theirs.
         as_who = {'name': 'portal:%s' % s['name'], 'role': 'fulladmin'}
+    taken = None
+    if key_action:
+        # taken once (hunt C1): marked done before the key is made, by one compare-and-swap - two
+        # downloads at once both passed the look above
+        from acmelib.certs import teampolicy as TP
+        taken = TP.action_take(h.store, key_action, 'taken by %s' % s['name'])
+        if taken is None:
+            raise E.ApiError(409, 'the key of %s is taken already' % row['name'])
     try:
         got = A.cert_export(h.store, {'id': row['id'], 'format': fmt,
                                       'password': b.get('password') if fmt == KEY_FORMAT else None},
                             as_who, allowed=row_formats(h.store, row))
     except (ValueError, LookupError) as e:
+        if taken is not None:
+            TP.action_untake(h.store, key_action, taken)
         raise E.ApiError(400, str(e))
+    except BaseException:
+        if taken is not None:
+            TP.action_untake(h.store, key_action, taken)
+        raise
     h.store.add_event('certificates', '%s took %s (%s) from the portal' % (
         s['name'], row['name'], fmt), 'warn' if fmt == KEY_FORMAT else 'info', who=s['name'])
-    if key_action:
-        from acmelib.certs import teampolicy as TP
-        TP.action_done(h.store, key_action, 'taken by %s' % s['name'])
     return got
 
 

@@ -690,8 +690,26 @@ def action_approve(store, aid, approver, ok, why=''):
             not rule.get('self'):
         raise E.ApiError(403, 'you asked for it yourself - someone else approves it')
     levels = levels_of(store, rec['team'], approver)
+    who = rule.get('approvers') or 'team'
+    want = {'team': {'team'}, 'parent': {'parent'}}.get(who, {'team', 'parent'})
+    # only at the level its rule names (hunt C1: a lead of the team declined - or approved, and
+    # was counted - an action whose rule wants the team above)
+    levels = levels & want
     if not levels:
-        raise E.ApiError(403, 'you may not approve for the team %s' % rec['team'])
+        raise E.ApiError(403, 'you may not approve for the team %s: its approvers are on %s' % (
+            rec['team'], {'team': 'the team itself', 'parent': 'the team above it'}.get(
+                who, 'the team or the team above it')))
+    if ok and who == 'both':
+        done, needed, _c = _evaluate(rule, [a for a in rec.get('approvals') or []
+                                            if isinstance(a, dict)])
+        if 'team' in needed and 'team' not in levels:
+            raise E.ApiError(403, 'an approver of the team %s approves it first, then one of the '
+                                  'team above it' % rec['team'])
+        if 'team' not in needed and 'parent' in needed:
+            if 'parent' not in levels:
+                raise E.ApiError(403, 'the approver of the team %s approved it - now one of the '
+                                      'team above it approves it' % rec['team'])
+            levels = {'parent'}
     if ok and any(a.get('ok') and _same_person(a, approver) for a in rec['approvals']):
         raise E.ApiError(409, 'you approved it already - another approver is wanted')
     rec['approvals'].append({'by': str(approver.get('by') or '?')[:190], 'at': time.time(),
@@ -711,6 +729,73 @@ def action_approve(store, aid, approver, ok, why=''):
         rec['team'], '' if rec['state'] != 'waiting' else ' - it waits for more'),
         who=str(approver.get('by') or ''))
     return rec
+
+
+def may_approve_action_now(store, rec, approver):
+    """Whether this person may approve the waiting action now - as action_approve would take
+    it: the level its rule names, the team's lead first where both approve, never twice, never
+    one's own unless the rule lets the asker."""
+    rule = T.approval_rule(_eff(store, rec.get('team')))
+    if _same_person({'ids': rec.get('ids'), 'by': rec.get('by')}, approver) and \
+            not rule.get('self'):
+        return False
+    who = rule.get('approvers') or 'team'
+    want = {'team': {'team'}, 'parent': {'parent'}}.get(who, {'team', 'parent'})
+    levels = levels_of(store, rec.get('team'), approver) & want
+    if not levels:
+        return False
+    approvals = [a for a in rec.get('approvals') or [] if isinstance(a, dict)]
+    if any(a.get('ok') and _same_person(a, approver) for a in approvals):
+        return False
+    if who == 'both':
+        _done, needed, _c = _evaluate(rule, approvals)
+        if 'team' in needed and 'team' not in levels:
+            return False
+        if 'team' not in needed and 'parent' in needed and 'parent' not in levels:
+            return False
+    return True
+
+
+def action_take(store, aid, said=''):
+    """An approved action taken by its asker once (the key): kept as done in one compare-and-swap
+    -> the record as it was, or None when it was not approved (any more) - two downloads at once
+    with the same approval took the key twice (hunt C1)."""
+    k = ACTION_META + str(aid)
+    raw = store.get_meta(k)
+    rec = S.jload(raw, None)
+    if not isinstance(rec, dict) or rec.get('state') != 'approved':
+        return None
+    new = dict(rec, state='done', done={'at': time.time(), 'said': str(said)[:300]})
+    with store.db.transaction():
+        n = store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?',
+                         (json.dumps(new, sort_keys=True), k, raw))
+        if n and E.dbguard_meta_signed(k):
+            E.dbguard_sign(store.db, 'm', k, json.dumps(new, sort_keys=True))
+    return rec if n else None
+
+
+def action_untake(store, aid, rec):
+    """The key could not be made after all: the approval stands again."""
+    if isinstance(rec, dict):
+        store.set_meta(ACTION_META + str(aid), json.dumps(dict(rec, state='approved'),
+                                                          sort_keys=True))
+
+
+def actions_follow(store, old, new):
+    """The actions of a team renamed (new) follow it; of a team deleted (None) those waiting are
+    declined - nobody may approve them any more (hunt C1: they stayed waiting, for nobody)."""
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'teams:action:%'"):
+        rec = S.jload(r['v'], None)
+        if not isinstance(rec, dict) or _low(rec.get('team')) != _low(old):
+            continue
+        if new:
+            rec['team'] = new
+        elif rec.get('state') == 'waiting':
+            rec['state'] = 'declined'
+            rec['done'] = {'at': time.time(), 'said': 'the team %s was deleted' % old}
+        else:
+            continue
+        store.set_meta(r['k'], json.dumps(rec, sort_keys=True))
 
 
 def action_done(store, aid, said=''):

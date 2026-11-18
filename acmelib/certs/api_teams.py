@@ -56,6 +56,11 @@ def summary(store, s):
         teams = [t if T.owner_in(seen, t['name']) else
                  dict(t, members=[], contact_mail='', contact_phone='', note='')
                  for t in teams]
+    # what each team holds (1.0.125, hunt C1): the page asked four lists of every team for it -
+    # a scoped account those of the teams it sees only
+    cnt = T.team_counts(store)
+    teams = [dict(t, counts=cnt.get(t['name'].lower())) if (seen is None or T.owner_in(
+        seen, t['name'])) and t['name'].lower() in cnt else t for t in teams]
     legacy = T.legacy(store)
     if seen is not None:
         # the free-text owners of the others' certificates not told (1.0.79); adopting them

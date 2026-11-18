@@ -66,7 +66,16 @@
 @keyframes tmx-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes tmx-pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.tmx-fade,.tmx-tick.pop{animation:none}.tmx *{transition:none !important}}
-.tmx-asking{padding:28px;text-align:center;color:var(--tx-mut);font-size:13px}
+.tmx-asking{padding:14px 2px 10px;text-align:center;color:var(--tx-mut);font-size:12.5px}
+/* while asked: the portal's skeleton - three lines shimmering - above the word */
+.tmx-asking::before{content:'';display:block;height:74px;margin:0 0 10px;border-radius:9px;
+  background:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--tx) 6%,transparent) 50%,transparent 100%) 0 0/200% 100% no-repeat,
+    linear-gradient(var(--panel2),var(--panel2)) 0 0/100% 18px no-repeat,
+    linear-gradient(var(--panel2),var(--panel2)) 0 28px/82% 18px no-repeat,
+    linear-gradient(var(--panel2),var(--panel2)) 0 56px/64% 18px no-repeat;
+  animation:tmx-shimmer 1.3s ease-in-out infinite}
+@keyframes tmx-shimmer{from{background-position:150% 0,0 0,0 28px,0 56px}to{background-position:-50% 0,0 0,0 28px,0 56px}}
+@media (prefers-reduced-motion:reduce){.tmx-asking::before{animation:none}}
 .tmx-n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:999px;
   background:var(--panel2);border:1px solid var(--line);color:var(--tx-dim);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
 
@@ -227,7 +236,12 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 .tmx-cap.g-team,.tmx-mx-cid.g-team{color:var(--violet);border-color:color-mix(in srgb,var(--violet) 30%,var(--line));background:var(--violet-bg)}
 
 /* Overview */
-.tmx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:0 0 16px}
+/* seven tiles: one row of seven where the pane is wide enough, else four and three - never six
+   and one left alone (a container query: the pane's width, not the window's) */
+:has(> .tmx-tiles){container-type:inline-size}
+.tmx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin:0 0 16px}
+.tmx-tiles:has(> .tmx-tile:nth-child(7)){grid-template-columns:repeat(4,minmax(0,1fr))}
+@container (min-width:800px){ .tmx-tiles:has(> .tmx-tile:nth-child(7)){grid-template-columns:repeat(7,minmax(0,1fr))} }
 .tmx-tile{all:unset;box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:4px;padding:13px 14px 12px;border-radius:13px;border:1px solid var(--line);
   background:linear-gradient(160deg,color-mix(in srgb,var(--tmx-tc,var(--tx-mut)) 9%,var(--panel2)),var(--panel2) 70%);cursor:pointer;min-width:0;
   transition:transform .15s var(--tmx-ease),border-color .15s,box-shadow .15s}
@@ -237,9 +251,12 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 .tmx-tile.warn{--tmx-tc:var(--warn)}
 .tmx-tile.crit{--tmx-tc:var(--crit)}
 .tmx-tile.violet{--tmx-tc:var(--violet)}
-.tmx-tile-h{display:flex;align-items:flex-start;gap:6px;color:var(--tx-dim);font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;line-height:1.3;min-width:0}
-.tmx-tile-h > span{min-width:0;overflow-wrap:anywhere}
-.tmx-tile-h .tmx-ic{color:var(--tmx-tc,var(--tx-mut))}
+/* a label wraps between words only - never inside one (CERTIFIKÁTY), and a word wider than the
+   tile is cut with an ellipsis (the whole label in the tile's title) */
+.tmx-tile-h{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:var(--tx-dim);font-size:10.5px;font-weight:700;letter-spacing:.2px;text-transform:uppercase;line-height:1.35;min-width:0;
+  overflow-wrap:normal;word-break:normal;hyphens:none;text-overflow:ellipsis;min-height:calc(10.5px*1.35*2)}
+.tmx-tile-vr{display:flex;align-items:center;gap:8px;min-width:0}
+.tmx-tile-vr .tmx-ic{flex:none;color:var(--tmx-tc,var(--tx-mut));opacity:.9}
 .tmx-tile-v{font-size:28px;font-weight:700;line-height:1.1;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .tmx-tile.warn .tmx-tile-v{color:var(--warn)}
 .tmx-tile.crit .tmx-tile-v{color:var(--crit)}
@@ -547,6 +564,9 @@ button.tmx-tick.on{border:0}
 /* widths */
 @media (max-width:1180px){
   .tmx-grid{grid-template-columns:minmax(240px,280px) minmax(0,1fr)}
+  /* the narrow tree: the name first - one count beside it (the rest on the team's page), not
+     "W…" squeezed by three */
+  .tmx-row-b .tmx-mini + .tmx-mini{display:none}
   .tmx-cols{grid-template-columns:minmax(0,1fr)}
   .tmx-prow{grid-template-columns:minmax(0,1fr)}
   .tmx-prow.own::before{top:14px;bottom:auto;height:22px}
@@ -584,7 +604,8 @@ button.tmx-tick.on{border:0}
   .tmx-mx .tmx-mx-c0{min-width:170px;max-width:200px}
 }
 @media (max-width:520px){
-  .tmx-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .tmx-tiles,.tmx-tiles:has(> .tmx-tile:nth-child(7)){grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .tmx-tile:last-child:nth-child(odd){grid-column:1/-1}
   .tmx-tile{padding:11px 12px}
   .tmx-tile-v{font-size:24px}
   .tmx-vbtn{padding:7px 10px;font-size:13px;gap:6px}
@@ -593,6 +614,13 @@ button.tmx-tick.on{border:0}
   .tmx-cr .tmx-cdays{display:none}
   .tmx-mx .tmx-mx-c0{min-width:140px;max-width:160px}
   .tmx-mx-cw{font-size:12px}
+  /* a dialog's switch spans the dialog: every choice seen, none cut at the edge */
+  #modal .tmx-seg{display:flex;width:100%}
+  #modal .tmx-segb{flex:1 1 auto;justify-content:center;padding:6px 8px;gap:5px}
 }
 
 .tmx-oldr{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tx-mut);margin-right:1px}
+
+/* keyboard: every control of the pane its ring (some had none - all:unset took the browser's) */
+.tmx-chip-x:focus-visible,.tmx-link:focus-visible,.tmx-kid:focus-visible,.tmx-qbtn:focus-visible,.tmx-tp-it:focus-visible,
+.tmx-dname:focus-visible,.tmx-ac-tn:focus-visible{outline:2px solid var(--info);outline-offset:2px;border-radius:6px}

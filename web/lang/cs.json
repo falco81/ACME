@@ -71231,6 +71231,18 @@
   "z_1646": {
    "source": "Your workspace",
    "text": "Váš pracovní prostor"
+  },
+  "z_1647": {
+   "source": "its limits taken off",
+   "text": "jeho omezení zrušena"
+  },
+  "z_1648": {
+   "source": "now under nothing (top level)",
+   "text": "nově na nejvyšší úrovni"
+  },
+  "z_1649": {
+   "source": "Tags group certificates and targets across teams - prod, pci, legacy… - each with its colour and what it means.",
+   "text": "Štítky seskupují certifikáty a cíle napříč týmy – prod, pci, legacy… – každý se svou barvou a významem."
   }
  },
  "patterns": {
@@ -98749,6 +98761,50 @@
   "pz_483": {
    "source": "{0}–{1} of {2}",
    "text": "{0}–{1} z {2}"
+  },
+  "pz_484": {
+   "source": "{0} waits for an approver of the team {1}",
+   "text": "{0} čeká na schvalovatele týmu {1}"
+  },
+  "pz_485": {
+   "source": "{0} waits for an approver of the team {1} (above {2})",
+   "text": "{0} čeká na schvalovatele týmu {1} (nadřízeného týmu {2})"
+  },
+  "pz_486": {
+   "source": "{0} approved {1} for the team {2} - it waits for {3} more approval(s) ({4})",
+   "text": "{0} schválil {1} za tým {2} – čeká ještě na další schválení: {3} ({4})"
+  },
+  "pz_487": {
+   "source": "the team {0}: \"{1} {2}\" waits for {3}",
+   "text": "tým {0}: „{1} {2}“ čeká na schválení ({3})"
+  },
+  "pz_488": {
+   "source": "the owner {0} added by {1} - the team {2} under {3}",
+   "text": "vlastníka {0} přidal {1} – tým {2} pod {3}"
+  },
+  "pz_489": {
+   "source": "the owner {0} changed by {1} - the team {2}: {3}",
+   "text": "vlastníka {0} změnil {1} – tým {2}: {3}"
+  },
+  "pz_490": {
+   "source": "the owner {0} changed by {1} (was {2}) - the team {3}: {4}",
+   "text": "vlastníka {0} změnil {1} (dříve {2}) – tým {3}: {4}"
+  },
+  "pz_491": {
+   "source": "the owner {0} deleted by {1} - the team {2}: its {3} team(s) below now under {4}",
+   "text": "vlastníka {0} smazal {1} – tým {2}: jeho týmy pod ním ({3}) jsou teď pod {4}"
+  },
+  "pz_492": {
+   "source": "the owner {0} deleted by {1} - its {2} certificate(s) now owned by {3} - the team {4}: its {5} team(s) below now under {6}",
+   "text": "vlastníka {0} smazal {1} – jeho certifikáty ({2}) teď vlastní {3} – tým {4}: jeho týmy pod ním ({5}) jsou teď pod {6}"
+  },
+  "pz_493": {
+   "source": "now under {0}",
+   "text": "nově pod {0}"
+  },
+  "pz_494": {
+   "source": "its limits {0}",
+   "text": "jeho omezení {0}"
   }
  },
  "rich": {

@@ -287,8 +287,8 @@ once with the approval's id (`cert_download {..., action: ID}`).
 | `action-approve` → `POST action_approve` | an approver of the team | `{id, ok, why}` (why needed to decline) |
 | `devices&team=` → `GET devices` | `target.view` | the team's devices (`below=1` those below too); each secret `''`, `secrets: {key: set?}` |
 | `device&id=` → `GET device` | `target.view` | one device, its agent (state, server facts), the deployments to it |
-| `kinds&team=` → `GET kinds` | `target.view` | the modules the team may use (policy `target_kinds`, `agents`; never `local`) with the fields the administration's form draws |
-| `device-save` → `POST device_save` | `target.manage` | `{id?, team, name, kind, config, note, enabled, tags}` - the module's own checks (`api.family_save`), owned by the team; a device keeping secrets is not pointed elsewhere without typing them again |
+| `kinds&team=` → `GET kinds` | `target.view` | the modules the team may use (policy `target_kinds`, `agents`; never `local`) with the fields the administration's form draws - a field choosing a connector lists the team's own only |
+| `device-save` → `POST device_save` | `target.manage` | `{id?, team, name, kind, config, note, enabled, tags}` - the module's own checks (`api.family_save`), owned by the team; a device keeping secrets is not pointed elsewhere without typing them again; it goes through (`via`, `ssh_via`, ...) a connector of the team only (by its name), never acme's own nor another team's |
 | `device-delete` → `POST device_delete` | `target.manage` | refused (409) while deployments use it |
 | `device-test` → `POST device_test` | `target.test` | the module's test, as saved |
 | `agent-code` → `POST agent_code` | `target.manage` | a one-time join code of a team's agent target |
@@ -315,7 +315,12 @@ themselves (or a group of theirs), raises or lengthens their own membership; the
 are never touched. A team's own limits are changed by those who hold `team.policy` on the team
 **above** it - never their own team's - and never wider than those in force above (a wider
 list, a larger number, true where above says false, a weaker approval, `agents_auto_confirm`
-which only administrators allow): refused in words.
+which only administrators allow, fewer approvers, a wider envelope of `outside`): refused in
+words. A team made or renamed here never takes a name certificates or devices already carry as
+their owner (it would own them), nor a person's (a mail or UPN, a user of the directory); a
+team moved with new limits needs `team.policy` on its new place too; another's membership is
+never made one's own; the old right *manage* approves, so it is given only by one who holds
+`cert.approve`.
 
 The relay (`web/index.php`) passes each GET's own arguments only (200 characters each) and
 POST bodies of 256 KB at most.

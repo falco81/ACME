@@ -176,6 +176,8 @@
 .pw-hero-caps .pw-chip .pw-ic{color:var(--ok)}
 .pw-quick{display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:1}
 .pw-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+/* six tiles: one row of six, else two rows of three - never four and an orphaned two */
+.pw-tiles:has(> .pw-tile:nth-child(6)){grid-template-columns:repeat(6,minmax(0,1fr))}
 .pw-tile{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:16px 16px 14px;border-radius:15px;
   border:1px solid var(--line);background:linear-gradient(160deg,var(--panel2) 0%,var(--panel) 70%);position:relative;overflow:hidden;
   transition:transform .15s,border-color .15s,box-shadow .15s;min-width:0}
@@ -185,8 +187,8 @@
 .pw-tile-w{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pw-tile-ic{width:28px;height:28px;border-radius:8px}
 .pw-tile-n{font-size:34px;font-weight:750;letter-spacing:-.03em;line-height:1.15;margin-top:8px;font-variant-numeric:tabular-nums}
-.pw-tile-s{font-size:12.5px;color:var(--tx-mut);min-height:1.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pw-spark{display:flex;height:4px;border-radius:4px;overflow:hidden;background:rgba(139,148,163,.14);margin-top:10px}
+.pw-tile-s{flex:1 0 auto;font-size:12.5px;line-height:1.4;color:var(--tx-mut);min-height:2.8em;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.pw-spark{display:flex;flex:none;height:4px;border-radius:4px;overflow:hidden;background:rgba(139,148,163,.14);margin-top:10px}
 .pw-spark span{display:block;height:100%;transition:width .5s ease}
 .pw-spark .ok{background:var(--ok)} .pw-spark .warn{background:var(--warn)} .pw-spark .crit{background:var(--crit)}
 .pw-spark .info{background:var(--info)} .pw-spark .violet{background:var(--violet)} .pw-spark .load{background:var(--load)}
@@ -218,7 +220,7 @@
 .pw-attn-i.ok .pw-attn-ic{color:var(--ok);background:var(--ok-bg)}
 .pw-attn-w{flex:1;min-width:0;display:flex;flex-direction:column}
 .pw-attn-w b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pw-attn-w span{font-size:12.5px;color:var(--tx-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pw-attn-w span{font-size:12.5px;line-height:1.4;color:var(--tx-dim);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
 .pw-attn-go{color:var(--tx-mut)}
 .pw-lim{display:flex;flex-direction:column;gap:5px;padding:10px 0;border-top:1px solid var(--line)}
 .pw-lim:first-of-type{border-top:0;padding-top:0}
@@ -470,6 +472,9 @@ ol.pw-tl::before{content:'';position:absolute;left:17px;top:14px;bottom:14px;wid
 @media (max-width:1180px){
   .pw-cols{grid-template-columns:minmax(0,1fr)}
 }
+@media (max-width:1360px){
+  .pw-tiles:has(> .pw-tile:nth-child(6)){grid-template-columns:repeat(3,minmax(0,1fr))}
+}
 @media (max-width:1024px){
   .pw{grid-template-columns:196px minmax(0,1fr);gap:18px}
   .pw-navi{padding:9px 10px;font-size:13.5px}
@@ -502,7 +507,7 @@ ol.pw-tl::before{content:'';position:absolute;left:17px;top:14px;bottom:14px;wid
   .pw-hero-t{font-size:21px}
   .pw-quick{width:100%}
   .pw-quick .btn{flex:1 1 auto;justify-content:center}
-  .pw-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .pw-tiles,.pw-tiles:has(> .pw-tile:nth-child(6)){grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .pw-tile{padding:13px}
   .pw-tile-n{font-size:28px}
   .pw-tile-top{font-size:10.5px}
@@ -528,6 +533,8 @@ ol.pw-tl::before{content:'';position:absolute;left:17px;top:14px;bottom:14px;wid
   .pw-node{padding-left:calc(6px + var(--d,0) * 12px);flex-wrap:wrap}
   .pw-node:not(.root)::before{display:none}
   .pw-node-b{flex-basis:100%;justify-content:flex-end}
+  .pw-node:not(.root){align-items:flex-start}
+  .pw-node:not(.root) > .pw-ic{margin-top:2px}
   .pw-req-b{width:100%}
   .pw-req-b .btn{flex:1 1 auto;justify-content:center}
   .pw-devs{grid-template-columns:minmax(0,1fr)}
@@ -554,3 +561,6 @@ body.pw-on .wrap.portal{max-width:1400px}
   .pw-mem-r{flex:1 1 auto;flex-basis:auto;padding-left:52px}
   .pw-mem-b{margin-left:auto}
 }
+
+/* keyboard: the remove mark of a chip its ring, as every other control here */
+.pw-chipin-c button:focus-visible{outline:2px solid var(--info);outline-offset:1px}

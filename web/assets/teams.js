@@ -768,7 +768,7 @@
     r.appendChild(kindBadge(n.kind, 14));
     var w = el('span', 'tmx-row-w');
     w.appendChild(mark(n.name, searching ? fold(UI.q).trim() : ''));
-    if (n.desc) w.appendChild(data('span', 'tmx-row-d', n.desc));
+    if (n.desc) { var rd = data('span', 'tmx-row-d', n.desc); rd.title = n.desc; w.appendChild(rd); }
     r.appendChild(w);
     var b = el('span', 'tmx-row-b');
     if (n.all) {
@@ -938,6 +938,15 @@
   function teamCounts(name) {
     var k = low(name);
     if (UI.counts[k]) return UI.counts[k];
+    /* GET /api/teams says them of every team at once (1.0.125) - the lists asked only of a
+       daemon that does not */
+    var t = teamOf(name);
+    if (t && t.counts) {
+      UI.counts[k] = Promise.resolve({certs: Number(t.counts.certs || 0), expiring: Number(t.counts.expiring || 0),
+                                      failing: Number(t.counts.failing || 0), waiting: Number(t.counts.waiting || 0),
+                                      agents_waiting: Number(t.counts.agents_waiting || 0)});
+      return UI.counts[k];
+    }
     var ask = function (state) {
       return api('certs&owner=' + enc(name) + '&per=1' + (state ? '&state=' + state : ''))
         .then(function (d) { return Number(d.total || 0); }).catch(function () { return null; });
@@ -950,11 +959,15 @@
     var b = el(go ? 'button' : 'div', 'tmx-tile' + (tone ? ' ' + tone : ''));
     if (go) { b.type = 'button'; b.onclick = go; }
     b.dataset.tile = key;
-    var top = el('div', 'tmx-tile-h');
-    top.appendChild(ic(icon, 16));
-    top.appendChild(el('span', '', label));
+    /* the label alone on its line (wrapped at spaces only, never inside a word), the mark
+       beside the number */
+    var top = el('div', 'tmx-tile-h', label);
     b.appendChild(top);
-    b.appendChild(data('div', 'tmx-tile-v', value === null || value === undefined ? '–' : num(value)));
+    var vr = el('div', 'tmx-tile-vr');
+    vr.appendChild(ic(icon, 16));
+    vr.appendChild(data('div', 'tmx-tile-v', value === null || value === undefined ? '–' : num(value)));
+    b.appendChild(vr);
+    b.title = top.textContent;
     if (sub) b.appendChild(sub instanceof Node ? sub : el('div', 'tmx-tile-s', sub));
     return b;
   }
@@ -982,7 +995,7 @@
       tiles.appendChild(tile('failing', 'pulse', 'Failing', c ? c.failing : null, 'the last renewal failed', c && c.failing ? 'crit' : '', goTab('certs')));
       tiles.appendChild(tile('waiting', 'bell', 'Waiting requests', c ? c.waiting : null, 'for an approval', c && c.waiting ? 'violet' : '', goTab('certs')));
       tiles.appendChild(tile('devices', 'router', 'Devices', devs.length, 'targets owned by the team', '', goTab('devices')));
-      tiles.appendChild(tile('agents', 'terminal', 'Agents', agents.length, 'servers with acme-agent', '', goTab('devices')));
+      tiles.appendChild(tile('agents', 'terminal', 'Agents', agents.length, c && c.agents_waiting ? el('div', 'tmx-tile-s warn', '{0} waiting to be confirmed'.replace('{0}', num(c.agents_waiting))) : 'servers with acme-agent', c && c.agents_waiting ? 'warn' : '', goTab('devices')));
       tiles.appendChild(tile('members', 'people', 'Members', mem.length, ending ? el('div', 'tmx-tile-s warn', '{0} ending within 30 days'.replace('{0}', num(ending))) : 'people and groups', '', goTab('members')));
     };
     paint(null);
@@ -2715,6 +2728,12 @@
     h.appendChild(right);
     card.appendChild(h);
     card.appendChild(el('p', 'note', 'The words certificates and targets are found and grouped by, each with its colour and what it means - picked from this list, never typed. Renamed here, a tag is renamed on everything that carries it.'));
+    /* none yet: said as the pane's other empty places say it, not an empty table's one line
+       (the button that adds the first one above it) */
+    if (!(d.tags || []).length) {
+      card.appendChild(empty('tm_tag', 'No tag yet', 'Tags group certificates and targets across teams - prod, pci, legacy… - each with its colour and what it means.'));
+      return card;
+    }
     card.appendChild(listTable(['Tag', 'What it means', {words: 'Certificates', cls: 'num'}, {words: 'Targets', cls: 'num'}, ''],
       d.tags || [], function (t) {
         var tr_ = el('tr', 'tm-tagrow');

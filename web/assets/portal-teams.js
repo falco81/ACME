@@ -2219,6 +2219,7 @@ function viewMembers(main) {
     explainWhatWasDrawn(c);
   }).catch(function (e) { if (seq === WS.seq) failed(c, e); });
 }
+var RIGHT_WORDS = {view: 'see', request: 'ask for new', manage: 'manage', approve: 'approve'};
 function memberRow(t, d, m, own) {
   var r = el('div', 'pw-mem' + (m.expired ? ' expired' : '') + (own ? '' : ' above'));
   r.appendChild(avatar(m.who, m.kind === 'group'));
@@ -2238,8 +2239,12 @@ function memberRow(t, d, m, own) {
   w.appendChild(sub);
   r.appendChild(w);
   var roles = el('div', 'pw-mem-r');
-  arr(m.roles).forEach(function (x) { roles.appendChild(chip(x, 'violet', null, true)); });
-  arr(m.rights).forEach(function (x) { roles.appendChild(chip(x, 'dim', null, true)); });
+  /* a built-in role in the page's language (Čtenář, not Viewer) - a role of the
+     administrators' own as they named it; the old rights in words, as the admin pages say them */
+  var builtin = {};
+  arr(d && d.roles).forEach(function (x) { if (x.builtin) builtin[String(x.name).toLowerCase()] = 1; });
+  arr(m.roles).forEach(function (x) { roles.appendChild(chip(x, 'violet', null, !builtin[String(x).toLowerCase()])); });
+  arr(m.rights).forEach(function (x) { roles.appendChild(RIGHT_WORDS[x] ? chip(RIGHT_WORDS[x], 'dim') : chip(x, 'dim', null, true)); });
   r.appendChild(roles);
   if (own) {
     var tools = el('div', 'pw-mem-b');
@@ -2580,7 +2585,7 @@ function limitsEditor(parent, own) {
     w.appendChild(i);
     if (unit) w.appendChild(el('span', 'muted', unit));
     row(key, label, w, own[key] !== undefined, function () { return i.value === '' ? null : Number(i.value); },
-        eff[key] && unit ? nW(eff[key], unit) : undefined);
+        eff[key] && unit ? tr(nW(eff[key], unit)) : undefined);   /* "90 dní", not "90 days" */
   };
   var boolRow = function (key, label, yes, no) {
     var s = selectBox([['1', yes], ['0', no]], own[key] === false ? '0' : '1');

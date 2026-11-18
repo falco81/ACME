@@ -730,6 +730,48 @@ def _meet_suffixes(a, b):
     return out
 
 
+_APPROVER_LEVELS = {'team': frozenset(['team']), 'parent': frozenset(['parent']),
+                    'both': frozenset(['team', 'parent']), 'team_or_parent': frozenset()}
+
+
+def _meet_approvers(a, b):
+    """The approvers of two rules in force at once: the levels both want (team_or_parent wants
+    either, so the other's)."""
+    if not a or not b or a == b:
+        return b or a
+    want = _APPROVER_LEVELS.get(a, frozenset()) | _APPROVER_LEVELS.get(b, frozenset())
+    if want == {'team', 'parent'}:
+        return 'both'
+    if want:
+        return next(iter(want))
+    return 'team_or_parent'
+
+
+def _meet_envelopes(a, b):
+    """The pre-approved envelope (approval.outside) of two rules: what both let through."""
+    if a is None or b is None:
+        return b if a is None else a
+    out = {}
+    for k in ('profiles', 'key_types'):
+        if a.get(k) is None or b.get(k) is None:
+            v = a.get(k) if b.get(k) is None else b.get(k)
+        else:
+            mine = {_low(x) for x in b[k]}
+            v = [x for x in a[k] if _low(x) in mine]
+        if v is not None:
+            out[k] = list(v)
+    if a.get('suffixes') is None or b.get('suffixes') is None:
+        v = a.get('suffixes') if b.get('suffixes') is None else b.get('suffixes')
+    else:
+        v = _meet_suffixes(a['suffixes'], b['suffixes'])
+    if v is not None:
+        out['suffixes'] = list(v)
+    ds = [x.get('max_days') for x in (a, b) if x.get('max_days') is not None]
+    if ds:
+        out['max_days'] = min(int(d) for d in ds)
+    return out
+
+
 def merge_policies(chain):
     """The limits in force for the last team of `chain` ([(team, own policy)] top first): the
     intersection - a team below only narrows what those above allow. `from` says which team's
@@ -766,14 +808,25 @@ def merge_policies(chain):
             if not have or APPROVAL_MODES.index(m) >= APPROVAL_MODES.index(have.get('mode',
                                                                                  'profile')):
                 new = dict(a)
-                new['count'] = max(int(a.get('count') or 1), int(have.get('count') or 1))
-                new['self'] = bool(a.get('self', False)) and bool(have.get('self', True))
-                eff['approval'] = new
             else:
-                have = dict(have)
-                have['count'] = max(int(a.get('count') or 1), int(have.get('count') or 1))
-                have['self'] = bool(a.get('self', False)) and bool(have.get('self', True))
-                eff['approval'] = have
+                new = dict(have)
+            new['count'] = max(int(a.get('count') or 1), int(have.get('count') or 1))
+            new['self'] = bool(a.get('self', False)) and bool(have.get('self', True))
+            if have:
+                # who approves: never fewer levels than above (hunt C1: a team below said
+                # "team" in the same mode and its leads alone approved what the team above had
+                # made wait for both)
+                ap = _meet_approvers(have.get('approvers'), a.get('approvers'))
+                if ap:
+                    new['approvers'] = ap
+                if new.get('mode') == 'outside':
+                    # the envelope let through without an approval: never wider than above
+                    env = _meet_envelopes(have.get('outside') if have.get('mode') == 'outside'
+                                          else None,
+                                          a.get('outside') if m == 'outside' else None)
+                    if env is not None:
+                        new['outside'] = env
+            eff['approval'] = new
             src['approval'] = team
         if p.get('approve_actions'):
             eff['approve_actions'] = sorted(set(eff.get('approve_actions') or [])
@@ -1184,8 +1237,12 @@ def guard(h, s, method, path):
             need_cert(store, s, b.get('id'), 'view', 'look at the plan of')
         return
     if path in MANAGE_ROUTES:
-        need_cert(store, s, _ref(b, 'id', 'cert_id', 'name'), route_cap(path, b),
-                  path.rsplit('/', 1)[-1])
+        row = need_cert(store, s, _ref(b, 'id', 'cert_id', 'name'), route_cap(path, b),
+                        path.rsplit('/', 1)[-1])
+        if row is not None and route_cap(path, b) == 'cert.key' and not unscoped(s, 'manage'):
+            # its team's limits on a file with the key (hunt C1: checked on the portal only)
+            from acmelib.certs import teampolicy as TP
+            TP.need_key_download(store, row.get('owner'), str(s.get('name') or '?'))
     elif path == '/api/certs/job_stop':
         need_job(store, s, b.get('id'), 'cert.renew', 'stop a job of')
     elif path in ('/api/certs/save', '/api/certs/import', '/api/certs/csr'):
@@ -1224,7 +1281,14 @@ def guard(h, s, method, path):
         # a certificate of one's own (1.0.19).
         if b.get('id') not in (None, '', 0):
             need_cert(store, s, _cert_of_deploy(store, b['id']), right, 'deploy')
-        need_cert(store, s, _ref(b, 'cert_id'), right, 'deploy')
+        crow = need_cert(store, s, _ref(b, 'cert_id'), right, 'deploy')
+        if path == '/api/deploys/save' and crow is not None and not unscoped(s, 'manage') and \
+                b.get('target') not in (None, ''):
+            # a team's certificate to a device of its own (or acme's), of a module its limits
+            # allow (hunt C1: checked on the portal only)
+            from acmelib.certs import teampolicy as TP
+            TP.need_deploy(store, crow, S.plugin_row(store, 'target', b.get('target')),
+                           str(s.get('name') or '?'))
     elif path == '/api/deploys/delete':
         need_cert(store, s, _cert_of_deploy(store, b.get('id')), 'deploy.manage', 'deploy')
     elif path == '/api/deploys/run':
@@ -1257,6 +1321,54 @@ def used_counts(store):
     for r in store.db.rows("SELECT LOWER(TRIM(owner)) AS o, COUNT(*) AS n FROM certs WHERE "
                            "COALESCE(owner, '') <> '' GROUP BY LOWER(TRIM(owner))"):
         out[r['o']] = int(r['n'] or 0)
+    return out
+
+
+def team_counts(store):
+    """{team lower: {certs, certs_below, expiring, failing, waiting, devices, agents,
+    agents_waiting}} of every team at once (1.0.125, hunt C1: the page asked four lists per
+    team) - a few grouped statements; certs_below the team's and those of the teams below."""
+    def grouped(sql, args=()):
+        out = {}
+        try:
+            for r in store.db.rows(sql, args):
+                out[_low(r['o'])] = out.get(_low(r['o']), 0) + int(r['n'] or 0)
+        except Exception as e:                          # noqa: BLE001
+            E.log('the teams\' counts: %s' % e, 'warn')
+        return out
+    now = time.time()
+    days = int(E.CONFIG.get('certs_notify_days') or 14)
+    certs = used_counts(store)
+    by_owner = "COALESCE(owner, '') <> '' GROUP BY LOWER(TRIM(owner))"
+    expiring = grouped('SELECT LOWER(TRIM(owner)) AS o, COUNT(*) AS n FROM certs WHERE '
+                       'not_after > ? AND not_after < ? AND ' + by_owner,
+                       (now, now + days * 86400))
+    failing = grouped("SELECT LOWER(TRIM(owner)) AS o, COUNT(*) AS n FROM certs WHERE "
+                      "state = 'failed' AND " + by_owner)
+    waiting = grouped("SELECT LOWER(TRIM(owner)) AS o, COUNT(*) AS n FROM certs WHERE "
+                      "state = 'pending-approval' AND " + by_owner)
+    devices = grouped('SELECT LOWER(TRIM(owner)) AS o, COUNT(*) AS n FROM cert_targets WHERE '
+                      + by_owner)
+    agents = grouped("SELECT LOWER(TRIM(owner)) AS o, COUNT(*) AS n FROM cert_targets WHERE "
+                     "kind IN ('agent', 'agent_windows') AND " + by_owner)
+    agents_waiting = {}
+    if agents:
+        try:
+            from acmelib.certs import agents as G
+            for w in G.waiting(store, teams=set(agents)):
+                o = _low(w.get('owner'))
+                agents_waiting[o] = agents_waiting.get(o, 0) + 1
+        except Exception as e:                          # noqa: BLE001
+            E.log('the teams\' waiting agents: %s' % e, 'warn')
+    tr = tree(store)
+    out = {}
+    for k in reversed(tr.order):
+        below = certs.get(k, 0) + sum(out[c]['certs_below'] for c in tr.children.get(k, [])
+                                      if c in out)
+        out[k] = {'certs': certs.get(k, 0), 'certs_below': below,
+                  'expiring': expiring.get(k, 0), 'failing': failing.get(k, 0),
+                  'waiting': waiting.get(k, 0), 'devices': devices.get(k, 0),
+                  'agents': agents.get(k, 0), 'agents_waiting': agents_waiting.get(k, 0)}
     return out
 
 
@@ -1334,6 +1446,8 @@ def _follow_rename(store, old_name, name):
     store.db.run('UPDATE cert_targets SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                  (name, _low(old_name)))
     _enroll_follow(store, old_name, name)
+    from acmelib.certs import teampolicy as TP
+    TP.actions_follow(store, old_name, name)
 
 
 def _enroll_follow(store, old, new):
@@ -1480,6 +1594,8 @@ def delete_team(store, name, by, reassign=None, reparent=None):
                      (to_parent, _now(), _low(t['name'])))
     store.db.run('DELETE FROM cert_teams WHERE id = ?', (t['id'],))
     _enroll_follow(store, t['name'], None)
+    from acmelib.certs import teampolicy as TP
+    TP.actions_follow(store, t['name'], None)
     # The profiles naming it follow (1.0.45): they named an owner no longer there, unusable.
     _profiles_follow(store, 'team', t['name'], moved or None)
     store.add_event('certificates', 'the owner %s deleted by %s%s%s' % (
@@ -1676,18 +1792,67 @@ def _like(text):
     return '%' + str(text).lower().replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
 
 
+_NAME_CHARS = frozenset('abcdefghijklmnopqrstuvwxyz0123456789_@+-')
+ACTIVITY_SCAN_MOST = 20000
+
+
+def _mentions(text, term, longer=()):
+    """Whether `text` (lower case) names `term` (lower case) as a whole name - not the start of
+    a longer one (1.0.125, hunt C1: the activity of the team Web showed the events of WebDev and
+    of Web2, and those of a certificate web1 the events of web10). `longer`: the other names
+    that begin with `term` (a team "Web Ops" beside "Web") - an occurrence that is one of them
+    is theirs."""
+    n = len(term)
+    at = text.find(term)
+    while at >= 0:
+        before = text[at - 1] if at else ' '
+        after = text[at + n:at + n + 1]
+        nxt = text[at + n + 1:at + n + 2]
+        ok = before not in _NAME_CHARS and before != '.'
+        if ok and after:
+            if after in _NAME_CHARS or (after == '.' and nxt and nxt in _NAME_CHARS):
+                ok = False
+        if ok:
+            for lo in longer:
+                if text.startswith(lo, at) and not _continues(text, at + len(lo)):
+                    ok = False
+                    break
+        if ok:
+            return True
+        at = text.find(term, at + 1)
+    return False
+
+
+def _continues(text, end):
+    after = text[end:end + 1]
+    nxt = text[end + 1:end + 2]
+    return bool(after) and (after in _NAME_CHARS or (after == '.' and bool(nxt) and
+                                                      nxt in _NAME_CHARS))
+
+
 def team_activity(store, team, limit=50, offset=0, below=False):
     """The events about a team: its own changes (the owner / the team NAME), its certificates'
-    and its devices' - (rows, total), newest first. `below`: the teams below it too."""
+    and its devices' - (rows, total), newest first. `below`: the teams below it too.
+    A name is matched as a whole (1.0.125, hunt C1): the LIKE of the database only narrows what
+    is read; each event is then read for the names themselves - never an event of WebDev for
+    Web, nor of web10 for web1."""
     tr = tree(store)
     k = _low(team)
     if k not in tr.rows:
         raise LookupError('there is no team %s' % team)
     teams_ = [k] + (tr.descendants(k) if below else [])
     terms = []
+    team_names = [tr.rows[x]['name'] for x in tr.order]
+    exact = {}
     for x in teams_:
         n = tr.rows[x]['name']
-        terms += ['the owner %s' % n, 'the team %s' % n, 'team %s' % n]
+        longer = [o.lower() for o in team_names if o.lower() != n.lower() and
+                  o.lower().startswith(n.lower())]
+        # 'under NAME': a team made, moved or let go below it (save_team's, delete_team's words)
+        for pre in ('the owner ', 'the team ', 'team ', 'under '):
+            t = pre + n
+            terms.append(t)
+            exact[t.lower()] = [pre + o for o in longer]
     part = ', '.join('?' * len(teams_))
     for r in store.db.rows('SELECT name FROM certs WHERE LOWER(TRIM(owner)) IN (%s) ORDER BY '
                            'name LIMIT 300' % part, tuple(teams_)):
@@ -1698,7 +1863,20 @@ def team_activity(store, team, limit=50, offset=0, below=False):
     terms = list(dict.fromkeys(t for t in terms if t))[:600]
     sql = "kind = 'certificates' AND (%s)" % ' OR '.join(
         "LOWER(words) LIKE ? ESCAPE '!'" for _ in terms)
-    rows, total = store.events(max(1, min(500, int(limit))), max(0, int(offset)),
-                               extra=(sql, [_like(t) for t in terms]))
+    low_terms = [(t.lower(), exact.get(t.lower(), ())) for t in terms]
+    hits = []
+    for r in store.db.rows('SELECT id, words FROM events WHERE %s ORDER BY ts DESC, id DESC '
+                           'LIMIT %d' % (sql, ACTIVITY_SCAN_MOST), [_like(t) for t in terms]):
+        w = str(r.get('words') or '').lower()
+        if any(_mentions(w, t, lg) for t, lg in low_terms):
+            hits.append(r['id'])
+    total = len(hits)
+    limit, offset = max(1, min(500, int(limit))), max(0, int(offset))
+    page = hits[offset:offset + limit]
+    rows = []
+    if page:
+        got = {r['id']: r for r in store.db.rows('SELECT * FROM events WHERE id IN (%s)' % ', '.join(
+            '?' * len(page)), tuple(page))}
+        rows = [got[i] for i in page if i in got]
     return [{'id': r.get('id'), 'ts': r.get('ts'), 'level': r.get('level'), 'who': r.get('who'),
              'words': r.get('words'), 'node': r.get('node')} for r in rows], total
