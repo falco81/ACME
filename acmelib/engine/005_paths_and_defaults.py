@@ -2117,7 +2117,12 @@ def check_setting(key, value):
         value = SETTING_ALIASES[key][str(value)]
     if key not in DEFAULTS:
         raise BadSetting('%s is not a setting this version knows' % key)
-    got = _coerce(DEFAULTS[key], value)
+    try:
+        got = _coerce(DEFAULTS[key], value)
+    except BadSetting as e:
+        # Said with the setting's name (t6): "a number is needed" alone named no box on the
+        # page - the save bar could not mark the one refused, nor say which of several it was.
+        raise BadSetting('%s: %s' % (key, e))
     shape = TUNABLE.get(key)
     if isinstance(shape, tuple) and shape and isinstance(shape[0], str):
         if str(got) not in shape:
