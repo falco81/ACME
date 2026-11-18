@@ -6,6 +6,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.127 - not released
 
+- Root helper (security): a PostgreSQL error that shows the statement (a database account made for acme) could show the account's password in the message; it is hidden now.
 - Backups: a backup sent did not record how many certificates it held, so each node's card on Settings → Backups showed an empty "Certificates"; it is recorded now and shown.
 - Backups: Put one back… on a file sent from the computer always showed "Certificates –" (the page read a field no manifest has); it shows the backup's count of certificates now.
 - Backups (security): a copy opened on the command line with its key (secrets.key in clear beside it), the files the command line took in to read, and backup or database files sent from the pages and never put back stayed in the state folder for good when nothing came after them; they are taken away at the next start (the uploads after an hour, the others after six).

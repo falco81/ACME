@@ -16,3 +16,10 @@ class Lookup(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PgErrorHidesPassword(unittest.TestCase):
+    def test_password_hidden(self):
+        src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'deploy',
+                                'acme_web.py')).read()
+        self.assertIn("never shows a password in it", src)

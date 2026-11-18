@@ -2847,7 +2847,10 @@ def pg_sql(port, sql, db='postgres'):
                                  input=sql.rstrip().rstrip(';') + ';\n')
             if got.returncode == 0:
                 return got.stdout.strip()
-            raise Refused('PostgreSQL said: %s' % (got.stderr or got.stdout).strip()[:300])
+            # an error that shows the statement (LINE 1: ...) never shows a password in it
+            said = re.sub(r"(PASSWORD\s+)'(?:[^']|'')*'?", r"\1'…'", (got.stderr or got.stdout),
+                          flags=re.I)
+            raise Refused('PostgreSQL said: %s' % said.strip()[:300])
     raise Refused('neither runuser nor sudo is on this machine')
 
 
