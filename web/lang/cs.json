@@ -14116,10 +14116,6 @@
    "source": "becomes",
    "text": "se stane"
   },
-  "s3531": {
-   "source": "before moving, by {0}",
-   "text": "před přesunem, provedl {0}"
-  },
   "s3532": {
    "source": "being put in",
    "text": "nasazuje se"
@@ -14774,7 +14770,7 @@
   },
   "s3695": {
    "source": "expired",
-   "text": "vzdáno"
+   "text": "prošlý"
   },
   "s3696": {
    "source": "explicit - AUTH TLS on port 21",
@@ -30880,10 +30876,6 @@
    "source": "Revoke the ACME key at SSLmarket? Certificates of it stay valid.",
    "text": "Zneplatnit klíč ACME u SSLmarketu? Jeho certifikáty zůstanou platné."
   },
-  "sx0009": {
-   "source": "until {0}",
-   "text": "do {0}"
-  },
   "sz7723": {
    "source": "Renewed by itself - switch off to stop it (it stays valid and deployed, nothing is revoked).",
    "text": "Obnovuje se samo – vypnutím obnovování zastavíte (certifikát zůstává platný a nasazený, nic se neodvolává)."
@@ -34424,14 +34416,6 @@
    "source": "Delete the owner",
    "text": "Smazat vlastníka"
   },
-  "stm0081": {
-   "source": "The owner {0} is deleted. It owns no certificate.",
-   "text": "Vlastník {0} bude smazán. Nevlastní žádný certifikát."
-  },
-  "stm0082": {
-   "source": "It owns {0} certificate(s). They are given to the owner chosen here first - nothing else changes on them.",
-   "text": "Vlastní certifikátů: {0}. Nejdřív se předají vlastníkovi vybranému zde – nic jiného se na nich nezmění."
-  },
   "stm0083": {
    "source": "A new tag",
    "text": "Nový štítek"
@@ -34471,14 +34455,6 @@
   "stm0092": {
    "source": "Delete the tag",
    "text": "Smazat štítek"
-  },
-  "stm0093": {
-   "source": "The tag {0} is deleted and taken off {1} certificate(s) and {2} target(s).",
-   "text": "Štítek {0} bude smazán a odebrán z certifikátů ({1}) a cílů ({2})."
-  },
-  "stm0094": {
-   "source": "The tag {0} is deleted. Nothing carries it.",
-   "text": "Štítek {0} bude smazán. Nic ho nenese."
   },
   "stm0095": {
    "source": "Who sees which certificates",
@@ -45660,10 +45636,6 @@
    "source": "the own settings of the validations are an object",
    "text": "vlastní nastavení validací je objekt"
   },
-  "sup035": {
-   "source": "{0} own",
-   "text": "{0} vlastní"
-  },
   "sup036": {
    "source": "a name, a kind, a setting…",
    "text": "název, druh, nastavení…"
@@ -45992,22 +45964,6 @@
    "source": "just now",
    "text": "právě teď"
   },
-  "sup118": {
-   "source": "{0} s ago",
-   "text": "před {0} s"
-  },
-  "sup119": {
-   "source": "{0} min ago",
-   "text": "před {0} min"
-  },
-  "sup120": {
-   "source": "took {0} s",
-   "text": "trvalo {0} s"
-  },
-  "sup121": {
-   "source": "{0} to set up",
-   "text": "{0} k nastavení"
-  },
   "sup122": {
    "source": "all in place",
    "text": "vše připraveno"
@@ -46019,10 +45975,6 @@
   "sup124": {
    "source": "checking…",
    "text": "kontroluji…"
-  },
-  "sup125": {
-   "source": "took {0} ms",
-   "text": "trvalo {0} ms"
   },
   "stv001": {
    "source": "Check Point (Management API)",
@@ -98901,6 +98853,54 @@
   "pz_511": {
    "source": "{0} asked on the portal for {1} ({2}) from {3} - it waits for {4}",
    "text": "{0} požádal na portálu o {1} ({2}) ze zdroje {3} - čeká na {4}"
+  },
+  "pstm0082": {
+   "source": "It owns {0} certificate(s). They are given to the owner chosen here first - nothing else changes on them.",
+   "text": "{0:Vlastní|Vlastní|Vlastní} {0} {0:certifikát|certifikáty|certifikátů}. Nejdřív se předají vlastníkovi vybranému zde – nic jiného se na nich nezmění."
+  },
+  "ps3531": {
+   "source": "before moving, by {0}",
+   "text": "před přesunem, provedl {0}"
+  },
+  "psx0009": {
+   "source": "until {0}",
+   "text": "do {0}"
+  },
+  "pstm0081": {
+   "source": "The owner {0} is deleted. It owns no certificate.",
+   "text": "Vlastník {0} bude smazán. Nevlastní žádný certifikát."
+  },
+  "pstm0093": {
+   "source": "The tag {0} is deleted and taken off {1} certificate(s) and {2} target(s).",
+   "text": "Štítek {0} bude smazán a odebrán z certifikátů ({1}) a cílů ({2})."
+  },
+  "pstm0094": {
+   "source": "The tag {0} is deleted. Nothing carries it.",
+   "text": "Štítek {0} bude smazán. Nic ho nenese."
+  },
+  "psup035": {
+   "source": "{0} own",
+   "text": "{0} vlastní"
+  },
+  "psup118": {
+   "source": "{0} s ago",
+   "text": "před {0} s"
+  },
+  "psup119": {
+   "source": "{0} min ago",
+   "text": "před {0} min"
+  },
+  "psup120": {
+   "source": "took {0} s",
+   "text": "trvalo {0} s"
+  },
+  "psup121": {
+   "source": "{0} to set up",
+   "text": "{0} k nastavení"
+  },
+  "psup125": {
+   "source": "took {0} ms",
+   "text": "trvalo {0} ms"
   }
  },
  "rich": {

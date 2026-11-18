@@ -523,8 +523,8 @@ def _devices(h):
 def _device(h):
     me = Me(h)
     row, team = device_of(me, h.arg('id'), 'target.view', 'look at')
-    out = device_public(h.store, row, agent=True)
-    deps = h.store.db.rows('SELECT d.id, d.cert_id, d.state, d.last_error, c.name AS cert_name, '
+    out = _others_hidden(me, device_public(h.store, row, agent=True))
+    deps =h.store.db.rows('SELECT d.id, d.cert_id, d.state, d.last_error, c.name AS cert_name, '
                            'c.owner AS cert_owner FROM cert_deploys d JOIN certs c ON c.id = '
                            'd.cert_id WHERE d.target = ? ORDER BY c.name', (row['name'],))
     out['deploys'] = [{'id': d['id'], 'cert_id': d['cert_id'], 'state': d.get('state'),
@@ -853,11 +853,36 @@ def _agent(h):
     me = Me(h)
     from acmelib.certs import agents as G, agent_policy as AP
     row, team = agent_of(me, h.arg('id'), 'target.view', 'look at the agent of')
-    out = G.info(h.store, row)
+    out = _others_hidden(me, G.info(h.store, row))
     out['design'] = AP.design_view(h.store, row, out.get('policy'))
     c = me.caps(team)
     return {'agent': out, 'team': team,
             'may': {'manage': 'target.manage' in c, 'test': 'target.test' in c}}
+
+
+def _others_hidden(me, out):
+    """What a device's agent says, the certificates of other owners not named (hunt R t2): the
+    deployments' needs of the policy builder and the certificates whose key the agent makes
+    named every certificate deployed to the team's device - acme's own and other teams' - to a
+    member who may only see devices, where the device itself says "another owner's
+    certificate"."""
+    if me.all or not isinstance(out, dict):
+        return out
+    seen = set(me.reach('cert.view'))
+
+    def visible(name):
+        r = me.store.db.row('SELECT owner FROM certs WHERE name = ?', (name,))
+        return r is not None and _low(r.get('owner')) in seen
+    for a in (out, out.get('agent')):
+        if isinstance(a, dict) and isinstance(a.get('keys_of'), list):
+            a['keys_of'] = [n for n in a['keys_of'] if visible(n)]
+    for one in out.get('needs') or []:
+        if isinstance(one, dict) and not str(one.get('id') or '').startswith('source:'):
+            dep = me.store.db.row('SELECT c.owner FROM cert_deploys d LEFT JOIN certs c ON '
+                                  'c.id = d.cert_id WHERE d.id = ?', (one.get('id'),))
+            if dep is None or _low(dep.get('owner')) not in seen:
+                one['cert'] = A.OTHERS_CERT
+    return out
 
 
 @route('GET', 'agent_builder')
@@ -865,7 +890,7 @@ def _agent_builder(h):
     me = Me(h)
     from acmelib.certs import agent_policy as AP
     row, _t = agent_of(me, h.arg('id'), 'target.view', 'look at the policy of')
-    return AP.builder(h.store, row)
+    return _others_hidden(me, AP.builder(h.store, row))
 
 
 @route('POST', 'agent_design')

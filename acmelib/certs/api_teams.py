@@ -325,10 +325,10 @@ def _dir_group(h, s):
 FROM_GROUPS_MOST = 500
 
 
-def from_groups(h, b, by, may_make=True):
+def from_groups(h, b, by, may_make=True, seen=None):
     """Teams made from the directory's groups whose cn fits `filter` (PKI-*): each a team (or a
     unit) of that name, the group its member with `role`, under `parent`. dry_run: said, not
-    made."""
+    made. `seen` (lower names, None every team): the teams whose members may be told."""
     from acmelib.certs import teampolicy as TP
     store = h.store
     pattern = TP.group_pattern(b.get('filter'))
@@ -362,6 +362,9 @@ def from_groups(h, b, by, may_make=True):
     for g in groups:
         who = 'group:' + g['cn']
         have = member_of.get(who.lower()) or member_of.get(g['dn'].lower()) or []
+        # a scoped certificate administrator's preview (hunt R t2): which teams of the others
+        # each group is in was told here - /api/teams hides those teams' members from them
+        have = [n for n in have if T.owner_in(seen, n)]
         try:
             want = S.clean_name(g['cn'])
         except ValueError:
@@ -396,7 +399,8 @@ def _from_groups(h, s):
     full = s.get('role') == 'fulladmin' or bool(s.get('cli'))
     if not full and b.get('dry_run') not in (True, 1, '1', 'true'):
         raise E.ApiError(403, A.ROLE_WORDS['fulladmin'])
-    return from_groups(h, b, A.who(s), may_make=full)
+    return from_groups(h, b, A.who(s), may_make=full,
+                       seen=None if full else T.scope(h.store, s, 'view'))
 
 
 @A.api('GET', '/api/teams/activity')
