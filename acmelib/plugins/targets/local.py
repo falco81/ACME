@@ -169,6 +169,7 @@ class LocalTarget(Base):
         # here as it is now, whatever "Deploy now" says (1.0.78)
         remembered = skip and self.unchanged(bundle, dict(options, force=False))
         before = []                 # (path, the bytes there before or None)
+        modes = {}                  # path: its mode before
         written = []
         left = []
         try:
@@ -177,6 +178,9 @@ class LocalTarget(Base):
                 try:
                     with open(full, 'rb') as fh:
                         had = fh.read()
+                    # its mode too: put back, the old key got the new file's mode (a 0640 key
+                    # for the service's group came back 0600 - the service could not read it)
+                    modes[full] = os.stat(full).st_mode & 0o777
                 except OSError:
                     had = None
                 written.append((o, full))
@@ -203,7 +207,7 @@ class LocalTarget(Base):
         except Exception:
             # One file refused (outside the folder, a link, the disk full) - 1.0.51: those
             # written before it stayed new, the new chain beside the old key.
-            self._put_back(before)
+            self._put_back(before, modes)
             raise
         if not before and unfinished and (sc or cmd):
             self.ctx.step('every file holds it already, but the last deployment here did not '
@@ -222,7 +226,7 @@ class LocalTarget(Base):
             rc, out, err = self._run_script(sc, env, base)
             said = SC.tell(self, sc, rc, out, err, env=env)
             if rc != 0:
-                self._put_back(before)
+                self._put_back(before, modes)
                 raise PluginError('%s failed (exit %s), the previous files are back%s' % (
                     SC._what(sc), rc, (': ' + said.splitlines()[-1][-200:]) if said else ''),
                     retry=False)
@@ -230,7 +234,7 @@ class LocalTarget(Base):
             try:
                 self._run(subst(cmd, vars))
             except Exception:
-                self._put_back(before)          # as when the script fails (1.0.51)
+                self._put_back(before, modes)          # as when the script fails (1.0.51)
                 raise
         if mode in ('dated', 'daily', 'folder'):
             for full, had in before:
@@ -290,13 +294,13 @@ class LocalTarget(Base):
                 pass
             raise
 
-    def _put_back(self, before):
+    def _put_back(self, before, modes=None):
         for full, data in before:
             try:
                 if data is None:
                     os.unlink(full)
                 else:
-                    self._write(full, data, os.stat(full).st_mode & 0o777)
+                    self._write(full, data, (modes or {}).get(full, os.stat(full).st_mode & 0o777))
             except OSError as e:
                 self.ctx.step('%s could not be put back: %s' % (full, e), 'bad')
         self.ctx.step('the previous files are back', 'warn')

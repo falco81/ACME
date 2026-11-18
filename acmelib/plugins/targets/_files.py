@@ -329,6 +329,9 @@ def put_back(t, s, files, existed, placed=None):
         bak = f.get('_bak') or f['path'] + PREV
         if placed is not None and not placed[i]:
             script.append(drop_temps(f))
+            if was and bak.endswith(PREV):
+                # its copy made only for putting back - the old key beside it (it was left)
+                script.append('rm -f %s' % quote(bak))
             continue
         if was:
             script.append('cp -p %s %s' % (quote(bak), p))

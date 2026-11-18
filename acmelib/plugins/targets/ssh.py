@@ -657,6 +657,9 @@ class SshTarget(SshMixin, Base):
             p = quote(f['path'])
             if placed is not None and not placed[i]:
                 script.append(F.drop_temps(f))
+                if was and bak(f).endswith(F.PREV):
+                    # its copy made only for putting back - the old key beside it (it was left)
+                    script.append('rm -f %s' % quote(bak(f)))
                 continue
             if was:
                 script.append('cp -p %s %s' % (quote(bak(f)), p))

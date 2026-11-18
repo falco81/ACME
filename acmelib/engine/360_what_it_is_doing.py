@@ -123,11 +123,19 @@ def _mailq_do(h):
                                             re.fullmatch(r'[0-9]{13}-[0-9a-f]{8}', x)
                                             for x in ids):
         raise ApiError(400, 'ids is a list of the mails\' own ids')
+    # Only the mail this account is shown (hunt R t8): a certificate administrator kept to some
+    # teams took every team's mail out of the queue (Delete failed, Delete sent, or by its id) and
+    # sent it again - a sign-in code's too - though the list hides those mails from them.
+    every = mailq_all(h.store)
+    seen = mailq_seen(h, every)
     if act in ('retry_all', 'drop_sent', 'drop_failed'):
         want = {'retry_all': ('waiting', 'failed'), 'drop_sent': ('sent',),
                 'drop_failed': ('failed', 'expired')}[act]
-        ids = [r['qid'] for r in mailq_all(h.store) if r.get('state') in want]
+        ids = [r['qid'] for r in seen if r.get('state') in want]
         act = 'retry' if act == 'retry_all' else 'drop'
+    elif len(seen) < len(every):
+        hidden = {r['qid'] for r in every} - {r['qid'] for r in seen}
+        ids = [x for x in ids if x not in hidden]
     MAILQ_COUNT_CACHE[0] = 0
     if act == 'retry':
         if (CONFIG.get('mail_mode') or 'off') == 'off':
