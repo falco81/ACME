@@ -1900,17 +1900,41 @@ ANSWERS['fortiadc'] = [
 _FGT_STATUS = {'http_method': 'GET', 'status': 'success', 'serial': 'FGT60F\u2039serial\u203a',
                'version': 'v7.4.5', 'build': 2702, 'vdom': 'root', 'results': {
                    'model_name': 'FortiGate', 'model_number': '60F', 'hostname': 'fw01'}}
+# made-up SHA-256 fingerprints, as FortiOS writes them (upper case, colons)
+_FGT_FP = [':'.join(('%02X' % ((i * 37 + k * 11) % 256)) for i in range(32)) for k in range(5)]
 ANSWERS['fortigate'] = [
     {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': _FGT_STATUS},
     # replace in place (1.0.128): a certificate of the FortiGate's own (not acme-...) is
-    # there, holding the earlier certificate, used three times (asked again once replaced: as it is)
+    # there, holding the earlier certificate, used three times; asked again once replaced
+    # (1.0.130, the REST API): the leaf the PUT sent - over SSH no PEM (the CLI's show then)
     {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/(?!acme-)[^/?]+', 'times': 1,
      'body': {'http_method': 'GET', 'status': 'success', 'results': [
          {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3,
           'certificate': '{EARLIER_PEM}'}]}},
     {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/(?!acme-)[^/?]+',
      'body': {'http_method': 'GET', 'status': 'success', 'results': [
-         {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3}]}},
+         {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3,
+          'certificate': '{SENT:certificate}'}]}},
+    # replace in place (1.0.130): the fingerprints of every certificate (as FortiOS 7.6.8 says
+    # them): the factory ones, the one replaced (the earlier certificate), an earlier acme one
+    # (another), a CA of the box's own - none is the new one, nor its intermediate
+    {'method': 'GET', 'url': r'/api/v2/monitor/system/available-certificates', 'body': {
+        'http_method': 'GET', 'status': 'success', 'http_status': 200, 'vdom': 'root',
+        'results': [
+            {'name': 'Fortinet_Factory', 'source': 'factory', 'range': 'global',
+             'type': 'local-cer', 'q_name': 'local', 'q_ref': 2, 'fingerprint': _FGT_FP[0]},
+            {'name': 'Fortinet_CA_SSL', 'source': 'factory', 'range': 'global',
+             'type': 'local-ca', 'q_name': 'local', 'q_ref': 1, 'fingerprint': _FGT_FP[1]},
+            {'name': '{OPT:replace_name}', 'source': 'user', 'range': 'global',
+             'type': 'local-cer', 'q_name': 'local', 'q_ref': 3, 'fingerprint': _FGT_FP[2],
+             'subject': {'CN': '{CERTNAME}'}, 'valid_to_raw': '\u2039its end\u203a'},
+            {'name': '{EARLIER:35:6}', 'source': 'user', 'range': 'global',
+             'type': 'local-cer', 'q_name': 'local', 'q_ref': 0, 'fingerprint': _FGT_FP[3]},
+            {'name': 'Fortinet_CA', 'source': 'factory', 'range': 'global',
+             'type': 'remote-ca', 'q_name': 'ca', 'fingerprint': _FGT_FP[4]}]}},
+    {'method': 'PUT', 'url': r'/api/v2/cmdb/vpn\.certificate/local/[^/?]+', 'body': {
+        'http_method': 'PUT', 'revision_changed': True, 'mkey': '{TAIL}', 'status': 'success',
+        'http_status': 200, 'path': 'vpn.certificate', 'name': 'local', 'vdom': 'root'}},
     {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/[^/?]+', 'status': 404,
      'body': {'http_method': 'GET', 'status': 'error', 'http_status': 404, 'vdom': 'root'}},
     {'method': 'POST', 'url': r'/vpn-certificate/(local|ca)/import', 'body': {
@@ -1924,24 +1948,14 @@ ANSWERS['fortigate'] = [
         'http_method': 'GET', 'status': 'success', 'results': [
             {'name': '{TAIL}', 'type': 'server-load-balance', 'server-type': 'https',
              'ssl-certificate': [{'name': '{EARLIER:35:6}'}]}]}},
-    # replace in place (1.0.129): every local certificate with its PEM and uses, to look for
-    # a copy of the new one - the one replaced and an earlier acme one hold the earlier
-    # certificate, none the new one
-    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local\?(.*&)?with_meta=1', 'body': {
-        'http_method': 'GET', 'status': 'success', 'results': [
-            {'name': 'Fortinet_Factory', 'source': 'factory', 'range': 'global', 'q_ref': 2},
-            {'name': '{OPT:replace_name}', 'source': 'user', 'range': 'global', 'q_ref': 3,
-             'certificate': '{EARLIER_PEM}'},
-            {'name': '{EARLIER:35:6}', 'source': 'user', 'range': 'global', 'q_ref': 0,
-             'certificate': '{EARLIER_PEM}'}]}},
     {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local\?', 'body': {
         'http_method': 'GET', 'status': 'success', 'results': [
             {'name': 'Fortinet_Factory'}, {'name': 'Fortinet_SSL'},
             {'name': '{EARLIER3:35:6}'}, {'name': '{EARLIER2:35:6}'},
             {'name': '{EARLIER:35:6}'}, {'name': '{CURRENT:35:6}'}]}},
     {'body': {'http_method': 'PUT', 'status': 'success', 'http_status': 200}}]
-# FortiGate over SSH (1.0.129: replace in place goes to the FortiOS CLI): get system status of a
-# 60F without VDOMs; the lines of config vpn certificate local taken (nothing said back); show
+# FortiGate over SSH (1.0.129: replace in place, "How to replace" SSH - the FortiOS CLI): get
+# system status of a 60F without VDOMs; the lines of config vpn certificate local taken (nothing said back); show
 # says the certificate the lines gave (read back when REST does not say it)
 SSH_ANSWERS['fortigate'] = [
     {'input': r'(?m)^get system status$', 'stdout':

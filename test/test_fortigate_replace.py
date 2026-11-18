@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
-"""The FortiGate target's "Replace an existing certificate in place" (1.0.128; over SSH, the
-FortiOS CLI, since 1.0.129), against a fake FortiGate - a real HTTP server on 127.0.0.1 (a port
-the system gives) that keeps its local and CA certificates as FortiOS does and answers its REST
-API, and a fake FortiOS CLI over SSH (test_targets' FakeSsh) working on the same certificates.
+"""The FortiGate target's "Replace an existing certificate in place" (1.0.128) - over the REST
+API (1.0.130, the default) and over SSH, the FortiOS CLI (1.0.129, "How to replace": SSH) -
+against a fake FortiGate: a real HTTP server on 127.0.0.1 (a port the system gives) that keeps
+its local and CA certificates and answers its REST API as FortiOS 7.6.8 build 3744 did (the
+package of 2026-11-18, its samples/*.json), and a fake FortiOS CLI over SSH (test_targets'
+FakeSsh) working on the same certificates.
 
     python3 test/test_fortigate_replace.py
 
-- Find on the device: the local certificates listed (name, CN, expiry, issuer, uses), the
-  Fortinet factory ones left out, the one with the certificate's names suggested; a token
-  refused says why and that the name can be typed.
-- The deployment: never the REST PUT of cmdb vpn.certificate/local/<name> (the fake answers
-  it as FortiOS 7.4.13 build 2933 did: 500, -651, every PEM line in cli_error); the CLI over
-  SSH instead - config vpn certificate local / edit / set password / set private-key / set
-  certificate, first ended with abort, then with next / end; in every version of the module;
-  config global or config vdom / edit <vdom> when VDOMs are on, by the certificate's range.
-- Duplicates: an unused acme copy of the new certificate deleted first (said); a used one, or
-  one acme did not make, stops it before anything changes; the very one in place: nothing sent.
-- A CLI error ("Command fail", "duplicated", "not a valid"): nothing saved, the old
-  certificate untouched, never deleted; an encrypted key refused: the plain key tried.
-- Read back: the fingerprint must be the new one, else it fails.
-- No SSH sign-in: a clear error before anything changes. No PEM, key or password in the steps.
-- What happens (the recorded dry run) says the SSH sign-in, what is replaced, the duplicates.
+- Find on the device: the local certificates listed (name, CN, expiry, issuer, uses, the
+  fingerprint) - the facts from monitor/system/available-certificates where the listing says
+  "certificate": "" (7.6.8), from the listing's PEM where it has one, else each read; the
+  Fortinet factory ones left out, the one with the certificate's names suggested.
+- The REST API: GET the certificate, GET available-certificates, the intermediates missing
+  imported as CA before the PUT (-328: there), acme's own copy of the new certificate deleted
+  (-23: in use - stops; another's: stops), PUT (the leaf, the key encrypted with a one-time
+  password), read back (the fingerprint; q_ref changed: a warning); -651 said by its lines
+  (duplicated / invalid private key / not a valid/matched certificate); the same requests in
+  every version of the module; no SSH.
+- SSH: config vpn certificate local / edit / set password / set private-key / set
+  certificate, first ended with abort, then with next / end; config global or config vdom
+  when VDOMs are on; the duplicates as above.
+- No PEM, key or password in the steps; What happens (the recorded dry run) of both ways.
 """
 import json
 import os
@@ -88,8 +89,58 @@ def text_of(v):
 
 
 # ---------------------------------------------------------------------------
+def fp_colon(pem):
+    """SHA-256 as available-certificates says it: upper case, colons (samples/10)."""
+    import hashlib
+    try:
+        h = hashlib.sha256(der(pem)).hexdigest().upper()
+    except Exception:                                   # noqa: BLE001
+        h = hashlib.sha256(text_of(pem).encode()).hexdigest().upper()
+    return ':'.join(h[i:i + 2] for i in range(0, 64, 2))
+
+
+def pubkey(pem, password=None, cert=False):
+    """The public key of a certificate or a private key PEM (openssl), None unread."""
+    try:
+        if cert:
+            return openssl('x509', '-pubkey', '-noout', data=pem.encode())
+        return openssl('pkey', '-pubout', '-passin', 'pass:%s' % (password or ''),
+                       data=pem.encode())
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def subject_cn(pem):
+    try:
+        out = openssl('x509', '-noout', '-subject', '-issuer', '-enddate',
+                      '-nameopt', 'sep_multiline,utf8', data=pem.encode()).decode()
+    except Exception:                                   # noqa: BLE001
+        return {}, {}, ''
+    subj, iss, cur, end = {}, {}, None, ''
+    for ln in out.splitlines():
+        if ln.startswith('subject='):
+            cur = subj
+        elif ln.startswith('issuer='):
+            cur = iss
+        elif ln.startswith('notAfter='):
+            import email.utils
+            t = email.utils.parsedate_to_datetime(ln[9:].replace('GMT', '+0000'))
+            end = t.strftime('%Y-%m-%d %H:%M:%S  GMT')
+            cur = None
+        elif cur is not None and '=' in ln:
+            k, v = ln.strip().split('=', 1)
+            cur[k] = v
+    return subj, iss, end
+
+
 class FakeFortiGate(object):
-    """A FortiGate's REST API as acme uses it, its certificates kept."""
+    """A FortiGate's REST API as acme uses it, its certificates kept - answering as FortiOS
+    7.6.8 build 3744 did (the package's samples/*.json, 2026-11-18): the cmdb listing with
+    "certificate" empty, the GET of one with its PEM and a q_ref that leaves the admin GUI
+    out; available-certificates with SHA-256 fingerprints (q_ref with the admin GUI); the PUT
+    of a local certificate taking the leaf only, refusing a duplicate, a key it cannot read or
+    one of another certificate with -651; a used one's DELETE refused with -23; a CA there
+    already refused with -328."""
 
     def __init__(self, version='v7.4.5'):
         self.version = version
@@ -97,8 +148,18 @@ class FakeFortiGate(object):
         self.cas = []
         self.calls = []
         self.refuse_list = None         # the listing refused with this status
-        self.refuse_delete = set()      # names whose DELETE is refused
+        self.refuse_delete = set()      # names whose DELETE is refused (not -23)
         self.vdom_mode = None           # cmdb system global vdom-mode (None: 404)
+        self.admin_server_cert = None   # system global admin-server-cert (uses it, q_ref 0)
+        self.list_pem = False           # the cmdb listing with the PEM (as 7.4 is said to)
+        self.no_avail = False           # no monitor/system/available-certificates (404)
+        self.hidden = set()             # names available-certificates does not say (a VDOM)
+        self.dup_first = False          # "duplicated" the first line of cli_error (7.4.13)
+        self.put_ignore = False         # a PUT said success, nothing kept
+        self.put_error = None           # (error, [lines]): every PUT refused so
+        self.put_uses = None            # q_ref after a PUT
+        self.ca_error = None            # a CA import refused with this error
+        self.eval_327 = False           # monitor local/import -327 (an EVAL VM, samples/11)
         self.puts = {}                  # other PUTs: path -> [bodies]
         self.lock = threading.Lock()
         fg = self
@@ -137,32 +198,91 @@ class FakeFortiGate(object):
 
     def add(self, name, pem, source='user', q_ref=0, rng='global'):
         self.local[name] = {'name': name, 'source': source, 'range': rng, 'certificate': pem,
-                            'private-key': 'ENC xxxx', 'password': 'ENC xxxx', 'q_ref': q_ref}
+                            'private-key': '', 'password': 'ENC XXXX', 'q_ref': q_ref}
 
-    @staticmethod
-    def put_answer(name, body):
-        pem = text_of((body or {}).get('certificate'))
-        return {'http_method': 'PUT', 'revision_changed': False, 'cli_error': [
-            'This local certificate is duplicated.', 'current vf=root:0',
-            'Input is not a valid/matched certificate.',
-            'node_check_object fail! for certificate ' + (pem.splitlines() or [''])[0]] +
-            pem.splitlines()[1:] + [
-            "value parse error before '-----BEGIN CERTIFICATE-----'", 'MIIDtjCCA',
-            'Command fail. Return code -651', 'Command fail. Return code 1'],
-            'error': -651, 'status': 'error', 'http_status': 500, 'vdom': 'root',
-            'path': 'vpn.certificate', 'name': 'local', 'action': '', 'mkey': name,
-            'serial': 'FGT40FTK22089073', 'version': 'v7.4.13', 'build': 2933}
+    TAIL = {'serial': 'FGVMxxxxxxxxxxxx', 'version': 'v7.6.8', 'build': 3744}
 
-    @staticmethod
-    def err(status, code):
-        return status, {'http_method': '?', 'status': 'error', 'http_status': status,
-                        'error': code}
+    def err(self, status, code, lines=None, **more):
+        out = dict({'http_method': '?', 'status': 'error', 'http_status': status,
+                    'error': code, 'revision_changed': False}, **more)
+        if lines is not None:
+            out['cli_error'] = lines
+        out.update(self.TAIL)
+        return status, out
+
+    def in_use(self, name):
+        return bool(self.local[name].get('q_ref')) or self.admin_server_cert == name
+
+    def uses(self, name):
+        """q_ref of available-certificates: the admin GUI counted too (samples/10)."""
+        return (self.local[name].get('q_ref') or 0) + (self.admin_server_cert == name)
+
+    def avail(self, q):
+        if self.no_avail:
+            return self.err(404, -3)
+        out = []
+        for r in sorted(self.local.values(), key=lambda r: r['name']):
+            if r['name'] in self.hidden:
+                continue
+            subj, iss, end = subject_cn(r['certificate'])
+            out.append({'name': r['name'], 'source': r['source'], 'range': r['range'],
+                        'type': 'local-cer', 'q_path': 'certificate', 'q_name': 'local',
+                        'q_ref': self.uses(r['name']), 'key_type': 'ECDSA', 'key_size': 256,
+                        'status': 'valid', 'fingerprint': fp_colon(r['certificate']),
+                        'subject': subj, 'issuer': iss, 'valid_to_raw': end,
+                        'has_valid_cert_key': False})
+        if q.get('with_ca') == '1':
+            for i, c in enumerate(self.cas):
+                out.append({'name': 'CA_Cert_%d' % (i + 1), 'source': 'user',
+                            'range': 'global', 'type': 'remote-ca', 'q_path': 'certificate',
+                            'q_name': 'ca', 'fingerprint': fp_colon(c)})
+        return 200, dict({'http_method': 'GET', 'results': out, 'status': 'success',
+                          'http_status': 200, 'vdom': 'root'}, **self.TAIL)
+
+    def put(self, name, body):
+        """PUT cmdb vpn.certificate/local/<name> as FortiOS 7.6.8 answered it."""
+        body = body or {}
+        if self.put_error:
+            return self.err(500, self.put_error[0], list(self.put_error[1]), mkey=name)
+        pem = text_of(body.get('certificate'))
+        blocks = re.findall(r'-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----', pem,
+                            re.S)
+        echo = (['node_check_object fail! for certificate -----BEGIN CERTIFICATE-----'] +
+                pem.strip().splitlines()[1:-1] + ['-----END CERTIFICATE-----'])
+        tail = ["value parse error before '-----BEGIN CERTIFICATE-----'", 'MIIBjTCCA',
+                'Command fail. Return code -651']
+        bad = ['Input is not a valid/matched certificate.'] + echo
+        if not blocks or not body.get('private-key'):
+            return self.err(500, -651, bad + bad + tail, mkey=name)       # samples/04
+        leaf = blocks[0] + '\n'
+        key = pubkey(body['private-key'], body.get('password'))
+        if key is None:                                                     # samples/03
+            return self.err(500, -651, ['Invalid private key, password may be required'] +
+                            bad + bad + tail, mkey=name)
+        if key != pubkey(leaf, cert=True):                                  # samples/04
+            return self.err(500, -651, bad + bad + tail, mkey=name)
+        if [n for n, r in self.local.items() if n != name and
+                r['certificate'].startswith('-----') and der(r['certificate']) == der(leaf)]:
+            lines = bad + tail                                              # samples/02
+            lines = ((['This local certificate is duplicated.'] + lines) if self.dup_first
+                     else lines + ['This local certificate is duplicated.'])
+            return self.err(500, -651, lines, mkey=name)
+        if not self.put_ignore:
+            self.local[name].update(certificate=leaf, **{'private-key': '', 'password':
+                                                         'ENC new'})
+            if self.put_uses is not None:
+                self.local[name]['q_ref'] = self.put_uses
+        return 200, dict({'http_method': 'PUT', 'revision_changed': True, 'mkey': name,
+                          'status': 'success', 'http_status': 200, 'path': 'vpn.certificate',
+                          'name': 'local', 'vdom': 'root'}, **self.TAIL)            # samples/01
 
     def answer(self, m, path, q, body):
         ok = {'http_method': m, 'status': 'success', 'http_status': 200}
         if path == '/api/v2/monitor/system/status':
             return 200, dict(ok, version=self.version, serial='FGT60F', vdom='root',
                              results={'hostname': 'fw1', 'model_name': 'FortiGate'})
+        if path == '/api/v2/monitor/system/available-certificates' and m == 'GET':
+            return self.avail(q)
         lp = '/api/v2/cmdb/vpn.certificate/local'
         if path == lp and m == 'GET':
             if self.refuse_list:
@@ -171,7 +291,9 @@ class FakeFortiGate(object):
             if q.get('format') == 'name':
                 return 200, dict(ok, results=[{'name': r['name']} for r in rows])
             meta = q.get('with_meta') == '1'
-            return 200, dict(ok, results=[{k: v for k, v in r.items()
+            # 7.6.8: every "certificate" of the listing empty (samples/09)
+            return 200, dict(ok, results=[{k: (v if k != 'certificate' or self.list_pem
+                                               else '') for k, v in r.items()
                                            if meta or k != 'q_ref'} for r in rows])
         if path.startswith(lp + '/'):
             name = path[len(lp) + 1:]
@@ -179,32 +301,59 @@ class FakeFortiGate(object):
             if m == 'GET':
                 if not row:
                     return self.err(404, -3)
-                return 200, dict(ok, results=[{k: v for k, v in row.items()
+                return 200, dict(ok, results=[{k: v for k, v in row.items()     # samples/08
                                                if q.get('with_meta') == '1' or k != 'q_ref'}])
             if m == 'PUT':
-                # FortiOS 7.4.13 build 2933: the PUT turned into CLI lines, the PEM over
-                # several lines broke them - the answer exactly as the device gave it
-                return 500, self.put_answer(name, body)
+                if not row:
+                    return self.err(404, -3)
+                return self.put(name, body)
             if m == 'DELETE':
                 if not row:
                     return self.err(404, -3)
-                if row.get('q_ref') or name in self.refuse_delete:
-                    return self.err(500, -23)
+                if self.in_use(name):                                       # samples/05
+                    return self.err(500, -23, [
+                        "Can't delete this certificate. It's currently being used.",
+                        'command_cli_delete:6613 delete table entry %s unset oper error '
+                        'ret=-23' % name, 'Command fail. Return code -23'], mkey=name)
+                if name in self.refuse_delete:
+                    return self.err(500, -37)
                 del self.local[name]
-                return 200, ok
+                return 200, dict(ok, revision_changed=True)
         if path == '/api/v2/monitor/vpn-certificate/local/import' and m == 'POST':
+            if self.eval_327:                                               # samples/11
+                return self.err(500, -327, path='vpn-certificate', name='local',
+                                action='import')
             name = body['certname']
             if name in self.local:
                 return self.err(500, -5)
-            self.add(name, '(imported)', rng=body.get('scope', 'global'))
+            import base64
+            pem = '(imported)'
+            try:
+                if body.get('type') == 'pkcs12':
+                    pem = openssl('pkcs12', '-nokeys', '-clcerts', '-passin', 'pass:%s' %
+                                  body.get('password', ''), data=base64.b64decode(
+                                      body['file_content'])).decode()
+                else:
+                    pem = base64.b64decode(body['file_content']).decode()
+                pem = re.search(r'-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----',
+                                pem, re.S).group(0) + '\n'
+            except Exception:                           # noqa: BLE001
+                pem = '(imported)'
+            self.add(name, pem, rng=body.get('scope', 'global'))
             return 200, dict(ok, results={'mkey': name})
         if path == '/api/v2/monitor/vpn-certificate/ca/import' and m == 'POST':
             import base64
             pem = base64.b64decode(body['file_content']).decode()
-            if der(pem) in [der(c) for c in self.cas]:
-                return self.err(500, -328)
+            if self.ca_error:
+                return self.err(500, self.ca_error)
+            if der(pem) in [der(c) for c in self.cas]:                      # samples/07
+                return 500, dict({'http_method': 'POST', 'error': -328, 'status': 'error',
+                                  'http_status': 500, 'path': 'vpn-certificate', 'name': 'ca',
+                                  'action': 'import', 'vdom': 'root'}, **self.TAIL)
             self.cas.append(pem)
-            return 200, dict(ok, results={'mkey': 'CA_Cert_%d' % len(self.cas)})
+            return 200, dict({'http_method': 'POST', 'results': {}, 'path': 'vpn-certificate',
+                              'name': 'ca', 'action': 'import', 'status': 'success',
+                              'vdom': 'root'}, **self.TAIL)                 # samples/06
         if path == '/api/v2/cmdb/vpn.certificate/ca' and m == 'GET':
             return 200, dict(ok, results=[{'name': 'CA_Cert_%d' % (i + 1), 'ca': c}
                                           for i, c in enumerate(self.cas)])
@@ -212,6 +361,8 @@ class FakeFortiGate(object):
             return 200, dict(ok, results={'vdom-mode': self.vdom_mode})
         if m == 'PUT':
             self.puts.setdefault(path, []).append(body)
+            if path == '/api/v2/cmdb/system/global' and (body or {}).get('admin-server-cert'):
+                self.admin_server_cert = body['admin-server-cert']
             return 200, ok
         if m == 'GET' and path.startswith('/api/v2/cmdb/firewall/'):
             return 200, dict(ok, results=[{'name': path.rsplit('/', 1)[-1]}])
@@ -219,6 +370,9 @@ class FakeFortiGate(object):
 
     def find(self, method, rx):
         return [c for c in self.calls if c['method'] == method and re.search(rx, c['path'])]
+
+    def writes(self):
+        return [(c['method'], c['path']) for c in self.calls if c['method'] != 'GET']
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +540,8 @@ def said(ctx):
     return [w for _l, w in ctx.steps]
 
 
-REPLACE = {'mode': 'replace', 'replace_name': 'web-cert'}
+REPLACE = {'mode': 'replace', 'replace_name': 'web-cert'}            # the REST API: the default
+SSHR = dict(REPLACE, replace_via='ssh')
 
 
 class Base(unittest.TestCase):
@@ -424,6 +579,44 @@ class DiscoveryTest(Base):
         self.assertEqual((call['query'].get('with_meta'), call['query'].get('vdom')),
                          ('1', 'root'))
         self.assertFalse([c for c in self.fg.calls if c['method'] != 'GET'], 'read-only')
+        # FortiOS 7.6.8 lists every one with "certificate" empty: the facts came from
+        # available-certificates (1.0.130), the fingerprint among them
+        self.assertEqual(self.fg.find('GET', r'available-certificates')[0]['query'],
+                         {'scope': 'vdom', 'vdom': 'root'})
+        self.assertIn('SHA-256 %s…' % FG.norm_fp(fp_colon(PEMS['old']))[:8].upper(),
+                      words['web-cert'])
+        self.assertFalse(self.fg.find('GET', r'/local/web-cert$'), 'not read one by one')
+
+    def facts(self):
+        t, ctx = make(self.fg)
+        t.hint_names = ['www.example.test']
+        got = t.catalog('local_certs')
+        words = dict(got['options'])
+        self.assertEqual(got['pick'], 'web-cert')
+        self.assertIn('CN www.example.test', words['web-cert'])
+        self.assertIn('Test CA', words['web-cert'])
+        self.assertRegex(words['web-cert'], r'→ \d{4}-\d\d-\d\d')
+        self.assertNotIn('Fortinet_SSL', words)
+        return got, words
+
+    def test_listing_with_the_pem(self):
+        """A listing that gives the PEM (as FortiOS 7.4 is said to): read from it."""
+        self.fg.list_pem = True
+        self.facts()
+        self.assertFalse(self.fg.find('GET', r'available-certificates'))
+
+    def test_listing_without_available_certificates(self):
+        """No available-certificates (an older FortiOS): each one read by itself."""
+        self.fg.no_avail = True
+        got, words = self.facts()
+        self.assertIn('7×', words['web-cert'])
+        self.assertTrue(self.fg.find('GET', r'/local/web-cert$'))
+
+    def test_uses_count_the_admin_gui(self):
+        """cmdb q_ref leaves the admin GUI out; available-certificates counts it."""
+        self.fg.admin_server_cert = 'other'
+        got, words = self.facts()
+        self.assertIn('1×', words['other'])
 
     def test_no_names_no_pick(self):
         t, ctx = make(self.fg)
@@ -458,13 +651,472 @@ class DiscoveryTest(Base):
 
 
 # ---------------------------------------------------------------------------
-class ReplaceTest(Base):
+class WrongPasswordBundle(Bundle):
+    """The key encrypted with another password than the one sent (FortiOS: "Invalid private
+    key, password may be required")."""
+    def as_format(self, fmt, password=None, alias=None):
+        if fmt == 'key-pem-enc':
+            return Bundle.as_format(self, fmt, (password or '') + '-not-it', alias)
+        return Bundle.as_format(self, fmt, password, alias)
+
+
+class OtherKeyBundle(Bundle):
+    """A key of another certificate (FortiOS: "Input is not a valid/matched certificate")."""
+    def __init__(self, *a, **k):
+        Bundle.__init__(self, *a, **k)
+        self.key_pem = read(os.path.join(T.TMP, 'other.key'))
+
+
+class ApiReplaceTest(Base):
+    """How to replace: the REST API (1.0.130, the default) - the package's algorithm."""
+
+    def deploy(self, version='', fos=None, bundle=None, **opts):
+        if fos:
+            self.fg.version = fos
+        t, ctx = make(self.fg, version)
+        b = bundle or Bundle()
+        got = t.deploy(b, dict(REPLACE, **opts))
+        return t, ctx, b, got
+
+    def fails(self, bundle=None, opts=None, cfg=None):
+        t, ctx = make(self.fg, **(cfg or {}))
+        b = bundle or Bundle()
+        with self.assertRaises(PluginError) as e:
+            t.deploy(b, dict(REPLACE, **(opts or {})))
+        self.assertFalse(ctx.cli.runs(), 'never SSH')
+        self.no_secrets(ctx, b, [str(e.exception), e.exception.detail or ''])
+        return e.exception, ctx, b
+
+    def put_body(self):
+        puts = self.fg.find('PUT', r'/vpn\.certificate/local/')
+        return puts[-1]['body'] if puts else {}
+
+    def no_secrets(self, ctx, b, extra=()):
+        """Nothing of a PEM, a key, the one-time password or the token in what is kept."""
+        pw = text_of(self.put_body().get('password'))
+        kept = [w for _l, w in ctx.steps] + list(getattr(ctx, 'debugs', [])) + list(extra)
+        for w in kept:
+            for bad in ('BEGIN', 'PRIVATE KEY', 'MII', 'TKN-secret', 'SSH-pw') + (
+                    (pw,) if pw else ()):
+                self.assertNotIn(bad, w)
+            for ln in b.cert_pem.splitlines()[1:-1]:
+                self.assertNotIn(ln[:20], w)
+
+    def unchanged_target(self):
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(PEMS['old']))
+
+    def check_replaced(self, b, ctx, name='web-cert', uses=7):
+        row = self.fg.local[name]
+        self.assertEqual(der(row['certificate']), der(b.cert_pem))
+        self.assertEqual(row['certificate'].count('BEGIN CERTIFICATE'), 1, 'the leaf only')
+        self.assertEqual(row['password'], 'ENC new')
+        self.assertEqual(row['q_ref'], uses, 'its uses kept')
+        body = self.put_body()
+        self.assertEqual(sorted(body), ['certificate', 'password', 'private-key'])
+        self.assertTrue(body['private-key'].startswith('-----BEGIN ENCRYPTED PRIVATE KEY-----\n'))
+        self.assertEqual(body['certificate'].count('BEGIN CERTIFICATE'), 1, 'the leaf sent')
+        self.assertEqual(der(body['certificate']), der(b.cert_pem))
+        self.assertGreaterEqual(len(body['password']), 20)
+        self.assertFalse(ctx.cli.runs(), 'no SSH, though the target has its sign-in')
+        self.assertFalse(self.fg.find('POST', r'/local/import'), 'nothing imported anew')
+        self.assertFalse([n for n in self.fg.local if n.startswith('acme-')])
+        self.assertTrue(all(c['auth'] == 'Bearer TKN-secret-0001' for c in self.fg.calls))
+        self.no_secrets(ctx, b)
+
+    def seq(self):
+        """The calls of the replace, as (method, path, query)."""
+        out = []
+        for c in self.fg.calls:
+            if re.search(r'vpn\.certificate/local/|available-certificates|ca/import', c['path']):
+                out.append((c['method'], c['path'].replace('/api/v2/', ''),
+                            tuple(sorted(c['query'].items()))))
+        return out
+
+    def test_happy_path_every_version_same_requests(self):
+        L = 'cmdb/vpn.certificate/local/web-cert'
+        want = [('GET', L, (('vdom', 'root'), ('with_meta', '1'))),
+                ('GET', 'monitor/system/available-certificates',
+                 (('scope', 'global'), ('vdom', 'root'), ('with_ca', '1'))),
+                ('POST', 'monitor/vpn-certificate/ca/import', ()),
+                ('PUT', L, (('vdom', 'root'),)),
+                ('GET', L, (('vdom', 'root'), ('with_meta', '1')))]
+        for ver, fos in (('', 'v7.6.8'), ('6.0', 'v6.4.15'), ('7.0', 'v7.2.10'),
+                         ('7.4.2', 'v7.4.13'), ('7.4.2', 'v8.0.0')):
+            self.tearDown()
+            self.setUp()
+            t, ctx, b, got = self.deploy(ver, fos)
+            self.check_replaced(b, ctx)
+            self.assertEqual(got, 'web-cert replaced in place')
+            self.assertEqual(self.seq(), want, ver)
+            self.assertFalse(self.fg.puts, 'nothing re-pointed')
+            ca = self.fg.find('POST', r'/ca/import')[0]['body']
+            self.assertEqual((ca['import_method'], ca['scope']), ('file', 'global'))
+            words = said(ctx)
+            for w in ('it is replaced over the REST API (PUT cmdb vpn.certificate/local/'
+                      'web-cert) - the token is enough, no SSH',
+                      'the fingerprints of the certificates on the FortiGate read (monitor/'
+                      'system/available-certificates): 4 local, 0 CA',
+                      'no other local certificate on the FortiGate is this one (FortiOS '
+                      'refuses a duplicate)',
+                      'FortiOS took the new certificate and key for web-cert',
+                      'web-cert replaced in place - its name and every use of it kept'):
+                self.assertIn(w, words)
+            self.assertTrue(any('used 7 times' in w for w in words), words)
+            self.assertTrue(any('key type changes from RSA to EC' in w for w in words))
+            self.assertTrue([w for w in words if w.startswith(
+                'imported the intermediate CA certificate Test CA before the replace')])
+            self.assertTrue([w for w in words if w.startswith(
+                'checked: web-cert holds the new certificate now (SHA-256 ')])
+
+    def test_ca_before_put_and_none_when_there(self):
+        t, ctx, b, got = self.deploy()
+        w = self.fg.writes()
+        self.assertEqual([m for m, _p in w], ['POST', 'PUT'], 'the CA before the PUT')
+        # the next renewal: the intermediate there - GET, GET, PUT, GET only
+        self.fg.local['web-cert']['certificate'] = PEMS['old']
+        self.fg.calls[:] = []
+        t, ctx, b, got = self.deploy(force=True)
+        self.assertEqual([c['method'] for c in self.fg.calls
+                          if 'monitor/system/status' not in c['path']
+                          and 'cmdb/vpn.certificate/local?' not in c['path'] + '?'
+                          and not c['path'].endswith('/cmdb/vpn.certificate/local')],
+                         ['GET', 'GET', 'PUT', 'GET'])
+        self.assertIn('the intermediate CA certificate is on the FortiGate already', said(ctx))
+
+    def test_already_in_place(self):
+        b = Bundle()
+        self.fg.local['web-cert']['certificate'] = b.cert_pem
+        self.fg.cas.append(b.chain_pems[0])
+        t, ctx = make(self.fg)
+        got = t.deploy(b, dict(REPLACE, force=True))
+        self.assertEqual(got, 'already in place in web-cert')
+        self.assertIn('web-cert holds this certificate already - it is in place', said(ctx))
+        self.assertFalse(self.fg.writes())
+
+    def test_again_unchanged(self):
+        t, ctx, b, got = self.deploy()
+        t2, ctx2 = make(self.fg)
+        ctx2.kv = ctx.kv
+        n = len(self.fg.writes())
+        got = t2.deploy(b, dict(REPLACE))
+        self.assertTrue(got.startswith('unchanged'), got)
+        self.assertEqual(len(self.fg.writes()), n)
+
+    def test_wrong_key_or_password(self):
+        e, ctx, b = self.fails(WrongPasswordBundle())
+        self.assertIn('FortiOS refused to replace web-cert in place: it did not take the private '
+                      'key ("Invalid private key, password may be required") - web-cert is '
+                      'untouched (FortiOS changes nothing when it refuses)', str(e))
+        self.assertFalse(e.retry)
+        self.assertIn('-651', e.detail)
+        self.unchanged_target()
+
+    def test_key_of_another_certificate(self):
+        e, ctx, b = self.fails(OtherKeyBundle())
+        self.assertIn('FortiOS refused to replace web-cert in place: the key does not belong to '
+                      'the certificate ("Input is not a valid/matched certificate")', str(e))
+        self.unchanged_target()
+
+    def test_other_refusal_said_with_its_lines(self):
+        self.fg.put_error = (-5, ['Something is odd.', 'Command fail. Return code -5'])
+        e, ctx, b = self.fails()
+        self.assertIn('FortiOS refused to replace web-cert in place: HTTP 500, error -5: '
+                      'Something is odd.; Command fail. Return code -5 - web-cert is untouched',
+                      str(e))
+
+    def test_duplicate_fortios_found_and_acme_did_not(self):
+        """A copy available-certificates did not say (another VDOM): FortiOS's -651
+        "duplicated" - in the order of 7.6.8 (last) and 7.4.13 (first); no PEM said back."""
+        for first in (False, True):
+            self.tearDown()
+            self.setUp()
+            b = Bundle()
+            self.fg.add('elsewhere', b.cert_pem)
+            self.fg.hidden.add('elsewhere')
+            self.fg.dup_first = first
+            e, ctx, b = self.fails(b)
+            self.assertIn('FortiOS refused to replace web-cert in place: the new certificate is '
+                          'on the FortiGate already under another name ("This local certificate '
+                          'is duplicated") that acme did not find - in another VDOM?', str(e))
+            self.assertIn('This local certificate is duplicated.', e.detail)
+            self.assertNotIn('MIIBjTCCA', e.detail)
+            self.assertNotIn('BEGIN', e.detail)
+            self.unchanged_target()
+            self.assertIn('elsewhere', self.fg.local)
+
+    def test_verify_failed(self):
+        self.fg.put_ignore = True
+        e, ctx, b = self.fails()
+        self.assertIn('FortiOS took the new certificate for web-cert, yet reading it back gives '
+                      'another one (SHA-256 ', str(e))
+        self.assertFalse(e.retry)
+        self.assertFalse([w for w in said(ctx) if 'replaced in place' in w])
+
+    def test_uses_changed_warned(self):
+        self.fg.put_uses = 6
+        t, ctx, b, got = self.deploy()
+        self.assertIn(('warn', 'web-cert was used 7 times before and 6 times now - look at '
+                               'what uses it'), ctx.steps)
+
+    def test_ca_import_refused_stops_before_the_put(self):
+        self.fg.ca_error = -5
+        e, ctx, b = self.fails()
+        self.assertIn('the intermediate CA certificate cannot be imported (HTTP 500, error -5: '
+                      '-) - it goes in before the replace, so the whole chain is served; '
+                      'nothing was replaced', str(e))
+        self.assertFalse(self.fg.find('PUT', r'.'))
+        self.unchanged_target()
+
+    def test_not_found_and_factory_refused(self):
+        e, ctx, b = self.fails(opts={'replace_name': 'web-certt'})
+        self.assertIn('there is no local certificate web-certt on the FortiGate (VDOM root)',
+                      str(e))
+        for n in ('Fortinet_SSL', 'mine'):
+            self.fg.add('mine', PEMS['other'], source='factory')
+            e, ctx, b = self.fails(opts={'replace_name': n})
+            self.assertIn('%s is a Fortinet factory certificate - it is not replaced' % n,
+                          str(e))
+        self.assertFalse(self.fg.writes())
+
+    def test_global_and_vdom(self):
+        """A certificate of the VDOM's range: available-certificates asked with scope vdom;
+        one of the global range: scope global."""
+        t, ctx = make(self.fg)
+        b = Bundle()
+        t.deploy(b, dict(REPLACE, replace_name='other'))
+        self.assertEqual(der(self.fg.local['other']['certificate']), der(b.cert_pem))
+        av = self.fg.find('GET', r'available-certificates')[0]['query']
+        self.assertEqual((av['scope'], av['vdom'], av['with_ca']), ('vdom', 'root', '1'))
+        self.assertEqual(self.fg.find('PUT', r'/local/other$')[0]['query'], {'vdom': 'root'})
+        # the global one: scope global
+        self.tearDown()
+        self.setUp()
+        t, ctx = make(self.fg)
+        t.deploy(b, dict(REPLACE))
+        av = self.fg.find('GET', r'available-certificates')[-1]['query']
+        self.assertEqual(av['scope'], 'global')
+
+    def test_no_ssh_sign_in_needed(self):
+        t, ctx = make(self.fg, ssh=False)
+        b = Bundle()
+        got = t.deploy(b, dict(REPLACE))
+        self.assertEqual(got, 'web-cert replaced in place')
+        self.assertFalse(ctx.cli.runs())
+
+    def test_without_fingerprints_each_read(self):
+        """An older FortiOS without available-certificates: the names, then each one read -
+        a copy found that way too."""
+        self.fg.no_avail = True
+        b = Bundle()
+        prefix = C.name_prefix(b, {}, maxlen=35, serial_len=6)
+        self.fg.add(prefix + '20261118-191aae', b.cert_pem)
+        t, ctx, b, got = self.deploy(bundle=b)
+        self.check_replaced(b, ctx)
+        self.assertIn('the FortiGate gives no fingerprints in monitor/system/available-'
+                      'certificates - its 5 local certificates are read one by one', said(ctx))
+        self.assertEqual([p.rsplit('/', 1)[-1] for m, p in self.fg.writes() if m == 'DELETE'],
+                         [prefix + '20261118-191aae'])
+
+    def test_unreadable_stops(self):
+        self.fg.no_avail = True
+        self.fg.refuse_list = 403
+        e, ctx, b = self.fails()
+        self.assertIn('the certificates on the FortiGate cannot be read (', str(e))
+        self.assertIn('needs VPN (vpngrp) read-write; nothing was changed', str(e))
+        self.assertFalse(self.fg.find('PUT', r'.'))
+
+    def test_listed_uses_point_at_the_same_name(self):
+        t, ctx, b, got = self.deploy('7.4.2', admin=True, sslvpn=True, vips='web')
+        self.check_replaced(b, ctx)
+        self.assertEqual(self.fg.puts['/api/v2/cmdb/system/global'],
+                         [{'admin-server-cert': 'web-cert'}])
+        self.assertEqual(self.fg.puts['/api/v2/cmdb/firewall/vip/web'],
+                         [{'ssl-certificate': [{'name': 'web-cert'}]}])
+
+    def test_hand_typed_name(self):
+        self.fg.add('VPN cert/2026 #1', PEMS['other'], q_ref=1)
+        t, ctx = make(self.fg)
+        b = Bundle()
+        t.deploy(b, {'mode': 'replace', 'replace_name': 'VPN cert/2026 #1'})
+        self.assertEqual(der(self.fg.local['VPN cert/2026 #1']['certificate']), der(b.cert_pem))
+        self.assertTrue(any('used once' in w for w in said(ctx)))
+
+    def test_cleanup_spares_the_replaced(self):
+        b = Bundle()
+        prefix = C.name_prefix(b, {}, maxlen=35, serial_len=6)
+        olds = [prefix + '2026%04d-%06x' % (d, d) for d in (101, 201, 301)]
+        for n in olds:
+            self.fg.add(n, PEMS['other'])
+        replaced = prefix + '20260401-0abcde'
+        self.fg.add(replaced, PEMS['old'], q_ref=3)
+        t, ctx = make(self.fg)
+        t.deploy(b, {'mode': 'replace', 'replace_name': replaced, 'keep': 0})
+        self.assertEqual(der(self.fg.local[replaced]['certificate']), der(b.cert_pem))
+        self.assertEqual([n for n in olds if n in self.fg.local], [])
+        self.assertNotIn(replaced, [c['path'].rsplit('/', 1)[-1] for c in
+                                    self.fg.find('DELETE', r'.')])
+
+    def test_the_field_and_the_key(self):
+        f = {x['key']: x for x in FG.FortiGateTarget.deploy_fields}
+        self.assertEqual(f['replace_via']['default'], 'api')
+        self.assertEqual([o[0] for o in f['replace_via']['options']], ['api', 'ssh'])
+        self.assertEqual(f['replace_via']['show_if'], {'mode': ['replace']})
+        self.assertEqual(f['replace_via']['label'], 'How to replace')
+        self.assertNotIn('SSH sign-in', f['mode']['help'].split('unless')[0])
+        t, ctx = make(self.fg)
+        self.assertEqual(t.state_key(dict(REPLACE)),
+                         t.state_key(dict(REPLACE, replace_via='api')),
+                         'a deployment saved before the option keeps its key')
+        self.assertNotEqual(t.state_key(dict(REPLACE)), t.state_key(dict(SSHR)))
+        self.assertEqual(t.state_key({'keep': 1}),
+                         t.state_key({'keep': 1, 'mode': 'new', 'replace_via': 'api'}))
+
+    def test_new_mode_as_before(self):
+        """A new certificate each time: imported under its new name; never a PUT of a local
+        certificate; -327 of an EVAL VM said as FortiOS's error."""
+        t, ctx = make(self.fg)
+        b = Bundle()
+        t.deploy(b, {'keep': 1})
+        self.assertEqual(len(self.fg.find('POST', r'/local/import')), 1)
+        self.assertFalse(self.fg.find('PUT', r'/vpn\.certificate/local/'))
+        self.assertFalse(self.fg.find('GET', r'available-certificates'))
+        self.unchanged_target()
+        self.tearDown()
+        self.setUp()
+        self.fg.eval_327 = True
+        t, ctx = make(self.fg)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(b, {'keep': 1})
+        self.assertIn('-327', str(e.exception))
+        self.assertFalse(self.fg.find('PUT', r'/vpn\.certificate/local/'))
+
+    def test_scrub(self):
+        lines = ['Input is not a valid/matched certificate.',
+                 'node_check_object fail! for certificate -----BEGIN CERTIFICATE-----',
+                 'MIIDtjCCAzygAwIBAgISBOGUS0123456789abcdefABCDEF', '-----END CERTIFICATE-----',
+                 "value parse error before '-----BEGIN CERTIFICATE-----'", 'MIIBjTCCA',
+                 '-----BEGIN ENCRYPTED PRIVATE KEY-----', 'Command fail. Return code -651',
+                 'This local certificate is duplicated.']
+        out = FG.scrub_lines(lines)
+        self.assertFalse([x for x in out if 'BEGIN' in x or 'MII' in x], out)
+        for keep in ('This local certificate is duplicated.', 'Command fail. Return code -651',
+                     'Input is not a valid/matched certificate.'):
+            self.assertIn(keep, out)
+
+
+# ---------------------------------------------------------------------------
+class ApiDuplicateTest(ApiReplaceTest.__bases__[0]):
+    """FortiOS refuses a local certificate identical to another (-651 "duplicated") - the
+    1.0.128 failure: the same certificate imported an hour before by the default mode."""
+    deploy = ApiReplaceTest.deploy
+    fails = ApiReplaceTest.fails
+    put_body = ApiReplaceTest.put_body
+    no_secrets = ApiReplaceTest.no_secrets
+    unchanged_target = ApiReplaceTest.unchanged_target
+
+    def copy(self, b, name=None, q_ref=0):
+        name = name or C.name_prefix(b, {}, maxlen=35, serial_len=6) + '20261118-191aae'
+        self.fg.add(name, b.cert_pem, q_ref=q_ref)
+        return name
+
+    def test_the_1_0_128_failure(self):
+        """The default mode first (its acme-... copy), then replace in place: the copy - the
+        same certificate - deleted first, then the PUT."""
+        b = Bundle()
+        t, ctx = make(self.fg)
+        t.deploy(b, {'keep': 1})
+        n = [x for x in self.fg.local if x.startswith('acme-')]
+        self.assertEqual(len(n), 1)
+        t, ctx = make(self.fg)
+        got = t.deploy(b, dict(REPLACE))
+        self.assertEqual(got, 'web-cert replaced in place')
+        self.assertNotIn(n[0], self.fg.local)
+        w = [(m, p.rsplit('/', 1)[-1]) for m, p in self.fg.writes()]
+        self.assertEqual(w[-2:], [('DELETE', n[0]), ('PUT', 'web-cert')], w)
+        self.assertFalse(self.fg.find('POST', r'/local/import')[1:], 'no new import')
+
+    def test_own_unused_copy_deleted_first(self):
+        b = Bundle()
+        n = self.copy(b)
+        t, ctx = make(self.fg)
+        t.deploy(b, dict(REPLACE))
+        self.assertNotIn(n, self.fg.local)
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        words = said(ctx)
+        self.assertIn('%s is this very certificate already - a copy acme imported earlier; it '
+                      'is deleted first (FortiOS refuses two identical local certificates)' % n,
+                      words)
+        self.assertIn('deleted %s, the unused copy of this certificate' % n, words)
+
+    def test_foreign_copy_stops(self):
+        b = Bundle()
+        self.copy(b, name='my-own-copy')
+        e, ctx, b = self.fails(b)
+        self.assertIn('the FortiGate has this very certificate already as my-own-copy, which '
+                      'acme did not make', str(e))
+        self.assertIn('my-own-copy', self.fg.local)
+        self.assertFalse([w for w in self.fg.writes() if w[0] in ('PUT', 'DELETE')])
+        self.unchanged_target()
+
+    def test_another_deployments_acme_copy_is_foreign(self):
+        """acme-... of another certificate's names: not this deployment's own - kept."""
+        b = Bundle()
+        self.copy(b, name='acme-mail.example.te-20261118-191aae')
+        e, ctx, b = self.fails(b)
+        self.assertIn('as acme-mail.example.te-20261118-191aae, an acme name of another '
+                      'deployment (this one deletes only its own acme-www.example.te-… copies)',
+                      str(e))
+        self.assertFalse(self.fg.find('DELETE', r'.'))
+
+    def test_copy_in_use_minus_23(self):
+        """acme's copy used by the admin GUI only - cmdb q_ref 0, yet FortiOS refuses to delete
+        it (-23): it stops, the target untouched, the copy kept."""
+        b = Bundle()
+        n = self.copy(b)
+        self.fg.admin_server_cert = n
+        e, ctx, b = self.fails(b)
+        self.assertIn('the FortiGate has this very certificate already as %s, an earlier import '
+                      'of acme that is in use - FortiOS refused to delete it (-23, "currently '
+                      'being used")' % n, str(e))
+        self.assertIn('point what uses %s at web-cert, then deploy again' % n, str(e))
+        self.assertIn("Can't delete this certificate. It's currently being used.", e.detail)
+        self.assertIn(n, self.fg.local)
+        self.assertFalse(self.fg.find('PUT', r'.'))
+        self.unchanged_target()
+
+    def test_copy_delete_refused_otherwise(self):
+        b = Bundle()
+        n = self.copy(b)
+        self.fg.refuse_delete.add(n)
+        e, ctx, b = self.fails(b)
+        self.assertIn('%s, an unused copy of this very certificate, cannot be deleted (HTTP '
+                      '500, error -37: -) - nothing else was changed' % n, str(e))
+        self.assertFalse(self.fg.find('PUT', r'.'))
+
+    def test_never_the_replaced(self):
+        """The replaced one is named as acme names its copies: never taken for a copy."""
+        b = Bundle()
+        prefix = C.name_prefix(b, {}, maxlen=35, serial_len=6)
+        replaced = prefix + '20260401-0abcde'
+        self.fg.add(replaced, b.cert_pem, q_ref=1)
+        n = self.copy(b, name=prefix + '20261118-191aae')
+        t, ctx = make(self.fg)
+        got = t.deploy(b, {'mode': 'replace', 'replace_name': replaced, 'force': True})
+        self.assertEqual(got, 'already in place in %s' % replaced)
+        self.assertIn(replaced, self.fg.local)
+        self.assertIn(n, self.fg.local)
+        self.assertFalse(self.fg.find('DELETE', r'.'))
+
+
+# ---------------------------------------------------------------------------
+class SshReplaceTest(Base):
+    """How to replace: SSH - the FortiOS CLI (1.0.129), kept as the other way."""
     def deploy(self, version='', fos=None, cli=None, **opts):
         if fos:
             self.fg.version = fos
         t, ctx = make(self.fg, version, cli=cli)
         b = Bundle()
-        got = t.deploy(b, dict(REPLACE, **opts))
+        got = t.deploy(b, dict(SSHR, **opts))
         return t, ctx, b, got
 
     def no_secrets(self, ctx, b, extra=()):
@@ -522,41 +1174,24 @@ class ReplaceTest(Base):
             self.assertTrue(any('used 7 times' in w for w in words), words)
             self.assertTrue(any('key type changes from RSA to EC' in w for w in words), words)
             self.assertIn('signed in over SSH as acme-admin: FortiOS 7.4.13 on fw1, VDOMs off - '
-                          'the certificate is replaced in the FortiOS CLI (its REST API '
-                          'cannot)', words)
+                          'the certificate is replaced in the FortiOS CLI', words)
             self.assertIn('no other local certificate on the FortiGate is this one (FortiOS '
                           'refuses a duplicate)', words)
             self.assertTrue([w for w in words if w.startswith(
                 'checked: web-cert holds the new certificate now (SHA-256 ')], words)
             self.assertTrue(all(c['auth'] == 'Bearer TKN-secret-0001' for c in self.fg.calls))
 
-    def test_the_rest_put_is_what_7_4_13_refused(self):
-        """The fake answers the cmdb PUT as the device did: acme no longer sends it, and the
-        answer, were it to come, is kept as its error lines - no line of the PEM."""
-        t, ctx = make(self.fg)
-        b = Bundle()
-        with self.assertRaises(C.PluginError) as e:
-            t.api('PUT', '/api/v2/cmdb/vpn.certificate/local/web-cert',
-                  {'certificate': b.cert_pem}, vdom='root', what='x')
-        detail = e.exception.detail
-        self.assertIn('This local certificate is duplicated.', detail)
-        self.assertIn('Command fail. Return code -651', detail)
-        self.assertIn('node_check_object fail! for certificate …', detail)
-        self.assertNotIn('BEGIN', detail + str(e.exception))
-        for ln in b.cert_pem.splitlines()[1:-1]:
-            self.assertNotIn(ln, detail)
-        self.assertNotIn('MIIDtjCCA', detail)
-        self.assertIn('-651', str(e.exception))
-        # and the deployment never asks it
-        self.fg.calls[:] = []
+    def test_ssh_sends_no_rest_put(self):
+        """Over SSH the certificate goes to the CLI only - never the REST PUT."""
         t, ctx, b, got = self.deploy()
         self.check_replaced(b, ctx)
+        self.assertFalse(self.fg.find('PUT', r'/vpn\.certificate/local/'))
 
     def test_version_refused_before_anything(self):
         self.fg.version = 'v6.4.15'
         t, ctx = make(self.fg, '7.4.2')
         with self.assertRaises(PluginError):
-            t.deploy(Bundle(), dict(REPLACE))
+            t.deploy(Bundle(), dict(SSHR))
         self.assertFalse([c for c in self.fg.calls if c['method'] != 'GET'])
         self.assertFalse(ctx.cli.runs())
         self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(PEMS['old']))
@@ -576,7 +1211,7 @@ class ReplaceTest(Base):
         n = len(ctx.cli.runs())
         t2, ctx2 = make(self.fg, cli=ctx.cli)
         ctx2.kv = ctx.kv
-        got = t2.deploy(b, dict(REPLACE))
+        got = t2.deploy(b, dict(SSHR))
         self.assertTrue(got.startswith('unchanged'), got)
         self.assertEqual(len(ctx.cli.runs()), n)
 
@@ -586,7 +1221,7 @@ class ReplaceTest(Base):
         b = Bundle()
         self.fg.local['web-cert']['certificate'] = b.cert_pem
         t, ctx = make(self.fg)
-        got = t.deploy(b, dict(REPLACE, force=True))
+        got = t.deploy(b, dict(SSHR, force=True))
         self.assertEqual(got, 'already in place in web-cert')
         self.assertIn('web-cert holds this certificate already - it is in place', said(ctx))
         self.assertFalse(ctx.cli.runs())
@@ -617,7 +1252,7 @@ class ReplaceTest(Base):
         t, ctx = make(self.fg, cli=cli)
         b = Bundle()
         with self.assertRaises(PluginError) as e:
-            t.deploy(b, dict(REPLACE, keep=0))
+            t.deploy(b, dict(SSHR, keep=0))
         words = str(e.exception)
         self.assertIn('FortiOS refused to replace web-cert in place: ', words)
         self.assertIn('Input is not a valid/matched certificate.', words)
@@ -643,7 +1278,7 @@ class ReplaceTest(Base):
         cli.ignore = True
         t, ctx = make(self.fg, cli=cli)
         with self.assertRaises(PluginError) as e:
-            t.deploy(Bundle(), dict(REPLACE))
+            t.deploy(Bundle(), dict(SSHR))
         self.assertIn('FortiOS took the lines, yet web-cert still holds another certificate',
                       str(e.exception))
         self.assertFalse(self.fg.find('POST', r'/ca/import'), 'nothing after it')
@@ -671,14 +1306,13 @@ class ReplaceTest(Base):
         t, ctx, b, got = self.deploy(cli=cli)
         self.check_replaced(b, ctx, 'global')
         self.assertIn('signed in over SSH as acme-admin: FortiOS 7.4.13 on fw1, VDOMs on '
-                      '(multiple) - the certificate is replaced in the FortiOS CLI (its REST '
-                      'API cannot)', said(ctx))
+                      '(multiple) - the certificate is replaced in the FortiOS CLI', said(ctx))
 
     def test_vdom_scope_with_vdoms(self):
         cli = FakeCli(self.fg, vdoms=True)
         t, ctx = make(self.fg, cli=cli)
         b = Bundle()
-        t.deploy(b, {'mode': 'replace', 'replace_name': 'other'})
+        t.deploy(b, {'mode': 'replace', 'replace_via': 'ssh', 'replace_name': 'other'})
         self.assertEqual(der(self.fg.local['other']['certificate']), der(b.cert_pem))
         edits = [r for r in cli.runs() if 'config vpn certificate local' in r]
         self.assertEqual(len(edits), 2)
@@ -700,16 +1334,16 @@ class ReplaceTest(Base):
         for cfg in ({'ssh_user': ''}, {'ssh_password': ''}, {'ssh_auth': 'key'}):
             t, ctx = make(self.fg, **cfg)
             with self.assertRaises(PluginError) as e:
-                t.deploy(Bundle(), dict(REPLACE))
+                t.deploy(Bundle(), dict(SSHR))
             words = str(e.exception)
-            self.assertIn('replace in place goes over SSH and the target has no SSH sign-in',
-                          words)
-            self.assertIn('Fill in the target\'s SSH user and its key or password', words)
-            self.assertIn('nothing was changed', words)
+            self.assertIn('replace in place over SSH ("How to replace": SSH) and the target has '
+                          'no SSH sign-in', words)
+            self.assertIn('fill in the target\'s SSH user and its key or password', words)
+            self.assertIn('or choose the REST API - nothing was changed', words)
             self.assertFalse(e.exception.retry)
             self.assertFalse(ctx.cli.runs())
             self.assertFalse([c for c in self.fg.calls if c['method'] != 'GET'])
-        # the new mode needs none
+        # the new mode needs none, nor the REST API way
         t, ctx = make(self.fg, ssh=False)
         t.deploy(Bundle(), {'keep': 1})
         self.assertFalse(ctx.cli.runs())
@@ -721,9 +1355,11 @@ class ReplaceTest(Base):
             self.assertIn(k, f)
             self.assertFalse(f[k].get('required'), k)
         self.assertEqual(f['ssh_port']['default'], 22)
-        self.assertEqual(f['ssh_user']['label'], 'SSH user (replace in place)')
-        self.assertIn('only for "Replace an existing certificate in place"',
+        self.assertEqual(f['ssh_user']['label'], 'SSH user (replace over SSH)')
+        self.assertIn('only when "How to replace" is SSH - empty: not used',
                       f['ssh_user']['help'])
+        for k in ('ssh_user', 'ssh_password', 'ssh_key'):
+            self.assertNotIn('required', f[k].get('help', ''), k)
         self.assertEqual(f['ssh_key']['type'], 'sshkey')
         self.assertEqual(f['ssh_key']['ssh_prefix'], 'ssh_')
         self.assertEqual(f['ssh_key']['try_command'], 'get system status')
@@ -741,7 +1377,7 @@ class ReplaceTest(Base):
     def test_missing_name_fails_early(self):
         t, ctx = make(self.fg)
         with self.assertRaises(PluginError) as e:
-            t.deploy(Bundle(), dict(REPLACE, replace_name='web-certt'))
+            t.deploy(Bundle(), dict(SSHR, replace_name='web-certt'))
         self.assertIn('there is no local certificate web-certt on the FortiGate (VDOM root)',
                       str(e.exception))
         self.assertIn('nothing was changed', str(e.exception))
@@ -752,14 +1388,14 @@ class ReplaceTest(Base):
     def test_empty_and_factory_refused(self):
         t, ctx = make(self.fg)
         with self.assertRaises(PluginError) as e:
-            t.deploy(Bundle(), {'mode': 'replace', 'replace_name': ' '})
+            t.deploy(Bundle(), {'mode': 'replace', 'replace_via': 'ssh', 'replace_name': ' '})
         self.assertIn('no certificate on the FortiGate is chosen', str(e.exception))
         with self.assertRaises(PluginError) as e:
-            t.deploy(Bundle(), {'mode': 'replace', 'replace_name': 'Fortinet_SSL'})
+            t.deploy(Bundle(), {'mode': 'replace', 'replace_via': 'ssh', 'replace_name': 'Fortinet_SSL'})
         self.assertIn('Fortinet factory certificate', str(e.exception))
         self.fg.add('mine', PEMS['other'], source='factory')
         with self.assertRaises(PluginError):
-            t.deploy(Bundle(), {'mode': 'replace', 'replace_name': 'mine'})
+            t.deploy(Bundle(), {'mode': 'replace', 'replace_via': 'ssh', 'replace_name': 'mine'})
         self.assertFalse([c for c in self.fg.calls if c['method'] != 'GET'])
         self.assertFalse(ctx.cli.runs())
 
@@ -768,7 +1404,7 @@ class ReplaceTest(Base):
         self.fg.add('VPN cert/2026 #1', PEMS['other'], q_ref=1)
         t, ctx = make(self.fg)
         b = Bundle()
-        t.deploy(b, {'mode': 'replace', 'replace_name': 'VPN cert/2026 #1'})
+        t.deploy(b, {'mode': 'replace', 'replace_via': 'ssh', 'replace_name': 'VPN cert/2026 #1'})
         self.assertEqual(der(self.fg.local['VPN cert/2026 #1']['certificate']), der(b.cert_pem))
         self.assertTrue([r for r in ctx.cli.runs() if '\nedit "VPN cert/2026 #1"\n' in r])
         self.assertTrue(any('used once' in w for w in said(ctx)))
@@ -784,7 +1420,7 @@ class ReplaceTest(Base):
         replaced = prefix + '20260401-0abcde'
         self.fg.add(replaced, PEMS['old'], q_ref=3)
         t, ctx = make(self.fg)
-        t.deploy(b, {'mode': 'replace', 'replace_name': replaced, 'keep': 0})
+        t.deploy(b, {'mode': 'replace', 'replace_via': 'ssh', 'replace_name': replaced, 'keep': 0})
         self.assertIn(replaced, self.fg.local)
         self.assertEqual(der(self.fg.local[replaced]['certificate']), der(b.cert_pem))
         self.assertEqual([n for n in olds if n in self.fg.local], [])
@@ -803,16 +1439,16 @@ class ReplaceTest(Base):
         self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(PEMS['old']))
         self.assertEqual(t.state_key({'keep': 1}),
                          t.state_key({'keep': 1, 'mode': 'new', 'replace_name': ''}))
-        self.assertNotEqual(t.state_key({'keep': 1}), t.state_key(dict(REPLACE, keep=1)))
+        self.assertNotEqual(t.state_key({'keep': 1}), t.state_key(dict(SSHR, keep=1)))
 
 
 # ---------------------------------------------------------------------------
-class DuplicateTest(Base):
+class SshDuplicateTest(Base):
     """FortiOS refuses a local certificate identical to another ("This local certificate is
     duplicated") - the very failure on 7.4.13: the same certificate imported an hour before
     by a deployment in the new mode."""
     def copy(self, b, name=None, q_ref=0):
-        name = name or 'acme-www.example.test-20261118-191aae'
+        name = name or C.name_prefix(b, {}, maxlen=35, serial_len=6) + '20261118-191aae'
         self.fg.add(name, b.cert_pem, q_ref=q_ref)
         return name
 
@@ -820,15 +1456,15 @@ class DuplicateTest(Base):
         b = Bundle()
         n = self.copy(b)
         t, ctx = make(self.fg)
-        got = t.deploy(b, dict(REPLACE))
+        got = t.deploy(b, dict(SSHR))
         self.assertIn('web-cert replaced in place', got)
         self.assertNotIn(n, self.fg.local)
         self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
         dels = self.fg.find('DELETE', r'/vpn\.certificate/local/')
         self.assertEqual([c['path'].rsplit('/', 1)[-1] for c in dels], [n])
         words = said(ctx)
-        self.assertIn('%s is this very certificate already - an unused copy acme imported '
-                      'earlier; it is deleted first (FortiOS refuses two identical local '
+        self.assertIn('%s is this very certificate already - a copy acme imported earlier; '
+                      'it is deleted first (FortiOS refuses two identical local '
                       'certificates)' % n, words)
         self.assertIn('deleted %s, the unused copy of this certificate' % n, words)
         # the copy was deleted only after SSH signed in, and before the CLI lines
@@ -844,7 +1480,7 @@ class DuplicateTest(Base):
         self.fg.refuse_delete.add(n)
         t, ctx = make(self.fg)
         with self.assertRaises(PluginError) as e:
-            t.deploy(b, dict(REPLACE))
+            t.deploy(b, dict(SSHR))
         self.assertIn('%s, an unused copy of this very certificate, cannot be deleted' % n,
                       str(e.exception))
         self.assertIn('nothing else was changed', str(e.exception))
@@ -859,26 +1495,30 @@ class DuplicateTest(Base):
                       FG.cli_errors(out))
 
     def test_used_copy_fails_before_anything(self):
+        """A copy in use: FortiOS refuses its DELETE (-23) - nothing else is changed."""
         b = Bundle()
         n = self.copy(b, q_ref=2)
         t, ctx = make(self.fg)
         with self.assertRaises(PluginError) as e:
-            t.deploy(b, dict(REPLACE))
+            t.deploy(b, dict(SSHR))
         words = str(e.exception)
         self.assertIn('the FortiGate has this very certificate already as %s, an earlier '
-                      'import of acme that is used (2×)' % n, words)
-        self.assertIn('Nothing was changed: point what uses %s at web-cert' % n, words)
+                      'import of acme that is in use - FortiOS refused to delete it (-23, '
+                      '"currently being used")' % n, words)
+        self.assertIn('Nothing else was changed: point what uses %s at web-cert' % n, words)
         self.assertFalse(e.exception.retry)
         self.assertIn(n, self.fg.local)
-        self.assertFalse([c for c in self.fg.calls if c['method'] != 'GET'])
-        self.assertFalse(ctx.cli.runs(), 'not even signed in over SSH')
+        self.assertEqual(self.fg.writes(), [('DELETE', '/api/v2/cmdb/vpn.certificate/local/'
+                                             + n)])
+        self.assertFalse([r for r in ctx.cli.runs() if 'config vpn certificate local' in r])
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(PEMS['old']))
 
     def test_copy_not_acmes_fails_before_anything(self):
         b = Bundle()
         n = self.copy(b, name='my-own-copy')
         t, ctx = make(self.fg)
         with self.assertRaises(PluginError) as e:
-            t.deploy(b, dict(REPLACE))
+            t.deploy(b, dict(SSHR))
         words = str(e.exception)
         self.assertIn('the FortiGate has this very certificate already as my-own-copy, which '
                       'acme did not make', words)
@@ -903,18 +1543,31 @@ class CaQuietTest(Base):
         self.assertEqual(quiet, [('info', 'the intermediate CA certificate is on the '
                                            'FortiGate already')])
 
-    def test_minus_328_for_one_not_there_is_said(self):
+    def test_minus_328_is_there_already(self):
+        """-328: the CA is there already (measured on 7.6.8) - no longer looked up in the CA
+        list, never said as a failure; another refusal is said."""
         b = Bundle()
         t, ctx = make(self.fg)
         orig = self.fg.answer
 
         def answer(m, path, q, body):
             if path.endswith('/ca/import'):
-                return self.fg.err(500, -328)     # yet the CA list does not have it
+                return self.fg.err(500, -328)     # (the CA list does not have it)
             return orig(m, path, q, body)
         self.fg.answer = answer
         t.deploy(b, {'keep': 1})
-        self.assertTrue([w for w in said(ctx) if 'the CA certificate is not imported' in w])
+        self.assertFalse([w for w in said(ctx) if 'not imported' in w])
+        self.assertIn('the intermediate CA certificate is on the FortiGate already', said(ctx))
+        self.assertFalse(self.fg.find('GET', r'/cmdb/vpn\.certificate/ca'))
+        self.fg.answer = orig
+        self.fg.ca_error = -5
+        for n in [n for n in self.fg.local if n.startswith('acme-')]:
+            del self.fg.local[n]
+        t, ctx = make(self.fg)
+        t.deploy(b, {'keep': 1})
+        self.assertTrue([w for w in said(ctx) if w.startswith(
+            'the CA certificate is not imported: importing a CA certificate: the device said '
+            '500')], said(ctx))
 
     def test_replace_imports_the_chain_quietly(self):
         b = Bundle()
@@ -953,6 +1606,8 @@ class DryRunTest(unittest.TestCase):
         return got['r1']
 
     def test_says_what_is_replaced(self):
+        """The REST API (the default): read, fingerprints, the CA before, no copy, PUT, read
+        back - no SSH even when the target has its sign-in."""
         for ver in ('', '6.0', '7.0', '7.4.2'):
             r = self.record(ver, dict(REPLACE))
             self.assertFalse(r.get('error'), r.get('error'))
@@ -961,11 +1616,51 @@ class DryRunTest(unittest.TestCase):
             self.assertTrue([w for w in says if w.startswith(
                 'replacing the certificate web-cert in place: the same name, everything that '
                 'uses it keeps using it (now www.example.com, valid to ')], says)
+            self.assertIn('it is replaced over the REST API (PUT cmdb vpn.certificate/local/'
+                          'web-cert) - the token is enough, no SSH', says)
+            self.assertIn('the fingerprints of the certificates on the FortiGate read '
+                          '(monitor/system/available-certificates): 4 local, 1 CA', says)
+            self.assertTrue([w for w in says if w.startswith(
+                'imported the intermediate CA certificate ') and w.endswith(
+                ' before the replace - FortiOS sends it along with the certificate')], says)
+            self.assertIn('no other local certificate on the FortiGate is this one (FortiOS '
+                          'refuses a duplicate)', says)
+            self.assertIn('the new certificate (the leaf - FortiOS keeps the leaf only, the '
+                          'chain comes from its CA certificates) and its key, encrypted with a '
+                          'one-time password, put into web-cert', says)
+            self.assertIn('FortiOS took the new certificate and key for web-cert', says)
+            self.assertTrue([w for w in says if w.startswith(
+                'checked: web-cert holds the new certificate now (SHA-256 ')], says)
+            self.assertIn('web-cert replaced in place - its name and every use of it kept',
+                          says)
+            self.assertFalse([w for w in says if 'used 3 times before' in w], says)
+            http = [(e['method'], e['url'].split('?')[0]) for e in evs if e['kind'] == 'http']
+            base = 'https://fw/api/v2/'
+            seq = [h for h in http if 'vpn.certificate/local/web-cert' in h[1] or
+                   'available-certificates' in h[1] or 'ca/import' in h[1]]
+            self.assertEqual(seq, [
+                ('GET', base + 'cmdb/vpn.certificate/local/web-cert'),
+                ('GET', base + 'monitor/system/available-certificates'),
+                ('POST', base + 'monitor/vpn-certificate/ca/import'),
+                ('PUT', base + 'cmdb/vpn.certificate/local/web-cert'),
+                ('GET', base + 'cmdb/vpn.certificate/local/web-cert')])
+            self.assertNotIn(('POST', base + 'monitor/vpn-certificate/local/import'), http)
+            self.assertFalse([h for h in http if h[0] == 'DELETE' and 'web-cert' in h[1]])
+            self.assertFalse([e for e in evs if e['kind'].startswith('ssh')])
+            dump = json.dumps(evs)
+            self.assertNotIn('SSH-pw-0002', dump)
+            self.assertNotIn('PRIVATE KEY-----\\n', dump.replace('ENCRYPTED PRIVATE KEY', ''))
+
+    def test_over_ssh(self):
+        for ver in ('', '7.4.2'):
+            r = self.record(ver, dict(SSHR))
+            self.assertFalse(r.get('error'), r.get('error'))
+            evs = r['events']
+            says = [e.get('words') for e in evs if e['kind'] in ('say', 'step')]
             self.assertIn('no other local certificate on the FortiGate is this one (FortiOS '
                           'refuses a duplicate)', says)
             self.assertIn('signed in over SSH as acme-admin: FortiOS 7.4.5 on fw01, VDOMs off - '
-                          'the certificate is replaced in the FortiOS CLI (its REST API '
-                          'cannot)', says)
+                          'the certificate is replaced in the FortiOS CLI', says)
             self.assertTrue([w for w in says if w.startswith(
                 'checked: web-cert holds the new certificate now (SHA-256 ')], says)
             self.assertIn('web-cert replaced in place - its name and every use of it kept',
@@ -973,30 +1668,21 @@ class DryRunTest(unittest.TestCase):
             http = [(e['method'], e['url'].split('?')[0]) for e in evs if e['kind'] == 'http']
             self.assertFalse([h for h in http if h[0] == 'PUT' and 'vpn.certificate' in h[1]],
                              'never the REST PUT')
-            self.assertNotIn(('POST', 'https://fw/api/v2/monitor/vpn-certificate/local/import'),
-                             http)
             opens = [e for e in evs if e['kind'] == 'ssh-open']
-            self.assertTrue(opens)
             self.assertEqual((opens[0]['host'], opens[0]['port'], opens[0]['user']),
                              ('fw', 22, 'acme-admin'))
             runs = [e for e in evs if e['kind'] == 'ssh-run']
             self.assertEqual(len(runs), 4, [e.get('input') for e in runs])
             self.assertTrue(all(e['input']['secret'] for e in runs[1:3]))
-            dump = json.dumps(evs)
-            self.assertNotIn('SSH-pw-0002', dump)
+            self.assertNotIn('SSH-pw-0002', json.dumps(evs))
 
-    def test_duplicate_said(self):
-        """An unused acme copy of the new certificate would be named; here none is - the dry
-        run lists every local certificate with its PEM and compares."""
-        r = self.record('', dict(REPLACE))
-        http = [e['url'] for e in r['events'] if e['kind'] == 'http']
-        self.assertTrue([u for u in http if '/cmdb/vpn.certificate/local?' in u and
-                         'with_meta=1' in u], http)
-
-    def test_no_ssh_said(self):
+    def test_no_ssh_needed_or_said(self):
         r = self.record('', dict(REPLACE), ssh=False)
-        self.assertIn('replace in place goes over SSH and the target has no SSH sign-in',
-                      r.get('error') or '')
+        self.assertFalse(r.get('error'), r.get('error'))
+        self.assertFalse([e for e in r['events'] if e['kind'].startswith('ssh')])
+        r = self.record('', dict(SSHR), ssh=False)
+        self.assertIn('replace in place over SSH ("How to replace": SSH) and the target has no '
+                      'SSH sign-in', r.get('error') or '')
         self.assertFalse([e for e in r['events'] if e['kind'].startswith('ssh')])
 
 

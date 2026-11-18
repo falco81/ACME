@@ -4,9 +4,13 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.130 - not released
+## 1.0.130 - 2026-11-18
 
-(nothing yet)
+- **FortiGate: replace in place over the REST API again - fixed, and the default.** Measured on FortiOS 7.6.8 build 3744: the `PUT cmdb vpn.certificate/local/<name>` works; what 1.0.128 failed at (`-651`) was a **duplicate** - the same certificate already on the box under another name (an `acme-...` import of the default mode), not the PEM. A new deployment option *How to replace* (`replace_via`): **REST API** (default; the token only, its profile needing VPN `vpngrp` read-write) or **SSH** (the FortiOS CLI of 1.0.129, unchanged, with the target's optional SSH sign-in). The API way: read the certificate (`with_meta`), read the SHA-256 of every certificate (`monitor/system/available-certificates`), import the intermediates not there as CA certificates **before** the PUT (FortiOS keeps the leaf only and serves the chain from its CA store), delete acme's own copy of the new certificate, PUT the leaf and the key (PKCS#8 encrypted with a one-time password), read it back (the fingerprint must be the new one; a changed count of uses is a warning). A refused PUT changes nothing and says why: duplicated / invalid private key or password / a key of another certificate / its error lines.
+- FortiGate replace in place, duplicates (both ways): found by fingerprint in `available-certificates` (the cmdb listing has `certificate` empty on 7.6, so 1.0.129 never found the copy there); only this deployment's own `acme-<label>-...` copies are deleted, a copy acme did not make (or another deployment's) stops it; FortiOS's `-23` on the DELETE ("currently being used" - cmdb `q_ref` does not count the admin GUI) stops it with the target untouched; the replaced certificate is never deleted and replace mode never imports under a new name.
+- FortiGate *Find on the device*: CN, expiry, issuer and the start of the SHA-256 again on FortiOS 7.6 (from `available-certificates`, else the listing's PEM, else each read), the uses counting the admin GUI; the ★ suggestion, factory ones left out and typing by hand as before; the VDOM offer of *Find the settings* unchanged.
+- FortiGate CA import: `-328` means "there already" (now measured) - said once, the CA list no longer read to check it; another refusal is said as "the CA certificate is not imported: ...".
+- FortiGate: the SSH sign-in fields say they are used only when *How to replace* is SSH; FortiOS answers kept in the job drop the short base64 stubs (`MIIBjTCCA`) too. *What happens* shows the API way step by step (reads, CA imports, copies, PUT, check). Docs and setup guides (EN/CS, every module version): the API way, `vpngrp` read-write, the duplicate rule, leaf-only storage, renaming impossible in FortiOS.
 
 ## 1.0.129 - 2026-11-18
 

@@ -967,44 +967,86 @@ and an admin profile (`config system accprofile`, `scope global` for the
 global import): `vpngrp` read-write (certificate import / delete - the access
 group the 6.0.4 reference gives - and SSL VPN), `sysgrp` custom `cfg`
 read-write for `admin-server-cert`, `fwgrp` read-write for VIPs, `utmgrp`
-read-write for SSL/SSH inspection profiles. The exact commands are in the
-setup guides.
+read-write for SSL/SSH inspection profiles. Replace in place over the REST API needs
+`vpngrp` read-write only (when nothing else is ticked or listed). The exact commands are in
+the setup guides.
 
-**Replace an existing certificate in place** (1.0.128, every module version; over SSH since
-1.0.129): the deployment option *Certificate on the FortiGate* - `mode` `new` (default: a new
-`acme-...` certificate each time, as above) or `replace` - with *The certificate on the
-FortiGate* (`replace_name`). For a certificate already bound to policies, VIPs, ZTNA,
-user authentication and the like that should only be swapped:
+**Replace an existing certificate in place** (1.0.128, every module version; the REST API by
+default since 1.0.130, SSH the other way): the deployment option *Certificate on the
+FortiGate* - `mode` `new` (default: a new `acme-...` certificate each time, as above) or
+`replace` - with *The certificate on the FortiGate* (`replace_name`) and *How to replace*
+(`replace_via`: `api`, the default, or `ssh`). For a certificate already bound to policies,
+VIPs, ZTNA, user authentication and the like that should only be swapped:
 
 - *Find on the device* (a list field, `catalog` `local_certs`) reads `GET cmdb
-  vpn.certificate/local?with_meta=1` over REST: name, CN, expiry, issuer, range and the count
-  of uses (`q_ref`) of each; the one whose CN (or a SAN) is a name of the deployed
-  certificate is marked ★ and chosen; Fortinet factory ones (`Fortinet_*`, source
-  `factory`) are left out. *Type it yourself…* always works; a listing that fails says why
-  (a 403: the token's `vpngrp` read).
-- **It needs the target's SSH sign-in** (*SSH user (replace in place)*, *Sign in with*, the
-  key or *SSH password*, *SSH port* 22, the host key pinned or the first one trusted - the
-  fields `ssh_user`, `ssh_auth`, `ssh_key`, `ssh_password`, `ssh_port`, `ssh_hostkey`,
+  vpn.certificate/local?with_meta=1` over REST for the names, ranges and uses. FortiOS 7.6
+  lists every one with `certificate` empty (measured on 7.6.8 build 3744; only the GET of one
+  certificate gives its PEM), so the facts - CN, expiry, issuer, SHA-256 - come from `GET
+  monitor/system/available-certificates` (any admin may read it; its count of uses takes the
+  admin GUI in), from the listing's PEM where it has one, else from reading each. The one
+  whose CN (or a SAN) is a name of the deployed certificate is marked ★ and chosen; Fortinet
+  factory ones (`Fortinet_*`, source `factory`) are left out. *Type it yourself…* always works;
+  a listing that fails says why (a 403: the token's `vpngrp` read). *Find the settings*
+  offers the VDOM as before.
+- **The REST API (`api`, default)** - the token alone, its admin profile needing **VPN
+  (`vpngrp`) read-write** and nothing more (no `sysgrp`/`fwgrp`: nothing is re-pointed). As
+  measured on FortiOS 7.6.8 (the package of 2026-11-18), in this order:
+
+  ```
+  1  GET  cmdb/vpn.certificate/local/<name>?with_meta=1        not there / factory: stop
+  2  GET  monitor/system/available-certificates?scope=<global|vdom>&with_ca=1
+                                                              SHA-256 of every local and CA one
+  3  POST monitor/vpn-certificate/ca/import                   each intermediate not there yet
+                                                              (-328: there already)
+  4  the very certificate there already: nothing more ("already in place")
+  5  DELETE cmdb/vpn.certificate/local/<copy>                 acme's own copy of the new one
+  6  PUT  cmdb/vpn.certificate/local/<name>   {"password": <one-time>, "private-key": <PKCS#8
+          encrypted with it>, "certificate": <the leaf>}
+  7  GET  cmdb/vpn.certificate/local/<name>?with_meta=1        the fingerprint must be the new one
+  ```
+
+  A renewal with the intermediate there is 4 calls, one of them a write. Without fingerprints
+  in step 2 (an older FortiOS?) the names are listed and each read. A PUT refused changes
+  nothing (`revision_changed: false`) and is said by its `cli_error` (error `-651`): *This
+  local certificate is duplicated* (a copy acme did not find, e.g. in another VDOM), *Invalid
+  private key, password may be required* (the key or its password), *Input is not a
+  valid/matched certificate* alone (the key of another certificate); anything else with its
+  lines. Read back with another fingerprint: it fails (look at the box); its count of uses
+  changed: a warning.
+- **Why 1.0.128 failed**: not the PEM or the key format - a **duplicate**. FortiOS keeps no
+  local certificate twice ("This local certificate is duplicated", `-651`, the other lines of
+  `cli_error` - "Input is not a valid/matched certificate", "value parse error before
+  '-----BEGIN CERTIFICATE-----'" - only echo the refused line): a deployment in the default
+  mode had imported the same certificate an hour before as `acme-...`. Reproduced on 7.6.8:
+  the copy deleted, the same PUT is taken. The line of the duplicate is the first on 7.4.13,
+  the last on 7.6.8 - looked for anywhere.
+- **Duplicates** (both ways): the fingerprint of the new certificate is looked for among the
+  local certificates (step 2) before anything changes: at the name already - "already in
+  place", nothing sent; a copy acme made for this certificate (`acme-<label>-...`, the
+  prefix of this deployment) - deleted first, said; FortiOS refuses the DELETE of a copy in
+  use with `-23` ("It's currently being used") - the deployment stops there, the target
+  untouched (cmdb `q_ref` does not count the admin GUI's `admin-server-cert`, so `q_ref` 0 is
+  not "unused" - the DELETE decides); a copy acme did not make (or another deployment's
+  `acme-...`) - it stops before anything changes, naming the copy and what to do. The
+  replaced certificate is never deleted, and replace mode never imports the certificate under
+  a new name (that would be the duplicate).
+- **Only the leaf is stored**: FortiOS keeps the leaf of `certificate` and drops the rest; it
+  sends the chain from its CA certificates. So the intermediates go in as CA certificates
+  (*Import the intermediates as CA certificates*, on) **before** the PUT - the service sends
+  the whole chain from the first second (the other order: the leaf alone for about a minute).
+  The root is not needed. The service (admin GUI, VIP, ...) takes the new certificate by
+  itself within 2-5 s, nothing re-bound.
+- **SSH (`ssh`)**: the FortiOS CLI over SSH (1.0.129), kept as the other way. It needs the
+  target's SSH sign-in (*SSH user (replace over SSH)*, *Sign in with*, the key or *SSH
+  password*, *SSH port* 22, the host key pinned or the first one trusted - the fields
+  `ssh_user`, `ssh_auth`, `ssh_key`, `ssh_password`, `ssh_port`, `ssh_hostkey`,
   `ssh_trust_first`; the key card's *Try reaching it* runs `get system status`): an
   administrator who may change VPN certificates (`vpngrp` read-write; a certificate in the
-  global range: `scope global`). Without it the deployment fails before anything changes and
-  says so; *Try* says the SSH sign-in too when it is filled in. The default mode (`new`)
-  never uses SSH.
-- **Why not the REST API**: `PUT cmdb vpn.certificate/local/<name>` with `certificate` (as
-  1.0.128 did) is turned by FortiOS into CLI lines and the PEM over several lines breaks them
-  - FortiOS 7.4.13 build 2933 answered 500, `-651`, `cli_error` "value parse error before
-  '-----BEGIN CERTIFICATE-----'" (with every line of the PEM said back), and wrote nothing
-  (`revision_changed: false`). It is no longer sent; REST lists, reads back and checks only.
-- The deployment reads `cmdb vpn.certificate/local/<name>` (not there: it fails before
-  anything changes; a factory one is refused). **Duplicates**: FortiOS refuses a local
-  certificate identical to another one ("This local certificate is duplicated"), so every
-  local certificate is compared (SHA-256 of its PEM) with the new one first: the very one at
-  the name already - "already in place", nothing sent; a copy under another name that acme
-  made (`acme-...`) and nothing uses (`q_ref` 0) - deleted first, said; a copy that is used,
-  or one acme did not make - the deployment fails before anything changes, naming the copy
-  and what to do (point its uses at the name, delete it). The same is said by *What happens*.
-- Then over SSH (a shell session, the lines on its input): `get system status` (the version,
-  the host name, `Virtual domain configuration` - else REST `system global vdom-mode`), and
+  global range: `scope global`). Without it the deployment fails before anything changes.
+  The fields are optional and used by this way only - the REST API and the default mode never
+  sign in over SSH (*Try* says the SSH sign-in too when it is filled in). Over SSH:
+  `get system status` (the version, the host name, `Virtual domain configuration` - else REST
+  `system global vdom-mode`), the duplicates as above, and
 
   ```
   [config global | config vdom / edit <vdom>]   VDOMs on: by the certificate's range
@@ -1017,35 +1059,40 @@ user authentication and the like that should only be swapped:
   ```
 
   taken without an error - the same lines again ending `next` / `end` (saved). An encrypted
-  key refused: the same with the plain PEM key (no `password`). The answer is read for
-  "Command fail", "Return code", "duplicated", "not a valid", "parse error", "new entry ...
-  added" (a name not in that scope) and the like: any of them - the deployment fails with
-  those lines, nothing saved, the certificate read back and said untouched (it is never
-  deleted). Then the certificate is read back (REST, else CLI `show vpn certificate local`):
-  its fingerprint must be the new one, else it fails. The intermediates go in as CA
-  certificates over REST as for a new one. The name stays, so every reference keeps it; admin
-  GUI / SSL VPN / profiles / VIPs are set only when ticked or listed - to that name. A key of
-  another type (RSA → ECDSA) is said. Cleanup of older `acme-...` certificates never takes the
-  replaced one (even one named `acme-...`).
+  key refused: the same with the plain PEM key (no `password`). Any "Command fail", "Return
+  code", "duplicated", "not a valid", "parse error", "new entry ... added" in the answer: it
+  fails with those lines, nothing saved. Then the certificate is read back (REST, else CLI
+  `show vpn certificate local`) and must have the new fingerprint; the intermediates go in as
+  CA certificates afterwards, as for a new one.
+- Both ways: the name stays, so every reference keeps it; admin GUI / SSL VPN / profiles /
+  VIPs are set only when ticked or listed - to that name. A key of another type (RSA →
+  ECDSA) is said. Cleanup of older `acme-...` certificates never takes the replaced one (even
+  one named `acme-...`).
 - Nothing of a PEM, a key or a password goes into the job's steps: a FortiOS answer is kept as
-  its error lines (a line cut where a PEM begins, base64 lines dropped).
-- *What happens* says the SSH sign-in (user, address, port, `get system status`), which
-  certificate is replaced, its count of uses, the duplicates found, the CLI lines (the key
+  its error lines (a line cut where a PEM begins, base64 lines and their stubs such as
+  `MIIBjTCCA` dropped); the key is sent only in the body of the PUT, encrypted with a password
+  made for that run.
+- *What happens* says, for the REST API: the certificate read, the fingerprints read, the CA
+  certificates imported, the copies deleted (or that there is none), the PUT and the check;
+  for SSH: the SSH sign-in (user, address, port, `get system status`), the CLI lines (the key
   not shown) and the check.
 - **Renaming**: FortiOS never lets a local certificate be renamed - its GUI *Edit* of any
   imported certificate shows only *Comments*. That is normal, not damage; replace in place is
   how a certificate keeps its name.
-- **Certainty**: the CLI block is the standard way to update a local certificate in place,
-  reported working over SSH on FortiOS 7.4.13. Not confirmed on a device: `abort` ending an
-  `edit` of `vpn certificate local` without saving on every build (it is the CLI's "end and
-  discard"; a refused line is not saved in either case, and the result is checked), and
-  whether `certificate` takes a whole chain - acme sends the leaf only.
+- **Certainty**: measured on FortiOS 7.6.8 build 3744 (an EVAL VM, no VDOMs, a REST session
+  of a super_admin): the PUT in every key format, the duplicate and its cure, `-23`, `-328`,
+  the listing without PEM, the fingerprints of `available-certificates`, the chain from the CA
+  store. **Not verified**: FortiOS 7.4.13 (the error answer matches 1:1) and 6.4 - 7.2,
+  whether their listing has the PEM and `available-certificates` its `fingerprint` (both
+  handled), an API token with only `vpngrp` read-write, multi-VDOM with a certificate of the
+  `vdom` range, SSL VPN / VIP / ZTNA as the serving service.
 
-**CA certificates there already** (1.0.128): FortiOS answers the import of a CA
-certificate it holds with 500 and error `-328`; acme then reads `cmdb vpn.certificate/ca`
-once and, when the certificate is in it (or the list cannot be read), says once "the
-intermediate CA certificate is on the FortiGate already" instead of a line per import. A
-`-328` for one that is not in the list is said as before.
+**CA certificates there already** (1.0.128; measured 1.0.130): FortiOS answers the import of a
+CA certificate it holds with 500 and error `-328` - "there already" (measured on 7.6.8:
+nothing is created). acme says once "the intermediate CA certificate is on the FortiGate
+already" instead of a line per import; another refusal is said ("the CA certificate is not
+imported: ..."). FortiOS names a CA it imports itself (`CA_Cert_1`, ...). Replace in place
+over the REST API imports only those not there by their fingerprint.
 
 **Example**: admin GUI on, SSL VPN on, VIPs `web-https`, verify
 `vpn.example.com:443` and `fw.example.com:8443`.

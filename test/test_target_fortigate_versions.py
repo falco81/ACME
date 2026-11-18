@@ -228,6 +228,58 @@ class RefusedTest(unittest.TestCase):
         got = make('', FakeCtx(routes('v6.2.3'))).discover_setup()
         self.assertIn(['Module version for it', 'FortiOS 6.0 - 6.4'], got['facts'])
 
+    def test_replace_in_place_the_same_requests_in_every_version(self):
+        """Replace in place over the REST API (1.0.130): the same calls, paths and bodies in
+        every version of the module - cmdb vpn.certificate/local and the monitor calls do
+        not change between FortiOS 6.0 and 8.0 (the package of 2026-11-18, 9.3)."""
+        seen = {}
+        for ver, fos in (('', 'v7.6.8'), ('6.0', 'v6.4.15'), ('7.0', 'v7.2.10'),
+                         ('7.4.2', 'v7.4.13')):
+            b = FakeBundle()
+            held = {'pem': T.read(os.path.join(T.TMP, 'ca.crt'))}     # another certificate
+
+            def one(call, held=held):
+                return (200, {'status': 'success', 'results': [
+                    {'name': 'web-cert', 'source': 'user', 'range': 'global', 'q_ref': 2,
+                     'certificate': held['pem']}]})
+
+            def put(call, held=held):
+                held['pem'] = json.loads(call['body'])['certificate']
+                return (200, {'status': 'success', 'http_status': 200,
+                              'revision_changed': True})
+            ctx = FakeCtx(routes(fos, extra=[
+                ('GET', r'/cmdb/vpn\.certificate/local/web-cert', one),
+                ('GET', r'/monitor/system/available-certificates', (200, {
+                    'status': 'success', 'results': [
+                        {'name': 'web-cert', 'q_name': 'local', 'type': 'local-cer',
+                         'fingerprint': 'AA:BB'}]})),
+                ('PUT', r'/cmdb/vpn\.certificate/local/web-cert', put)]))
+            got = make(ver, ctx).deploy(b, {'mode': 'replace', 'replace_name': 'web-cert',
+                                            'keep': -1})
+            self.assertEqual(got, 'web-cert replaced in place')
+            calls = []
+            for c in ctx.calls:
+                if 'system/status' in c['path']:
+                    continue
+                body = json.loads(c['body']) if c['body'] else {}
+                calls.append((c['method'], c['path'], sorted(c['query'].items()),
+                              sorted(body)))
+            seen[ver] = calls
+            put_body = ctx.json(ctx.find('PUT', r'/local/web-cert')[0])
+            self.assertEqual(put_body['certificate'].count('BEGIN CERTIFICATE'), 1)
+            # (this fake bundle cannot encrypt its key: the plain PEM, no password)
+            self.assertIn('PRIVATE KEY', put_body['private-key'])
+            self.assertNotIn('password', put_body)
+        first = seen['']
+        self.assertEqual([c[:2] for c in first], [
+            ('GET', '/api/v2/cmdb/vpn.certificate/local/web-cert'),
+            ('GET', '/api/v2/monitor/system/available-certificates'),
+            ('POST', '/api/v2/monitor/vpn-certificate/ca/import'),
+            ('PUT', '/api/v2/cmdb/vpn.certificate/local/web-cert'),
+            ('GET', '/api/v2/cmdb/vpn.certificate/local/web-cert')])
+        for ver, calls in seen.items():
+            self.assertEqual(calls, first, ver)
+
 
 class GuidesTest(unittest.TestCase):
     def test_a_guide_for_each_version_in_both_languages(self):

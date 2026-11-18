@@ -31,16 +31,30 @@ no version of its own. Hence three versions, besides the plain one:
 A version sends its shapes and no other; the FortiOS version the box says is
 checked first, one outside the range refused before anything is changed.
 
-Replace in place (1.0.128, every version; over SSH since 1.0.129): a deployment may instead
-update a local certificate the FortiGate has already - chosen from "Find on the device" (cmdb
-vpn.certificate/local, with_meta for its count of uses; Fortinet factory ones left out) or
-typed. Its name stays, so every policy, VIP, ZTNA rule or user-auth setting bound to it keeps
-it; nothing is re-pointed but what the deployment lists.
+Replace in place (1.0.128, every version): a deployment may instead update a local certificate
+the FortiGate has already - chosen from "Find on the device" or typed. Its name stays, so every
+policy, VIP, ZTNA rule or user-auth setting bound to it keeps it; nothing is re-pointed but what
+the deployment lists. "How to replace" (replace_via, 1.0.130):
 
-The REST API cannot do it: a PUT of cmdb vpn.certificate/local/<name> with "certificate" is
-turned by FortiOS into CLI lines, and the PEM over several lines breaks them ("value parse
-error before '-----BEGIN CERTIFICATE-----'", error -651; FortiOS 7.4.13 build 2933). So the
-FortiOS CLI over SSH, as an administrator does it (the target's optional SSH sign-in):
+  api (default)  the REST API, the token's admin profile needing VPN (vpngrp) read-write only -
+                 measured on FortiOS 7.6.8 build 3744 (the package of 2026-11-18):
+    1. GET cmdb vpn.certificate/local/<name>?with_meta=1      not there / factory: stop
+    2. GET monitor/system/available-certificates?scope=<range>&with_ca=1   SHA-256 of every
+       local and CA certificate - the cmdb listing says "certificate": "" on 7.6.8 (only the
+       GET of one gives its PEM); without fingerprints: the names, then each read
+    3. POST monitor/vpn-certificate/ca/import for each intermediate not there (-328: there
+       already) - BEFORE the PUT: FortiOS keeps the leaf only and sends the chain from its CA
+       certificates, from the first second when they are there before
+    4. the very certificate there already: nothing more
+    5. a copy of the new certificate under another name ("This local certificate is
+       duplicated", -651 - the 1.0.128 failure): acme's own (acme-<label>-) deleted, -23 ("It's
+       currently being used" - q_ref of cmdb leaves the admin GUI out) stops; another's stops
+    6. PUT cmdb vpn.certificate/local/<name> {"password": <one-time>, "private-key": <PKCS#8
+       encrypted with it>, "certificate": <the leaf>} - refused: nothing changed
+       (revision_changed false), said by cli_error (-651: duplicated / invalid private key /
+       not a valid/matched certificate)
+    7. read back: its fingerprint must be the new one; q_ref changed: a warning
+  ssh            the FortiOS CLI over SSH (1.0.129), the target's optional SSH sign-in:
 
     [config global | config vdom / edit <vdom>]      (VDOMs on: by the certificate's range)
     config vpn certificate local
@@ -50,16 +64,16 @@ FortiOS CLI over SSH, as an administrator does it (the target's optional SSH sig
         set certificate "<the leaf, PEM>"
       abort    - first, to see FortiOS take the lines; then the same with next / end
 
-Its answer is read for errors ("Command fail", "-651", "duplicated", "not a valid"...); then
-the certificate is read back (REST, else CLI show) - its fingerprint must be the new one.
-FortiOS refuses a local certificate identical to another ("This local certificate is
-duplicated"): an unused copy acme made (acme-...) is deleted first, any other stops it before
-anything changes. A name not on the box fails first too; cleanup never takes the replaced
-one; the intermediates go in as CA certificates through REST, as for a new one.
+    its answer read for errors ("Command fail", "-651", "duplicated", "not a valid"...), the
+    certificate read back (REST, else CLI show); the duplicates as in 5.
+
+Cleanup never takes the replaced one, and no certificate is imported under a new name in this
+mode (that copy would be a duplicate). FortiOS never renames a local certificate.
 """
 from __future__ import annotations
 
 import base64
+import hashlib
 import re
 import urllib.parse
 
@@ -67,7 +81,12 @@ from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text, ours, SEG_PATTERN,
-    pem_to_der, fp_of, norm_fp, family_of, ssh_fields, ssh_conn)
+    pem_to_der, pem_blocks, fp_of, norm_fp, family_of, ssh_fields, ssh_conn)
+
+# The REST addresses of replace in place (1.0.130)
+LOCAL = '/api/v2/cmdb/vpn.certificate/local'
+AVAIL = '/api/v2/monitor/system/available-certificates'
+CA_IMPORT = '/api/v2/monitor/vpn-certificate/ca/import'
 
 
 def b64(data):
@@ -94,16 +113,16 @@ def version_for(ver):
     return '', ''
 
 
-# The SSH sign-in (1.0.129): only "Replace an existing certificate in place" uses it - FortiOS
-# takes a new certificate and key for an existing local certificate in its CLI only.
-SSH_ONLY = 'only for "Replace an existing certificate in place" - empty: not used'
+# The SSH sign-in (1.0.129): only "Replace an existing certificate in place" with "How to replace"
+# SSH uses it (1.0.130: the REST API by default) - never needed otherwise.
+SSH_ONLY = 'only when "How to replace" is SSH - empty: not used'
 SSH_LABELS = {
     'ssh_port': ('SSH port', None),
-    'ssh_user': ('SSH user (replace in place)',
+    'ssh_user': ('SSH user (replace over SSH)',
                  'an administrator who may change VPN certificates (vpngrp read-write; a '
                  'certificate in the global range: scope global) - ' + SSH_ONLY),
     'ssh_auth': ('SSH: sign in with', None),
-    'ssh_key': ('The SSH key (replace in place)', None),
+    'ssh_key': ('The SSH key (replace over SSH)', None),
     'ssh_password': ('SSH password', SSH_ONLY),
     'ssh_hostkey': ('SSH host key', None),
     'ssh_trust_first': ('Trust the first SSH host key seen', None),
@@ -127,9 +146,13 @@ def fgt_ssh_fields():
 # What the FortiOS CLI says when it does not take a line - read in its answer (1.0.129)
 CLI_BAD = re.compile(r'(command fail|return code\s*-?\d+|duplicated|not a valid|parse error|'
                      r'node_check_object fail|unknown action|entry not found|not found|'
-                     r'permission denied|access denied|invalid|not allowed|cannot|'
+                     r'permission denied|access denied|invalid|not allowed|cannot|can\'t|'
+                     r'being used|'
                      r'new entry .* added)', re.I)
 B64_LINE = re.compile(r'^[A-Za-z0-9+/=]{12,}$')
+# what is left of a PEM line FortiOS cut short ("MIIBjTCCA" after "value parse error", 1.0.130):
+# DER in base64 begins with MI
+B64_STUB = re.compile(r'^MI[A-Za-z0-9+/=]{3,}$')
 
 
 def scrub_lines(lines_, hide=()):
@@ -145,7 +168,7 @@ def scrub_lines(lines_, hide=()):
         if cut:
             ln = ln[:cut.start()].rstrip() + ' \u2026'
         st = ln.strip().strip('"\'')
-        if not st or B64_LINE.match(st):
+        if not st or B64_LINE.match(st) or B64_STUB.match(st):
             continue
         out.append(ln.rstrip()[:200])
     return out
@@ -212,13 +235,21 @@ class FortiGateTarget(HttpTarget):
                                 'switched to it'],
                        ['replace', 'Replace an existing certificate in place']],
               help='Replace in place: the certificate keeps its name and everything bound '
-                   'to it keeps using it - nothing is re-pointed; it goes over SSH (the '
-                   'FortiOS CLI): the target needs its SSH sign-in'),
+                   'to it keeps using it - nothing is re-pointed; through the REST API (the '
+                   'token, VPN read-write) unless "How to replace" says SSH'),
         field('replace_name', 'The certificate on the FortiGate', 'catalog',
               catalog='local_certs', autoload=False, pattern=SEG_PATTERN,
               load_label='Find on the device', show_if={'mode': ['replace']},
               help='a local certificate (System → Certificates) - found on the device or '
                    'typed by hand; its certificate and key are replaced, its name stays'),
+        # How (1.0.130): the REST API by default - what 1.0.128 failed at was a duplicate, not
+        # the API; SSH (the FortiOS CLI, 1.0.129) kept as the other way
+        field('replace_via', 'How to replace', 'select', default='api',
+              show_if={'mode': ['replace']},
+              options=[['api', 'the REST API (the API token; VPN read-write is enough)'],
+                       ['ssh', 'SSH - the FortiOS CLI (the target\'s SSH sign-in)']],
+              help='the REST API needs nothing but the token; SSH needs the target\'s SSH '
+                   'user and its key or password'),
         field('admin', 'Admin GUI certificate', 'bool', default=False,
               help='system global admin-server-cert'),
         field('sslvpn', 'SSL VPN certificate', 'bool', default=False,
@@ -458,10 +489,9 @@ class FortiGateTarget(HttpTarget):
         self.remember(bundle, options)
         return ', '.join(did) or 'already %s' % name
 
-    # -- replace in place (1.0.128; over SSH, the FortiOS CLI, since 1.0.129) ----------------
-    # The name and every reference to it stay; nothing is imported under a new name. The REST
-    # API is used to list, read back and check only - its PUT of "certificate" breaks on the
-    # PEM (FortiOS 7.4.13: "value parse error", -651), so the lines go to the CLI over SSH.
+    # -- replace in place (1.0.128; the REST API by default since 1.0.130, SSH the other way) --
+    # The name and every reference to it stay; nothing is imported under a new name (it would
+    # be a duplicate of the one replaced, which FortiOS refuses).
     def state_key(self, options):
         o = dict(options or {})
         if self.mode_of(o) != 'replace':
@@ -469,6 +499,10 @@ class FortiGateTarget(HttpTarget):
             # opening and saving its form does not deploy it again
             o.pop('mode', None)
             o.pop('replace_name', None)
+            o.pop('replace_via', None)
+        elif self.via_of(o) == 'api':
+            # the default way: a deployment saved before the option (1.0.129) keeps its key
+            o.pop('replace_via', None)
         return HttpTarget.state_key(self, o)
 
     @staticmethod
@@ -477,16 +511,24 @@ class FortiGateTarget(HttpTarget):
             else 'new'
 
     @staticmethod
+    def via_of(options):
+        """How replace in place goes (1.0.130): 'api' (default) or 'ssh'."""
+        return 'ssh' if text((options or {}).get('replace_via')).strip().lower() == 'ssh' \
+            else 'api'
+
+    @staticmethod
     def factory(name, row=None):
         """A certificate FortiOS came with (Fortinet_Factory, Fortinet_SSL...): not replaced."""
         src = text((row or {}).get('source')).strip().lower()
-        return src == 'factory' or text(name).startswith('Fortinet_')
+        return src == 'factory' or bool((row or {}).get('is_built_in')) or \
+            text(name).startswith('Fortinet_')
 
     def local_row(self, name, vdom):
-        """The local certificate `name` as cmdb has it ({} when there is none)."""
-        st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/local/%s'
-                         % urllib.parse.quote(name, safe=''), ok=(200, 404), vdom=vdom,
-                         what='reading the certificate %s' % name, with_meta=1)
+        """The local certificate `name` as cmdb has it ({} when there is none) - the GET of
+        one certificate, the only one that gives its PEM on FortiOS 7.6."""
+        st, d = self.api('GET', LOCAL + '/%s' % urllib.parse.quote(name, safe=''),
+                         ok=(200, 404), vdom=vdom, what='reading the certificate %s' % name,
+                         with_meta=1)
         if st != 200 or not isinstance(d, dict):
             return {}
         r = d.get('results')
@@ -510,6 +552,28 @@ class FortiGateTarget(HttpTarget):
                 'issuer': text(iss.get('CN') or iss.get('O') or i.get('issuer_dn') or ''),
                 'fp': norm_fp(i.get('sha256'))}
 
+    @classmethod
+    def avail_facts(cls, r):
+        """What monitor/system/available-certificates says of a certificate: {cn, not_after
+        (a day 'YYYY-MM-DD'), issuer, key, fp}."""
+        subj = r.get('subject') if isinstance(r.get('subject'), dict) else {}
+        iss = r.get('issuer') if isinstance(r.get('issuer'), dict) else {}
+        day = ''
+        to = r.get('valid_to')
+        if isinstance(to, (int, float)) and to > 0:
+            day = cls.day(to)
+        if not day:
+            m = re.match(r'\s*(\d{4}-\d\d-\d\d)', text(r.get('valid_to_raw') or to))
+            day = m.group(1) if m else ''
+        key = text(r.get('key_type')).strip()
+        if key and text(r.get('key_size')).strip():
+            key += ' %s' % text(r.get('key_size')).strip()
+        return {'cn': text(subj.get('CN') or (r.get('subject') if isinstance(
+            r.get('subject'), str) else '')).strip(), 'names': [], 'day': day,
+            'issuer': text(iss.get('CN') or iss.get('O') or (r.get('issuer') if isinstance(
+                r.get('issuer'), str) else '')).strip(),
+            'key': key, 'fp': norm_fp(r.get('fingerprint'))}
+
     @staticmethod
     def day(epoch):
         try:
@@ -526,6 +590,30 @@ class FortiGateTarget(HttpTarget):
         got = self.pem_facts(row.get('certificate')).get('fp')
         return not got or got == norm_fp(fp_of(bundle))
 
+    def fos(self, method, p, body=None, what=None, vdom=None, **q):
+        """A REST call whose answer is read whatever its status (FortiOS says 500 with its
+        error number): (status, the answer as a dict)."""
+        st, hd, d = self.req(method, self.path(p, vdom, **q), body, ok=range(100, 600),
+                             what=what)
+        return st, (d if isinstance(d, dict) else {})
+
+    @staticmethod
+    def fos_ok(st, d):
+        return st == 200 and text(d.get('status')).lower() == 'success'
+
+    @staticmethod
+    def fos_lines(d):
+        """cli_error of a FortiOS answer - nothing of a PEM or a key in it."""
+        cli = d.get('cli_error')
+        cli = text(cli).splitlines() if isinstance(cli, str) else list(cli or [])
+        return [ln.strip() for ln in scrub_lines(cli) if ln.strip()]
+
+    def fos_said(self, st, d):
+        """A refused FortiOS answer in words: HTTP <status>, error <n>: <its lines>."""
+        lines_ = self.fos_lines(d)
+        return 'HTTP %s, error %s: %s' % (st, d.get('error', '?'),
+                                         '; '.join(lines_[:4]) or '-')
+
     def deploy_replace(self, bundle, options, vdom):
         name = text(options.get('replace_name')).strip()
         if not name:
@@ -541,6 +629,7 @@ class FortiGateTarget(HttpTarget):
         ver = self.fos_version(vdom)
         if ver is not None:
             self.ctx.step('FortiOS %s' % fos_words(ver))
+        # 1. the certificate replaced: there, not a factory one
         row = self.local_row(name, vdom)
         if not row:
             raise PluginError('there is no local certificate %s on the FortiGate%s - nothing '
@@ -550,14 +639,13 @@ class FortiGateTarget(HttpTarget):
         if self.factory(name, row):
             raise PluginError('%s is a Fortinet factory certificate - it is not replaced; '
                               'choose a certificate of your own' % name, retry=False)
-        if not self.ssh_ready():
+        via = self.via_of(options)
+        if via == 'ssh' and not self.ssh_ready():
             raise PluginError(
-                'replace in place goes over SSH and the target has no SSH sign-in: FortiOS '
-                'takes a new certificate and key for an existing local certificate only in '
-                'its CLI (config vpn certificate local / edit / set private-key / set '
-                'certificate) - its REST API turns the PEM into broken CLI lines (error -651). '
-                'Fill in the target\'s SSH user and its key or password (an administrator who '
-                'may change VPN certificates) - nothing was changed', retry=False)
+                'replace in place over SSH ("How to replace": SSH) and the target has no SSH '
+                'sign-in: fill in the target\'s SSH user and its key or password (an '
+                'administrator who may change VPN certificates), or choose the REST API - '
+                'nothing was changed', retry=False)
         old = self.pem_facts(row.get('certificate'))
         uses = row.get('q_ref')
         now = []
@@ -570,70 +658,269 @@ class FortiGateTarget(HttpTarget):
                       'uses it keeps using it%s' % (name, (' (%s)' % '; '.join(now))
                                                     if now else ''))
         new_fp = norm_fp(fp_of(bundle))
-        did = []
-        if old.get('fp') and old['fp'] == new_fp:
-            # the very certificate there already: nothing to send (FortiOS would call it a
-            # duplicate of itself)
-            self.ctx.step('%s holds this certificate already - it is in place' % name, 'ok')
+        new_fam = family_of(bundle)
+        old_fam = 'ec' if old.get('key', '').startswith('ec') else (
+            'rsa' if old.get('key', '').startswith('rsa') else old.get('key', ''))
+        if old_fam and new_fam and old_fam != new_fam:
+            self.ctx.step('the key type changes from %s to %s - what uses %s keeps it (a VIP '
+                          'that holds an RSA and an ECDSA certificate side by side may need a '
+                          'look)' % (old_fam.upper(), new_fam.upper(), name))
+        if via == 'ssh':
+            did = self.ssh_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
         else:
-            drop = self.duplicates(name, vdom, new_fp)
-            with self.fgt_ssh() as s:
-                status = self.cli_status(s)
-                self.ctx.step('signed in over SSH as %s: %s - the certificate is replaced in '
-                              'the FortiOS CLI (its REST API cannot)'
-                              % (self.ssh_user(), status['words']), 'ok')
-                scope, where = self.scope_of(row, self.vdoms_on(status), vdom)
-                new_fam = family_of(bundle)
-                old_fam = 'ec' if old.get('key', '').startswith('ec') else (
-                    'rsa' if old.get('key', '').startswith('rsa') else old.get('key', ''))
-                if old_fam and new_fam and old_fam != new_fam:
-                    self.ctx.step('the key type changes from %s to %s - what uses %s keeps it '
-                                  '(a VIP that holds an RSA and an ECDSA certificate side by '
-                                  'side may need a look)' % (old_fam.upper(), new_fam.upper(),
-                                                             name))
-                for n in drop:
-                    self.drop_copy(n, vdom)
-                self.cli_replace(s, bundle, name, scope, where, vdom, row)
-                self.check_in_place(s, name, scope, where, vdom, new_fp)
-            self.ctx.step('%s replaced in place - its name and every use of it kept' % name,
-                          'ok')
-            did.append('%s replaced in place' % name)
-            self.import_cas(bundle, options)
+            did = self.api_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
         self.point_at(name, prefix, vdom, options, did)
         self.cleanup(prefix, name, vdom, self.keep(options))
         self.remember(bundle, options)
         return ', '.join(did) or 'already in place in %s' % name
 
-    # -- duplicates: FortiOS refuses a local certificate identical to another (1.0.129) -----
-    def duplicates(self, name, vdom, new_fp):
-        """The other local certificates that are this very one, looked at before anything
-        changes: an unused copy acme made (acme-...) is to be deleted first (its names
-        returned); a used one, or one acme did not make, stops the deployment here."""
+    @staticmethod
+    def range_of(row):
+        return 'vdom' if text((row or {}).get('range')).strip().lower() == 'vdom' else 'global'
+
+    def api_replace(self, bundle, options, vdom, name, row, old, new_fp, prefix):
+        """Replace in place over the REST API (1.0.130), as measured on FortiOS 7.6.8: the
+        fingerprints, the missing intermediates as CA, acme's own copy of the new certificate
+        deleted, PUT, read back. -> what was done."""
+        self.ctx.step('it is replaced over the REST API (PUT cmdb vpn.certificate/local/%s) - '
+                      'the token is enough, no SSH' % name)
+        # 2. the fingerprints of every local and CA certificate, at once
+        found = self.certs_on_device(vdom, self.range_of(row))
+        old_fp = old.get('fp') or next((fp for fp, rows in found['local'].items()
+                                        if name in [r['name'] for r in rows]), '')
+        # 3. the intermediates missing: as CA certificates, before the PUT
+        self.cas_before(bundle, options, found)
+        # 4. there already
+        if old_fp and old_fp == new_fp:
+            self.ctx.step('%s holds this certificate already - it is in place' % name, 'ok')
+            return []
+        # 5. a copy of the new one under another name: FortiOS would refuse it as a duplicate
+        for n in self.duplicates(name, vdom, new_fp, prefix, found):
+            self.drop_copy(n, vdom, name)
+        # 6. the PUT
+        self.api_put(bundle, vdom, name)
+        # 7. read back
+        self.api_check(name, vdom, new_fp, row.get('q_ref'), found)
+        self.ctx.step('%s replaced in place - its name and every use of it kept' % name, 'ok')
+        return ['%s replaced in place' % name]
+
+    def api_put(self, bundle, vdom, name):
+        """PUT cmdb vpn.certificate/local/<name>: the leaf (FortiOS keeps the leaf only), the
+        key PKCS#8 encrypted with a one-time password. Refused: said by its cli_error -
+        FortiOS changes nothing then (revision_changed false)."""
+        leaf = pem_blocks(text(bundle.as_format('cert-pem')))
+        if not leaf:
+            raise PluginError('the certificate has no PEM to send', retry=False)
+        pw = random_password()
         try:
-            st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/local', vdom=vdom,
-                             with_meta=1, what='listing the local certificates')
+            key = text(bundle.as_format('key-pem-enc', password=pw))
+        except Exception as e:                          # noqa: BLE001
+            self.ctx.debug('the key cannot be encrypted here: %s' % e)
+            key, pw = text(bundle.as_format('key-pem')), ''
+        body = {}
+        if pw:
+            body['password'] = pw
+        body['private-key'] = key.replace('\r\n', '\n').strip() + '\n'
+        body['certificate'] = leaf[0]
+        self.ctx.step('the new certificate (the leaf - FortiOS keeps the leaf only, the chain '
+                      'comes from its CA certificates) and its key, %s, put into %s'
+                      % ('encrypted with a one-time password' if pw else 'as plain PEM', name))
+        st, d = self.fos('PUT', LOCAL + '/%s' % urllib.parse.quote(name, safe=''), body,
+                         vdom=vdom, what='replacing %s' % name)
+        if self.fos_ok(st, d):
+            self.ctx.step('FortiOS took the new certificate and key for %s' % name, 'ok')
+            return
+        lines_ = self.fos_lines(d)
+        said = '\n'.join(lines_)
+        if 'This local certificate is duplicated' in said:
+            why = ('the new certificate is on the FortiGate already under another name ("This '
+                   'local certificate is duplicated") that acme did not find - in another '
+                   'VDOM? Delete that copy (System → Certificates) or use the default mode')
+        elif 'Invalid private key' in said or 'password may be required' in said:
+            why = ('it did not take the private key ("Invalid private key, password may be '
+                   'required")')
+        elif 'not a valid/matched certificate' in said:
+            why = ('the key does not belong to the certificate ("Input is not a valid/matched '
+                   'certificate")')
+        else:
+            why = self.fos_said(st, d)
+        raise PluginError('FortiOS refused to replace %s in place: %s - %s is untouched '
+                          '(FortiOS changes nothing when it refuses)' % (name, why, name),
+                          detail=trim_answer(d), retry=False)
+
+    def api_check(self, name, vdom, new_fp, uses_before, found):
+        """The certificate read back: its fingerprint must be the new one; its count of uses
+        the same as before (else a warning)."""
+        try:
+            after = self.local_row(name, vdom)
         except PluginError as e:
-            self.ctx.step('the local certificates cannot be listed to look for a copy of this '
-                          'one (%s) - FortiOS says so itself if there is one' % e, 'warn')
+            self.ctx.debug('%s cannot be read back: %s' % (name, e))
+            after = {}
+        got = self.pem_facts(after.get('certificate')).get('fp') or ''
+        if not got and found.get('via') == 'monitor':
+            try:
+                again = self.certs_on_device(vdom, self.range_of(after or {}), quiet=True)
+                got = next((fp for fp, rows in again['local'].items()
+                            if name in [r['name'] for r in rows]), '')
+            except PluginError as e:
+                self.ctx.debug('the fingerprints cannot be read again: %s' % e)
+        if not got:
+            raise PluginError('FortiOS took the new certificate for %s, yet it cannot be read '
+                              'back to check it - look at it on the FortiGate' % name,
+                              retry=False)
+        if got != new_fp:
+            raise PluginError('FortiOS took the new certificate for %s, yet reading it back '
+                              'gives another one (SHA-256 %s…, expected %s…) - look at it on '
+                              'the FortiGate' % (name, got[:16].upper(), new_fp[:16].upper()),
+                              retry=False)
+        self.ctx.step('checked: %s holds the new certificate now (SHA-256 %s…)'
+                      % (name, new_fp[:16]), 'ok')
+        u0, u1 = text(uses_before).strip(), text(after.get('q_ref')).strip()
+        if u0.isdigit() and u1.isdigit() and u0 != u1:
+            self.ctx.step('%s was used %s times before and %s times now - look at what uses it'
+                          % (name, u0, u1), 'warn')
+
+    def ssh_replace(self, bundle, options, vdom, name, row, old, new_fp, prefix):
+        """Replace in place over SSH, the FortiOS CLI (1.0.129) -> what was done."""
+        if old.get('fp') and old['fp'] == new_fp:
+            # the very certificate there already: nothing to send (FortiOS would call it a
+            # duplicate of itself)
+            self.ctx.step('%s holds this certificate already - it is in place' % name, 'ok')
             return []
-        same = []
-        for r in (d.get('results') if isinstance(d, dict) else None) or []:
-            if not isinstance(r, dict):
+        found = self.certs_on_device(vdom, self.range_of(row), warn=True)
+        drop = self.duplicates(name, vdom, new_fp, prefix, found)
+        with self.fgt_ssh() as s:
+            status = self.cli_status(s)
+            self.ctx.step('signed in over SSH as %s: %s - the certificate is replaced in the '
+                          'FortiOS CLI' % (self.ssh_user(), status['words']), 'ok')
+            scope, where = self.scope_of(row, self.vdoms_on(status), vdom)
+            for n in drop:
+                self.drop_copy(n, vdom, name)
+            self.cli_replace(s, bundle, name, scope, where, vdom, row)
+            self.check_in_place(s, name, scope, where, vdom, new_fp)
+        self.ctx.step('%s replaced in place - its name and every use of it kept' % name, 'ok')
+        self.import_cas(bundle, options)
+        return ['%s replaced in place' % name]
+
+    # -- what the FortiGate holds: the fingerprints of every certificate (1.0.130) -----------
+    def certs_on_device(self, vdom, scope, warn=False, quiet=False):
+        """{'local': {fp: [rows]}, 'ca': {fp: [rows]}, 'via': 'monitor' | 'cmdb' | ''} -
+        GET monitor/system/available-certificates (SHA-256 of each, its q_ref counting the
+        admin GUI too; q_name local - local-cer and local-ca - or ca); without fingerprints
+        there (an older FortiOS?) the cmdb names, each read (only the GET of one gives the
+        PEM on 7.6). Unreadable: a PluginError - or, warn, said and none."""
+        q = {'scope': 'vdom' if scope == 'vdom' else 'global', 'with_ca': 1}
+        local, ca = {}, {}
+        try:
+            st, d = self.fos('GET', AVAIL, vdom=vdom or None,
+                             what='reading the fingerprints of the certificates', **q)
+        except PluginError as e:
+            st, d = 0, {}
+            self.ctx.debug('available-certificates: %s' % e)
+        rows = d.get('results') if st == 200 else None
+        if isinstance(rows, list) and rows and all(isinstance(r, dict) and 'fingerprint' in r
+                                                   for r in rows):
+            for r in rows:
+                fp = norm_fp(r.get('fingerprint'))
+                if not fp or not text(r.get('name')).strip():
+                    continue
+                qn = text(r.get('q_name')).strip() or (
+                    'local' if text(r.get('type')).startswith('local') else 'ca')
+                bucket = local if qn == 'local' else ca if qn == 'ca' else None
+                if bucket is not None:
+                    bucket.setdefault(fp, []).append(r)
+            if not quiet:
+                self.ctx.step('the fingerprints of the certificates on the FortiGate read '
+                              '(monitor/system/available-certificates): %d local, %d CA'
+                              % (sum(len(v) for v in local.values()),
+                                 sum(len(v) for v in ca.values())))
+            return {'local': local, 'ca': ca, 'via': 'monitor'}
+        try:
+            st, d = self.api('GET', LOCAL, vdom=vdom, format='name',
+                             what='listing the local certificates')
+        except PluginError as e:
+            if warn:
+                self.ctx.step('the local certificates cannot be listed to look for a copy of '
+                              'this one (%s) - FortiOS says so itself if there is one' % e,
+                              'warn')
+                return {'local': {}, 'ca': {}, 'via': ''}
+            raise PluginError('the certificates on the FortiGate cannot be read (%s) - the '
+                              'admin profile of the token needs VPN (vpngrp) read-write; '
+                              'nothing was changed' % e, detail=e.detail, retry=False)
+        names = [text((r or {}).get('name')) for r in (d.get('results') if isinstance(
+            d, dict) else None) or [] if isinstance(r, dict)]
+        if not quiet:
+            self.ctx.step('the FortiGate gives no fingerprints in monitor/system/available-'
+                          'certificates - its %d local certificates are read one by one'
+                          % len(names))
+        for n in names:
+            if not n:
                 continue
-            n = text(r.get('name'))
-            if not n or n == name:
+            try:
+                r = self.local_row(n, vdom)
+            except PluginError as e:
+                self.ctx.debug('%s cannot be read: %s' % (n, e))
                 continue
-            if self.pem_facts(r.get('certificate')).get('fp') == new_fp:
-                same.append(r)
+            fp = self.pem_facts(r.get('certificate')).get('fp')
+            if fp:
+                local.setdefault(fp, []).append(dict(r, name=n))
+        return {'local': local, 'ca': ca, 'via': 'cmdb'}
+
+    def cas_before(self, bundle, options, found):
+        """Step 3: the intermediates the FortiGate has not as CA certificates, imported before
+        the PUT - FortiOS keeps the leaf only and sends the chain from its CA certificates.
+        -328: there already (measured on 7.6.8). Another refusal stops it, nothing replaced."""
+        if not as_bool(self.opt(options, 'import_chain', True), True):
+            return
+        there = 0
+        for pem in chain_list(bundle):
+            der = self.der_of(pem)
+            fp = hashlib.sha256(der).hexdigest() if der else ''
+            if fp and fp in found.get('ca', {}):
+                there += 1
+                continue
+            st, d = self.fos('POST', CA_IMPORT, {'import_method': 'file', 'scope': 'global',
+                                                 'file_content': b64(pem)},
+                             what='importing a CA certificate')
+            if self.fos_ok(st, d):
+                cn = self.pem_facts(pem).get('cn') or '?'
+                self.ctx.step('imported the intermediate CA certificate %s before the replace - '
+                              'FortiOS sends it along with the certificate' % cn, 'ok')
+                continue
+            if d.get('error') == -328 or text(d.get('error')) == '-328':
+                there += 1
+                continue
+            raise PluginError('the intermediate CA certificate cannot be imported (%s) - it goes '
+                              'in before the replace, so the whole chain is served; nothing '
+                              'was replaced' % self.fos_said(st, d), detail=trim_answer(d))
+        if there:
+            self.ctx.step('the intermediate CA certificate%s on the FortiGate already' % (
+                ' is' if there == 1 else 's are'))
+
+    # -- duplicates: FortiOS refuses a local certificate identical to another (1.0.129) -----
+    def duplicates(self, name, vdom, new_fp, prefix, found):
+        """The other local certificates that are this very one (by the fingerprints found),
+        looked at before anything changes: acme's own copies (acme-<label>-...) are to be
+        deleted (their names returned); one acme did not make stops the deployment here. The
+        replaced one is never among them."""
+        same = [r for r in found.get('local', {}).get(new_fp, [])
+                if text(r.get('name')) and text(r.get('name')) != name]
         if not same:
-            self.ctx.step('no other local certificate on the FortiGate is this one (FortiOS '
-                          'refuses a duplicate)')
+            if found.get('via'):
+                self.ctx.step('no other local certificate on the FortiGate is this one (FortiOS '
+                              'refuses a duplicate)')
             return []
-        drop = []
         for r in same:
             n = text(r.get('name'))
-            refs = text(r.get('q_ref')).strip()
-            if self.factory(n, r) or not n.startswith('acme-'):
+            if not self.factory(n, r) and n.startswith('acme-') and not n.startswith(prefix):
+                raise PluginError(
+                    'the FortiGate has this very certificate already as %s, an acme name of '
+                    'another deployment (this one deletes only its own %s… copies) - FortiOS '
+                    'refuses a local certificate identical to another one ("This local '
+                    'certificate is duplicated"), so %s cannot take it. Nothing was changed: '
+                    'delete %s on the FortiGate (System → Certificates) if nothing uses it, or '
+                    'point what uses it at %s first' % (n, prefix, name, n, name), retry=False)
+            if self.factory(n, r) or not n.startswith(prefix):
                 raise PluginError(
                     'the FortiGate has this very certificate already as %s, which acme did not '
                     'make - FortiOS refuses a local certificate identical to another one ("This '
@@ -641,29 +928,35 @@ class FortiGateTarget(HttpTarget):
                     'changed: delete %s on the FortiGate (System → Certificates) if nothing '
                     'uses it, or point what uses it at %s first' % (n, name, n, name),
                     retry=False)
-            if refs not in ('', '0'):
-                raise PluginError(
-                    'the FortiGate has this very certificate already as %s, an earlier import '
-                    'of acme that is used (%s×) - FortiOS refuses a local certificate identical '
-                    'to another one, so %s cannot take it. Nothing was changed: point what uses '
-                    '%s at %s (or tick it in this deployment: admin GUI, SSL VPN, profiles, '
-                    'VIPs), delete %s, then deploy again' % (n, refs, name, n, name, n),
-                    retry=False)
-            self.ctx.step('%s is this very certificate already - an unused copy acme imported '
-                          'earlier; it is deleted first (FortiOS refuses two identical local '
+        drop = []
+        for r in same:
+            n = text(r.get('name'))
+            self.ctx.step('%s is this very certificate already - a copy acme imported earlier; '
+                          'it is deleted first (FortiOS refuses two identical local '
                           'certificates)' % n)
             drop.append(n)
         return drop
 
-    def drop_copy(self, n, vdom):
-        try:
-            self.api('DELETE', '/api/v2/cmdb/vpn.certificate/local/%s'
-                     % urllib.parse.quote(n, safe=''), vdom=vdom, what='deleting %s' % n)
-        except PluginError as e:
-            raise PluginError('%s, an unused copy of this very certificate, cannot be deleted '
-                              '(%s) - nothing else was changed; delete it on the FortiGate, then '
-                              'deploy again' % (n, e), detail=e.detail, retry=False)
-        self.ctx.step('deleted %s, the unused copy of this certificate' % n, 'ok')
+    def drop_copy(self, n, vdom, name=''):
+        """acme's copy of the new certificate deleted - FortiOS refuses one in use (-23, "It's
+        currently being used": cmdb q_ref leaves the admin GUI out, so the DELETE decides)."""
+        st, d = self.fos('DELETE', LOCAL + '/%s' % urllib.parse.quote(n, safe=''), vdom=vdom,
+                         what='deleting %s' % n)
+        if self.fos_ok(st, d):
+            self.ctx.step('deleted %s, the unused copy of this certificate' % n, 'ok')
+            return
+        if d.get('error') == -23 or text(d.get('error')) == '-23':
+            raise PluginError(
+                'the FortiGate has this very certificate already as %s, an earlier import of '
+                'acme that is in use - FortiOS refused to delete it (-23, "currently being '
+                'used") and refuses a local certificate identical to another one, so %s cannot '
+                'take it. Nothing else was changed: point what uses %s at %s, then deploy again '
+                '(the copy is deleted then)' % (n, name or '?', n, name or '?'),
+                detail=trim_answer(d), retry=False)
+        raise PluginError('%s, an unused copy of this very certificate, cannot be deleted '
+                          '(%s) - nothing else was changed; delete it on the FortiGate, then '
+                          'deploy again' % (n, self.fos_said(st, d)), detail=trim_answer(d),
+                          retry=False)
 
     # -- the SSH sign-in and the FortiOS CLI (1.0.129) ---------------------------------------
     def ssh_user(self):
@@ -854,26 +1147,23 @@ class FortiGateTarget(HttpTarget):
                       % (name, new_fp[:16]), 'ok')
 
     def import_cas(self, bundle, options):
-        """The intermediates as CA certificates. One there already is said once, quietly:
-        FortiOS answers the import of a CA certificate it holds with 500 and error -328
-        (the CA list read then to make sure, once; unreadable: taken as there)."""
+        """The intermediates as CA certificates (a new certificate each time, and replace in
+        place over SSH). One there already is said once, quietly: FortiOS answers the import
+        of a CA certificate it holds with 500 and error -328 - "there already", measured on
+        FortiOS 7.6.8 (1.0.130: no longer checked against its CA list)."""
         if not as_bool(self.opt(options, 'import_chain', True), True):
             return
-        there, have = 0, False
+        there = 0
         for pem in chain_list(bundle):
             try:
-                self.api('POST', '/api/v2/monitor/vpn-certificate/ca/import',
+                self.api('POST', CA_IMPORT,
                          {'import_method': 'file', 'scope': 'global',
                           'file_content': b64(pem)}, what='importing a CA certificate')
             except PluginError as e:
                 if self.dup(e):
-                    if have is False:
-                        have = self.cas_there()
-                    der = self.der_of(pem)
-                    if have is None or not der or der in have:
-                        there += 1
-                        continue
-                self.ctx.step('the CA certificate is not imported (there already?): %s' % e)
+                    there += 1
+                    continue
+                self.ctx.step('the CA certificate is not imported: %s' % e)
         if there:
             self.ctx.step('the intermediate CA certificate%s on the FortiGate already' % (
                 ' is' if there == 1 else 's are'))
@@ -887,25 +1177,11 @@ class FortiGateTarget(HttpTarget):
 
     @staticmethod
     def dup(e):
-        """FortiOS error -328 on a CA import: that certificate is there already."""
+        """FortiOS error -328 on a CA import: that certificate is there already (measured)."""
         for s in (getattr(e, 'detail', None), str(e)):
             if re.search(r'(?<![\d])-328(?!\d)', text(s)):
                 return True
         return False
-
-    def cas_there(self):
-        """The CA certificates the FortiGate holds (a set of DER), None when unread."""
-        try:
-            st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/ca', format='name|ca')
-        except PluginError as e:
-            self.ctx.debug('the CA certificates cannot be listed: %s' % e)
-            return None
-        out = set()
-        for r in (d.get('results') if isinstance(d, dict) else None) or []:
-            der = self.der_of(text((r or {}).get('ca')))
-            if der:
-                out.add(der)
-        return out
 
     def point_at(self, name, prefix, vdom, options, did):
         """The admin GUI, SSL VPN, profiles and VIPs listed: pointed at `name`."""
@@ -942,8 +1218,8 @@ class FortiGateTarget(HttpTarget):
             raise PluginError('there is no list called %s here' % key, retry=False)
         vdom = self.vdom()
         try:
-            st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/local', vdom=vdom,
-                             with_meta=1, what='listing the local certificates')
+            st, d = self.api('GET', LOCAL, vdom=vdom, with_meta=1,
+                             what='listing the local certificates')
         except PluginError as e:
             m = re.search(r'\((\d{3})\)|said (\d{3})', str(e))
             code = (m.group(1) or m.group(2)) if m else ''
@@ -957,36 +1233,54 @@ class FortiGateTarget(HttpTarget):
                 why = str(e)
             raise PluginError('the certificates cannot be listed: %s - type the name of the '
                               'certificate instead' % why, detail=e.detail, retry=False)
-        rows = (d.get('results') if isinstance(d, dict) else None) or []
+        rows = [r for r in (d.get('results') if isinstance(d, dict) else None) or []
+                if isinstance(r, dict) and text(r.get('name')).strip()]
+        # The facts of each (1.0.130): FortiOS 7.6 lists every one with "certificate" empty -
+        # its CN, expiry, issuer and fingerprint come from monitor/system/available-
+        # certificates (any admin may read it), else from the GET of each one
+        avail = self.avail_rows(vdom) if any(
+            not text(r.get('certificate')).strip() for r in rows) else {}
         want = [text(n).lower().rstrip('.') for n in (self.hint_names or []) if text(n).strip()]
-        opts, factory, best = [], 0, None
+        opts, factory, best, read_each = [], 0, None, 0
         for r in rows:
-            if not isinstance(r, dict) or not text(r.get('name')).strip():
-                continue
             name = text(r.get('name'))
-            if self.factory(name, r):
+            a = avail.get(name) or {}
+            if self.factory(name, r) or self.factory(name, a):
                 factory += 1
                 continue
             f = self.pem_facts(r.get('certificate'))
+            if not f and a.get('fingerprint') is not None:
+                f = self.avail_facts(a)
+            if not f and read_each < 50:
+                read_each += 1
+                try:
+                    f = self.pem_facts(self.local_row(name, vdom).get('certificate'))
+                except PluginError as e:
+                    self.ctx.debug('%s cannot be read: %s' % (name, e))
             bits = []
             if f.get('cn'):
                 bits.append('CN %s' % f['cn'])
-            if f.get('not_after'):
-                bits.append('→ %s' % self.day(f['not_after']))
+            if f.get('not_after') or f.get('day'):
+                bits.append('→ %s' % (f.get('day') or self.day(f['not_after'])))
             if f.get('issuer'):
                 bits.append(f['issuer'])
-            if text(r.get('range')).strip():
-                bits.append(text(r.get('range')).strip())
-            if r.get('q_ref') not in (None, ''):
-                bits.append('%s×' % r.get('q_ref'))
+            if text(r.get('range') or a.get('range')).strip():
+                bits.append(text(r.get('range') or a.get('range')).strip())
+            # its uses: the monitor's count takes the admin GUI in, cmdb's does not
+            uses = a.get('q_ref') if a.get('q_ref') not in (None, '') else r.get('q_ref')
+            if uses not in (None, ''):
+                bits.append('%s×' % uses)
+            if f.get('fp'):
+                bits.append('SHA-256 %s…' % f['fp'][:8].upper())
             score = 0
             if want and f:
-                if f.get('cn', '').lower() in want:
+                if f.get('cn', '').lower().rstrip('.') in want:
                     score = 2
                 elif set(f.get('names') or []) & set(want):
                     score = 1
-            if score and (best is None or (score, f.get('not_after') or 0) > best[0]):
-                best = ((score, f.get('not_after') or 0), name)
+            stamp = f.get('day') or (self.day(f['not_after']) if f.get('not_after') else '')
+            if score and (best is None or (score, stamp) > best[0]):
+                best = ((score, stamp), name)
             opts.append([name, ' · '.join([name] + bits), score])
         opts.sort(key=lambda o: (-o[2], o[0].lower()))
         pick = best[1] if best else ''
@@ -999,6 +1293,21 @@ class FortiGateTarget(HttpTarget):
         if pick:
             said += '; ★ %s has the names of this certificate' % pick
         return {'options': out, 'sets': {}, 'said': said, 'pick': pick}
+
+    def avail_rows(self, vdom):
+        """monitor/system/available-certificates, the local ones by name ({} unread)."""
+        q = {'scope': 'vdom', 'vdom': vdom} if vdom else {'scope': 'global'}
+        try:
+            st, d = self.fos('GET', AVAIL, what='reading the certificates\' facts', **q)
+        except PluginError as e:
+            self.ctx.debug('available-certificates: %s' % e)
+            return {}
+        out = {}
+        for r in (d.get('results') if st == 200 else None) or []:
+            if isinstance(r, dict) and text(r.get('name')).strip() and (
+                    text(r.get('q_name')).strip() or 'local') == 'local':
+                out.setdefault(text(r.get('name')), r)
+        return out
 
     def cleanup(self, prefix, current, vdom, keep):
         if keep < 0:

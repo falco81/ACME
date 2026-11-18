@@ -71773,8 +71773,8 @@
    "text": "Nahradit existující certifikát na místě"
   },
   "fgr_04": {
-   "source": "Replace in place: the certificate keeps its name and everything bound to it keeps using it - nothing is re-pointed; it goes over SSH (the FortiOS CLI): the target needs its SSH sign-in",
-   "text": "Nahradit na místě: certifikát si ponechá jméno a vše, co je na něj navázané, ho dál používá – nic se nepřepojuje; jde to přes SSH (CLI FortiOS): cíl potřebuje přihlášení SSH"
+   "source": "Replace in place: the certificate keeps its name and everything bound to it keeps using it - nothing is re-pointed; through the REST API (the token, VPN read-write) unless \"How to replace\" says SSH",
+   "text": "Nahradit na místě: certifikát si ponechá jméno a vše, co je na něj navázané, ho dál používá – nic se nepřepojuje; přes REST API (token, VPN čtení i zápis), pokud „Způsob nahrazení“ neříká SSH"
   },
   "fgr_05": {
    "source": "The certificate on the FortiGate",
@@ -71821,24 +71821,24 @@
    "text": "FortiOS 7.4.2 - 8.0 (7.4.x, 7.6.x, 8.0): server-cert inspekčního profilu i ssl-certificate virtuální IP jsou seznamy certifikátů (ostatní v nich zůstanou); \"SSL VPN\" je od 7.6.3 Agentless VPN. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže – nebo nahradí certifikát, který FortiGate už má, na místě (jeho jméno i použití zůstanou). Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
   },
   "fgsh_01": {
-   "source": "SSH user (replace in place)",
-   "text": "Uživatel SSH (nahrazení na místě)"
+   "source": "SSH user (replace over SSH)",
+   "text": "Uživatel SSH (nahrazení přes SSH)"
   },
   "fgsh_02": {
-   "source": "an administrator who may change VPN certificates (vpngrp read-write; a certificate in the global range: scope global) - only for \"Replace an existing certificate in place\" - empty: not used",
-   "text": "správce, který smí měnit certifikáty VPN (vpngrp čtení i zápis; certifikát v rozsahu global: scope global) – jen pro „Nahradit existující certifikát na místě“ – prázdné: nepoužije se"
+   "source": "an administrator who may change VPN certificates (vpngrp read-write; a certificate in the global range: scope global) - only when \"How to replace\" is SSH - empty: not used",
+   "text": "správce, který smí měnit certifikáty VPN (vpngrp čtení i zápis; certifikát v rozsahu global: scope global) – jen když „Způsob nahrazení“ je SSH – prázdné: nepoužije se"
   },
   "fgsh_03": {
-   "source": "only for \"Replace an existing certificate in place\" - empty: not used",
-   "text": "jen pro „Nahradit existující certifikát na místě“ – prázdné: nepoužije se"
+   "source": "only when \"How to replace\" is SSH - empty: not used",
+   "text": "jen když „Způsob nahrazení“ je SSH – prázdné: nepoužije se"
   },
   "fgsh_04": {
    "source": "SSH: sign in with",
    "text": "SSH: přihlásit se"
   },
   "fgsh_05": {
-   "source": "The SSH key (replace in place)",
-   "text": "Klíč SSH (nahrazení na místě)"
+   "source": "The SSH key (replace over SSH)",
+   "text": "Klíč SSH (nahrazení přes SSH)"
   },
   "fgsh_06": {
    "source": "Trust the first SSH host key seen",
@@ -71857,8 +71857,8 @@
    "text": "nelze zjistit, zda jsou zapnuté VDOM – řádky CLI jdou bez config global / config vdom"
   },
   "fgsh_10": {
-   "source": "replace in place goes over SSH and the target has no SSH sign-in: FortiOS takes a new certificate and key for an existing local certificate only in its CLI (config vpn certificate local / edit / set private-key / set certificate) - its REST API turns the PEM into broken CLI lines (error -651). Fill in the target's SSH user and its key or password (an administrator who may change VPN certificates) - nothing was changed",
-   "text": "nahrazení na místě jde přes SSH a cíl nemá přihlášení SSH: FortiOS přijme nový certifikát a klíč existujícího lokálního certifikátu jen ve svém CLI (config vpn certificate local / edit / set private-key / set certificate) – jeho REST API z PEM udělá rozbité řádky CLI (chyba -651). Vyplňte v cíli uživatele SSH a jeho klíč nebo heslo (správce, který smí měnit certifikáty VPN) – nic se nezměnilo"
+   "source": "replace in place over SSH (\"How to replace\": SSH) and the target has no SSH sign-in: fill in the target's SSH user and its key or password (an administrator who may change VPN certificates), or choose the REST API - nothing was changed",
+   "text": "nahrazení na místě přes SSH („Způsob nahrazení“: SSH) a cíl nemá přihlášení SSH: vyplňte v cíli uživatele SSH a jeho klíč nebo heslo (správce, který smí měnit certifikáty VPN), nebo zvolte REST API – nic se nezměnilo"
   },
   "fgsh_11": {
    "source": "the key encrypted with a one-time password",
@@ -71883,6 +71883,42 @@
   "fgsh_17": {
    "source": "the key as plain PEM, in config global",
    "text": "klíč jako nešifrovaný PEM, v config global"
+  },
+  "fgapi_01": {
+   "source": "How to replace",
+   "text": "Způsob nahrazení"
+  },
+  "fgapi_02": {
+   "source": "the REST API (the API token; VPN read-write is enough)",
+   "text": "REST API (token API; stačí VPN čtení i zápis)"
+  },
+  "fgapi_03": {
+   "source": "SSH - the FortiOS CLI (the target's SSH sign-in)",
+   "text": "SSH – CLI FortiOS (přihlášení SSH cíle)"
+  },
+  "fgapi_04": {
+   "source": "the REST API needs nothing but the token; SSH needs the target's SSH user and its key or password",
+   "text": "REST API nepotřebuje nic než token; SSH potřebuje uživatele SSH cíle a jeho klíč nebo heslo"
+  },
+  "fgapi_05": {
+   "source": "it did not take the private key (\"Invalid private key, password may be required\")",
+   "text": "nepřijal privátní klíč („Invalid private key, password may be required“)"
+  },
+  "fgapi_06": {
+   "source": "the key does not belong to the certificate (\"Input is not a valid/matched certificate\")",
+   "text": "klíč nepatří k certifikátu („Input is not a valid/matched certificate“)"
+  },
+  "fgapi_07": {
+   "source": "the new certificate is on the FortiGate already under another name (\"This local certificate is duplicated\") that acme did not find - in another VDOM? Delete that copy (System → Certificates) or use the default mode",
+   "text": "nový certifikát už na FortiGate je pod jiným jménem („This local certificate is duplicated“), které acme nenašlo – v jiném VDOM? Smažte tu kopii (Systém → Certifikáty), nebo použijte výchozí režim"
+  },
+  "fgapi_08": {
+   "source": "encrypted with a one-time password",
+   "text": "zašifrovaný jednorázovým heslem"
+  },
+  "fgapi_09": {
+   "source": "as plain PEM",
+   "text": "jako nešifrovaný PEM"
   }
  },
  "patterns": {
@@ -99963,8 +99999,8 @@
    "text": "{0} už tento certifikát drží – je na místě"
   },
   "fgshp_02": {
-   "source": "signed in over SSH as {0}: {1} - the certificate is replaced in the FortiOS CLI (its REST API cannot)",
-   "text": "přihlášeno přes SSH jako {0}: {1} – certifikát se nahradí v CLI FortiOS (jeho REST API to neumí)"
+   "source": "signed in over SSH as {0}: {1} - the certificate is replaced in the FortiOS CLI",
+   "text": "přihlášeno přes SSH jako {0}: {1} – certifikát se nahradí v CLI FortiOS"
   },
   "fgshp_03": {
    "source": "FortiOS {0} on {1}, VDOMs off",
@@ -100003,8 +100039,8 @@
    "text": "přihlášeno přes SSH jako {0}, ale „get system status“ neodpověděl tak, jak odpovídá FortiOS ({1}) – je to CLI FortiGate?"
   },
   "fgshp_12": {
-   "source": "{0} is this very certificate already - an unused copy acme imported earlier; it is deleted first (FortiOS refuses two identical local certificates)",
-   "text": "{0} je už přesně tento certifikát – nepoužitá kopie, kterou acme importovalo dříve; nejdřív se smaže (FortiOS dva stejné lokální certifikáty odmítne)"
+   "source": "{0} is this very certificate already - a copy acme imported earlier; it is deleted first (FortiOS refuses two identical local certificates)",
+   "text": "{0} je už přesně tento certifikát – kopie, kterou acme importovalo dříve; nejdřív se smaže (FortiOS dva stejné lokální certifikáty odmítne)"
   },
   "fgshp_13": {
    "source": "deleted {0}, the unused copy of this certificate",
@@ -100057,6 +100093,70 @@
   "fgshp_25": {
    "source": "the key as plain PEM, in config vdom, edit {0}",
    "text": "klíč jako nešifrovaný PEM, v config vdom, edit {0}"
+  },
+  "fgapip_01": {
+   "source": "it is replaced over the REST API (PUT cmdb vpn.certificate/local/{0}) - the token is enough, no SSH",
+   "text": "nahradí se přes REST API (PUT cmdb vpn.certificate/local/{0}) – stačí token, žádné SSH"
+  },
+  "fgapip_02": {
+   "source": "the fingerprints of the certificates on the FortiGate read (monitor/system/available-certificates): {0} local, {1} CA",
+   "text": "otisky certifikátů na FortiGate načteny (monitor/system/available-certificates): lokálních {0}, CA {1}"
+  },
+  "fgapip_03": {
+   "source": "the FortiGate gives no fingerprints in monitor/system/available-certificates - its {0} local certificates are read one by one",
+   "text": "FortiGate v monitor/system/available-certificates otisky nedává – jeho lokální certifikáty ({0}) se čtou jeden po druhém"
+  },
+  "fgapip_04": {
+   "source": "imported the intermediate CA certificate {0} before the replace - FortiOS sends it along with the certificate",
+   "text": "mezilehlý certifikát CA {0} naimportován před nahrazením – FortiOS ho posílá spolu s certifikátem"
+  },
+  "fgapip_05": {
+   "source": "the intermediate CA certificate cannot be imported ({0}) - it goes in before the replace, so the whole chain is served; nothing was replaced",
+   "text": "mezilehlý certifikát CA nelze naimportovat ({0}) – importuje se před nahrazením, aby se posílal celý řetězec; nic se nenahradilo"
+  },
+  "fgapip_06": {
+   "source": "the new certificate (the leaf - FortiOS keeps the leaf only, the chain comes from its CA certificates) and its key, {0}, put into {1}",
+   "text": "nový certifikát (jen koncový – FortiOS uloží jen ten, řetězec skládá ze svých certifikátů CA) a jeho klíč, {0}, vloženy do {1}"
+  },
+  "fgapip_07": {
+   "source": "FortiOS took the new certificate and key for {0}",
+   "text": "FortiOS přijal nový certifikát a klíč pro {0}"
+  },
+  "fgapip_08": {
+   "source": "FortiOS refused to replace {0} in place: {1} - {2} is untouched (FortiOS changes nothing when it refuses)",
+   "text": "FortiOS odmítl nahradit {0} na místě: {1} – {2} zůstal nedotčen (když FortiOS odmítne, nic nemění)"
+  },
+  "fgapip_09": {
+   "source": "HTTP {0}, error {1}: {2}",
+   "text": "HTTP {0}, chyba {1}: {2}"
+  },
+  "fgapip_10": {
+   "source": "FortiOS took the new certificate for {0}, yet it cannot be read back to check it - look at it on the FortiGate",
+   "text": "FortiOS přijal nový certifikát pro {0}, ale nelze ho zpětně přečíst a ověřit – zkontrolujte ho na FortiGate"
+  },
+  "fgapip_11": {
+   "source": "FortiOS took the new certificate for {0}, yet reading it back gives another one (SHA-256 {1}…, expected {2}…) - look at it on the FortiGate",
+   "text": "FortiOS přijal nový certifikát pro {0}, ale zpětné čtení dává jiný (SHA-256 {1}…, očekáván {2}…) – zkontrolujte ho na FortiGate"
+  },
+  "fgapip_12": {
+   "source": "{0} was used {1} times before and {2} times now - look at what uses it",
+   "text": "{0} byl předtím použit {1}×, teď {2}× – zkontrolujte, co ho používá"
+  },
+  "fgapip_13": {
+   "source": "the certificates on the FortiGate cannot be read ({0}) - the admin profile of the token needs VPN (vpngrp) read-write; nothing was changed",
+   "text": "certifikáty na FortiGate nelze přečíst ({0}) – profil správce tokenu potřebuje VPN (vpngrp) čtení i zápis; nic se nezměnilo"
+  },
+  "fgapip_14": {
+   "source": "the FortiGate has this very certificate already as {0}, an acme name of another deployment (this one deletes only its own {1}… copies) - FortiOS refuses a local certificate identical to another one (\"This local certificate is duplicated\"), so {2} cannot take it. Nothing was changed: delete {3} on the FortiGate (System → Certificates) if nothing uses it, or point what uses it at {4} first",
+   "text": "FortiGate už přesně tento certifikát má jako {0}, jméno acme jiného nasazení (toto maže jen své vlastní kopie {1}…) – FortiOS odmítne lokální certifikát shodný s jiným („This local certificate is duplicated“), takže ho {2} převzít nemůže. Nic se nezměnilo: smažte {3} na FortiGate (Systém → Certifikáty), pokud ho nic nepoužívá, nebo nejdřív přepojte to, co ho používá, na {4}"
+  },
+  "fgapip_15": {
+   "source": "the FortiGate has this very certificate already as {0}, an earlier import of acme that is in use - FortiOS refused to delete it (-23, \"currently being used\") and refuses a local certificate identical to another one, so {1} cannot take it. Nothing else was changed: point what uses {2} at {3}, then deploy again (the copy is deleted then)",
+   "text": "FortiGate už přesně tento certifikát má jako {0}, dřívější import acme, který se používá – FortiOS ho odmítl smazat (-23, „currently being used“) a lokální certifikát shodný s jiným odmítne, takže ho {1} převzít nemůže. Nic jiného se nezměnilo: přepojte to, co používá {2}, na {3} a nasaďte znovu (kopie se pak smaže)"
+  },
+  "fgapip_16": {
+   "source": "the CA certificate is not imported: {0}",
+   "text": "certifikát CA se nenaimportoval: {0}"
   }
  },
  "rich": {
