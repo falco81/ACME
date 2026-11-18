@@ -50,7 +50,7 @@ push)*.
   `acmelib/engine/467_certificates_pushed_here_by.py` do `otp.py`, změňte
   `PUSH_APP = 'otp'`, přidejte blok do `web/admin/index.php`, kartu do
   `admin.js` a české texty - přesný postup je v kapitole
-  [Pro aplikaci na tomto enginu](#for-an-application-on-this-engine-otp).
+  [Pro aplikaci na tomto enginu](#16-for-an-application-on-this-engine-otp).
   isemon a zigmon mají vlastní kapitoly.
 
 The rest of this document is the implementer's specification, in English.

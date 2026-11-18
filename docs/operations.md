@@ -47,7 +47,7 @@ F5, NetScaler, keepalived/LVS).
 16. [Back from PostgreSQL to SQLite](#16-back-from-postgresql-to-sqlite)
 17. [The sealing key](#17-the-sealing-key)
 18. [Lost administrator password](#18-lost-administrator-password)
-19. [Certificates and the VIP address](#19-certificates-and-the-web-address)
+19. [Certificates and the VIP address](#19-certificates-and-the-vip-address)
 20. [The picture on the sign-in](#20-the-picture-on-the-sign-in)
 21. [Troubleshooting](#21-troubleshooting)
 
@@ -178,7 +178,7 @@ What lives where:
 6. Watch the first renewals: `acme --jobs`, the Jobs tab; set the alerts
    (Settings → Mail / SMS / Alerts).
 
-7. Your own certificate for the pages: [section 19](#19-certificates-and-the-web-address).
+7. Your own certificate for the pages: [section 19](#19-certificates-and-the-vip-address).
 
 ---
 
@@ -348,7 +348,7 @@ On the pages, *Test → On the node* asks either node.
 
 **In front of the nodes** - one of:
 
-- the built-in VIP address for the pages: [section 19](#19-certificates-and-the-web-address);
+- the built-in VIP address for the pages: [section 19](#19-certificates-and-the-vip-address);
 - your own load balancer: [load-balancers.md](load-balancers.md); then tell
   both nodes its address: `acme --trusted-proxy 192.0.2.5/32` (on each node).
 
@@ -641,7 +641,7 @@ acme1).
 4. The VIP address belongs to a cluster: on a single server it is released
    by itself (keepalived stops). Point DNS for `acme.example.cz` at acme1's own
    address, and give acme1 the certificate for that name
-   ([section 19](#19-certificates-and-the-web-address)). It comes back by
+   ([section 19](#19-certificates-and-the-vip-address)). It comes back by
    itself if a cluster is built again.
 5. `acme --status` on acme1: one node, its own PostgreSQL. It can stay on
    PostgreSQL, or go back to SQLite ([section 16](#16-back-from-postgresql-to-sqlite)).

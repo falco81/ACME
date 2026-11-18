@@ -11,7 +11,7 @@ agent on the server does the work, and only what the server's own policy allows.
 * Whoever controls a running acme can do on the server only what its policy allows - write
   certificate files into the folders it names, with the owners and modes it names, reload the
   units it names, run the tests and scripts it lists by their hash.
-* The deployments work as they do on a [Linux / Unix server over SSH](targets.md#ssh): the same
+* The deployments work as they do on a [Linux / Unix server over SSH](targets.md#ssh---linux--unix-server): the same
   files and formats, the presets, before / test / script / reload / after, templates, the copies
   kept, the same certificate again changes nothing, the previous files back when the test or the
   reload fails.
