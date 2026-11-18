@@ -6,7 +6,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.127 - not released
 
-(nothing yet)
+- Backups: a backup sent did not record how many certificates it held, so each node's card on Settings → Backups showed an empty "Certificates"; it is recorded now and shown.
+- Backups: Put one back… on a file sent from the computer always showed "Certificates –" (the page read a field no manifest has); it shows the backup's count of certificates now.
+- Backups (security): a copy opened on the command line with its key (secrets.key in clear beside it), the files the command line took in to read, and backup or database files sent from the pages and never put back stayed in the state folder for good when nothing came after them; they are taken away at the next start (the uploads after an hour, the others after six).
+- DNS-01: one SOA question the resolvers did not answer while acme waited for the TXT record to be seen (a validation whose provider does not say the zone, e.g. Cloudflare, acme-dns) failed the whole order; now it counts as "not seen yet" and the resolvers decide.
+- DNS-01, "A script of your own": a CA's DCV TXT record (DigiCert, Sectigo...) failed with "no attribute '_name'", or ran the script with the name of the order before; now the script gets the name and record being placed.
+- acme's own DNS server: a zone written with national letters (acme.příklad.cz) was answered REFUSED for every question and the validation wrote its records under the Unicode name; zones, name servers and records are now kept in their IDNA (xn--) form, as DNS asks for them.
+- Portal, sign-in through the load balancer: a balancer header that was not taken at all (not from a balancer named, or without its key - e.g. a key made anew and the balancer not yet told) signed out whoever was signed in on that browser, so a person who signed in with their password was signed straight out on the next page and told to "sign in with your password". Such a refusal now says it is about the header (`untrusted`) and the page keeps the sign-in; a refusal of the person (the directory) still ends it.
+- Portal, one-time code at sign-in: the code box always said "000 000" whatever the code's length (code_digits 4-10), and nine or ten digits did not fit the box (the last ones scrolled away). It now shows as many digits as the code has, and long codes fit.
+- Portal, sign-in: "nobody can sign in here yet: no directory is set up for these pages..." (a new install without a directory) came out half Czech; it has its translation now.
+- Settings: a value not of its setting's kind (a number box emptied, "abc" for a number, "maybe" for a switch) was refused without the setting's name ("a number is needed, and nothing was given"), so the save bar could not mark the box or say which change it was; the refusal now starts with the setting's name and the box is marked.
+- Settings → High availability: at phone width the copy buttons of the load balancer's guides (and "As it comes" of the message texts) were squeezed by their titles and their words ran out of them; they keep their size now.
+- Settings → High availability: in "Each node's own settings" at 390 px "The cluster's" ran over the first node's name and a long node name or Czech word made the page wider than the phone; the headings and setting names wrap in their columns now.
+- Settings → High availability: "Heard from" of the nodes (and in the cluster's card) was worked out by the browser's clock - a node answering said "10 min ago" on a computer ten minutes ahead; it is the age the daemon measured now, as the settings' pill shows it.
+- Settings → High availability: the two notes of "Each node's own settings" were shown in English on a Czech page (their text had changed); translated again.
 
 ## 1.0.126 - 2026-11-18
 

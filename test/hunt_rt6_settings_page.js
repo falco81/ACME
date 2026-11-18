@@ -40,8 +40,8 @@ const { chromium } = require('playwright');
     document.querySelectorAll('.lb-block-h').forEach(h => { const d = h.closest('details'); if (d) d.open = true; });
     const btnOver = Array.from(document.querySelectorAll('#pane-' + PANE + ' .lb-block-h > .btn, #pane-' + PANE + ' .tx-field-h > .btn'))
       .filter(b => b.offsetParent).filter(b => {
-        const s = b.querySelector('span'); const r = b.getBoundingClientRect();
-        return s && s.getBoundingClientRect().right > r.right + 1;
+        const s = b.querySelector('span');
+        return s && s.scrollWidth > s.clientWidth + 1;
       }).map(b => b.textContent);
     const t = document.querySelector('#ha-own-card table');
     const thOver = t ? Array.from(t.querySelectorAll('th')).filter(x => x.scrollWidth > x.clientWidth + 1).map(x => x.textContent) : null;

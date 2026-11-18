@@ -71319,6 +71319,18 @@
   "z_1680": {
    "source": "local:NAME (an account of acme), a user of the directory, group:NAME or a group's DN.",
    "text": "local:JMÉNO (účet acme), uživatel adresáře, group:JMÉNO nebo DN skupiny."
+  },
+  "z_1681": {
+   "source": "nobody can sign in here yet: no directory is set up for these pages. Administrators sign in at /admin/",
+   "text": "zatím se tu nikdo nemůže přihlásit: pro tyto stránky není nastaven žádný adresář. Správci se přihlašují na /admin/"
+  },
+  "z_1682": {
+   "source": "Everything else in Settings is the cluster's and goes to every node. These belong to one machine: the port the pages ask the daemon on, the name it greets mail servers with and the name isemon files it under, its own copies of the database (whether, when, how many - each node keeps them on its own disk), and the debug switches. Each node shows the value in effect on it: its own, marked, or the cluster's, dimmed.",
+   "text": "Všechno ostatní v Nastavení patří clusteru a platí na všech uzlech. Tato nastavení patří jednomu stroji: port, na kterém se stránky ptají démona, jméno, kterým se představuje mailovým serverům, a jméno, pod kterým ho eviduje isemon, jeho vlastní kopie databáze (zda, kdy a kolik – každý uzel je drží na svém disku) a přepínače ladění. U každého uzlu je vidět hodnota, která na něm platí: vlastní, označená, nebo hodnota clusteru, ztlumená."
+  },
+  "z_1683": {
+   "source": "The machine itself - its addresses, IPv6, gateway, DNS and host name - is set per node in Settings → Network. Its clock is in Settings → Time.",
+   "text": "Samotný stroj – jeho adresy, IPv6, brána, DNS a hostname – se nastavuje pro každý uzel v Nastavení → Síť. Jeho hodiny jsou v Nastavení → Čas."
   }
  },
  "patterns": {
@@ -99081,6 +99093,10 @@
   "pz_532": {
    "source": "{0} runs what its command line says as SYSTEM - a fixed script (allow script) says what it runs",
    "text": "{0} spouští jako SYSTEM to, co říká jeho příkazový řádek – pevný skript (allow script) říká, co spouští"
+  },
+  "pz_533": {
+   "source": "the name servers of {0} could not be asked: {1} - the resolvers are asked instead",
+   "text": "jmenné servery {0} se nepodařilo dotázat: {1} – místo nich se ptá resolverů"
   }
  },
  "rich": {
