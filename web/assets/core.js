@@ -4912,22 +4912,20 @@ function dirPickOpen(btn, input, opts) {
       it.type = 'button';
       it.setAttribute('role', 'option');
       it.dataset.v = v;
-      noI18n(it);
       var av = el('span', 'dpk-av' + (kind === 'group' ? ' group' : ''));
       av.innerHTML = iconMarkup(kind === 'group' ? 'people' : 'person', 15);
       it.appendChild(av);
       var w = el('span', 'dpk-w');
-      w.appendChild(el('b', '', r.display || r.cn || r.sam || r.who || r.dn));
+      /* names and values of the directory: never translated */
+      w.appendChild(noI18n(el('b', '', r.display || r.cn || r.sam || r.who || r.dn)));
       var sub = kind === 'group' ? (r.description || '') : [r.upn || r.sam, r.mail].filter(Boolean).join(' · ');
-      if (sub) w.appendChild(el('span', 'dpk-sub', sub));
-      if (r.dn) w.appendChild(el('span', 'dpk-dn', r.dn));
-      else if (kind === 'group' && r.who) w.appendChild(el('span', 'dpk-dn', r.who));
+      if (sub) w.appendChild(noI18n(el('span', 'dpk-sub', sub)));
+      if (r.dn) w.appendChild(noI18n(el('span', 'dpk-dn', r.dn)));
+      else if (kind === 'group' && r.who) w.appendChild(noI18n(el('span', 'dpk-dn', r.who)));
       it.appendChild(w);
       if (kind !== 'group') {
         /* the account's state: words of the page, so translated */
-        var stt = el('span', 'tag ' + (r.disabled ? 'crit' : 'ok') + ' dpk-state', r.disabled ? 'switched off' : 'active');
-        stt.removeAttribute('data-no-i18n');
-        it.appendChild(stt);
+        it.appendChild(el('span', 'tag ' + (r.disabled ? 'crit' : 'ok') + ' dpk-state', r.disabled ? 'switched off' : 'active'));
       }
       var ck = el('span', 'dpk-ck');
       ck.innerHTML = iconMarkup('check', 15);

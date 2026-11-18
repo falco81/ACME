@@ -60,7 +60,7 @@ def _low(v):
 CAPS = ('cert.view', 'cert.request', 'cert.renew', 'cert.auto', 'cert.edit', 'cert.revoke',
         'cert.delete', 'cert.key', 'cert.approve', 'deploy.view', 'deploy.run', 'deploy.manage',
         'target.view', 'target.manage', 'target.test', 'team.view', 'team.members',
-        'team.policy', 'team.create', 'team.activity')
+        'team.policy', 'team.create', 'team.activity', 'test.view', 'test.manage')
 CAP_WORDS = {
     'cert.view': 'see the team\'s certificates, their jobs and deployments',
     'cert.request': 'ask for new certificates owned by the team',
@@ -82,12 +82,15 @@ CAP_WORDS = {
     'team.policy': 'change the limits of the teams below',
     'team.create': 'create, rename and delete teams below',
     'team.activity': 'see what happened in the team',
+    'test.view': 'see the team\'s tests',
+    'test.manage': 'add, change, delete and run the team\'s tests',
 }
 CAP_GROUPS = (('Certificates', ('cert.view', 'cert.request', 'cert.renew', 'cert.auto',
                                 'cert.edit', 'cert.revoke', 'cert.delete', 'cert.key',
                                 'cert.approve')),
               ('Deployments', ('deploy.view', 'deploy.run', 'deploy.manage')),
               ('Devices', ('target.view', 'target.manage', 'target.test')),
+              ('Tests', ('test.view', 'test.manage')),
               ('The team', ('team.view', 'team.members', 'team.policy', 'team.create',
                             'team.activity')))
 VIEW_CAPS = frozenset(('cert.view', 'deploy.view', 'target.view', 'team.view'))
@@ -103,17 +106,18 @@ RIGHT_CAPS['manage'] = RIGHT_CAPS['request'] | {'cert.renew', 'cert.auto', 'cert
 LEGACY_MANAGE = 'legacy.manage'
 RIGHT_CAPS['manage'] = RIGHT_CAPS['manage'] | {LEGACY_MANAGE}
 RIGHT_CAPS['approve'] = RIGHT_CAPS['view'] | {'cert.approve'}
-_R_VIEWER = VIEW_CAPS
+# test.view (1.0.128): a viewer sees the team's tests too - the old right `view` stays as it was
+_R_VIEWER = VIEW_CAPS | {'test.view'}
 _R_REQUESTER = _R_VIEWER | {'cert.request'}
 _R_RENEWER = _R_VIEWER | {'cert.renew', 'cert.auto'}
 # The built-in roles: in the code, never in the table, never changed or deleted.
 BUILTIN_ROLES = (
-    ('Viewer', _R_VIEWER, 'sees the team\'s certificates, deployments and devices'),
+    ('Viewer', _R_VIEWER, 'sees the team\'s certificates, deployments, devices and tests'),
     ('Requester', _R_REQUESTER, 'a viewer who asks for new certificates'),
     ('Renewer', _R_RENEWER, 'a viewer who renews certificates and switches renewing by itself'),
     ('Deployer', _R_VIEWER | {'deploy.run'}, 'a viewer who runs deployments'),
     ('Device manager', _R_VIEWER | {'target.manage', 'target.test', 'deploy.manage',
-                                    'deploy.run'},
+                                    'deploy.run', 'test.manage'},
      'looks after the team\'s devices and the deployments to them'),
     ('Certificate manager', _R_REQUESTER | _R_RENEWER | {
         'cert.edit', 'cert.revoke', 'cert.delete', 'cert.key', 'deploy.run', 'deploy.manage'},
