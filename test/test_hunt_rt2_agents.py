@@ -31,7 +31,7 @@ sys.path.insert(0, ROOT)
 
 import acme  # noqa: E402,F401
 import acmelib.engine as E  # noqa: E402
-from acmelib.certs import api as A, store as S, agents as G, teams as T  # noqa: E402
+from acmelib.certs import store as S, agents as G, teams as T  # noqa: E402
 from acmelib.certs import agent_policy as P  # noqa: E402
 
 STORE = E.Storage(E.open_db())
