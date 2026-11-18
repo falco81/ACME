@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.131 - not released
+
+(nothing yet)
+
 ## 1.0.130 - 2026-11-18
 
 - **FortiGate: replace in place over the REST API again - fixed, and the default.** Measured on FortiOS 7.6.8 build 3744: the `PUT cmdb vpn.certificate/local/<name>` works; what 1.0.128 failed at (`-651`) was a **duplicate** - the same certificate already on the box under another name (an `acme-...` import of the default mode), not the PEM. A new deployment option *How to replace* (`replace_via`): **REST API** (default; the token only, its profile needing VPN `vpngrp` read-write) or **SSH** (the FortiOS CLI of 1.0.129, unchanged, with the target's optional SSH sign-in). The API way: read the certificate (`with_meta`), read the SHA-256 of every certificate (`monitor/system/available-certificates`), import the intermediates not there as CA certificates **before** the PUT (FortiOS keeps the leaf only and serves the chain from its CA store), delete acme's own copy of the new certificate, PUT the leaf and the key (PKCS#8 encrypted with a one-time password), read it back (the fingerprint must be the new one; a changed count of uses is a warning). A refused PUT changes nothing and says why: duplicated / invalid private key or password / a key of another certificate / its error lines.
