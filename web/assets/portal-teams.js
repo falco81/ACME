@@ -1815,7 +1815,7 @@ function enrolDialog() {
           r.appendChild(dot(st[1]));
           var w = el('div', 'pw-code-w');
           w.appendChild(data('b', '', c.title || c.id));
-          if (c.team && low(c.team) !== low(team)) w.appendChild(teamChip(c.team, 'small'));
+          if (c.team && low(c.team) !== low(team)) { var tc = teamChip(c.team, 'small'); tc.style.alignSelf = 'flex-start'; w.appendChild(tc); }
           var m = el('span', 'muted small');
           m.appendChild(el('span', '', st[0]));
           m.appendChild(document.createTextNode(' · ' + (c.uses || 0) + ' / ' + (c.most || '∞') + ' · '));
