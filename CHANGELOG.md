@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.127 - not released
+
+(nothing yet)
+
 ## 1.0.126 - 2026-11-18
 
 - Microsoft CA through acme-agent: a template name with a space ("Web Server 2") was written into the agent's policy unquoted (allow adcs, the line a refusal names, acme-agent adcs cas, acme --target-agent adcs-templates), so the policy's own line read back was refused and the CA's line lost; the list is now quoted (template="Web Server 2,WebServer").
