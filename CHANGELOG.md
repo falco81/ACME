@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.134 - not released
+
+(nothing yet)
+
 ## 1.0.133 - 2026-11-18
 
 - FortiGate, replace in place: error -324 on importing the intermediate CA is now said plainly (measured on a FortiGate-VM with an EVAL licence: it takes no RSA authority over 512 bits) - with the intermediate's key and name, nothing replaced, and not tried again by itself (it would fail the same). 1.0.132 replaced the certificate without its chain in that case; that is undone. A FortiGate-VM EVAL (serial FGVMEV...) and an RSA intermediate over 512 bits not on it are refused before anything is written; an EC (ECDSA) certificate goes through. The guides say to use EC on an EVAL FortiGate.
