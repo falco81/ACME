@@ -1005,7 +1005,9 @@ def policy_lines(pol):
         out.append('allow file %s owner=%s:%s mode=%04o' % (shlex.quote(f['dir']), f['owner'],
                                                            f['group'], f['mode']))
     for u, vs in sorted(pol['units'].items()):
-        out.append('allow unit %s %s' % (u, ','.join(vs)))
+        # quoted (hunt R t5): a systemd escape (a\x2d.service) unquoted was read back as
+        # ax2d.service - another unit than the one allowed
+        out.append('allow unit %s %s' % (shlex.quote(u), ','.join(vs)))
     for t in pol['tests']:
         out.append('allow test -- %s' % ' '.join(shlex.quote(a) for a in t))
     for s in pol['scripts']:
@@ -1362,7 +1364,7 @@ def cmd_check(pol, op, needs):
             raise Refused('%r is not one of %s' % (verb[:40], ', '.join(VERBS)))
         if verb not in pol['units'].get(unit, []):
             needs.append({'kind': 'unit', 'what': '%s %s' % (verb, unit),
-                          'allow': 'acme-agent allow %s %s %s' % (UNIT_WORD, unit, verb)})
+                          'allow': 'acme-agent allow %s %s %s' % (UNIT_WORD, qw(unit), verb)})
         return {'unit': unit, 'verb': verb}
     if 'argv' in op:
         argv = check_argv(op.get('argv'))
@@ -5500,7 +5502,7 @@ def policy_edit(add, words):
             raise SystemExit('acme-agent: no such entry in the policy: %s %s' % (
                 name, ','.join(verbs)))
         if now:
-            out.append('allow %s %s %s' % (UNIT_WORD, name, ','.join(now)))
+            out.append('allow %s %s %s' % (UNIT_WORD, shlex.quote(name), ','.join(now)))
         said = ('allowed: %s %s %s' if add else 'now: %s %s %s') % (
             UNIT_WORD, name, ','.join(now) or 'nothing')
     elif line.startswith('allow script '):
@@ -5597,7 +5599,7 @@ def policy_words(words):
     if what == 'unit':
         if len(rest) != 2:
             raise SystemExit('acme-agent allow unit NAME reload,restart')
-        return 'allow unit %s %s' % (rest[0], rest[1])
+        return 'allow unit %s %s' % (shlex.quote(rest[0]), rest[1])
     if what == 'test':
         if rest[:1] == ['--']:
             rest = rest[1:]

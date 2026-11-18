@@ -438,8 +438,19 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             path = '%s/acme-%s.pfx' % ((self.c('tmp_dir') or 'C:/Windows/Temp').rstrip('/\\'),
                                        secrets.token_hex(6))
             put_scp(s, data, path)
-            rc, out, err = self.run_ps(s, self.script(bundle, iopts, path, password),
-                                       'importing the certificate')
+            try:
+                rc, out, err = self.run_ps(s, self.script(bundle, iopts, path, password),
+                                           'importing the certificate')
+            except Exception:
+                # the PKCS#12 with the key taken away when the import failed half-way (hunt t5:
+                # its Remove-Item comes after the import, and stayed in the temporary folder
+                # - as windows_products does)
+                try:
+                    self.run_ps(s, "Remove-Item -LiteralPath %s -Force -ErrorAction "
+                                "SilentlyContinue" % ps_str(path), 'cleaning up', check=False)
+                except Exception:                       # noqa: BLE001
+                    pass
+                raise
             self._said(out)
             roles = self.deploy_roles(s, bundle, options)
             after = self._after(s, bundle, options, vars, pairs)

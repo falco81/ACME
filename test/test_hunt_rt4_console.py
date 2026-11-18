@@ -9,7 +9,7 @@
   happened in a team, a team deleted (the teams below it and its certificates moved) - each one
   the command line's own acme --teams, --team-add/-edit/-del, --roles, --team-access,
   --team-activity, run here for real on a state of its own;
-- a member the command line cannot write back (a DN, a note) is not changed from here;
+- a member the simple form of --members cannot say (a DN, a note) written back as JSON (t5);
 - a certificate's owner is a team chosen, as the page's Owner (it was typed as text: a misspelt
   team made a free-text owner), one typed before kept as it is;
 - a target's owner (the team whose device it is): a column, set and changed; an enrollment code
@@ -181,22 +181,23 @@ class Teams(unittest.TestCase):
             con.pick_act(con.rows[0])
 
     def test_3_member_not_written_back(self):
-        # a DN member and a member's note, as the pages give them: the command line cannot say
-        # them, so nothing is written from here
+        # a DN member and a member's note, as the pages give them: the simple form of --members
+        # cannot say them - (hunt R t5) written back as the JSON list then, not refused
         self.assertTrue(C._member_said({'who': 'CN=PKI,OU=Groups,DC=example,DC=com'}))
         self.assertTrue(C._member_said({'who': 'local:a', 'note': 'until the audit'}))
         self.assertFalse(C._member_said({'who': 'group:Web', 'roles': ['Requester']}))
-        con = Con()
-        orig = C._teams
-        C._teams = lambda _c: [{'name': 'Dn', 'members': [
-            {'who': 'CN=PKI,OU=Groups,DC=example,DC=com', 'rights': ['view']}]}]
-        try:
-            C.team_members(con, 'Dn')
-            con.pick_act(con.rows[0])
-        finally:
-            C._teams = orig
-        self.assertEqual(con.acts, [])
-        self.assertEqual(con.notes[0][2], 'bad')
+        assert run('--team-add', 'Dn', '--members', json.dumps(
+            [{'who': 'CN=PKI,OU=Groups,DC=example,DC=com', 'rights': ['view'],
+              'note': 'n'}])).returncode == 0
+        before = teams()['Dn']['members'][0]
+        con = Con(forms=[{'who': 'local:new', 'roles': 'Viewer'}])
+        C.team_members(con, 'Dn')
+        con.pick_act(con.rows[0])
+        self.assertEqual(con.acts[0][1], 0, con.acts[0][2])
+        self.assertTrue(con.acts[0][0][-1].startswith('['))
+        got = {m['who']: m for m in teams()['Dn']['members']}
+        self.assertEqual(got['CN=PKI,OU=Groups,DC=example,DC=com'], before)
+        self.assertEqual(got['local:new']['roles'], ['Viewer'])
         self.assertEqual(C._member_word({'who': 'local:j', 'rights': ['view'], 'roles': ['Deployer'],
                                          'until': 1798847999.0}),
                          'local:j=view+Deployer@%s' % C._day(1798847999.0))

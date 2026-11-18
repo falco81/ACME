@@ -273,9 +273,10 @@ class MikroTikTarget(SshMixin, HttpTarget):
                 return self.same(bundle, 'as %s' % name)
             if name not in have or as_bool(options.get('force')):
                 crt, key = self._upload(s, name, bundle)
-                if name in have:
-                    self.ros(s, '/certificate remove [find where name=%s]' % ros_str(name))
                 try:
+                    # inside (hunt t5): a refused remove left the key's file on the router
+                    if name in have:
+                        self.ros(s, '/certificate remove [find where name=%s]' % ros_str(name))
                     self.ros(s, '/certificate import file-name=%s passphrase=""' % ros_str(crt))
                     self.ros(s, '/certificate import file-name=%s passphrase=""' % ros_str(key))
                     # v6 names it after the file: <file>_0

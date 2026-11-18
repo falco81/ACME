@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 
 from acmelib import engine as E
@@ -421,7 +422,7 @@ def _activity(h, s):
 # The command line: --teams, --team-add NAME, --team-edit NAME, --team-del NAME,
 # --tag-add NAME, --tag-del NAME, --teams-adopt
 # ---------------------------------------------------------------------------
-CLI_KEYS = ('teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
+CLI_KEYS = ('teams', 'team_show', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
             'roles', 'role_add', 'role_del', 'team_access', 'team_activity', 'teams_from_groups')
 
 
@@ -434,12 +435,16 @@ def add_args(p):
                    'team|person|unit, --members WHO=RIGHTS,WHO, --contact-mail, --note, '
                    '--parent TEAM, --description, --policy JSON')
     g.add_argument('--team-edit', metavar='NAME', help='change one: the same, --name NEW')
+    g.add_argument('--team-show', metavar='NAME', help='one owner whole: its members with '
+                   'their roles, ends and notes, its limits (--teams cuts them)')
     g.add_argument('--team-del', metavar='NAME', help='delete one; owning certificates, with '
                    '--reassign OTHER (- for nobody)')
     g.add_argument('--team-kind', choices=T.KINDS, help='with --team-add/-edit')
     g.add_argument('--members', metavar='LIST', help='with --team-add/-edit: local:NAME, a user, '
                    'group:NAME or a DN, each =view+request+manage+approve (default view+request) '
-                   'or =Role+Role (roles), @YYYY-MM-DD for an end, comma between them')
+                   'or =Role+Role (roles), @YYYY-MM-DD for an end, comma between them; or a JSON '
+                   'list \'[{"who": "CN=..,DC=..", "roles": ["Viewer"], "until": "YYYY-MM-DD '
+                   'HH:MM", "note": ".."}]\' (a DN, a note, an exact end)')
     g.add_argument('--contact-mail', metavar='ADDR', help='with --team-add/-edit')
     g.add_argument('--reassign', metavar='OWNER', help='with --team-del')
     g.add_argument('--tag-add', metavar='TAG', help='a tag of the catalog: --colour, --note')
@@ -475,9 +480,52 @@ def add_args(p):
                    'right) the group is given [Viewer]')
 
 
+MEMBER_KEYS = ('who', 'rights', 'roles', 'until', 'note')
+
+
+def _members_json(text):
+    """--members '[{"who": "CN=PKI,OU=Groups,DC=example,DC=com", "roles": ["Viewer"],
+    "until": "2026-12-31 18:00", "note": "..."}, "group:Web"]' (hunt R t5): what the simple form
+    cannot say - a DN (its commas and =), a role with + or a comma in its name, a member's
+    note, an end at an exact time. A word alone is a `who` with the default rights; `until` an
+    epoch, YYYY-MM-DD (the end of that day, as @date) or YYYY-MM-DD HH:MM[:SS] (that time)."""
+    try:
+        got = json.loads(text)
+    except ValueError as e:
+        raise ValueError('--members as JSON is a list of {"who": ..., "roles": [...], '
+                         '"until": ..., "note": ...}: %s' % e)
+    if not isinstance(got, list):
+        raise ValueError('--members as JSON is a list: [{"who": ...}, ...]')
+    out = []
+    for m in got:
+        if isinstance(m, str):
+            m = {'who': m}
+        if not isinstance(m, dict):
+            raise ValueError('a member of --members as JSON is {"who": ...} or a word')
+        bad = [k for k in m if k not in MEMBER_KEYS]
+        if bad:
+            raise ValueError('%s is not a key of a member (%s)' % (str(bad[0])[:30],
+                                                                   ', '.join(MEMBER_KEYS)))
+        one = {k: m[k] for k in MEMBER_KEYS if k in m}
+        u = one.get('until')
+        if isinstance(u, str):
+            t = re.match(r'^\s*(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)\s*$', u)
+            if t:
+                fmt = '%Y-%m-%d %H:%M:%S' if t.group(2).count(':') == 2 else '%Y-%m-%d %H:%M'
+                try:
+                    one['until'] = time.mktime(time.strptime('%s %s' % t.groups(), fmt))
+                except ValueError:
+                    raise ValueError('until is YYYY-MM-DD or YYYY-MM-DD HH:MM, not %s' % u[:40])
+        out.append(one)
+    return out
+
+
 def _members(text):
     """local:jan=manage, group:Web=Requester+Deployer@2026-12-31 - the old rights stay rights,
-    other words are roles, @date the end of the membership."""
+    other words are roles, @date the end of the membership; or (hunt R t5) a JSON list,
+    `_members_json`."""
+    if str(text or '').lstrip().startswith('['):
+        return _members_json(str(text))
     out = []
     for part in [w for w in str(text or '').split(',') if w.strip()]:
         who, _, rights = part.strip().partition('=')
@@ -498,6 +546,12 @@ def _members(text):
     return out
 
 
+def _said(opt):
+    """The option given on the command line, even empty (--note defaults to '' - its absence
+    and --note '' look the same in the parsed arguments)."""
+    return any(x == opt or x.startswith(opt + '=') for x in sys.argv[1:])
+
+
 def _fields(a, base=None):
     b = dict(base or {})
     if a.team_kind:
@@ -506,8 +560,8 @@ def _fields(a, base=None):
         b['members'] = _members(a.members)
     if a.contact_mail is not None:
         b['contact_mail'] = a.contact_mail
-    if getattr(a, 'note', None):
-        b['note'] = a.note
+    if getattr(a, 'note', None) or _said('--note'):
+        b['note'] = getattr(a, 'note', None) or ''     # --note '' takes it away (hunt R t5)
     if getattr(a, 'parent', None) is not None:
         b['parent'] = None if a.parent in ('', '-') else a.parent
     if getattr(a, 'policy', None) is not None:
@@ -589,6 +643,8 @@ def cli(c):
             return 0
         if getattr(a, 'team_access', None):
             return _cli_access(c, a.team_access)
+        if getattr(a, 'team_show', None):
+            return _cli_show(c, a.team_show)
         if getattr(a, 'team_activity', None):
             return _cli_activity(c, a.team_activity)
         if getattr(a, 'teams_from_groups', None):
@@ -620,6 +676,48 @@ def cli(c):
         print('\nNot defined (acme --teams-adopt makes them): owners %s; tags %s' % (
             ', '.join(o['owner'] for o in lg['owners']) or '-',
             ', '.join(t['tag'] for t in lg['tags']) or '-'))
+    return 0
+
+
+def _until_words(u):
+    """An end as a day, or the day and the time when it is not the end of that day."""
+    day = time.strftime('%Y-%m-%d', time.localtime(float(u)))
+    if abs(float(u) - (time.mktime(time.strptime(day, '%Y-%m-%d')) + 86399)) < 1:
+        return day
+    return time.strftime('%Y-%m-%d %H:%M', time.localtime(float(u)))
+
+
+def _cli_show(c, name):
+    """acme --team-show NAME (hunt R t5): one owner whole - --teams cuts its members and its
+    limits at 48 characters."""
+    want = str(name).strip().lower()
+    t = next((x for x in T.teams(c.store) if x['name'].lower() == want), None)
+    if not t:
+        raise SystemExit('acme: there is no owner %s (acme --teams)' % name)
+    if c.json:
+        c.out({'team': t})
+        return 0
+    print(t['name'])
+    for k, label in (('kind', 'kind'), ('parent', 'under'), ('description', 'description'),
+                     ('contact_mail', 'told at'), ('contact_phone', 'phone'), ('note', 'note'),
+                     ('used', 'certificates')):
+        if t.get(k) not in (None, ''):
+            print('  %-14s %s' % (label, t[k]))
+    print('  members' if t.get('members') else '  %-14s none' % 'members')
+    for m in t.get('members') or []:
+        words = '+'.join(list(m.get('rights') or []) + list(m.get('roles') or [])) or '-'
+        print('    %-30s %s%s%s%s' % (m['who'], words,
+                                     (' until %s' % _until_words(m['until']))
+                                     if m.get('until') else '',
+                                     ' (expired)' if m.get('expired') else '',
+                                     (' - %s' % m['note']) if m.get('note') else ''))
+    pol = dict(t.get('policy') or {})
+    print('  %-14s %s' % ('limits', json.dumps(pol, sort_keys=True, ensure_ascii=False)
+                          if pol else 'none of its own'))
+    eff = dict(t.get('effective') or {})
+    eff.pop('from', None)
+    if eff and eff != pol:
+        print('  %-14s %s' % ('in force', json.dumps(eff, sort_keys=True, ensure_ascii=False)))
     return 0
 
 

@@ -61,7 +61,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign',
         'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
         'roles', 'role_add', 'role_del', 'team_access', 'team_activity', 'teams_from_groups',
-        'target_agent')
+        'team_show', 'target_agent')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -680,7 +680,7 @@ class Cli(object):
         if any(getattr(a, k, None) not in (None, False, '') for k in (
                 'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del',
                 'teams_adopt', 'roles', 'role_add', 'role_del', 'team_access',
-                'team_activity', 'teams_from_groups')):
+                'team_activity', 'teams_from_groups', 'team_show')):
             from acmelib.certs import api_teams
             return api_teams.cli(self)
         if getattr(a, 'target_agent', None):

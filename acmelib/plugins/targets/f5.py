@@ -278,12 +278,20 @@ class F5Target(HttpTarget):
                 not as_bool(opts.get('force')):
             self.ctx.step('%s is there already' % cert_path)
         else:
-            local = self.upload(name + '.key', b.as_format('key-pem'))
-            self.install('key', cert_path, local)
-            self.rm_upload(local)
-            local = self.upload(name + '.crt', b.as_format('cert-pem'))
-            self.install('cert', cert_path, local)
-            self.rm_upload(local)
+            # the uploaded key taken off the BIG-IP whatever came of the install (hunt t5: a
+            # refused install left the key in clear in /var/config/rest/downloads)
+            local = '%s/%s' % (DOWNLOADS, name + '.key')
+            try:
+                self.upload(name + '.key', b.as_format('key-pem'))
+                self.install('key', cert_path, local)
+            finally:
+                self.rm_upload(local)
+            local = '%s/%s' % (DOWNLOADS, name + '.crt')
+            try:
+                self.upload(name + '.crt', b.as_format('cert-pem'))
+                self.install('cert', cert_path, local)
+            finally:
+                self.rm_upload(local)
             self.ctx.step('installed %s' % cert_path, 'ok')
             did.append('installed %s' % name)
         chain_path = None

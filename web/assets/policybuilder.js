@@ -554,7 +554,8 @@ function check(s) {
   /* the lines, as policy_lines writes them */
   var L = [];
   pol.files.forEach(function (f) { L.push('allow file ' + quote(f.dir) + ' owner=' + f.owner + ':' + f.group + ' mode=' + oct4(f.mode)); });
-  Object.keys(pol.units).sort().forEach(function (u) { L.push('allow unit ' + u + ' ' + pol.units[u].join(',')); });
+  /* quoted as the agent's policy_lines (hunt R t5: a\x2d.service unquoted was read back as ax2d.service) */
+  Object.keys(pol.units).sort().forEach(function (u) { L.push('allow unit ' + quote(u) + ' ' + pol.units[u].join(',')); });
   pol.tests.forEach(function (t) { L.push('allow test -- ' + t.map(quote).join(' ')); });
   pol.scripts.forEach(function (x) { L.push('allow script ' + quote(x.path) + ' sha256=' + x.sha256); });
   pol.hashes.forEach(function (h) { L.push('allow script-hash ' + h); });
@@ -807,7 +808,7 @@ function allowLines(R) {
   if (W()) return allowLinesWin(R);
   var p = R.pol, out = [];
   p.files.forEach(function (f) { out.push('sudo acme-agent allow file ' + quote(f.dir) + ' --owner ' + f.owner + ':' + f.group + ' --mode ' + oct4(f.mode)); });
-  Object.keys(p.units).sort().forEach(function (u) { out.push('sudo acme-agent allow unit ' + u + ' ' + p.units[u].join(',')); });
+  Object.keys(p.units).sort().forEach(function (u) { out.push('sudo acme-agent allow unit ' + quote(u) + ' ' + p.units[u].join(',')); });
   p.tests.forEach(function (t) { out.push('sudo acme-agent allow test -- ' + t.map(quote).join(' ')); });
   p.scripts.map(function (x) { return x.path; }).concat(R.pins).forEach(function (x) { out.push('sudo acme-agent allow script ' + quote(x)); });
   p.hashes.forEach(function (h) { out.push('sudo acme-agent allow script-hash ' + h); });

@@ -116,9 +116,16 @@ def on_port_80(block):
         rest = [x.lower() for x in args[1:]]
         if 'ssl' in rest or 'quic' in rest or 'udp' in rest:
             continue
-        port = addr.rsplit(':', 1)[-1] if (':' in addr and not addr.endswith(']')) else addr
         if addr.startswith('unix:'):
             continue
+        if ':' in addr and not addr.endswith(']'):
+            port = addr.rsplit(':', 1)[-1]
+        elif addr.isdigit():
+            port = addr
+        else:
+            # an address alone ("listen 192.0.2.1;", "listen [::];"): nginx listens on
+            # port 80 there - such a block was taken for one that does not answer port 80
+            port = '80'
         if port == '80':
             return True
     return False

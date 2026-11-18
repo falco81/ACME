@@ -204,7 +204,9 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 |---|---|
 | `acme --teams [--json]` | the owners with their members and rights, the tags, and what certificates say that is not defined |
 | `acme --team-add NAME [--team-kind team\|person] [--members 'local:jan=manage,group:Web=view+request'] [--contact-mail ADDR] [--note TEXT]` | a new owner (a member without `=rights`: view+request) |
-| `acme --team-edit NAME [--name NEW] [--members ...] [--contact-mail ...]` | change one; renamed, its certificates follow |
+| `acme --team-edit NAME [--name NEW] [--members ...] [--contact-mail ...]` | change one; renamed, its certificates follow; `--note ''` / `--description ''` take them away |
+| `acme --team-edit NAME --members '[{"who": "CN=PKI,OU=Groups,DC=example,DC=com", "roles": ["Viewer"], "until": "2026-12-31 18:00", "note": "..."}, "group:Web"]'` | the members as a JSON list (anything starting with `[`): what the simple form cannot say - a DN, a role with `+` or `,` in its name, a member's note, an end at an exact time (`until`: an epoch, `YYYY-MM-DD` the end of that day, `YYYY-MM-DD HH:MM`); a word alone is a `who` with view+request (docs/teams.md) |
+| `acme --team-show NAME [--json]` | one owner whole: its members with their roles, ends and notes, its limits (`--teams` cuts those columns at 48 characters) |
 | `acme --team-del NAME [--reassign OTHER\|-] [--yes]` | delete one; owning certificates only with `--reassign` |
 | `acme --tag-add TAG [--colour dim\|info\|ok\|warn\|crit\|violet] [--note TEXT]` · `acme --tag-del TAG [--strip]` | the tags of the catalog |
 | `acme --teams-adopt` | owners and tags made from what certificates say now |

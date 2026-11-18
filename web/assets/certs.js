@@ -12,6 +12,16 @@
 var ROLE = (typeof ME === 'object' && ME && ME.role) || 'readonly';
 var FULL = ROLE === 'fulladmin';
 var MANAGE = FULL || ROLE === 'certadmin';
+/* What this account may do with one certificate (hunt Rt5): the capabilities its team gives it
+   there (c.caps, from the server; 'manage' the old right) - a certificate administrator of some
+   teams who only sees a team's certificates was offered Renew, Delete, Export... and refused.
+   Without c.caps (a full administrator's every one), as before: MANAGE. */
+function mayOn(c, cap) { return MANAGE && (!c || !Array.isArray(c.caps) || c.caps.indexOf(cap) >= 0); }
+/* The days before the end of one without its own (renew_days null): the setting
+   certs_renew_days, as the server says it (hunt Rt5: "30 days" said whatever it was). */
+var RENEW_DAYS = 30;
+function renewDaysSaid(d) { if (d && typeof d === 'object' && Number(d.renew_days_default) > 0) RENEW_DAYS = Number(d.renew_days_default); }
+function renewDays(v) { return Number(v) || RENEW_DAYS; }
 var CT = window.ACME_CERTS = window.ACME_CERTS || {};
 
 /* ---- asking the daemon ----------------------------------------------------
@@ -29,6 +39,7 @@ function capi(path, body, wait) {
   var writes = body !== undefined && body !== null && !READS.test(path);
   return api(apiName(path) + (q ? '&' + q : ''), body, wait).then(function (d) {
     if (writes) afterWrite(path);
+    renewDaysSaid(d);
     return d;
   }, function (e) {
     looksMissing(e);
@@ -2978,7 +2989,7 @@ function deployTable(rows, o) {
     if (!keys.length) oc.textContent = '–';
     tr.appendChild(oc);
     var tools = el('td', 'rowtools');
-    if (MANAGE) {
+    if (mayOn(o.cert, 'deploy.run')) {
       var run = iconButton('deploy', 'Deploy it there again now');
       /* Asked first (1.0.83): it puts the certificate there at once, as every action does */
       run.onclick = function (ev) {
@@ -2991,6 +3002,8 @@ function deployTable(rows, o) {
         }, o.back);
       };
       tools.appendChild(run);
+    }
+    if (mayOn(o.cert, 'deploy.manage')) {
       var sw = iconButton('power', d.enabled === 0 ? 'Switch it on here' : 'Switch it off here');
       sw.onclick = function (ev) {
         ev.stopPropagation();
@@ -3024,7 +3037,7 @@ function deployTable(rows, o) {
       why.textContent = String(d.last_error);
       nc.appendChild(why);
     }
-    return MANAGE ? rowOpens(tr, function () { over(function () { deployEdit({deploy: d, cert: o.cert, target: o.target}); }, o.back); }) : tr;
+    return mayOn(o.cert, 'deploy.manage') ? rowOpens(tr, function () { over(function () { deployEdit({deploy: d, cert: o.cert, target: o.target}); }, o.back); }) : tr;
   }, 'plain ct-deptable|Not deployed anywhere yet');
 }
 /** One certificate on one target: its options drawn from the target's
@@ -3722,6 +3735,7 @@ function loadCerts(live) {
                                                     owner: f.owner, tag: f.tag,
                                                     page: CL.page + 1, per: f.per}).slice(1)).then(function (d) {
     var rows = rowsOf(d, 'certs');
+    renewDaysSaid(d);
     CL.rows = rows;
     if ($('ct-q') && $('ct-q')._qs) $('ct-q')._qs.said('');
     CL.total = Number(first(d.total, rows.length));
@@ -3890,13 +3904,13 @@ function certRow(c) {
   var tools = el('td', 'rowtools');
   /* Only one with a source (1.0.75): one by hand is renewed by importing a new one - the
      button only ended in "it has no issuer". */
-  if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'pending' && !asked(c) &&
+  if (mayOn(c, 'cert.renew') && c.issuer && c.state !== 'revoked' && c.state !== 'pending' && !asked(c) &&
       c.state !== 'deleting' && c.state !== 'revoke-failed') {
     var r = iconButton('refresh', 'Renew it now');
     r.onclick = function (ev) { ev.stopPropagation(); certRenew(c, r); };
     tools.appendChild(r);
   }
-  if (MANAGE) {
+  if (mayOn(c, 'manage')) {
     var rt = iconButton('play', 'Run its tests…');
     rt.onclick = function (ev) { ev.stopPropagation(); runTestsDialog(c); };
     tools.insertBefore(rt, tools.firstChild);
@@ -3907,20 +3921,20 @@ function certRow(c) {
 /* Renewal by itself, switched on and off where it is shown (the list, the
    certificate) - nothing else changes: the certificate stays valid and deployed. */
 function autoCan(c) {
-  return MANAGE && !!c.issuer && c.state !== 'revoked' && c.state !== 'pending' && !asked(c);
+  return mayOn(c, 'cert.auto') && !!c.issuer && c.state !== 'revoked' && c.state !== 'pending' && !asked(c);
 }
 function autoRenew(c, inList, after) {
   var auto = c.auto_renew === undefined || truthy(c.auto_renew);
   var box = el('span', inList ? 'ct-auto' : 'ct-auto ct-auto-wrap');
   var words = function (on) {
     return inList ? (on ? 'auto' : 'by hand')
-      : (on ? 'by itself, ' + (c.renew_days || 30) + ' days before the end' : 'only when asked');
+      : (on ? 'by itself, ' + renewDays(c.renew_days) + ' days before the end' : 'only when asked');
   };
   var tag = el('span', inList ? 'tag ' + (auto ? 'ok' : 'dim') : '', words(auto));
   if (!autoCan(c)) {
     box.appendChild(tag);
     if (inList) explain(tag, !c.issuer ? 'Imported or from an outside CA - renewed by importing a new one.'
-      : (auto ? 'Renewed ' + (c.renew_days || 30) + ' days before it runs out (or when the CA suggests).' : 'Renewed only when asked.'));
+      : (auto ? 'Renewed ' + renewDays(c.renew_days) + ' days before it runs out (or when the CA suggests).' : 'Renewed only when asked.'));
     return box;
   }
   var sw = switchBox(auto);
@@ -4065,10 +4079,10 @@ function certPeek(id) {
                 certBody(body, c, versions, deploys, jobs, back);
               }};
     }
-    if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, once: true, go: function () {
+    if (mayOn(c, 'cert.delete')) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, once: true, go: function () {
       over(function () { deleteDialog(c); }, back);
     }});
-    if (MANAGE && c.state === 'revoke-failed') {
+    if (mayOn(c, 'cert.edit') && c.state === 'revoke-failed') {
       buttons.push({words: 'Keep it', icon: 'undo', says: 'It stays, as it is - valid, and renewed by itself again.', go: function (b) {
         busy(b, true);
         capi('certs/keep', {id: c.id}).then(function (x) { toast(said(x, 'kept'), 'good'); closeModal(); CT.refresh(); })
@@ -4087,25 +4101,25 @@ function certPeek(id) {
       says: 'Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.',
       go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
     /* ...and again for a twin whose revoke failed (1.0.80: no button, only the command line) */
-    if (MANAGE && c.issuer && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no)
+    if (mayOn(c, 'cert.revoke') && c.issuer && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no)
       buttons.push({words: 'Revoke', cls: 'danger', icon: 'ban', once: true, go: function () { over(function () { revokeDialog(c); }, back); }});
-    if (MANAGE && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
+    if (mayOn(c, 'cert.edit') && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
       says: 'Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.',
       go: function () { over(function () { certWizard(c, d, {setup: true}); }, back); }});
-    if (MANAGE && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
+    if (mayOn(c, 'cert.edit') && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
       says: c.not_after ? 'The whole set-up, step by step. What is in the certificate itself (names, key, source, profile) takes a new certificate - you choose: now, or at its next renewal. Owner, tags, note and renewal are changed at once in Details above.' : '',
       go: function () { over(function () { certWizard(c, d); }, back); }});
-    if (MANAGE && c.not_after && ['revoked', 'deleting', 'pending', 'pending-approval', 'declined'].indexOf(c.state) < 0 && !waiting)
+    if (mayOn(c, 'cert.edit') && c.not_after && ['revoked', 'deleting', 'pending', 'pending-approval', 'declined'].indexOf(c.state) < 0 && !waiting)
       buttons.push({words: 'Change the source…', icon: 'swap',
         says: 'Another source for it - an imported one to Let\u2019s Encrypt or an authority, an issued one to another source or to by hand. Its deployments, tests and everything else stay.',
         go: function () { over(function () { certWizard(c, d, {move: true}); }, back); }});
-    if (MANAGE && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
-    if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
-    if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
-    if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
-    if (MANAGE && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    if (mayOn(c, 'cert.edit') && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
+    if (mayOn(c, 'cert.edit') && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
+    if (mayOn(c, 'cert.edit') && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
+    if (mayOn(c, 'deploy.run') && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
+    if (mayOn(c, 'cert.renew') && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     /* not for one whose approval was never recorded (1.0.107): refused until it is approved */
-    if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c) && !c.stuck) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    if (mayOn(c, 'cert.renew') && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c) && !c.stuck) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     /* ...and one out of the waiting state whose approval was never recorded (1.0.107: only
        `acme --decline` declined it) - Decline off, the why said, for one with a certificate */
     if (MANAGE && (c.state === 'pending-approval' || c.stuck)) {
@@ -4158,7 +4172,7 @@ function detailsSection(c, back) {
     var g = el('div', 'formgrid');
     var f = {owner: ownerBox(c.owner || ''), tags: tagsBox(arr(c.tags)), note: textBox(c.note || '', '', ''),
              auto: switchBox(c.auto_renew === undefined || truthy(c.auto_renew)),
-             days: textBox(c.renew_days ? String(c.renew_days) : '', String(c.renew_days || 30), ''),
+             days: textBox(c.renew_days ? String(c.renew_days) : '', String(renewDays(c.renew_days)), ''),
              reuse: switchBox(truthy(c.reuse_key)), name: textBox(c.name, '', ''),
              on: switchBox(c.enabled === undefined || c.enabled === null || truthy(c.enabled))};
     f.owner.id = 'ct-d-owner';
@@ -4208,7 +4222,7 @@ function detailsSection(c, back) {
     foot.appendChild(go);
     sec._body.appendChild(foot);
   };
-  if (MANAGE) {
+  if (mayOn(c, 'cert.edit')) {
     var pen = cmdButton('Change', 'edit', 'small');
     explain(pen, 'Change the details - owner, tags, note, renewal - without a new certificate');
     pen.classList.add('ct-d-edit');
@@ -4304,9 +4318,9 @@ function certBody(body, c, versions, deploys, jobs, back) {
       ? (waitingDeps.length === 1 ? 'It was issued from the new source and is kept here: its target still has the one before. Deploy now puts it there - until then nothing deploys it by itself.'
         : 'It was issued from the new source and is kept here: its ' + waitingDeps.length + ' targets still have the one before. Deploy now puts it there - until then nothing deploys it by itself.')
       : 'Asked when its source was changed: the next certificate is issued and kept here until Deploy now - also at a renewal.'));
-    if (MANAGE) {
+    if (mayOn(c, 'deploy.run') || mayOn(c, 'cert.auto')) {
       var hrow = el('div', 'ct-holdbox-b');
-      if (hold.now) {
+      if (hold.now && mayOn(c, 'deploy.run')) {
         var dn = cmdButton('Deploy now', 'deploy', 'primary small');
         dn.onclick = function () {
           over(function () {
@@ -4323,7 +4337,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
         capi('certs/hold', {id: c.id, hold: 0}).then(function () { toast(tr('deployed by itself'), 'good'); certPeek(c.id); })
           .catch(fail).then(function () { busy(rel, false); });
       };
-      hrow.appendChild(rel);
+      if (mayOn(c, 'cert.auto')) hrow.appendChild(rel);
       hb.appendChild(hrow);
     }
     body.appendChild(hb);
@@ -4351,7 +4365,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var proves = !!(c.issuer && (c.challenge || Object.keys(obj(c.challenge_map)).length));
   var blocked = /^the CA was not asked/.test(String(c.last_error || ''));
   var valSection = null;
-  if (proves && MANAGE) {
+  if (proves && mayOn(c, 'cert.edit')) {
     valSection = section('Validation', blocked
       ? 'The CA was not asked: what is missing is marked ✘, with the record to create. Once it is there, acme tries again by itself.'
       : 'What its names need for their validation, and where - checked now, nothing is changed.', true);
@@ -4518,7 +4532,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   /* its key made by a device: deployed there, it goes nowhere else (1.0.96: the device was
      offered again, and a second deployment of it made there) */
   var devDone = !!c.csr_from && arr(deploys).some(function (d) { return d.target === c.csr_from; });
-  if (MANAGE && !devDone) {
+  if (mayOn(c, 'deploy.manage') && !devDone) {
     var add = cmdButton('Deploy it on a target', 'add', 'small');
     add.onclick = function () { over(function () { deployEdit({cert: c}); }, back); };
     var dr = el('div', 'btnrow');
@@ -4545,7 +4559,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     tr.appendChild(why);
     tr.appendChild(whoWhen(v.by_who, v.created));
     var tools = el('td', 'rowtools');
-    if (MANAGE) {
+    if (mayOn(c, 'cert.edit')) {
       var ex = iconButton('download', 'Export this version');
       ex.onclick = function () { over(function () { exportDialog(c, versions, v.version); }, back); };
       tools.appendChild(ex);
@@ -6480,7 +6494,7 @@ function certWizard(cert, detail, opts) {
         : keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
     ];
     if (can().challenge) pairs.push(['Validation', W.d.challenge + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
-    pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + (W.d.renew_days || 30) + ' days before the end' : 'only when asked']);
+    pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + renewDays(W.d.renew_days) + ' days before the end' : 'only when asked']);
     pairs.push(['Key on renewal', W.d.csr_from ? data('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from) : (W.d.reuse_key ? 'kept' : 'a new one each time')]);
     if (W.d.days) pairs.push(['Valid for', W.d.days + ' days']);
     tuneMods().forEach(function (m) {
@@ -6671,7 +6685,7 @@ function certWizard(cert, detail, opts) {
         ? 'Its names proved by ' + (W.d.challenge || '–') + ', ' + Object.keys(W.d.challenge_map).length + ' of them otherwise'
         : 'Its names proved by ' + (W.d.challenge || '–'));
       li(ul2, 'key', 'A new key: ' + keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) : ''));
-      li(ul2, 'clock', W.d.auto_renew ? 'Renewed by itself, ' + (W.d.renew_days || 30) + ' days before its end' : 'Renewed only when asked');
+      li(ul2, 'clock', W.d.auto_renew ? 'Renewed by itself, ' + renewDays(W.d.renew_days) + ' days before its end' : 'Renewed only when asked');
     }
     chg.appendChild(ul2);
     cols.appendChild(chg);
@@ -6687,7 +6701,7 @@ function certWizard(cert, detail, opts) {
         Array.prototype.forEach.call(seg.children, function (x, i) { x.classList.toggle('on', opts2[i][0] === W.when); });
         says.textContent = W.when === 'now'
           ? 'A new certificate is asked for at once, in a job you can watch. If it fails, the one in use stays.'
-          : (c.not_after ? 'Nothing is asked now: the certificate in use stays until its renewal, about ' + dayOnly(c.not_after - (Number(W.d.renew_days) || 30) * 86400) + ' - then it comes from the new source.'
+          : (c.not_after ? 'Nothing is asked now: the certificate in use stays until its renewal, about ' + dayOnly(c.not_after - renewDays(W.d.renew_days) * 86400) + ' - then it comes from the new source.'
             : 'Nothing is asked now: at its next renewal it comes from the new source.');
       };
       opts2.forEach(function (o) {
@@ -7581,7 +7595,7 @@ function noKeyBox(c, back) {
   box.appendChild(el('p', 'small', c.issuer
     ? 'It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added. Its next renewal makes a new key, and acme holds that one.'
     : 'It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added.'));
-  if (MANAGE) {
+  if (mayOn(c, 'cert.edit')) {
     var go = cmdButton('Add its private key', 'key', 'small');
     explain(go, 'The key of this certificate, which acme does not hold (imported without it): checked to belong to it, then kept sealed.');
     go.onclick = function () { over(function () { addKeyDialog(c); }, back); };
@@ -10483,7 +10497,7 @@ function certTests(c, back, deploys, sec) {
   var bar = el('div', 'btnrow');
   var add = cmdButton('Attach a test', 'add', 'small');
   var runAll = cmdButton('Run them now', 'play', 'small');
-  if (MANAGE) { bar.appendChild(add); bar.appendChild(runAll); box.appendChild(bar); }
+  if (mayOn(c, 'manage')) { bar.appendChild(add); bar.appendChild(runAll); box.appendChild(bar); }
   /* The certificate's targets: what a test may run after (1.0.65). */
   var deployTargets = function () {
     var out = [];
@@ -10592,7 +10606,7 @@ function certTests(c, back, deploys, sec) {
         see.onclick = function (ev) { ev.stopPropagation(); served(x); };
         tools.appendChild(see);
       }
-      if (MANAGE) {
+      if (mayOn(c, 'manage')) {
         var run = iconButton('play', 'Run it now');
         run.onclick = function (ev) {
           ev.stopPropagation();

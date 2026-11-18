@@ -241,6 +241,18 @@ def need_admin_cert(store, s, b, row):
             issuer = row.get('issuer') or None
         if 'challenge' not in b:
             validation = row.get('challenge') or None
+    # The validations of the names' own choices (challenge_map) too (hunt R t5): only the
+    # certificate's one validation was checked - {"*.example.com": "dns-of-another-team"}
+    # proved its names by a validation the team may not use.
+    cmap = b.get('challenge_map') if 'challenge_map' in b else \
+        ((row or {}).get('challenge_map') if moving else None)
+    if isinstance(cmap, str):
+        cmap = S.jload(cmap, {})
+    if isinstance(cmap, dict):
+        eff = _eff(store, team)
+        for v in sorted({str(x).strip() for x in cmap.values()
+                         if isinstance(x, str) and str(x).strip()}):
+            _check_eff(store, team, eff, who, None, v, (), None, False)
     need_request(store, team, who, profile='', issuer=issuer, validation=validation,
                  names=[str(n) for n in names or [] if isinstance(n, str)], days=days,
                  count=row is None or moving)

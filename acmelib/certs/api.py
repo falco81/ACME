@@ -234,8 +234,12 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         ', '.join(LIST_COLS), w, store.db.name_order(), per, (page - 1) * per), tuple(args))
     out = []
     held_rows = []
+    # what this session may do with each (hunt Rt5): the page offers only that
+    caps_of = _lib('teams').cert_caps_of(store, s) if s is not None else None
     for r in rows:
         one = S.cert_public(r)
+        if caps_of is not None:
+            one['caps'] = caps_of(r)
         one['deploys'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ?',
                                             (r['id'],), 0) or 0)
         one['deploys_failed'] = int(store.db.value(
@@ -269,7 +273,9 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
                     store, r, s, held, held_rows[1])
                 one['may_decline'], one['decline_why'] = _portal.admin_may_decline(store, full, s)
         out.append(one)
-    return {'rows': out, 'total': total, 'page': page, 'per': per}
+    # the days before the end of one without its own (hunt Rt5: the page said 30 always)
+    return {'rows': out, 'total': total, 'page': page, 'per': per,
+            'renew_days_default': renewer.renew_days({})}
 
 
 # span -> (bars, days a bar, what a bar is)
@@ -363,6 +369,7 @@ def _overview(h, s):
             'weeks': weeks, 'span': span, 'unit': unit, 'jobs': recent, 'running': len(jobs.RUNNING),
             'leader': lead, 'last_scan': S.jload(store.get_meta('certs:last_scan'), None),
             'alerts': alerts[:50], 'notify_days': days,
+            'renew_days_default': renewer.renew_days({}),
             'states': schema.STATES, 'key_types': list(schema.KEY_TYPES)}
 
 
@@ -464,6 +471,10 @@ def _cert_one(h, s):
         # whether its Approve (and Decline) would be refused here, and why (the list says it too)
         c['may_approve'], c['approve_why'] = _portal.admin_may_approve(h.store, row, s)
         c['may_decline'], c['decline_why'] = _portal.admin_may_decline(h.store, row, s)
+    # what this session may do with it, and the days before the end of one without its own
+    # (hunt Rt5: every button offered to a Viewer of its team, and "30 days" said always)
+    c['caps'] = _lib('teams').cert_caps(h.store, s, row)
+    out['renew_days_default'] = renewer.renew_days({})
     return out
 
 

@@ -1120,6 +1120,25 @@ def cert_may(store, s, row, right):
     return owner_in(scope(store, s, right), (row or {}).get('owner'))
 
 
+def cert_caps_of(store, s):
+    """A function: certificate row -> the capabilities (in CAPS' order) this session holds on
+    it, and 'manage' when it holds the old right manage there (the tests of a certificate ask
+    for it) - for the page to offer only what the server would not refuse (hunt Rt5: a
+    certificate administrator of some teams, a Viewer on one, was offered Renew, Delete...
+    on its certificates). The scopes are read once, for a whole list."""
+    wants = tuple(CAPS) + ('manage',)
+    scopes = [(w, scope(store, s, w)) for w in wants]
+
+    def caps(row):
+        owner = (row or {}).get('owner')
+        return [w for w, sc in scopes if owner_in(sc, owner)]
+    return caps
+
+
+def cert_caps(store, s, row):
+    return cert_caps_of(store, s)(row)
+
+
 def where(store, s, right='view', col='owner'):
     """(' AND ...', args) to keep a query of certs to the session's scope ('' when all)."""
     sc = scope(store, s, right)

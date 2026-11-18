@@ -103,13 +103,25 @@ class QnapTarget(SshMixin, Base):
                 s.put(pem, tmp + '.pem', 0o600)
                 s.put(chain, tmp + '.uca', 0o600)
                 self.mark_pending(bundle)
-                self.run(s, ' && '.join([
-                    'cp -p %s %s.acme-prev' % (PEM, PEM),
-                    '{ test ! -f %s || cp -p %s %s.acme-prev; }' % (UCA, UCA, UCA),
-                    'cat %s > %s' % (quote(tmp + '.pem'), PEM),
-                    'cat %s > %s' % (quote(tmp + '.uca'), UCA),
-                    'chmod 600 %s' % PEM]),
-                    'writing %s' % PEM)
+                try:
+                    self.run(s, ' && '.join([
+                        # an older copy never taken for this one's (hunt t5)
+                        'rm -f %s.acme-prev %s.acme-prev' % (PEM, UCA),
+                        'cp -p %s %s.acme-prev' % (PEM, PEM),
+                        '{ test ! -f %s || cp -p %s %s.acme-prev; }' % (UCA, UCA, UCA),
+                        'cat %s > %s' % (quote(tmp + '.pem'), PEM),
+                        'cat %s > %s' % (quote(tmp + '.uca'), UCA),
+                        'chmod 600 %s' % PEM]),
+                        'writing %s' % PEM)
+                except PluginError:
+                    # hunt t5: a cat that failed half-way (the disk full, uca.pem refused) left
+                    # the new (or a cut) stunnel.pem beside the old uca.pem - read at the next
+                    # restart of stunnel. The copies made above put back.
+                    self.run(s, '{ test ! -f %s.acme-prev || cp -p %s.acme-prev %s; }; '
+                                '{ test ! -f %s.acme-prev || cp -p %s.acme-prev %s; }'
+                             % (PEM, PEM, PEM, UCA, UCA, UCA),
+                             'putting the previous certificate back', check=False)
+                    raise
             finally:
                 # 1.0.96: the staged key removed on every path - a failed cp or cat left it
                 # in the temporary directory (the rm was the last link of the && chain)

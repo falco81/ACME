@@ -903,7 +903,15 @@ class Challenge(Plugin):
         finally:
             if placed:
                 try:
-                    self.cleanup(name, handle)
+                    # after a stop too, as an order's proofs are (issuers/acme.py): the job
+                    # stopped, the cleanup's own calls said "stopped" and the test record
+                    # (an SSH, a script, a provider's API) stayed in DNS
+                    tidy = self.ctx.tidying() if hasattr(self.ctx, 'tidying') else None
+                    if tidy is not None:
+                        with tidy:
+                            self.cleanup(name, handle)
+                    else:
+                        self.cleanup(name, handle)
                     self.ctx.step('The test value is taken away again', 'ok')
                 except Exception as e:                  # noqa: BLE001
                     say(guide_step('cleanup', 'The test value is taken away again', where='acme',

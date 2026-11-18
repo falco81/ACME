@@ -1405,15 +1405,36 @@ def _member_word(m):
                        ('@' + _day(m['until'])) if m.get('until') else '')
 
 
+def _day_end(ts):
+    """Whether an end is the end of its day - what @YYYY-MM-DD says (teams._date_epoch)."""
+    return abs(float(ts) - (time.mktime(time.strptime(_day(ts), '%Y-%m-%d')) + 86399)) < 1
+
+
 def _member_said(m):
-    """Why a member cannot be written back on the command line, or ''."""
-    if any(ch in str(m.get('who') or '') for ch in ',='):
+    """Why a member cannot be said in the simple form of --members (it is said as JSON then,
+    hunt R t5), or ''."""
+    if any(ch in str(m.get('who') or '') for ch in ',=[') or \
+            str(m.get('who') or '').strip() != str(m.get('who') or ''):
         return 'the member %s (a DN)' % m['who']
-    if any(ch in r for r in m.get('roles') or [] for ch in ',+'):
+    if any(ch in r for r in list(m.get('roles') or []) + list(m.get('rights') or [])
+           for ch in ',+=@'):
         return 'the role of %s' % m['who']
     if m.get('note'):
         return 'the note of the member %s' % m['who']
+    if m.get('until') and not _day_end(m['until']):
+        return 'the end of %s (a time of the day)' % m['who']
     return ''
+
+
+def _members_arg(members):
+    """The members as --members takes them: the simple form where it says each one as it is,
+    else (hunt R t5: a DN, a role with + in it, a member's note, an end at an exact time
+    were refused here, or the end rounded to the end of its day) the JSON list."""
+    if not any(_member_said(x) for x in members):
+        return ','.join(_member_word(x) for x in members)
+    return json.dumps([{k: x[k] for k in ('who', 'rights', 'roles', 'until', 'note')
+                        if x.get(k) not in (None, '', [])} or {'who': x['who']}
+                       for x in members], ensure_ascii=False)
 
 
 def _policy_words(pol):
@@ -1564,7 +1585,7 @@ def team_edit(con, r):
         {'key': 'description', 'label': 'description', 'value': r.get('description') or ''},
         {'key': 'contact_mail', 'label': 'told at (e-mail)', 'value': r.get('contact_mail') or ''},
         {'key': 'note', 'label': 'note', 'value': r.get('note') or '',
-         'help': 'Changed here, not taken away (the pages take it away).'}])
+         'help': 'Empty: taken away.'}])
     if not got:
         return
     args = ['--team-edit', name]
@@ -1575,8 +1596,9 @@ def team_edit(con, r):
     for k, opt in (('description', '--description'), ('contact_mail', '--contact-mail')):
         if (got.get(k) or '').strip() != (r.get(k) or ''):
             args += [opt, (got.get(k) or '').strip()]
-    if (got.get('note') or '').strip() and got['note'].strip() != (r.get('note') or ''):
-        args += ['--note', got['note'].strip()]
+    # emptied: taken away (hunt R t5 - acme --team-edit --note '' did not take it away)
+    if (got.get('note') or '').strip() != (r.get('note') or '').strip():
+        args += ['--note', (got.get('note') or '').strip()]
     if len(args) == 2:
         con.note('Change ' + name, 'Nothing was changed.')
         return
@@ -1629,12 +1651,6 @@ def team_members(con, name):
         if not t:
             return ('%s is not there any more' % name, True)
         members = list(t.get('members') or [])
-        bad = next((w for w in (_member_said(x) for x in members) if w), '')
-        if bad:
-            con.note('Members of %s' % name, 'The members are written back whole and %s cannot '
-                     'be written on the command line - change them on the pages (Settings → '
-                     'Owners and teams).' % bad, 'bad')
-            return None
         if m.get('_add'):
             got = member_form(con, 'A member of %s' % name, {})
             if not got:
@@ -1656,7 +1672,7 @@ def team_members(con, name):
                 members = [x for x in members if x['who'] != m['who']]
             else:
                 return None
-        con.act('--team-edit', name, '--members', ','.join(_member_word(x) for x in members))
+        con.act('--team-edit', name, '--members', _members_arg(members))
         return None
     return con.pick('Members of %s' % name, load, cols, do, 'no member yet',
                     'local:NAME an account of acme, a user of the directory, group:NAME')
@@ -1666,11 +1682,6 @@ def member_form(con, title, m):
     roles = _roles(con)
     known = {r['name'].lower() for r in roles} | {'view', 'request', 'manage', 'approve'}
 
-    def check_who(v, _vals):
-        v = v.strip()
-        if any(ch in v for ch in ',='):
-            return 'a DN is given on the pages - here local:NAME, a user, group:NAME'
-        return None
 
     def check_roles(v, _vals):
         bad = [w for w in v.split('+') if w.strip() and w.strip().lower() not in known]
@@ -1681,8 +1692,9 @@ def member_form(con, title, m):
             return 'YYYY-MM-DD, or empty'
         return None
     got = con.form(title, ([] if m else [
-        {'key': 'who', 'label': 'who', 'need': True, 'check': check_who,
-         'help': 'local:NAME (an account of acme), a user of the directory, group:NAME.'}]) + [
+        {'key': 'who', 'label': 'who', 'need': True,
+         'help': 'local:NAME (an account of acme), a user of the directory, group:NAME or '
+                 'a group\'s DN.'}]) + [
         {'key': 'roles', 'label': 'roles (+ between)', 'need': True, 'check': check_roles,
          'value': '+'.join(list(m.get('roles') or []) + list(m.get('rights') or [])) or
          'Viewer', 'help': 'Roles: %s.' % ', '.join(r['name'] for r in roles)},
@@ -1695,8 +1707,13 @@ def member_form(con, title, m):
     rights = [w.lower() for w in words if w.lower() in ('view', 'request', 'manage', 'approve')]
     out = {'who': m.get('who') or got['who'].strip(), 'rights': rights,
            'roles': [w for w in words if w.lower() not in rights]}
-    if got.get('until', '').strip():
-        out['until'] = time.mktime(time.strptime(got['until'].strip(), '%Y-%m-%d'))
+    if m.get('note'):
+        out['note'] = m['note']             # kept: the form does not show it (hunt R t5)
+    day = got.get('until', '').strip()
+    if day and m.get('until') and day == _day(m['until']):
+        out['until'] = m['until']           # its day unchanged: its exact time kept
+    elif day:
+        out['until'] = time.mktime(time.strptime(day, '%Y-%m-%d')) + 86399
     return out
 
 

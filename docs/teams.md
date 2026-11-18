@@ -343,7 +343,26 @@ Enterprise teams (1.0.125):
     acme --target-agent enroll new --owner TEAM    a team's enrollment code
 
 In `--members` the old rights stay rights, other words are roles, `@YYYY-MM-DD` ends the
-membership.
+membership (at the end of that day).
+
+What that simple form cannot say - a group given by its DN (its commas and `=`), a role with `+`
+or a comma in its name, a member's note, an end at an exact time - `--members` takes as a JSON
+list (anything starting with `[`); the list replaces the members, as the simple form does:
+
+    acme --team-edit Web --members '[{"who": "CN=PKI-Web,OU=Groups,DC=example,DC=com", "roles": ["Requester"]},
+                                     {"who": "local:jan", "rights": ["manage"], "until": "2026-12-31 18:00", "note": "until the audit"},
+                                     "group:Web"]'
+
+Each member is `{"who", "rights", "roles", "until", "note"}` (only `who` needed: without
+rights and roles it gets `view,request`) or just its `who`; `until` is an epoch,
+`YYYY-MM-DD` (the end of that day) or `YYYY-MM-DD HH:MM` (that time). The console writes the
+members this way when one of them needs it.
+
+    acme --team-show NAME [--json]                 one team whole: its members with their roles,
+                                                   ends and notes, its limits (--teams cuts the
+                                                   members and limits columns at 48 characters)
+
+`--note ''` and `--description ''` with `--team-edit` take the note or the description away.
 
 ## What the roles mean for keys and the network (read before delegating)
 
