@@ -3494,9 +3494,19 @@ function deployEdit(o) {
       /* family, row, plug: a field of the type catalog in a deployment's form asks its
          target for the list (api_catalog.py) */
       form = fieldForm(fields, opts, secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.',
-                                                     family: 'target', row: t, plug: p,
+                                                     family: 'target', row: t, plug: p, names: deployNames,
                                                      kept: d.id && t.name === d.target ? obj(d.options) : null});
       formHost.appendChild(form.node);
+    };
+    /* the names of the certificate chosen: a list of the target's (a FortiGate's certificates)
+       suggests the one that has them (catalog.js, 1.0.128) */
+    var deployNames = function () {
+      var c = o.cert;
+      var cid = cSel ? cSel.value : certId;
+      if (cid) c = arr(certs).filter(function (x) { return String(x.id) === String(cid); })[0] || c;
+      var n = c && c.names;
+      if (typeof n === 'string') { try { n = JSON.parse(n); } catch (e) { n = n.split(/[\s,]+/); } }
+      return arr(n).filter(function (x) { return typeof x === 'string' && x; });
     };
     var deployDual = function () {
       if (o.cert && o.cert.key_type_alt) return true;

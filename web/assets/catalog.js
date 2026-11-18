@@ -60,7 +60,9 @@
     sel.style.flex = '1 1 16em';
     sel.style.minWidth = '0';
     noI18n(sel);                      /* the names of products: data */
-    var load = cmdButton('Load the list', 'refresh', 'small');
+    /* f.load_label: the button's own words ("Find on the device": a FortiGate's
+       certificates, 1.0.128) */
+    var load = cmdButton(f.load_label || 'Load the list', 'refresh', 'small');
     var said = el('div', 'muted small ct-catalog-said');
     /* Always settable by hand too (a value the list does not show, or no list to
        load): "Type it yourself…" opens a box of its own. */
@@ -117,12 +119,23 @@
       var row = opts.row || null, plug = opts.plug || {};
       var body = {kind: plug.kind || (row && row.kind) || '', field: f.key, config: current()};
       if (row && row.id) { body.id = row.id; body.name = row.name; }
+      /* a deployment's form: the certificate's names, for the module to suggest by */
+      try {
+        var hint = typeof opts.names === 'function' ? opts.names() : null;
+        if (Array.isArray(hint) && hint.length) body.names = hint.map(String);
+      } catch (e) { /* none */ }
       busy(load, true);
       said.className = 'muted small ct-catalog-said';
       said.textContent = catTr('asking…');
       return api(family() + '-catalog', body, 90).then(function (d) {
         sets = d.sets || {};
         fill(arr(d.options));
+        /* the one the module suggests, when nothing is chosen yet */
+        if (d.pick && !sel.value && arr(d.options).some(function (p) { return p[0] === d.pick; })) {
+          sel.value = String(d.pick);
+          ownShown();
+          sel.dispatchEvent(new Event('change', {bubbles: true}));
+        }
         said.textContent = String(d.said || '');
       }).catch(function (e) {
         said.className = 'bad small ct-catalog-said';
