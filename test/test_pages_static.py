@@ -346,7 +346,7 @@ class DeviceKeyRound1e(unittest.TestCase):
     def test_round_2c(self):
         certs = read('web', 'assets', 'certs.js')
         # 1: the device it is deployed to not offered again; every deployment there looked at
-        self.assertIn("if (MANAGE && !devDone) {", certs)
+        self.assertIn("if (mayOn(c, 'deploy.manage') && !devDone) {", certs)
         self.assertIn("var devOn = devDeps.some(", certs)
         self.assertNotIn("var devDep = arr(deploys).filter(function (d) { return d.target === c.csr_from; })[0];", certs)
         # 3: where its key is made changed - issued anew right after Save, no question after
