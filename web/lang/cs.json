@@ -71243,6 +71243,50 @@
   "z_1661": {
    "source": "What happened in a team is shown to its members and to administrators who see every certificate.",
    "text": "Co se v týmu dělo, vidí jeho členové a správci, kteří vidí všechny certifikáty."
+  },
+  "z_1662": {
+   "source": "the folder’s own permissions",
+   "text": "vlastní oprávnění složky"
+  },
+  "z_1663": {
+   "source": "certificates imported into",
+   "text": "certifikáty importované do"
+  },
+  "z_1664": {
+   "source": "the certificate of the Remote Desktop listener",
+   "text": "certifikát naslouchání Vzdálené plochy"
+  },
+  "z_1665": {
+   "source": "every CA of the domain and its templates listed (read-only)",
+   "text": "výpis všech CA domény a jejich šablon (jen ke čtení)"
+  },
+  "z_1666": {
+   "source": "any template",
+   "text": "libovolná šablona"
+  },
+  "z_1667": {
+   "source": "every kind this agent knows (read-only)",
+   "text": "každý druh, který tento agent zná (jen ke čtení)"
+  },
+  "z_1668": {
+   "source": "read-only:",
+   "text": "jen ke čtení:"
+  },
+  "z_1669": {
+   "source": "Allow it on the server, in an elevated prompt",
+   "text": "Povolte to na serveru ve zvýšeném příkazovém řádku"
+  },
+  "z_1670": {
+   "source": "a script on Windows is a PowerShell script (.ps1) - a program is a test (allow test -- C:\\x.exe)",
+   "text": "skript ve Windows je skript PowerShellu (.ps1) – program je test (allow test -- C:\\x.exe)"
+  },
+  "z_1671": {
+   "source": "readers= names sixteen accounts at most",
+   "text": "readers= uvádí nejvýše šestnáct účtů"
+  },
+  "z_1672": {
+   "source": "No escaped character",
+   "text": "Chybí znak po zpětném lomítku"
   }
  },
  "patterns": {
@@ -98921,6 +98965,90 @@
   "psup125": {
    "source": "took {0} ms",
    "text": "trvalo {0} ms"
+  },
+  "pz_512": {
+   "source": "read by SYSTEM, the Administrators and {0}",
+   "text": "čtou SYSTEM, Administrators a {0}"
+  },
+  "pz_513": {
+   "source": "allow role {0} takes nothing more",
+   "text": "allow role {0} nebere nic dalšího"
+  },
+  "pz_514": {
+   "source": "allow role NAME - one of {0}",
+   "text": "allow role NÁZEV – jedna z {0}"
+  },
+  "pz_515": {
+   "source": "{0} is a network (UNC) or device path - only a folder on a drive of this machine (C:\\folder)",
+   "text": "{0} je síťová (UNC) cesta nebo cesta zařízení – jen složka na disku tohoto počítače (C:\\složka)"
+  },
+  "pz_516": {
+   "source": "{0}: a name ending in a dot or a space (Windows drops it) - write the name as it is",
+   "text": "{0}: název končící tečkou nebo mezerou (Windows ji zahodí) – napište název, jak skutečně je"
+  },
+  "pz_517": {
+   "source": "{0} holds a character no Windows path holds",
+   "text": "{0} obsahuje znak, který žádná cesta ve Windows neobsahuje"
+  },
+  "pz_518": {
+   "source": "{0} is under {1} - Windows runs (or loads) what is there; acme-agent never writes there, whatever the policy says",
+   "text": "{0} je pod {1} – Windows spouští (nebo načítá), co tam je; acme-agent tam nikdy nezapisuje, ať pravidla říkají cokoli"
+  },
+  "pz_519": {
+   "source": "{0} is not an account (readers=ACCOUNT,ACCOUNT)",
+   "text": "{0} není účet (readers=ÚČET,ÚČET)"
+  },
+  "pz_520": {
+   "source": "{0}: {1} looks like a short (8.3) name - write the long name",
+   "text": "{0}: {1} vypadá jako krátký název (8.3) – napište dlouhý název"
+  },
+  "pz_521": {
+   "source": "{0} is a batch file: cmd.exe would read its arguments as commands - a program (.exe) or a script (allow script C:\\x.ps1)",
+   "text": "{0} je dávkový soubor: cmd.exe by četl jeho argumenty jako příkazy – program (.exe) nebo skript (allow script C:\\x.ps1)"
+  },
+  "pz_522": {
+   "source": "the site {0} is said twice",
+   "text": "web {0} je uveden dvakrát"
+  },
+  "pz_523": {
+   "source": "the account {0} is said twice",
+   "text": "účet {0} je uveden dvakrát"
+  },
+  "pz_524": {
+   "source": "the role {0} {1} is said twice",
+   "text": "role {0} {1} je uvedena dvakrát"
+  },
+  "pz_525": {
+   "source": "{0}: a file Windows runs or loads as a program ({1}) - acme-agent never writes one (the analogue of the x bit)",
+   "text": "{0}: soubor, který Windows spouští nebo načítá jako program ({1}) – acme-agent takový nikdy nezapisuje (obdoba bitu x)"
+  },
+  "pz_526": {
+   "source": "pinned on the server: acme-agent allow script {0}",
+   "text": "připnuto na serveru: acme-agent allow script {0}"
+  },
+  "pz_527": {
+   "source": "{0} is a drive's root - acme-agent never writes there",
+   "text": "{0} je kořen disku – acme-agent tam nikdy nezapisuje"
+  },
+  "pz_528": {
+   "source": "{0} is not an absolute path (C:\\folder)",
+   "text": "{0} není absolutní cesta (C:\\složka)"
+  },
+  "pz_529": {
+   "source": "{0}: a \":\" after the drive (an alternate data stream) - refused",
+   "text": "{0}: „:“ za písmenem disku (alternativní datový proud) – odmítnuto"
+  },
+  "pz_530": {
+   "source": "{0}: {1} is a device name (CON, NUL, COM1 ...) - refused",
+   "text": "{0}: {1} je název zařízení (CON, NUL, COM1 …) – odmítnuto"
+  },
+  "pz_531": {
+   "source": "{0} is not a service name",
+   "text": "{0} není název služby"
+  },
+  "pz_532": {
+   "source": "{0} runs what its command line says as SYSTEM - a fixed script (allow script) says what it runs",
+   "text": "{0} spouští jako SYSTEM to, co říká jeho příkazový řádek – pevný skript (allow script) říká, co spouští"
   }
  },
  "rich": {
