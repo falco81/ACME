@@ -1330,7 +1330,8 @@ function deviceCard(r) {
   top.appendChild(ic(kindIconOf(r.kind), 22, 'pw-dev-ic k-' + (isAgent(r) ? 'agent' : 'x')));
   var w = el('div', 'pw-dev-w');
   w.appendChild(data('b', 'pw-dev-n', r.name));
-  w.appendChild(data('span', 'pw-dev-k', r.title || r.kind));
+  /* the module's title in the page's language (as the module picker says it) - a kind as it is */
+  w.appendChild(r.title ? el('span', 'pw-dev-k', r.title) : data('span', 'pw-dev-k', r.kind));
   top.appendChild(w);
   var st = deviceState(r);
   top.appendChild(st);
@@ -1384,10 +1385,16 @@ function deviceOpen(r0) {
     var d = both[0];
     var r = d.device || r0, may = r.may || d.may || {};
     /* the module's own words for its fields */
-    var labels = {};
+    var labels = {}, choices = {}, flags = {};
     arr(both[1].kinds).forEach(function (k) {
       if (k.kind !== r.kind) return;
-      arr(k.fields).forEach(function (f) { if (f && f.key) labels[f.key] = f.label || f.key; });
+      arr(k.fields).forEach(function (f) {
+        if (!f || !f.key) return;
+        labels[f.key] = f.label || f.key;
+        /* a choice in the module's words (not "passive"), a switch as yes / no */
+        if (f.type === 'bool') flags[f.key] = 1;
+        arr(f.options).forEach(function (o) { if (Array.isArray(o) && o.length > 1) (choices[f.key] = choices[f.key] || {})[String(o[0])] = o[1]; });
+      });
     });
     var caps = teamCaps(r.owner);
     var buttons = [{words: 'Close', close: true}];
@@ -1415,7 +1422,7 @@ function deviceOpen(r0) {
       t.appendChild(deviceState(r));
       w.appendChild(t);
       var s = el('div', 'pw-dh-s');
-      s.appendChild(data('span', '', r.title || r.kind));
+      s.appendChild(r.title ? el('span', '', r.title) : data('span', '', r.kind));
       s.appendChild(teamChip(r.owner, 'small'));
       w.appendChild(s);
       head.appendChild(w);
@@ -1428,7 +1435,9 @@ function deviceOpen(r0) {
         var v = r.config[k];
         if ((r.secrets || {})[k] !== undefined) return;
         if (v === '' || v === null || v === undefined || typeof v === 'object') return;
-        pairs.push([labels[k] || k, data('span', 'mono small', String(v))]);
+        if (flags[k]) pairs.push([labels[k] || k, el('span', '', v && v !== '0' && v !== 'false' ? 'yes' : 'no')]);
+        else if (choices[k] && choices[k][String(v)] !== undefined) pairs.push([labels[k] || k, el('span', '', choices[k][String(v)])]);
+        else pairs.push([labels[k] || k, data('span', 'mono small', String(v))]);
       });
       Object.keys(r.secrets || {}).forEach(function (k) {
         pairs.push([labels[k] || k, chip(r.secrets[k] ? 'set' : 'not set', r.secrets[k] ? 'ok' : 'dim', 'lock')]);
@@ -2070,7 +2079,7 @@ function deployDialog(row, pre) {
       flow.appendChild(ic('next', 18, 'pw-flow-arrow'));
       var ds = el('div', 'pw-flow-s');
       ds.appendChild(el('span', 'pw-flow-k', 'The device'));
-      devSel = selectBox([['', '–']].concat(devices.map(function (x) { return [x.name, x.name + ' · ' + (x.title || x.kind)]; })), pick.dev ? pick.dev.name : '');
+      devSel = selectBox([['', '–']].concat(devices.map(function (x) { return [x.name, x.name + ' · ' + (x.title ? tr(x.title) : x.kind)]; })), pick.dev ? pick.dev.name : '');
       devSel.id = 'pw-dep-dev';
       noI18n(devSel);
       devSel.onchange = function () { pick.dev = devices.filter(function (x) { return x.name === devSel.value; })[0] || null; drawOpts(); };
@@ -2611,7 +2620,13 @@ function limitsEditor(parent, own) {
   ap.appendChild(formField('Approved by', who, ''));
   ap.appendChild(formField('How many', cnt, ''));
   row('approval', 'Approval', ap, own.approval !== undefined, function () {
-    return {mode: mode.value, approvers: who.value, count: Number(cnt.value)};
+    var r = {mode: mode.value, approvers: who.value, count: Number(cnt.value)};
+    /* what the editor does not show stays as it was: whether the asker approves too (self), and
+       the envelope let through without an approval (outside) - saving any limit here dropped
+       them, and every request of an "outside" team waited */
+    if (a0.self !== undefined) r.self = a0.self;
+    if (a0.outside && r.mode === 'outside') r.outside = a0.outside;
+    return r;
   }, ae ? tr(MODE_WORDS[ae.mode] || ae.mode) : undefined);
   var acts = el('div', 'pw-led-acts');
   var picks = {};

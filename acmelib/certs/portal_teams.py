@@ -747,7 +747,10 @@ def agent_of(me, ref, cap, doing):
 def _agent_code(h):
     me = Me(h)
     from acmelib.certs import agents as G
-    row, _t = agent_of(me, h.body().get('id'), 'target.manage', 'make a join code for')
+    row, team = agent_of(me, h.body().get('id'), 'target.manage', 'make a join code for')
+    # a server let in only while the team's limits still allow its agents (as its enrollment
+    # code is refused then): a join code was made after the administrators took them away
+    TP.need_target_kind(h.store, team, row.get('kind'), me.name)
     got = G.code_new(h.store, row, me.by)
     got['agent'] = G.info(h.store, row)
     return got
@@ -802,7 +805,9 @@ def _agents_waiting(h):
 def _agent_confirm(h):
     me = Me(h)
     from acmelib.certs import api_agents
-    row, _t = agent_of(me, h.body().get('id'), 'target.manage', 'confirm the agent of')
+    row, team = agent_of(me, h.body().get('id'), 'target.manage', 'confirm the agent of')
+    # ...and confirmed only while they allow it (refusing it stays possible)
+    TP.need_target_kind(h.store, team, row.get('kind'), me.name)
     # the administration's own confirmation (the fingerprint compared; a passive one looked at)
     return api_agents._confirm(_H(h, {'id': row['id'], 'fp': h.body().get('fp')}), me.admin())
 
