@@ -1915,7 +1915,8 @@ function build(row, d, opts) {
     load.onclick = function () {
       B.adcsLoading = true;
       redraw('adcs', drawAdcs);
-      ask('agents/adcs?target=' + encodeURIComponent(row.name || row.id)).then(function (x) {
+      // the agent asks the domain's CAs (up to two minutes each): not the 20 s of a read
+      ask('agents/adcs?target=' + encodeURIComponent(row.name || row.id), null, 250).then(function (x) {
         B.adcsLoading = false; B.adcsList = x || {}; redraw('adcs', drawAdcs);
       }).catch(function (e) { B.adcsLoading = false; B.adcsList = {said: (e && e.message) || String(e), cas: []}; redraw('adcs', drawAdcs); });
     };

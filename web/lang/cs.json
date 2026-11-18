@@ -71223,6 +71223,26 @@
   "z_1656": {
    "source": "%r is not the name of a template (no line breaks or control characters)",
    "text": "%r není název šablony (bez zalomení řádků a řídicích znaků)"
+  },
+  "z_1657": {
+   "source": "Not issued yet: it waits for approval - it is issued when it is approved",
+   "text": "Zatím nevystaven: čeká na schválení – vystaví se, až bude schválen"
+  },
+  "z_1658": {
+   "source": "Never issued: it was declined",
+   "text": "Nikdy nevystaven: byl zamítnut"
+  },
+  "z_1659": {
+   "source": "No",
+   "text": "Ne"
+  },
+  "z_1660": {
+   "source": "Not yours to see",
+   "text": "Nemáte k tomu přístup"
+  },
+  "z_1661": {
+   "source": "What happened in a team is shown to its members and to administrators who see every certificate.",
+   "text": "Co se v týmu dělo, vidí jeho členové a správci, kteří vidí všechny certifikáty."
   }
  },
  "patterns": {

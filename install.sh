@@ -1044,6 +1044,11 @@ if admin in text and 'client_max_body_size 4g' not in text:
         fastcgi_request_buffering off;""", 1)
     text = re.sub(r'(admin/index\.php;[\s\S]*?fastcgi_read_timeout )120s;', r'\g<1>900s;', text, count=1)
     said.append('a database file may be put back from the page')
+# The portal waits for a team agent's discovery (1.0.126): up to 240 s, more than 120 s.
+text, n = re.subn(r'(\$document_root/index\.php;\n(?:[^}\n]*\n)*?\s*fastcgi_read_timeout )120s;',
+                  r'\g<1>300s;', text, count=1)
+if n:
+    said.append('the portal waits for a discovery through an agent')
 # Signing in with Windows (1.0.99): a Kerberos ticket with a large PAC is more than 8 kB.
 if 'large_client_header_buffers' not in text and 'client_max_body_size 8m;' in text:
     text = text.replace('client_max_body_size 8m;', 'client_max_body_size 8m;\n'

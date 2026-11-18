@@ -552,7 +552,13 @@ if (isset($_GET['api'])) {
         }
         $query = $_GET;
         unset($query['api']);
-        acme_relay($path . ($query ? '?' . http_build_query($query) : ''), 'GET', null, 60.0);
+        /* a discovery through an agent (agent_discover.TIMEOUT, 180 s) and the CAs an agent
+           reads (two asks of 120 s) wait for the agent, as the page does (hunt R t2: cut at
+           60 s, "the daemon is not answering" while the agent was still being asked) */
+        $slow = in_array($path, ['/api/agents/discover', '/api/agents/adcs'], true)
+            && empty($query['cached']);
+        acme_relay($path . ($query ? '?' . http_build_query($query) : ''), 'GET', null,
+                   $slow ? 250.0 : 60.0);
         exit;
     }
     if ($post) {
