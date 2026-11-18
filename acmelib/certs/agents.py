@@ -989,6 +989,17 @@ def _int_in(v, lo, hi, what, default):
     return n
 
 
+def enroll_kind(eff):
+    """The agent kind a team's enrollment code is checked against (hunt R t2): either kind its
+    target_kinds allow will do - 'agent' unless only 'agent_windows' is allowed (the kind of
+    each server is checked again when it enrolls)."""
+    kinds = eff.get('target_kinds') if isinstance(eff, dict) else None
+    if kinds is None:
+        return 'agent'
+    low = {str(k).strip().lower() for k in kinds}
+    return 'agent_windows' if 'agent' not in low and 'agent_windows' in low else 'agent'
+
+
 def enroll_new(store, by, title='', mode='passive', port=PASSIVE_PORT, days=7, most=10,
                auto=False, team=None):
     """A company enrollment code: {code (shown once), and what enroll_view says}. With `team`
@@ -1007,7 +1018,7 @@ def enroll_new(store, by, title='', mode='passive', port=PASSIVE_PORT, days=7, m
         if not T.policy_value(eff, 'agents'):
             raise PluginError('the team %s does not allow it: it has no target agents' % team_name,
                               retry=False)
-        TP.need_target_kind(store, team_name, 'agent', by)
+        TP.need_target_kind(store, team_name, enroll_kind(eff), by)
         if auto and not T.policy_value(eff, 'agents_auto_confirm'):
             raise PluginError('the team %s does not allow it: its agents are confirmed by a '
                               'person (agents_auto_confirm is off)' % team_name, retry=False)

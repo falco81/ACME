@@ -763,7 +763,8 @@ def _enroll_code(h):
     b = h.body()
     team = me.need(b.get('team'), 'target.manage', 'make an enrollment code')
     # its limits first, refused in words naming the team (403): agents at all, auto-confirm
-    TP.need_target_kind(h.store, team, 'agent', me.name)
+    TP.need_target_kind(h.store, team, G.enroll_kind(T.effective_policy(h.store, team)),
+                        me.name)
     auto = bool(A._flag(b.get('auto')))
     if auto and not T.policy_value(T.effective_policy(h.store, team), 'agents_auto_confirm'):
         TP.refuse(h.store, me.name, team, 'its agents are confirmed by a person - only the '
