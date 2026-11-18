@@ -3813,7 +3813,8 @@ function approveDialog(c, ok, back) {
              mail" for an account of acme's own */
           ? (truthy(c.auto_renew) ? 'It is issued now from ' + (c.issuer || '?') + ' and renewed by itself after.'
                                   : 'It is issued now from ' + (c.issuer || '?') + ' and renewed only when asked.') + ' ' + told
-          : 'It is not issued. ' + (asker || 'The person') + ' sees it declined on the portal, with what you write, and is told by mail.'));
+          /* told by mail only where a mail goes (hunt Rt7) - as the approval's words say */
+          : 'It is not issued. ' + (asker || 'The person') + ' sees it declined on the portal, with what you write. ' + told));
         body.appendChild(wideField(ok ? 'A word to them' : 'Why', why, ''));
         body.appendChild(s);
       },

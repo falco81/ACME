@@ -92,6 +92,8 @@ FILE_MOST = 1024 * 1024         # one file, unless the policy says another limit
 FILES_MOST = 20                 # files in one job, unless the policy says another
 SCRIPT_MOST = 64 * 1024
 OUT_MOST = 2000                 # characters of what a command said kept in the job
+OUT_KEEP = 64 * 1024            # bytes of each of its outputs read in (the end kept)
+RUN_GRACE_S = 2.0               # its output read this long after the command ended
 CMD_TIMEOUT = 300
 SCRIPT_TIMEOUT = 600
 JOBS_A_MINUTE = 60
@@ -1932,17 +1934,53 @@ def verify_package(top, files):
 
 
 def install_files(here, files, names):
-    """The files of a checked package put in place of the agent's own, each atomically."""
-    for name in names:
-        tmp = os.path.join(here, '.%s.new' % name)
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
-                     0o755 if name.endswith('.py') else 0o644)
-        with os.fdopen(fd, 'wb') as f:
-            f.write(files[name])
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, 0o755 if name.endswith('.py') else 0o644)
-        os.replace(tmp, os.path.join(here, name))
+    """The files of a checked package put in place of the agent's own, each atomically - all
+    of them or none (hunt R t7: a file that could not be written, the disk full, left the
+    files before it new and the rest old, a half-written .NAME.new beside them: an agent of
+    two versions at its next start)."""
+    staged, olds = [], {}
+    try:
+        for name in names:
+            tmp = os.path.join(here, '.%s.new' % name)
+            staged.append(tmp)
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                         0o755 if name.endswith('.py') else 0o644)
+            with os.fdopen(fd, 'wb') as f:
+                f.write(files[name])
+                f.flush()
+                os.fsync(f.fileno())
+            os.chmod(tmp, 0o755 if name.endswith('.py') else 0o644)
+            olds[name] = _read_bytes(os.path.join(here, name))
+        done = []
+        try:
+            for name in names:
+                os.replace(os.path.join(here, '.%s.new' % name), os.path.join(here, name))
+                done.append(name)
+        except BaseException:
+            for name in done:                   # the ones replaced already: put back
+                try:
+                    if olds.get(name) is None:
+                        os.unlink(os.path.join(here, name))
+                    else:
+                        with open(os.path.join(here, name), 'wb') as f:
+                            f.write(olds[name])
+                except OSError:
+                    pass
+            raise
+    finally:
+        for tmp in staged:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _read_bytes(path):
+    try:
+        with open(path, 'rb') as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
 
 
 def restart_later(delay=2.0):
@@ -4155,18 +4193,55 @@ class Deploy(object):
         return out
 
     def run_argv(self, argv, env, timeout=CMD_TIMEOUT):
+        """(exit code, what it said). The command's own end is waited for, not the end of its
+        output (hunt R t7: a script that started a service in the background - `app &`, which
+        keeps the script's output open - was said "did not end in 600 s" though it ended at
+        once with 0, and the deployment that had worked was undone): what it says after it
+        ended is read for a moment more."""
+        import selectors
         try:
-            got = subprocess.run(argv, env=self._env(env), cwd='/', stdin=subprocess.DEVNULL,
-                                 capture_output=True, timeout=timeout)
+            p = subprocess.Popen(argv, env=self._env(env), cwd='/', stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except FileNotFoundError:
             return 127, '%s is not on this machine' % argv[0]
-        except subprocess.TimeoutExpired:
-            return 124, 'it did not end in %d s' % timeout
         except OSError as e:
             return 126, str(e)
-        said = (got.stdout.decode('utf-8', 'replace').rstrip() + '\n' +
-                got.stderr.decode('utf-8', 'replace').rstrip()).strip()
-        return got.returncode, said[-OUT_MOST:]
+        got = {p.stdout: b'', p.stderr: b''}
+        sel = selectors.DefaultSelector()
+        try:
+            for f in got:
+                sel.register(f, selectors.EVENT_READ)
+            end, grace = time.monotonic() + timeout, None
+            while sel.get_map():
+                now = time.monotonic()
+                if grace is None and p.poll() is not None:
+                    grace = now + RUN_GRACE_S
+                limit = grace if grace is not None else end
+                if now >= limit:
+                    break
+                for key, _ev in sel.select(min(limit - now, 0.5)):
+                    data = os.read(key.fd, 65536)
+                    if not data:
+                        sel.unregister(key.fileobj)
+                        continue
+                    got[key.fileobj] = (got[key.fileobj] + data)[-OUT_KEEP:]
+            if grace is None:
+                try:
+                    p.wait(timeout=max(0.0, end - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    p.kill()
+                    p.wait()
+                    return 124, 'it did not end in %d s' % timeout
+        finally:
+            sel.close()
+            for f in got:
+                f.close()
+            if p.poll() is None:
+                p.kill()
+                p.wait()
+        said = (got[p.stdout].decode('utf-8', 'replace').rstrip() + '\n' +
+                got[p.stderr].decode('utf-8', 'replace').rstrip()).strip()
+        return p.returncode, said[-OUT_MOST:]
 
     def systemctl(self):
         return str(self.root.conf().get('systemctl') or 'systemctl')

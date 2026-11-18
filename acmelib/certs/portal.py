@@ -439,6 +439,8 @@ def mine_public(h, s, pairs, me=None):
                 held_rows.append(holder_rows(st_))
             held = held_of(st_, r, held_rows[0])
             one.update(held_public(st_, r, held_rows[0], defined, held))
+            # whether the one who asked is told by mail when it is approved or declined
+            one['told_by_mail'] = told_by_mail(st_, r['id'])
             # whether its Approve would be refused, and why (said, not offered and then refused)
             if one['asked_by_me']:
                 one['may_approve'], one['approve_why'] = False, (
@@ -942,6 +944,22 @@ def portal_url():
         return 'the portal'
 
 
+def mail_of(v):
+    """A mail address `tell` sends to - '' for none (no address, or no @ in it)."""
+    to = str(v or '').strip()
+    return to if '@' in to else ''
+
+
+def mail_on():
+    return (E.CONFIG.get('mail_mode') or 'off') != 'off'
+
+
+def told_by_mail(store, cid):
+    """Whether `tell` mails the person who asked for it (hunt Rt7): an address of theirs is
+    known and mail is switched on - the pages said "told by mail" when nobody was."""
+    return bool(mail_on() and mail_of(asker(store, cid).get('mail')))
+
+
 def tell(store, cid, what, why=''):
     """A mail to the person who asked for the certificate, if their directory
     entry has a mail - through the engine's mail queue (kept and tried again
@@ -1057,7 +1075,9 @@ def _certs_answer(h, s, have, sufs, iss, n):
             'may_request': bool(sufs and iss) and n < most(),
             # The request profiles they may ask from (Settings → Request profiles, 1.0.18).
             'profiles': reqprofiles.usable(h, s), 'free_form': bool(sufs and iss),
-            'may_ask': n < most()}
+            'may_ask': n < most(),
+            # whether they are told by mail when what they ask for is approved (hunt Rt7)
+            'told_by_mail': bool(mail_on() and mail_of((s.get('data') or {}).get('mail')))}
 
 
 EXPIRING_S = 30 * 86400
@@ -1721,6 +1741,17 @@ def approve_request(store, row, by, ok, why, approver=None):
     store.add_event('certificates', '%s declined %s, asked for on the portal by %s: %s' % (
         by, row['name'], row.get('owner') or '?', why), 'warn', who=by)
     tell(store, row['id'], 'declined', why)
-    who_ = str(row.get('owner') or '')
+    # who is told is the person who asked, not the team that owns it - and only by a mail that
+    # goes (hunt Rt7: "<owner> is told" with no address known, or mail switched off)
+    a = asker(store, row['id'])
+    who_ = str(a.get('who') or row.get('owner') or '')
     who_ = who_[6:] if who_.startswith('local:') else who_      # a person's name (1.0.88)
-    return {'message': '%s declined - %s is told' % (row['name'], who_ or 'nobody')}
+    if not who_:
+        return {'message': '%s declined - nobody is told' % row['name'], 'told': False}
+    if not mail_of(a.get('mail')):
+        return {'message': '%s declined - %s is not told by mail: no e-mail address of theirs '
+                           'is known' % (row['name'], who_), 'told': False}
+    if not mail_on():
+        return {'message': '%s declined - %s is not told by mail: sending mail is switched off'
+                           % (row['name'], who_), 'told': False}
+    return {'message': '%s declined - %s is told' % (row['name'], who_), 'told': True}

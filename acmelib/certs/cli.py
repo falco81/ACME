@@ -250,7 +250,8 @@ def add_args(p):
     # 1.0.126: a team's devices and agents (docs/teams.md) - the pages could, the CLI could not
     g.add_argument('--owner', metavar='TEAM', default=None,
                    help='with --target-add, --target-edit: the team whose device it is (- or '
-                        '"": acme\'s own); with --target-agent enroll new: the servers '
+                        '"": acme\'s own); with --cert-add, --cert-edit: the team it belongs '
+                        'to (as --set owner=TEAM); with --target-agent enroll new: the servers '
                         'enrolling become that team\'s targets')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
@@ -878,6 +879,10 @@ class Cli(object):
             b['note'] = a.note or ''            # "" takes it away (1.0.80)
         if a.enabled:
             b['enabled'] = 1 if a.enabled == 'on' else 0
+        if getattr(a, 'owner', None) is not None:
+            # --owner TEAM of a certificate, as of a target (hunt R t7: taken since 1.0.126 for
+            # targets and silently left out here - "added" with no owner, or "nothing to change")
+            b['owner'] = '' if a.owner.strip() in ('', '-') else a.owner.strip()
         cur = None
         if row is not None:
             cur = self.api('GET', '/api/certs/one', args={'id': str(row['id'])})['cert']
@@ -957,7 +962,7 @@ class Cli(object):
         if not b:
             raise SystemExit('acme: nothing to change - --names, --issuer, --challenge, '
                              '--key-type, --key-type-alt, --csr-from, --name, --note, --enabled, '
-                             '--set %s' % ' '.join(
+                             '--owner, --set %s' % ' '.join(
                                  CERT_SETS))
         b['id'] = row['id']
         got = self.api('POST', '/api/certs/save', body=b)

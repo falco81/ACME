@@ -336,6 +336,7 @@ class Shipper(object):
             try:
                 pri, line, file_name = self.q.get(timeout=1.0)
             except queue.Empty:
+                self._retry_held()
                 continue
             self.busy = True                    # taken off the queue, not sent yet (1.0.77)
             # Nothing ends this thread (1.0.186): one error took isemon's
@@ -355,6 +356,23 @@ class Shipper(object):
                 log_sparing('shipper', 'isemon: a line could not go: %s' % e, 'warn', every=300)
             finally:
                 self.busy = False
+
+    def _retry_held(self):
+        """The lines held for a TCP/TLS target sent once its wait is over, with no new line
+        needed: they waited for the next event (days, on a quiet machine) - and the trouble
+        ("tried again in 15 s") with the alert stayed until then."""
+        if not CONFIG.get('isemon'):
+            return
+        for target in list(self.targets):
+            key = '%s:%d/%s' % target
+            if target[2] == 'udp' or not self.backlog.get(key):
+                continue
+            if time.monotonic() < self.down.get(key, (0.0, 0.0))[0]:
+                continue
+            try:
+                self._to_target(target, None)
+            except Exception as e:                      # noqa: BLE001
+                log_sparing('shipper', 'isemon: a line could not go: %s' % e, 'warn', every=300)
 
     def _to_file(self, name, line):
         path = LOG_DIR / name
@@ -384,7 +402,7 @@ class Shipper(object):
     def _to_target(self, target, data):
         host, port, proto = target
         key = '%s:%d/%s' % target
-        raw = data.encode('utf-8', 'replace')
+        raw = None if data is None else data.encode('utf-8', 'replace')     # None: the held only
         try:
             if proto == 'udp':
                 fam = socket.AF_INET6 if ':' in host else socket.AF_INET
@@ -406,10 +424,11 @@ class Shipper(object):
                 q = self.backlog.get(key)
                 if q is None:
                     q = self.backlog[key] = collections.deque()
-                if len(q) >= ISEMON_BACKLOG:
-                    q.popleft()
-                    self.missed[key] += 1               # the oldest held is given up
-                q.append(raw)
+                if raw is not None:
+                    if len(q) >= ISEMON_BACKLOG:
+                        q.popleft()
+                        self.missed[key] += 1           # the oldest held is given up
+                    q.append(raw)
                 until, wait = self.down.get(key, (0.0, 0.0))
                 if time.monotonic() < until:
                     return

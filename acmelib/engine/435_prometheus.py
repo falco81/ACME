@@ -188,9 +188,12 @@ def metrics_allowed(client):
         a = ipaddress.ip_address(str(client or '').strip('[]'))
     except ValueError:
         return False
+    # An IPv4 client through a socket of both kinds (::ffff:10.1.2.3) is that IPv4 address:
+    # it was refused by every IPv4 network set, as the SNMP agent and the sign-ins take it.
+    seen = [a] + ([a.ipv4_mapped] if a.version == 6 and a.ipv4_mapped else [])
     for n in nets:
         try:
-            if a in ipaddress.ip_network(n, strict=False):
+            if any(x in ipaddress.ip_network(n, strict=False) for x in seen):
                 return True
         except ValueError:
             continue

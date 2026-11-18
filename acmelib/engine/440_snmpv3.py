@@ -977,7 +977,10 @@ def _ask_snmp(daemon, args):
 def snmp_get(host, port, c, oids, timeout=3.0):
     """A small SNMPv3 manager: discovery, then one authPriv GET - for the
     node's own test. {oid: value as text}."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # IPv6 too: an agent bound to one IPv6 address of the node was asked over IPv4, and its
+    # own test said "Address family for hostname not supported".
+    host = str(host).strip('[]')
+    s = socket.socket(socket.AF_INET6 if ':' in host else socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(timeout)
     try:
         def ask(msg):

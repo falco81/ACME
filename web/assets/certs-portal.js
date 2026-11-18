@@ -521,9 +521,13 @@ function certDialog(id, fresh) {
     }
     /* "You asked for it" only to the one who did - an approver of the team sees it waiting */
     if (c.state === 'pending-approval') body.appendChild(c.asked_by_me
-      ? stateNote('warn', 'Waiting for an administrator', 'You asked for it; an administrator approves it (or not). You are told by mail when they have.')
+      /* told by mail only when a mail goes (hunt Rt7): no address of theirs, or mail off */
+      ? stateNote('warn', 'Waiting for an administrator', c.told_by_mail === false
+        ? 'You asked for it; an administrator approves it (or not). Look here to see when they have - no mail is sent to you.'
+        : 'You asked for it; an administrator approves it (or not). You are told by mail when they have.')
       : stateNote('warn', 'Waiting for approval', approve && c.may_approve !== false
-        ? 'Someone asked for it; you may approve or decline it. They are told by mail.'
+        ? (c.told_by_mail === false ? 'Someone asked for it; you may approve or decline it. They see what you decide here - no mail is sent to them.'
+          : 'Someone asked for it; you may approve or decline it. They are told by mail.')
         : 'Someone asked for it; an approver of its team, or an administrator, approves it (or not).'));
     if (stuck) body.appendChild(c.asked_by_me
       ? stateNote('warn', 'Its approval was never recorded', 'You asked for it; it left the waiting for approval, but its approval was not recorded - an administrator approves it (or not).')
@@ -665,16 +669,19 @@ function revokeDialogP(c) {
 function declineDialog(c) {
   var why = null;
   modal('Decline ' + (c.cn || c.name), function (body) {
-    body.appendChild(el('p', 'note', 'The person who asked is told why, by mail.'));
+    body.appendChild(el('p', 'note', c.told_by_mail === false
+      ? 'The person who asked sees why here, on the portal - no mail is sent to them.'
+      : 'The person who asked is told why, by mail.'));
     why = el('textarea');
     why.rows = 3;
     body.appendChild(formField('Why', why, ''));
   }, [{words: 'No, leave it', close: true}, {words: 'Decline it', cls: 'danger', icon: 'ban', go: function (b) {
     if (!String(why.value || '').trim()) { why.focus(); toast('say why it is declined'); return; }
     busy(b, true);
-    api('cert-approve', {id: c.id, ok: 0, why: why.value}).then(function () {
+    api('cert-approve', {id: c.id, ok: 0, why: why.value}).then(function (d) {
       closeModal();
-      toast('declined - the person who asked is told', 'good');
+      /* the server's words: whether a mail tells them (hunt Rt7) */
+      toast(d && d.told === false ? 'declined - no mail is sent to the person who asked' : 'declined - the person who asked is told', 'good');
       load();
     }).catch(oops).then(function () { busy(b, false); });
   }}], 'narrow');
@@ -807,10 +814,14 @@ function askDialog() {
   modal('Ask for a certificate', function (body) {
     limitsNote(body);
     var tp = teamPolicy(), ta = tp && tp.approval && (typeof tp.approval === 'string' ? tp.approval : tp.approval.mode);
+    /* "told by mail" only when a mail goes to them (hunt Rt7) */
+    var noMail = d.told_by_mail === false;
     body.appendChild(el('p', 'note', ta === 'always' || ta === 'outside'
-      ? 'An approver of the team approves it first (the team’s rule); you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.'
+      ? (noMail ? 'An approver of the team approves it first (the team’s rule); look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.'
+        : 'An approver of the team approves it first (the team’s rule); you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.')
       : d.auto
       ? 'It is issued as soon as you ask, and renewed by itself before it runs out.'
+      : noMail ? 'An administrator approves it first; look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.'
       : 'An administrator approves it first; you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.'));
     namesBox = el('textarea', 'cp-names');
     namesBox.rows = 3;
@@ -1435,14 +1446,23 @@ window.ACME_PORTAL_CERTS = {
   data: function () { return CP.d; },
   open: function (id) { if (rowById(id)) certDialog(id); },
   openRow: function (row) {
-    if (!CP.d) CP.d = {rows: []};
+    /* only the row: not the list's answer (`stub`), which Ask for a certificate still fetches */
+    if (!CP.d) CP.d = {rows: [], stub: true};
     if (!rowById(row.id)) CP.d.rows.push(row);
     certDialog(row.id);
   },
   askStart: function (ctx) {
     if (ctx) CP.ctx = ctx;
-    if (CP.d) { askStart(); return; }
-    apiLatest('cp-certs', 'certs&per=1').then(function (d) { CP.d = d; askStart(); }).catch(oops);
+    /* a certificate opened first from the overview left only its row here (hunt Rt7): the
+       free form was offered with no domains and no source, and none of the request profiles */
+    if (CP.d && !CP.d.stub) { askStart(); return; }
+    apiLatest('cp-certs', 'certs&per=1').then(function (d) {
+      var had = CP.d && CP.d.stub ? CP.d.rows : [];
+      CP.d = d;
+      if (!Array.isArray(d.rows)) d.rows = [];
+      had.forEach(function (r) { if (!rowById(r.id)) d.rows.push(r); });
+      askStart();
+    }).catch(oops);
   },
   download: downloadDialog, saveB64: saveB64, stateTag: stateTag, daysTag: daysTag, namesChips: namesChips,
   emptyState: emptyState, skeleton: skeletonCard, has: has, jobLog: jobLog, STATE: STATE, FORMATS: FORMATS

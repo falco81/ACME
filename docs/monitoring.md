@@ -63,7 +63,7 @@ now*.
 | `acme_siem_sent_total{target}`, `acme_siem_trouble{target}`, `acme_siem_dropped_total` | syslog / SIEM |
 | `acme_alerts_open{level}`, `acme_alert{key,level}` | what the alerts see wrong now |
 | `acme_cert_alt_not_after_timestamp_seconds{name}` | when the twin of each dual certificate ends (1.0.78) |
-| `acme_cert_deploy_state{cert,target,state,enabled}`, `acme_cert_deploy_last_ok_timestamp_seconds{cert,target}` | each deployment: its state (1), when it last went through (1.0.78) |
+| `acme_cert_deploy_state{cert,target,state,enabled}`, `acme_cert_deploy_last_ok_timestamp_seconds{cert,target}` | each deployment: its state (1), when it last went through (1.0.78); a certificate deployed more than once to one target has `id` (the deployment's) on those rows too |
 | `acme_cert_test_state{cert,test,kind,state,enabled}`, `acme_cert_test_last_timestamp_seconds{cert,test}`, `acme_cert_tests_failing` | each test of a certificate: how it went last (`none`: not run yet), when it ran; how many fail (1.0.78) |
 | `acme_module_failing{family,name,kind,enabled}` | each source, validation, target and test: 1 when its last use failed (1.0.78) |
 | `acme_ca_not_after_timestamp_seconds{name}`, `acme_ca_crl_next_timestamp_seconds{name}` | acme's own authorities: when each ends, when its CRL is due again (1.0.78) |

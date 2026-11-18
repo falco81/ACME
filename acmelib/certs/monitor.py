@@ -15,6 +15,7 @@ The alerts are the renewer's (HOOKS['alerts']).
 """
 from __future__ import annotations
 
+import collections
 import re
 import time
 
@@ -143,6 +144,16 @@ def metrics(store):
                          "AND COALESCE(enabled, 1) <> 0 AND key_type_alt IS NOT NULL AND "
                          "key_type_alt <> '' ORDER BY name")
     deps_all = deploy_rows(store)
+    # One certificate deployed twice to one target (two files, two services of one server):
+    # both rows were the same series, which Prometheus takes one of - the other one's state
+    # and time lost. Those (only) told apart by the deployment's id.
+    pairs = collections.Counter((r['cert_name'], r['target']) for r in deps_all)
+
+    def dep(r, **more):
+        lab = dict({'cert': r['cert_name'], 'target': r['target']}, **more)
+        if pairs[(r['cert_name'], r['target'])] > 1:
+            lab['id'] = str(r['id'])
+        return lab
     tests_all = test_rows(store)
     mods = module_rows(store)
     cas = ca_rows(store)
@@ -193,12 +204,11 @@ def metrics(store):
          '(the other key type) ends (unix time)', 'gauge',
          [({'name': r['name']}, int(float(r['alt_not_after']))) for r in alts]),
         ('acme_cert_deploy_state', 'Each deployment\'s state (1 for the state it is in)', 'gauge',
-         [({'cert': r['cert_name'], 'target': r['target'], 'state': r.get('state') or 'new',
-            'enabled': '0' if r.get('enabled') == 0 else '1'}, 1) for r in deps_all]),
+         [(dep(r, state=r.get('state') or 'new',
+               enabled='0' if r.get('enabled') == 0 else '1'), 1) for r in deps_all]),
         ('acme_cert_deploy_last_ok_timestamp_seconds', 'When each deployment last went through '
          '(unix time)', 'gauge',
-         [({'cert': r['cert_name'], 'target': r['target']}, float(r['last_ok']))
-          for r in deps_all if r.get('last_ok')]),
+         [(dep(r), float(r['last_ok'])) for r in deps_all if r.get('last_ok')]),
         ('acme_cert_test_state', 'Each test of a certificate: how it went last (1 for that state; '
          '"none": not run yet)', 'gauge',
          [({'cert': r['cert_name'], 'test': r['test'], 'kind': r.get('kind') or '',

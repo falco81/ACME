@@ -177,6 +177,7 @@ class Siem(object):
             try:
                 kind, severity, fields, words, at = self.q.get(timeout=1.0)
             except queue.Empty:
+                self._retry_held()
                 continue
             try:
                 line = self.frame(kind, severity, fields, words, at)
@@ -192,6 +193,27 @@ class Siem(object):
                 except Exception as e:                  # noqa: BLE001
                     # Nothing ends this thread (1.0.186).
                     self.trouble['%s:%d/%s' % t] = str(e)[:200]
+
+    def _retry_held(self):
+        """The lines held for a TCP/TLS server sent once its 30 s are over, with no new line
+        needed: they waited for the next event or sign-in - and the trouble with its alert
+        stayed until then."""
+        if not CONFIG.get('siem'):
+            return
+        for t in list(self.targets):
+            key = '%s:%d/%s' % t
+            if t[2] == 'udp' or not self.backlog.get(key) or \
+                    time.monotonic() < self.down.get(key, 0.0):
+                continue
+            try:
+                with self.lock:
+                    q = self.backlog.get(key)
+                    while q:
+                        if self._send_one(t, q[0]):
+                            break
+                        q.popleft()
+            except Exception as e:                      # noqa: BLE001
+                self.trouble[key] = str(e)[:200]
 
     def _tls(self):
         if self.ctx is None:
