@@ -354,5 +354,43 @@ class Agent(unittest.TestCase):
         self.assertIn('no discovery was asked', got.stdout + got.stderr)
 
 
+
+class MultilineSecret(unittest.TestCase):
+    """A secret of several lines (ms_adcs client_key, a PEM key) was a one-line hidden box:
+    a key pasted there ended at its first line's end, and that line alone was saved."""
+    def test_read_from_a_file(self):
+        from acmelib.plugins.issuers import ms_adcs
+        fields = [f for f in ms_adcs.MsAdcsIssuer.fields if f['key'] in ('client_key', 'password')]
+        got = {x['key']: x for x in C._form_fields(fields, {}, ())}
+        self.assertEqual(got['password']['kind'], 'secret')        # one line: as before
+        self.assertNotEqual(got['client_key'].get('kind'), 'secret')
+        self.assertIn('(file)', got['client_key']['label'])
+        key = os.path.join(TMP, 'client.key')
+        pem = '-----BEGIN PRIVATE KEY-----\nAAAA\nBBBB\n-----END PRIVATE KEY-----\n'
+        with open(key, 'w') as f:
+            f.write(pem)
+        argv, env = C.module_form(Con(forms=[{'client_key': key, 'password': 'pw'}]), 'x',
+                                  fields)
+        self.assertIn('client_key=@file:%s' % key, argv)
+        self.assertEqual(env, {'ACME_VALUE_PASSWORD': 'pw'})
+        # empty: kept as it is
+        argv, env = C.module_form(Con(forms=[{'client_key': ''}]), 'x', fields,
+                                  {'client_key': '\u2022' * 8}, ('client_key',))
+        self.assertNotIn('client_key', ' '.join(argv))
+        # the command line saves the whole key from the file
+        got = run('--source-add', 'rt4adcs', '--kind', 'ms_adcs', '--set',
+                  'url=https://ca.example.com/certsrv', '--set', 'template=WebServer',
+                  '--set', 'auth=cert', '--set', 'client_key=@file:%s' % key)
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        # read back as the daemon reads it: the whole key, every line
+        code = ('import sys; sys.path.insert(0, %r); from acmelib import engine as E; '
+                'from acmelib.certs import store as S; st = E.cli_store(); '
+                'print(S.plugin_config("issuer", S.plugin_row(st, "issuer", "rt4adcs"))'
+                '["client_key"], end="")' % ROOT)
+        got = subprocess.run([sys.executable, '-c', code], env=ENV, capture_output=True,
+                             text=True, timeout=120)
+        self.assertEqual(got.stdout.strip(), pem.strip(), got.stderr[-2000:])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

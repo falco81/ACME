@@ -158,6 +158,11 @@ def _form_fields(fields, cur, secret_set, base=None):
         t = f.get('type') or 'text'
         if f.get('secret') and t not in ('pem', 'secret'):
             t = 'secret'            # an SSH key (sshkey) and others kept secret: typed unseen
+        if t == 'secret' and f.get('multiline'):
+            # a key or JSON of several lines (ms_adcs client_key, step_ca provisioner_key,
+            # 1.0.126): read from a file as a PEM is - a line of a form ended at the first
+            # line's end, and only that line was saved
+            t = 'pem'
         have = cur.get(f['key'], f.get('default'))
         one = {'key': f['key'], 'label': (f.get('label') or f['key'])[:28],
                'help': f.get('help') or ''}
@@ -230,6 +235,8 @@ def module_form(con, title, fields, cur=None, secret_set=(), words=''):
         t = f.get('type') or 'text'
         if f.get('secret') and t not in ('pem', 'secret'):
             t = 'secret'
+        if t == 'secret' and f.get('multiline'):
+            t = 'pem'               # read from a file, as above
         if t == 'secret':
             if v:
                 env['ACME_VALUE_' + re.sub(r'[^A-Za-z0-9]', '_', k).upper()] = v
