@@ -6,7 +6,25 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.126 - not released
 
-(nothing yet)
+- Microsoft CA through acme-agent: a template name with a space ("Web Server 2") was written into the agent's policy unquoted (allow adcs, the line a refusal names, acme-agent adcs cas, acme --target-agent adcs-templates), so the policy's own line read back was refused and the CA's line lost; the list is now quoted (template="Web Server 2,WebServer").
+- Microsoft CA through acme-agent: the agent's script said the CA's error codes sign-extended (0xffffffff80094012), so none was explained in words and the code was cut short; codes are now 32-bit (0x80094012) and say what to fix.
+- Microsoft CA through acme-agent: the template list of a CA dropped the empty OID line of schema 1 templates (WebServer) before pairing names and OIDs, losing every other template from the list; the OID lines are now skipped by what they are.
+- Microsoft AD CS (RPC): a certificate's template with a line break added request attributes of its own (e.g. SAN:dns=...) for a CA that takes names from attributes; such a template is now refused (security).
+- Microsoft AD CS (RPC): a domain controller given as an IPv6 address without brackets (2001:db8::10) was asked at a wrong host and port; it is now that address on port 88.
+- Agent discovery: nginx includes and ssl_certificate paths given relative were taken from /etc/nginx even when nginx.conf is elsewhere (/usr/local/nginx/conf) - nothing was found there; they are now of the folder of nginx.conf.
+- Agent discovery: a file included in several places (an nginx snippet in two server blocks, an Apache file in two VirtualHosts, Dovecot) was read only for the first, so the other services lost their certificate files, and deep include chains dropped files; includes are now stopped only on a real loop (a file including itself), with a bound on the includes in all, and a block read twice is told once.
+- Agent discovery: HAProxy found in /usr/local/etc/haproxy proposed a test of /etc/haproxy/haproxy.cfg; the test now checks the configuration found.
+- Agent discovery: Dovecot 2.4 (ssl_server_cert_file / ssl_server_key_file) was not found; it is now.
+- Agent discovery: a certificate file whose path holds a space (Apache's quoted "/etc/ssl/my cert.pem") broke the whole discovery view (an error instead of the cards) and would have made an invalid output line; such a file is left out of "Make a deployment" and its policy lines.
+- Agent discovery: "Watch it" took nginx's .example.com or ~regex server names as the name to ask for (SNI); it now takes a host name only.
+- Portal teams: a member who manages a team's devices still made a one-time join code for the team's agent target, and confirmed an agent asking to join, after the administrators' limits took the team's agents away (agents off, or device modules without it) - while its enrollment code was refused; both are refused now in words naming the team (refusing an agent still works). (security)
+- Portal teams: saving a sub-team's limits on the portal dropped what the editor does not show of its approval rule - the "outside" envelope set by an administrator and whether the asker may approve too - so every request of such a team waited for approval; they are kept now.
+- Portal teams: in Czech a device's module ("Server with acme-agent") stayed in English on its card, in its dialog and in the deployment's device list; it is in the page's language now.
+- Portal teams: a device's settings showed a choice by its raw value ("passive") and a switch as 1/0; they read in the module's own words (and yes / no) now.
+- Teams: a team that was only below a circle of parents written by hand (an import, another node) was put at the top level and lost the capabilities and limits it inherited; now only a team of the circle itself is cut loose.
+- Teams: a team whose parent team was gone (an import, another node) could not be saved at all ("there is no team ... to put it under") - even its members or note; it is now kept at the top level, as the tree already showed it.
+- Teams: a certificate a scoped certificate administrator gave to another team was checked against that team's limits only for what the save changed, so a certificate with names and a source the team may not use was moved into it; its names, source and validation as they are are now checked too (security).
+- Teams: renaming a source, a validation or a request profile left the teams' limits (issuers, validations, profiles, the pre-approved envelope) naming the old name, so the team was refused what it was allowed; they now follow the rename.
 
 ## 1.0.125 - 2026-11-18
 
