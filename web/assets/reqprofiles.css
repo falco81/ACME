@@ -14,6 +14,9 @@
 .rp-subj-k{font-size:13px}
 textarea.rp-f-sufs,textarea.rp-f-desc{width:100%}
 @media (max-width:640px){
+  /* On a phone the table is wider than its box and every column was laid out at its
+     narrowest word: the profile's name and description one word a line. */
+  .rp-table td:first-child{min-width:160px}
   .rp-subj-row{grid-template-columns:1fr 1fr}
   .rp-subj-row .rp-subj-k{grid-column:1 / -1}
   .rp-subj-row .rp-subj-v{grid-column:1 / -1}

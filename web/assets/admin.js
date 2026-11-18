@@ -4572,7 +4572,13 @@ $('us-add').onclick = function () {
     var mobile = textBox('', '+420 603 123 456', 'mono');
     mobile.type = 'tel';
     g.appendChild(formField('Name', name));
-    g.appendChild(formField('Role', role, 'Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).'));
+    var roleF = formField('Role', role, 'Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).');
+    g.appendChild(roleF);
+    /* the note tells of the enrolment-only role: shown while that role is the one chosen */
+    var roleSays = roleF.children.length > 2 ? roleF.lastChild : null;
+    var roleSaid = function () { if (roleSays) roleSays.style.display = role.value === 'portal' ? '' : 'none'; };
+    role.addEventListener('change', roleSaid);
+    roleSaid();
     g.appendChild(formField('A first password', maskEye(pw), 'They choose their own at the first sign-in.'));
     g.appendChild(formField('The first password again', maskEye(pw2)));
     g.appendChild(formField('E-mail address', mail, 'Where the portal’s one-time code goes when it goes by mail - needed then (A one-time code for acme’s own accounts).'));
