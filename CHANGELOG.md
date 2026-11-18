@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.128 - not released
+
+(nothing yet)
+
 ## 1.0.127 - 2026-11-18
 
 - Root helper (security): a PostgreSQL error that shows the statement (a database account made for acme) could show the account's password in the message; it is hidden now.
