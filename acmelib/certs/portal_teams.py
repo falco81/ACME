@@ -447,7 +447,8 @@ def _action_approve(h):
     elif rec.get('state') == 'declined':
         # no mail is sent for a team's action: the person who asked sees it, with the reason,
         # in the team's actions
-        said = 'declined - %s sees why in the team\'s actions' % rec.get('by')
+        said = 'declined - %s sees why in the team\'s actions' % (
+            str(rec.get('by') or '?').split('portal:', 1)[-1])
     else:
         said = 'your approval is recorded - it waits for %d more' % (len(rec.get('needed') or [])
                                                                    or 1)

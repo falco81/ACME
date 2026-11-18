@@ -71379,6 +71379,18 @@
   "z_1695": {
    "source": "putting the previous certificate back",
    "text": "vracení předchozího certifikátu"
+  },
+  "z_1696": {
+   "source": "declined by",
+   "text": "zamítl(a)"
+  },
+  "z_1697": {
+   "source": "is not the folder it was a moment ago (a link put in its place?) - not touched",
+   "text": "není složka, kterou byla před chvílí (odkaz místo ní?) - nedotčeno"
+  },
+  "z_1698": {
+   "source": "no new file could be made in",
+   "text": "nešlo vytvořit nový soubor ve složce"
   }
  },
  "patterns": {
@@ -99193,6 +99205,34 @@
   "pz_t8swarm": {
    "source": "\"{0}\" is not a file name in the container (no comma or =)",
    "text": "„{0}“ není název souboru v kontejneru (bez čárky a =)"
+  },
+  "pz_544": {
+   "source": "reason: {0}",
+   "text": "důvod: {0}"
+  },
+  "pz_545": {
+   "source": "{0} asks to {1} {2} of the team {3} - it waits for approval",
+   "text": "{0} žádá o akci {1} {2} týmu {3} – čeká na schválení"
+  },
+  "pz_546": {
+   "source": "{0} approved \"{1}\" of the team {2}",
+   "text": "{0} schválil(a) „{1}“ týmu {2}"
+  },
+  "pz_547": {
+   "source": "{0} approved \"{1}\" of the team {2} - it waits for more",
+   "text": "{0} schválil(a) „{1}“ týmu {2} – čeká na další schválení"
+  },
+  "pz_548": {
+   "source": "{0} declined \"{1}\" of the team {2}",
+   "text": "{0} zamítl(a) „{1}“ týmu {2}"
+  },
+  "pz_549": {
+   "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} days, at most {4} servers) for the team {5} - each server that joins with it waits to be confirmed",
+   "text": "registrační kód „{0}“ vytvořil(a) {1} ({2}, {3} dní, nejvýše {4} serverů) pro tým {5} – každý server, který se s ním připojí, čeká na potvrzení"
+  },
+  "pz_550": {
+   "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} days, at most {4} servers) for the team {5} - each server that joins with it is CONFIRMED AUTOMATICALLY",
+   "text": "registrační kód „{0}“ vytvořil(a) {1} ({2}, {3} dní, nejvýše {4} serverů) pro tým {5} – každý server, který se s ním připojí, je POTVRZEN AUTOMATICKY"
   }
  },
  "rich": {
