@@ -1690,6 +1690,12 @@ def member_form(con, title, m):
     def check_until(v, _vals):
         if v.strip() and not re.match(r'^\d{4}-\d{2}-\d{2}$', v.strip()):
             return 'YYYY-MM-DD, or empty'
+        if v.strip():
+            try:
+                # a day that is not one (2026-13-45): a traceback below (hunt R t10)
+                time.strptime(v.strip(), '%Y-%m-%d')
+            except ValueError:
+                return 'YYYY-MM-DD, or empty'
         return None
     got = con.form(title, ([] if m else [
         {'key': 'who', 'label': 'who', 'need': True,

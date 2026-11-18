@@ -22,7 +22,12 @@ One thing is asked at a time (1.0.79): `--set` beside another option (`acme
 dropped without a word. An option that names something given an empty value
 (`--cert-del ""`) is refused with that said, and an option that only goes
 with another one, given alone (`--hosts x`, `--limit 40`), says so in one
-line instead of printing the whole help. A thing that is not there is said
+line instead of printing the whole help. Beside an option that does not read it
+(`--selfsigned X --owner T`, `--ca-create X --parent CA`, `--tag-add T
+--description ..`, `--team-add T --caps ..`), `--owner`, `--parent`, `--description`,
+`--caps`, `--strip`, `--members`, `--policy` and the other team options are refused
+with the options they go with, nothing done (1.0.127); so is `--set` beside
+`--selfsigned`, `--import`, `--check-names`, `--cert-check`, `--dry-run`. A thing that is not there is said
 before anything is asked (`--team-del`, `--tag-del`, `--dns-set-del`,
 `--ssh-token-del`, `--downgrade FILE`).
 
@@ -77,7 +82,7 @@ other setting as it is.
 
 | | |
 |---|---|
-| `acme --certs [--search TEXT]` | every certificate: state, days left, end, issuer, deployments, names |
+| `acme --certs [--search TEXT] [--owner TEAM] [--issuer SOURCE]` | every certificate: state, days left, end, issuer, deployments, names; `--owner`, `--issuer` only those of that team, from that source (the list's filters) |
 | `acme --cert NAME` | one certificate: its details, versions, deployments and last jobs |
 | `acme --cert-add NAME --names a.example.com,b.example.com [--issuer X] [--challenge Y] [--key-type ec-256] [--set ...]` | a certificate to keep, renewed by itself. Without `--issuer`: the default source (**LetsEncrypt**), and for an ACME CA without `--challenge` the default validation (**This server HTTP-01**). The renewer issues it at its next look, or `--renew NAME` issues it now |
 | `acme --cert-edit NAME [--names ...] [--issuer X] [--challenge Y] [--key-type T] [--name NEW] [--note TEXT] [--enabled on\|off] [--set ...]` | change it. `--set` takes `auto_renew`, `renew_days` (0: the setting's), `reuse_key`, `tags` (`tags+=x`), `owner`, `note`, `enabled`, `challenge_map.NAME=VALIDATION` (empty: taken out), `profile.KEY` (`profile.eku=serverAuth,clientAuth`, `profile.must_staple=yes`, `profile.days=90`, `profile.acme_profile=shortlived`, `profile.subject.O=Example`) |
@@ -93,7 +98,7 @@ other setting as it is.
 | `acme --revoke NAME [--reason R] [--reissue] [--yes]` | revoke it where it was issued. Reasons: `unspecified`, `keyCompromise`, `cACompromise`, `affiliationChanged`, `superseded`, `cessationOfOperation`, `certificateHold`, `privilegeWithdrawn`. Refused, as on the pages, for one acme cannot revoke (imported, from before a move of its source, self-signed, being revoked now). `--reissue`: a new one issued at once in its place (a new key, whatever "keep the key" says), deployed where the revoked one is |
 | `acme --csr NAME [--out FILE] [--force]` | a request (CSR) for an authority acme does not speak to: printed (or written to FILE). The key waits in acme. `--force`: a new request (a new key) |
 | `acme --csr-answer NAME FILE [--force]` | the certificate that authority sent back for it: kept as a new version, then deployed. One that lacks a name of the certificate is refused (`--force` takes it anyway) |
-| `acme --import FILE [--name N \| --into CERT] [--password]` | a certificate from a file: PEM, DER, PFX/P12, P7B, JKS, or a ZIP of them; `--into CERT` makes it a new version of a certificate kept here (its names, deployments and tests stay). `--password` asks for the file's password (or reads `ACME_FILE_PASSWORD`, or one line of stdin) |
+| `acme --import FILE [--name N \| --into CERT] [--password] [--owner TEAM] [--note TEXT]` | a certificate from a file: PEM, DER, PFX/P12, P7B, JKS, or a ZIP of them; `--owner`, `--note` of the new one (not with `--into`); `--into CERT` makes it a new version of a certificate kept here (its names, deployments and tests stay). `--password` asks for the file's password (or reads `ACME_FILE_PASSWORD`, or one line of stdin) |
 | `acme --export NAME --format F --out FILE [--password]` | the certificate into a file (`--out -` writes it to stdout). Formats: `cert-pem`, `cert-der`, `chain-pem`, `fullchain-pem`, `p7b`, `key-pem`, `key-rsa`, `key-der`, `combined-pem`, `pfx`, `p12`, `p12-legacy`, `jks`. PFX, P12 and JKS need `--password`. The file is written with mode 0600 |
 | `acme --selfsigned NAME --names a,b [--key-type T] [--days N]` | a self-signed certificate, made now. A `self-signed` source is made the first time it is needed |
 | `acme --jobs [--limit N]` | the jobs, newest first |

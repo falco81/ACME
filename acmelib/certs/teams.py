@@ -985,7 +985,9 @@ def clean_member(m, cat=None):
             u = float(m['until'])
         except (TypeError, ValueError):
             u = _date_epoch(m['until'])
-        if u is None or u <= 0:
+        # before the year 10000 (253402300799 = 9999-12-31 23:59:59 UTC): a later one was kept,
+        # and every page and command showing the member then failed on it (hunt t10)
+        if u is None or u <= 0 or u != u or u > 253402300799:
             raise ValueError('until is the time the membership ends (epoch or YYYY-MM-DD)')
         out['until'] = u
     if str(m.get('note') or '').strip():

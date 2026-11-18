@@ -99233,6 +99233,26 @@
   "pz_550": {
    "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} days, at most {4} servers) for the team {5} - each server that joins with it is CONFIRMED AUTOMATICALLY",
    "text": "registrační kód „{0}“ vytvořil(a) {1} ({2}, {3} dní, nejvýše {4} serverů) pro tým {5} – každý server, který se s ním připojí, je POTVRZEN AUTOMATICKY"
+  },
+  "pz_551": {
+   "source": "{0} is not the folder it was a moment ago (a link put in its place?) - not touched",
+   "text": "{0} není složka, kterou byla před chvílí (odkaz místo ní?) – nedotčeno"
+  },
+  "pz_552": {
+   "source": "no new file could be made in {0}",
+   "text": "ve složce {0} nešlo vytvořit nový soubor"
+  },
+  "pz_553": {
+   "source": "the IIS binding {0} could not be found or made",
+   "text": "vazbu IIS {0} se nepodařilo najít ani vytvořit"
+  },
+  "pz_554": {
+   "source": "the new https binding of the IIS site {0} is not found",
+   "text": "novou vazbu https webu IIS {0} se nepodařilo najít"
+  },
+  "pz_555": {
+   "source": "a file sent to be put back and left, taken away: {0}",
+   "text": "soubor nahraný k obnovení a ponechaný byl odstraněn: {0}"
   }
  },
  "rich": {
