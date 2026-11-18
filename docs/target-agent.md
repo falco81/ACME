@@ -368,7 +368,8 @@ Events: a code made (with "CONFIRMED AUTOMATICALLY" when so), revoked, a server 
 host, address, platform, key), refused, each confirmation (automatic ones say so).
 
 * Command line: `acme --target-agent enroll new [--title T] [--mode passive|active] [--port N]
-  [--days N] [--most N] [--auto-confirm]` (prints the code; `--json`), `acme --target-agent enroll
+  [--days N] [--most N] [--auto-confirm] [--owner TEAM]` (prints the code; `--json`; `--owner`:
+  a team's code), `acme --target-agent enroll
   list [--json]`, `acme --target-agent enroll revoke ID`, `acme --target-agent waiting [--json]`
   (each with the line that confirms it: `acme --target-agent NAME confirm FP`). The console:
   Certificates → *Target agents: enrollment codes, agents waiting for confirmation*.

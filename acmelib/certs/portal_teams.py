@@ -882,7 +882,31 @@ def _others_hidden(me, out):
                                   'c.id = d.cert_id WHERE d.id = ?', (one.get('id'),))
             if dep is None or _low(dep.get('owner')) not in seen:
                 one['cert'] = A.OTHERS_CERT
+    if isinstance(out.get('discovered'), dict):
+        _disc_hidden(me, out['discovered'])
     return out
+
+
+def _disc_hidden(me, v):
+    """A discovery (agent_discover.view) as a member sees it (hunt R t3, as _others_hidden): a
+    certificate found on the server that acme holds was named ("acme: NAME", its id) though it
+    is acme's own or another team's - "another owner's certificate", no id."""
+    if me.all or not isinstance(v, dict):
+        return v
+    seen = set(me.reach('cert.view'))
+    owners = {}
+    certs = [f.get('cert') for f in v.get('found') or [] if isinstance(f, dict)]
+    certs += list(v.get('certs') or [])
+    for c in certs:
+        m = c.get('managed') if isinstance(c, dict) else None
+        if not isinstance(m, dict):
+            continue
+        if m.get('id') not in owners:
+            r = me.store.db.row('SELECT owner FROM certs WHERE id = ?', (m.get('id'),))
+            owners[m.get('id')] = None if r is None else _low(r.get('owner'))
+        if owners[m.get('id')] is None or owners[m.get('id')] not in seen:
+            c['managed'] = dict(m, id=None, name=A.OTHERS_CERT)
+    return v
 
 
 @route('GET', 'agent_builder')
@@ -922,7 +946,7 @@ def _agent_discover(h):
     row, _t = agent_of(me, h.arg('id'), 'target.manage' if live else 'target.view',
                        'look at what runs on the server of' if not live else 'run a discovery on')
     if not live:
-        return {'discovery': AD.cached(h.store, row), 'target': row['name']}
+        return {'discovery': _disc_hidden(me, AD.cached(h.store, row)), 'target': row['name']}
     platform = G.platform_of(h.store, row)
     policy = G.info(h.store, row).get('policy')
     allowed = AD.allowed_kinds(policy, platform)
@@ -938,7 +962,7 @@ def _agent_discover(h):
         got = AD.run(h.store, row, want or None, me.by)
     except ValueError as e:
         raise E.ApiError(400, str(e))
-    return {'discovery': got, 'target': row['name']}
+    return {'discovery': _disc_hidden(me, got), 'target': row['name']}
 
 
 # ---------------------------------------------------------------------------

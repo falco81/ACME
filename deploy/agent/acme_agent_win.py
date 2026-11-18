@@ -2758,7 +2758,8 @@ def _policy_line(pol, words):
 
 
 ROLE_EXTRA = {'ccs': 'path', 'wac': 'msi'}
-UNC_RE = re.compile(r'\\\\[^\\\x00-\x1f\x7f/:*?"<>|]+\\[^\x00-\x1f\x7f*?"<>|]+\Z')
+# a server's name, never `.` or `?` (\\.\C:\Windows, \\?\...: a device path - past protected())
+UNC_RE = re.compile(r'\\\\(?![.?]\\)[^\\\x00-\x1f\x7f/:*?"<>|]+\\[^\x00-\x1f\x7f*?"<>|]+\Z')
 
 
 def role_entry(rest):
@@ -4067,7 +4068,20 @@ def winservice(argv):
     raise SystemExit('acme-agent winservice root|serve')
 
 
+def _out_never_fails():
+    """stdout redirected (acme-agent discover > file, a pipe, a scheduled task) is in the ANSI
+    code page: a name it has no letter for (Č in cp1252, a Cyrillic CA name) ended the command
+    with a UnicodeEncodeError - now written as \\u010c, as stderr does already."""
+    s = sys.stdout
+    try:
+        if s is not None and (getattr(s, 'errors', None) or 'strict') == 'strict':
+            s.reconfigure(errors='backslashreplace')
+    except (AttributeError, ValueError, OSError):
+        pass
+
+
 def main(argv):
+    _out_never_fails()
     cmd = (argv or [''])[0]
     if cmd == 'windows-install':
         return windows_install(argv[1:])

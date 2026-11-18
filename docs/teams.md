@@ -336,6 +336,8 @@ Enterprise teams (1.0.125):
     acme --roles                                   the roles and their capabilities
     acme --role-add NAME --caps cert.view,cert.renew [--description ..] / --role-del NAME [--strip]
     acme --team-access WHO                         what a person may in which team, and why
+    acme --target-edit NAME --owner TEAM|-         a team's device (- acme's own); --target-add too
+    acme --target-agent enroll new --owner TEAM    a team's enrollment code
 
 In `--members` the old rights stay rights, other words are roles, `@YYYY-MM-DD` ends the
 membership.

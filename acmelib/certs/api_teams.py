@@ -422,7 +422,7 @@ def _activity(h, s):
 # --tag-add NAME, --tag-del NAME, --teams-adopt
 # ---------------------------------------------------------------------------
 CLI_KEYS = ('teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
-            'roles', 'role_add', 'role_del', 'team_access')
+            'roles', 'role_add', 'role_del', 'team_access', 'team_activity', 'teams_from_groups')
 
 
 def add_args(p):
@@ -430,8 +430,9 @@ def add_args(p):
                              'may do, and the tags (Settings → Owners and teams, docs/teams.md).')
     g.add_argument('--teams', action='store_true', help='the owners and the tags, and how many '
                    'certificates each')
-    g.add_argument('--team-add', metavar='NAME', help='a new owner: --team-kind team|person, '
-                   '--members WHO=RIGHTS,WHO, --contact-mail, --note')
+    g.add_argument('--team-add', metavar='NAME', help='a new owner: --team-kind '
+                   'team|person|unit, --members WHO=RIGHTS,WHO, --contact-mail, --note, '
+                   '--parent TEAM, --description, --policy JSON')
     g.add_argument('--team-edit', metavar='NAME', help='change one: the same, --name NEW')
     g.add_argument('--team-del', metavar='NAME', help='delete one; owning certificates, with '
                    '--reassign OTHER (- for nobody)')
@@ -461,6 +462,17 @@ def add_args(p):
                    'them (an old right stands for what it gives)')
     g.add_argument('--team-access', metavar='WHO', help='what a person may in which team, and '
                    'why: local:NAME or a user of the directory')
+    # 1.0.126: what the page's Activity tab and "Teams from directory groups" do
+    g.add_argument('--team-activity', metavar='NAME', help='what happened in the team: its '
+                   'changes, its certificates\' and devices\' events, newest first (--limit N, '
+                   '--below: the teams below it too)')
+    g.add_argument('--below', action='store_true', help='with --team-activity')
+    g.add_argument('--teams-from-groups', metavar='FILTER', help='a team of each directory '
+                   'group whose name fits FILTER (PKI-*), the group its member: --member-role '
+                   'ROLE [Viewer], --parent TEAM, --team-kind team|unit; shown first, made with '
+                   '--yes')
+    g.add_argument('--member-role', metavar='ROLE', help='with --teams-from-groups: the role (or '
+                   'right) the group is given [Viewer]')
 
 
 def _members(text):
@@ -560,6 +572,9 @@ def cli(c):
             return c.done('the role %s was %s' % (got['name'], 'changed' if have else 'added'),
                           {'ok': True, 'role': got})
         if getattr(a, 'role_del', None):
+            if not any(r['name'].lower() == a.role_del.strip().lower()
+                       for r in T.roles(store)):      # said before it is asked, as --team-del
+                raise SystemExit('acme: there is no role %s (acme --roles)' % a.role_del)
             c.sure('delete the role %s' % a.role_del)
             got = T.delete_role(store, a.role_del, by, strip=bool(a.strip))
             return c.done('the role %s was deleted' % got['deleted'], dict(got, ok=True))
@@ -568,13 +583,18 @@ def cli(c):
             if c.json:
                 c.out({'roles': got, 'caps': T.caps_catalog()})
                 return 0
-            c.table([[r['name'], 'built in' if r['builtin'] else 'own', ', '.join(r['caps']),
-                      str(r['used'])] for r in got], ['role', 'kind', 'capabilities', 'members'])
+            _whole(c, [[r['name'], 'built in' if r['builtin'] else 'own', str(r['used']),
+                        ', '.join(r['caps'])] for r in got], ['role', 'kind', 'members',
+                                                               'capabilities'], (3,))
             return 0
         if getattr(a, 'team_access', None):
             return _cli_access(c, a.team_access)
+        if getattr(a, 'team_activity', None):
+            return _cli_activity(c, a.team_activity)
+        if getattr(a, 'teams_from_groups', None):
+            return _cli_from_groups(c, a.teams_from_groups)
     except (ValueError, LookupError) as e:
-        raise SystemExit('acme: %s' % e)
+        raise SystemExit('acme: %s' % _cli_words(e))
     except E.ApiError as e:
         raise SystemExit('acme: %s' % e)
     got = {'teams': T.teams(store), 'tags': T.tags(store), 'legacy': T.legacy(store)}
@@ -603,6 +623,27 @@ def cli(c):
     return 0
 
 
+def _cli_words(e):
+    """A refusal of teams.py said with the command line's options (1.0.126: "delete it with
+    reparent (another team, or '' for the top level)", "with strip" - words of the API)."""
+    words = str(e)
+    for api, cli in (("with reparent (another team, or '' for the top level)",
+                      "with --parent TEAM (- for the top level)"),
+                     ('delete it with strip', 'delete it with --strip')):
+        words = words.replace(api, cli)
+    return words
+
+
+def _whole(c, rows, heads, whole=()):
+    """A table whose columns `whole` are never cut (1.0.126: the capabilities of --roles and
+    --team-access were cut at 48 characters, most of them unsaid)."""
+    if c.json or not rows:
+        return c.table(rows, heads)
+    w = [max(len(str(x)) for x in col) for col in zip(*([heads] + [[str(v) for v in r]
+                                                                for r in rows]))]
+    print(E.table(rows, heads, [n if i in whole else min(48, n) for i, n in enumerate(w)]))
+
+
 def _tree_pos(store):
     return {k: i for i, k in enumerate(T.tree(store).order)}
 
@@ -622,12 +663,63 @@ class _CliH(object):
             E.log('the directories could not be read: %s' % e, 'warn')
 
 
+def _cli_activity(c, name):
+    """acme --team-activity NAME [--below] [--limit N] (1.0.126): the page's Activity tab."""
+    team = T.team_get(c.store, name)
+    if not team:
+        raise SystemExit('acme: there is no team %s (acme --teams)' % name)
+    lim = getattr(c.args, 'limit', None)
+    rows, total = T.team_activity(c.store, team['name'], lim if isinstance(lim, int) and lim > 0
+                                  else 40, 0, below=bool(getattr(c.args, 'below', False)))
+    if c.json:
+        c.out({'team': team['name'], 'rows': rows, 'total': total})
+        return 0
+    if not rows:
+        print('nothing happened in the team %s yet' % team['name'])
+        return 0
+    for r in rows:
+        print('%s  %-5s %s' % (time.strftime('%Y-%m-%d %H:%M', time.localtime(r['ts'] or 0)),
+                               r.get('level') or '', r.get('words') or ''))
+    if total > len(rows):
+        print('(%d of %d - --limit N for more)' % (len(rows), total))
+    return 0
+
+
+def _cli_from_groups(c, pattern):
+    """acme --teams-from-groups FILTER [--member-role ROLE] [--parent TEAM] [--team-kind K]
+    (1.0.126): the page's "Teams from directory groups" - the preview, then made with --yes."""
+    a = c.args
+    b = {'filter': pattern, 'role': getattr(a, 'member_role', None) or 'Viewer',
+         'parent': getattr(a, 'parent', None), 'kind': a.team_kind or 'team',
+         'dry_run': not getattr(a, 'yes', False)}
+    got = from_groups(_CliH(c.store), b, c.WHO)
+    if c.json:
+        c.out(got)
+        return 0
+    if not got['groups']:
+        print('no group of the directory %s fits %s' % (got['directory'], got['filter']))
+        return 0
+    c.table([[g['cn'], g['team'], 'there already' if g['exists'] else (
+        'made' if g.get('made') else 'to be made'), ', '.join(g['member_of']) or '-']
+        for g in got['groups']], ['group', 'team', '', 'already a member of'])
+    if got.get('capped'):
+        print('(only the first %d groups - a narrower filter for the others)' % len(got['groups']))
+    if got['dry_run']:
+        n = len([g for g in got['groups'] if not g['exists']])
+        print('%d team(s) would be made (a %s each, the group its member as %s%s) - again with '
+              '--yes to make them' % (n, b['kind'], got['role'], (', under %s' % got['parent'])
+                                      if got['parent'] else ''))
+        return 0
+    return c.done('%d team(s) made from the directory groups' % len(got['made']),
+                  {'ok': True, 'made': got['made']})
+
+
 def _cli_access(c, who):
     h = _CliH(c.store)
     names, groups, found = principal_of(h, who)
     teams_ = T.explain(c.store, names, groups)
     got = {'who': found, 'groups': sorted({cn for _dn, cn in groups}, key=str.lower),
-           'teams': teams_}
+           'groups_count': len(groups), 'teams': teams_}     # the API's shape (1.0.126)
     if c.json:
         c.out(got)
         return 0
@@ -637,8 +729,17 @@ def _cli_access(c, who):
     if not teams_:
         print('in no team')
         return 0
-    c.table([[t['team'], ', '.join(t['caps']) or '(expired)', '; '.join(
+    _whole(c, [[t['team'], ', '.join(t['caps']) or '(expired)', '; '.join(
         '%s%s via %s%s' % (v['team'] if v['inherited'] else '', ' ->' if v['inherited'] else '',
                            v['who'], (' [%s]' % '+'.join(v['rights'] + v['roles'])))
-        for v in t['via'])] for t in teams_], ['team', 'capabilities', 'why'])
+        for v in t['via'])] for t in teams_], ['team', 'capabilities', 'why'], (1, 2))
+    # the limits in force, and the team each comes from (1.0.126: said by the API only)
+    for t in teams_:
+        pol = dict(t.get('policy') or {})
+        came = pol.pop('from', None) or {}
+        if pol:
+            print('limits of %s: %s' % (t['team'], '; '.join(
+                '%s %s%s' % (k, json.dumps(v, sort_keys=True, ensure_ascii=False),
+                             (' (from %s)' % came[k]) if came.get(k) and came[k] != t['team']
+                             else '') for k, v in sorted(pol.items()))))
     return 0

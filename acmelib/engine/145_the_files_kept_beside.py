@@ -603,6 +603,23 @@ def _peek_postgres(path):
             'tables': len(tables)}, ''
 
 
+def _dump_table_names(path, kind):
+    """The tables a dump of PostgreSQL or MariaDB holds (a set of names)."""
+    if kind == 'postgres':
+        listed = _run([_tool(('pg_restore',)), '--list', str(path)], 'pg_restore --list',
+                      seconds=300)
+        return set(re.findall(r'TABLE DATA\s+\S+\s+(\S+)', listed.decode('utf-8', 'replace')))
+    import gzip
+    names = set()
+    with gzip.open(str(path), 'rt', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            if line.startswith('CREATE TABLE'):
+                got = re.search(r'CREATE TABLE `([^`]+)`', line)
+                if got:
+                    names.add(got.group(1))
+    return names
+
+
 def db_file_peek(path, engine, need_admin=True):
     """What is in a copy or a dump, and whether it may be put back here."""
     head = _magic(path)
@@ -831,6 +848,20 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
     except Exception:                                   # noqa: BLE001
         live_once = None
     c = _db_conf()
+    # A dump of an older version, made before a table was (1.0.126): its tables are made again,
+    # the others stay - on PostgreSQL pg_restore could not even drop the function the triggers
+    # of such a table use (cert_roles of 1.0.125 over a dump of 1.0.124: nothing was put back),
+    # and their rows stayed beside the dump's, a mix of the two. Emptied as a copy empties
+    # them (load_tables, 1.0.80).
+    absent = []
+    if kind in ('postgres', 'mariadb'):
+        try:
+            names = _dump_table_names(path, kind)
+            here = set(store.db.tables())
+            absent = [t for t in TABLES if t in here and t not in names] if names else []
+        except Exception as e:                          # noqa: BLE001
+            log('the tables of the dump could not be listed: %s' % e, 'warn')
+            absent = []
     if kind == 'copy':
         load_tables(store.db, path)
     elif kind == 'sqlite':
@@ -887,14 +918,33 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
                 pass
     else:
         tool = _tool(('pg_restore',))
+        # acme's triggers on the tables the dump does not have: they hold the functions the
+        # dump drops and makes again (made again below by make_tables)
+        for t in absent:
+            for r in store.db.rows("SELECT tgname FROM pg_trigger WHERE tgrelid = ?::regclass "
+                                   "AND NOT tgisinternal AND tgname LIKE 'acme%'", (t,)):
+                store.db.run('DROP TRIGGER IF EXISTS %s ON %s' % (r['tgname'], t))
         pf = _pg_passfile(c)
         try:
             _run([tool] + _pg_args(c) + ['--single-transaction', '--clean', '--if-exists',
                                          '--no-owner', '--no-privileges',
                                          '--dbname=%s' % safe_db_name(c), str(path)],
                  'pg_restore', env=_pg_env(c, pf))
+        except Exception:
+            try:
+                store.db.make_tables()          # the triggers taken off back in place
+            except Exception:                           # noqa: BLE001
+                pass
+            raise
         finally:
             os.unlink(pf)
+    for t in absent:
+        if t in ('sessions', 'meta') or t in LOG_TABLES:
+            continue
+        try:
+            store.db.run('DELETE FROM %s' % t)
+        except Exception as e:                          # noqa: BLE001
+            log('%s could not be emptied: %s' % (t, e), 'warn')
     store.db.make_tables()
     if CONFIG.get('ha_mode') == 'replicated' and store.db.engine == 'postgres':
         ha_sequences(store.db, int(CONFIG.get('ha_slot') or 1))

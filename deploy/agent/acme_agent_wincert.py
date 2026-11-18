@@ -447,10 +447,10 @@ def run_lines(A, script, values, env_more=None, timeout=PS_TIMEOUT * 2):
     return rc == 0, steps, err[-300:], said or ''
 
 
-def detect(A):
+def detect(A, timeout=PS_TIMEOUT):
     """The roles of this server: {role: (yes, detail)} - one run, nothing changed (the same
     lines as windows_ssh's "Test the connection")."""
-    ok, _steps, err, said = run_lines(A, role_ps('detect'), {}, timeout=PS_TIMEOUT)
+    ok, _steps, err, said = run_lines(A, role_ps('detect'), {}, timeout=timeout)
     got = {}
     for line in said.splitlines():
         m = re.match(r'^ROLE (\w+) (yes|no) ?(.*)$', line.strip())
@@ -1707,6 +1707,8 @@ def adcs_cli(A, argv):
 # store's certificates (subject, names, issuer, the end, thumbprint, serial; whether acme
 # imported it). Read-only - one fixed script, nothing changed; never a key nor a password.
 DISCOVER_STORE_MOST = 300
+DISCOVER_PS_S = 120             # the script reading the store, IIS, the listener, the roles
+DISCOVER_ALL_S = 150            # the whole discovery (the roles' detection too): acme waits 180 s
 DISCOVER_PS = PRELUDE + r"""# acme-agent: discover
 $k = @($j.kinds)
 $out = @{ store = @(); iis = @(); rdp = ''; roles = @{} }
@@ -1839,7 +1841,8 @@ def discover(A, pol, kinds):
     """The job of op `discover` on Windows (the root side, LocalSystem) -> {found, certs,
     skipped}. `kinds`: what the policy allows and acme asked."""
     kinds = list(kinds)
-    ok, objs, err = run(A, DISCOVER_PS, {'kinds': kinds}, timeout=120)
+    t0 = time.time()
+    ok, objs, err = run(A, DISCOVER_PS, {'kinds': kinds}, timeout=DISCOVER_PS_S)
     got = objs[-1] if objs and isinstance(objs[-1], dict) else {}
     if not ok and not got:
         raise A.Refused('the server could not be looked at: %s' % (err or 'PowerShell failed'))
@@ -1899,7 +1902,9 @@ def discover(A, pol, kinds):
     R = _roles()
     asked_roles = [r[0] for r in R.ROLES if r[0] in kinds]
     if asked_roles:
-        det, derr = detect(A)
+        # what is left of the whole discovery's time (acme waits 180 s for its
+        # answer): the roles' detection alone may take 300 s, an answer nobody waits for
+        det, derr = detect(A, timeout=max(15, int(DISCOVER_ALL_S - (time.time() - t0))))
         if derr and not det:
             skipped.append({'kind': 'roles', 'why': _clean(derr, 200)})
         roles = got.get('roles') if isinstance(got.get('roles'), dict) else {}

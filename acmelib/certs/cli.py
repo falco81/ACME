@@ -247,6 +247,11 @@ def add_args(p):
     g.add_argument('--auto-confirm', dest='auto_confirm', action='store_true',
                    help='with --target-agent enroll new: each server that joins with it is '
                         'confirmed at once, nobody comparing its fingerprint (off by default)')
+    # 1.0.126: a team's devices and agents (docs/teams.md) - the pages could, the CLI could not
+    g.add_argument('--owner', metavar='TEAM', default=None,
+                   help='with --target-add, --target-edit: the team whose device it is (- or '
+                        '"": acme\'s own); with --target-agent enroll new: the servers '
+                        'enrolling become that team\'s targets')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
                        help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
@@ -1558,7 +1563,10 @@ class Cli(object):
             self.table(rows, ['setting', 'value', 'what'])
         self.kv([('used by', pub.get('used_by')), ('last ok', _when(pub.get('last_ok'))
                                                    if pub.get('last_ok') else ''),
-                 ('last error', pub.get('last_error')), ('note', pub.get('note')),
+                 ('last error', pub.get('last_error')),
+                 # the team whose device it is (1.0.126; acme's own: not said)
+                 ('owner', pub.get('owner') if fam == 'target' else ''),
+                 ('note', pub.get('note')),
                  ('actions', ', '.join('%s (%s)' % (a['key'], a.get('label') or '')
                                        for a in pub.get('actions') or [])),
                  ('default', 'yes - a new certificate takes it' if pub.get('is_default') else '')])
@@ -1653,6 +1661,17 @@ class Cli(object):
         e = self.args.enabled
         return None if not e else (1 if e == 'on' else 0)
 
+    def _owner(self, fam, body):
+        """--owner TEAM of a target (1.0.126): the team whose device it is, as the page's
+        Owner sets it (- or "": acme's own) - the API checks the team."""
+        owner = getattr(self.args, 'owner', None)
+        if owner is None:
+            return
+        if fam != 'target':
+            raise SystemExit('acme: --owner goes with --target-add, --target-edit (a %s has no '
+                             'owner)' % FAMILIES[fam][0])
+        body['owner'] = '' if owner.strip() in ('', '-') else owner.strip()
+
     def fam_add(self, fam, name):
         a = self.args
         word, path, _o = FAMILIES[fam]
@@ -1665,6 +1684,7 @@ class Cli(object):
         body = {'name': name, 'kind': a.kind, 'config': cfg, 'note': a.note or ''}
         if self._enabled() is not None:
             body['enabled'] = self._enabled()
+        self._owner(fam, body)
         got = self.api('POST', '/api/%s/save' % path, body=body)
         return self.done('%s %s added (id %s, %s)%s' % (
             word, name, got['id'], a.kind, ' - acme --%s-test %s tries it' % (word, name)
@@ -1691,9 +1711,10 @@ class Cli(object):
             body['note'] = a.note
         if self._enabled() is not None:
             body['enabled'] = self._enabled()
+        self._owner(fam, body)
         if len(body) == 2 and kind == row['kind']:
             raise SystemExit('acme: nothing to change - --set KEY=VALUE, --name, --note, '
-                             '--enabled, --kind')
+                             '--enabled, --kind%s' % (', --owner' if fam == 'target' else ''))
         got = self.api('POST', '/api/%s/save' % path, body=body)
         return self.done('%s %s changed' % (word, a.name or row['name']), got)
 
@@ -1868,17 +1889,20 @@ class Cli(object):
                                    port=a.port if getattr(a, 'port', None) else G.PASSIVE_PORT,
                                    days=a.days if a.days is not None else 7,
                                    most=a.most if a.most is not None else 10,
-                                   auto=bool(a.auto_confirm))
+                                   auto=bool(a.auto_confirm),
+                                   # a team's enrollment code (1.0.125 on the pages; 1.0.126)
+                                   team=getattr(a, 'owner', None) or None)
             except PluginError as e:
                 raise SystemExit('acme: %s' % e)
             if self.json:
                 return self.out(got) or 0
             print(got['code'])
             sys.stderr.write(
-                'the enrollment code "%s" (%s mode, until %s, at most %d server%s)%s - on each '
+                'the enrollment code "%s"%s (%s mode, until %s, at most %d server%s)%s - on each '
                 'server, as root (Windows: an elevated prompt, or the MSI\'s JOINCODE=):\n'
                 '  acme-agent join CODE\nIt is shown this once.\n' % (
-                    got['title'], got['mode'], _when(got['until']), got['most'],
+                    got['title'], (' of the team %s' % got['team']) if got.get('team') else '',
+                    got['mode'], _when(got['until']), got['most'],
                     '' if got['most'] == 1 else 's',
                     ' - CONFIRMED AUTOMATICALLY: no fingerprint is compared' if got['auto']
                     else ' - each server then waits for its fingerprint to be confirmed '
@@ -1905,7 +1929,8 @@ class Cli(object):
             print('%-12s  %-24s  %-8s  %-7s  %-9s  %-20s  %s%s' % (
                 r['id'], r['title'][:24], r['state'], r['mode'],
                 '%d of %d' % (r['uses'], r['most']), _when(r['until']), r['by'],
-                '  (confirmed automatically)' if r['auto'] else ''))
+                '  (confirmed automatically)' if r['auto'] else '') +
+                (('  (the team %s)' % r['team']) if r.get('team') else ''))
         return 0
 
     def target_agents_waiting(self, rest):
@@ -1925,7 +1950,8 @@ class Cli(object):
                          ('system', r['os'] or '-'),
                          ('joined with', ('the enrollment code "%s"' % r['enroll']['title'])
                           if r['enroll'] else 'the target\'s own join code'),
-                         ('asked', _when(r['at'])), ('fingerprint', r['fp_words'])):
+                         ('asked', _when(r['at'])), ('fingerprint', r['fp_words'])) + (
+                             (('team', r['owner']),) if r.get('owner') else ()):
                 print('  %-12s %s' % (k, v))
             print('  acme --target-agent %s confirm %s' % (r['name'], r['fp']))
         return 0
@@ -1997,13 +2023,19 @@ class Cli(object):
         the policy lines that allow them."""
         from acmelib.certs import agent_policy as P
         got = P.adcs_lists(self.store, row, ca=rest[0] if rest else '')
+        # the agent refused (its policy, an agent older than 1.0.125, the CA not reached) ends
+        # non-zero whether or not it named a policy line (1.0.126: 0 without one), as look does;
+        # a domain with no CA ("0 CAs") is an answer; not one CA whose templates were read is not
+        failed = 1 if not got['cas'] and (got.get('needs') or not re.match(
+            r'^\d+ CAs?$', str(got.get('said') or ''))) or (
+            got['cas'] and all(c.get('problem') for c in got['cas'])) else 0
         if self.json:
-            return self.out(got) or (0 if got['cas'] or not got.get('needs') else 1)
+            return self.out(got) or failed
         if not got['cas']:
             print('the agent of %s lists no CA: %s' % (row['name'], got.get('said') or '-'))
             for n in got.get('needs') or []:
                 print('  allow it on the server (an elevated prompt): %s' % n.get('allow'))
-            return 1 if got.get('needs') else 0
+            return failed
         for c in got['cas']:
             print('%s%s' % (c['config'], ('   (%s)' % c['name']) if c.get('name') else ''))
             for t in c.get('templates') or []:
@@ -2015,7 +2047,7 @@ class Cli(object):
             if re.search(r'[^A-Za-z0-9_.,*-]', names):
                 names = '"%s"' % names      # a name with a space: one word for the policy
             print('    -> acme-agent allow adcs "%s" template=%s' % (c['config'], names))
-        return 0
+        return failed
 
     def target_agent_discover(self, row, rest):
         """acme --target-agent NAME discover [cached] [--kind K,K] [--json] (1.0.125): what
@@ -2034,6 +2066,11 @@ class Cli(object):
             if got is None:
                 got = {'target': row['name'], 'found': [], 'certs': [],
                        'said': 'no discovery was asked on %s yet' % row['name']}
+                if not self.json:
+                    # 1.0.126: it printed "0 services found", as if one found nothing
+                    print('%s (acme --target-agent %s discover asks its agent)' % (
+                        got['said'], row['name']))
+                    return 0
         else:
             try:
                 got = AD.run(self.store, row, kinds or None, self.WHO)
@@ -2083,8 +2120,8 @@ class Cli(object):
             return self.target_agents_enroll('list', [])
         if len(words) < 2:
             raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|system|'
-                             'renew|update|forget|design (or: all update; enroll new|list|revoke; '
-                             'waiting)')
+                             'renew|update|forget|design|adcs-templates|discover (or: all update; '
+                             'enroll new|list|revoke; waiting)')
         name, what, rest = words[0], words[1], words[2:]
         if name == 'all' and what == 'update':
             return self.target_agents_update()

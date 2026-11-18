@@ -208,6 +208,12 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 | `acme --team-del NAME [--reassign OTHER\|-] [--yes]` | delete one; owning certificates only with `--reassign` |
 | `acme --tag-add TAG [--colour dim\|info\|ok\|warn\|crit\|violet] [--note TEXT]` · `acme --tag-del TAG [--strip]` | the tags of the catalog |
 | `acme --teams-adopt` | owners and tags made from what certificates say now |
+| `acme --team-add NAME [--parent TEAM] [--team-kind unit] [--description TEXT] [--policy JSON]` · `acme --team-edit NAME [--parent TEAM\|-] [--policy '{}'] [--members 'group:Web=Requester+Deployer,local:jan=manage@2026-12-31']` | enterprise teams (1.0.125): the tree, the team's limits, members with roles and an end |
+| `acme --team-del NAME --parent TEAM\|- [--yes]` | delete one with teams below it: they move under TEAM (`-` the top level) |
+| `acme --roles [--json]` · `acme --role-add NAME --caps cert.view,cert.renew [--description TEXT]` · `acme --role-del NAME [--strip] [--yes]` | the roles and their capabilities; a role of your own |
+| `acme --team-access WHO [--json]` | what a person (`local:NAME`, a user of the directory) may in which team, why, and the limits in force |
+| `acme --target-add NAME --kind KIND ... --owner TEAM` · `acme --target-edit NAME --owner TEAM\|-` | a team's device (`-`: acme's own again) |
+| `acme --target-agent enroll new --owner TEAM [...]` | a team's enrollment code: the servers enrolling with it become that team's targets |
 
 ## Signing in with Windows - Kerberos (1.0.99)
 

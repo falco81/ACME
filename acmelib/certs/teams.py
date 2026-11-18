@@ -1472,10 +1472,11 @@ def _clean_parent(store, b, old, name):
     if raw in (None, '', '-'):
         return None
     p = team_get(store, raw)
-    if not p and 'parent' not in b:
+    if not p and ('parent' not in b or (old and _low(raw) == _low(old.get('parent')))):
         # the parent it had is gone (an import, another node): the tree puts it at the top
         # level, and a save that does not move it keeps it there (hunt Rt1: every save of it -
-        # its members, its note - was refused "there is no team")
+        # its members, its note - was refused "there is no team"; hunt R t3: the page sends
+        # the parent it has, the one gone, with every save of its members)
         return None
     if not p:
         raise LookupError('there is no team %s to put it under' % raw)

@@ -1373,7 +1373,9 @@ def cmd_check(pol, op, needs):
         return {'argv': argv}
     if 'script' in op:
         path = norm_dir(op.get('script'), real=False)
-        rule = next((s for s in pol['scripts'] if s['path'] == path), None)
+        # Windows: one script whatever the case of its path (as the root side finds it)
+        rule = next((s for s in pol['scripts'] if (s['path'].lower() == path.lower()
+                                                     if WINDOWS else s['path'] == path)), None)
         if rule is None:
             needs.append({'kind': 'script', 'what': path,
                           'allow': 'acme-agent allow script %s' % qw(path)})
