@@ -103,25 +103,28 @@ class QnapTarget(SshMixin, Base):
                 s.put(pem, tmp + '.pem', 0o600)
                 s.put(chain, tmp + '.uca', 0o600)
                 self.mark_pending(bundle)
-                try:
-                    self.run(s, ' && '.join([
-                        # an older copy never taken for this one's (hunt t5)
-                        'rm -f %s.acme-prev %s.acme-prev' % (PEM, UCA),
-                        'cp -p %s %s.acme-prev' % (PEM, PEM),
-                        '{ test ! -f %s || cp -p %s %s.acme-prev; }' % (UCA, UCA, UCA),
-                        'cat %s > %s' % (quote(tmp + '.pem'), PEM),
-                        'cat %s > %s' % (quote(tmp + '.uca'), UCA),
-                        'chmod 600 %s' % PEM]),
-                        'writing %s' % PEM)
-                except PluginError:
+                script = ' && '.join([
+                    'cp -p %s %s.acme-prev' % (PEM, PEM), 'echo SAVED-PEM',
+                    '{ test ! -f %s || { cp -p %s %s.acme-prev && echo SAVED-UCA; }; }'
+                    % (UCA, UCA, UCA),
+                    'cat %s > %s' % (quote(tmp + '.pem'), PEM),
+                    'cat %s > %s' % (quote(tmp + '.uca'), UCA),
+                    'chmod 600 %s' % PEM])
+                rc, out, err = self.run(s, script, 'writing %s' % PEM, check=False)
+                if rc != 0:
                     # hunt t5: a cat that failed half-way (the disk full, uca.pem refused) left
-                    # the new (or a cut) stunnel.pem beside the old uca.pem - read at the next
-                    # restart of stunnel. The copies made above put back.
-                    self.run(s, '{ test ! -f %s.acme-prev || cp -p %s.acme-prev %s; }; '
-                                '{ test ! -f %s.acme-prev || cp -p %s.acme-prev %s; }'
-                             % (PEM, PEM, PEM, UCA, UCA, UCA),
-                             'putting the previous certificate back', check=False)
-                    raise
+                    # the new (or a cut) stunnel.pem beside the old uca.pem, read at the next
+                    # restart of stunnel - the copies made just now put back (only those: an
+                    # older .acme-prev is not this one's)
+                    saved = text(out).split()
+                    back = ['cp -p %s.acme-prev %s' % (f, f) for f, mark in
+                            ((PEM, 'SAVED-PEM'), (UCA, 'SAVED-UCA')) if mark in saved]
+                    if back:
+                        self.run(s, '; '.join(back), 'putting the previous certificate back',
+                                 check=False)
+                    raise PluginError('writing %s failed (exit %s): %s' % (
+                        PEM, rc, (text(err).strip() or text(out).strip())[-300:]),
+                        detail='$ %s\n%s\n%s' % (script, text(out), text(err)))
             finally:
                 # 1.0.96: the staged key removed on every path - a failed cp or cat left it
                 # in the temporary directory (the rm was the last link of the && chain)

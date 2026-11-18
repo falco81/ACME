@@ -121,22 +121,28 @@ class MikrotikKeyFileGoneTest(unittest.TestCase):
 
 
 class QnapPartialWriteTest(unittest.TestCase):
-    def test_a_write_failing_half_way_puts_the_previous_back(self):
-        ssh = FakeSsh([
-            (r'cat \S+\.pem > /etc/stunnel/stunnel\.pem', (1, '', 'No space left on device')),
-        ])
+    def deploy(self, answer):
+        ssh = FakeSsh([(r'cat \S+\.pem > /etc/stunnel/stunnel\.pem', answer)])
         t = make('qnap', {'host': 'nas', 'user': 'admin', 'auth': 'password', 'password': 'p'},
                  FakeCtx(ssh=ssh))
-        with self.assertRaises(PluginError):
+        with self.assertRaises(PluginError) as e:
             t.deploy(FakeBundle(), {})
         cmds = [c for c, _ in ssh.runs]
+        self.assertNotIn('stunnel.sh restart', ' '.join(cmds))
+        return str(e.exception), cmds
+
+    def test_a_write_failing_half_way_puts_the_previous_back(self):
+        words, cmds = self.deploy((1, 'SAVED-PEM\nSAVED-UCA\n', 'No space left on device'))
+        self.assertIn('writing /etc/stunnel/stunnel.pem failed (exit 1): No space left', words)
         i = next(i for i, c in enumerate(cmds) if 'cat ' in c)
-        self.assertIn("'rm -f /etc/stunnel/stunnel.pem.acme-prev /etc/stunnel/uca.pem.acme-prev "
-                      "&& cp -p", cmds[i])
         back = cmds[i + 1]
         self.assertIn('cp -p /etc/stunnel/stunnel.pem.acme-prev /etc/stunnel/stunnel.pem', back)
         self.assertIn('cp -p /etc/stunnel/uca.pem.acme-prev /etc/stunnel/uca.pem', back)
-        self.assertNotIn('stunnel.sh restart', ' '.join(cmds))
+
+    def test_only_the_copies_made_now(self):
+        # the copy of stunnel.pem not made: an older .acme-prev is not put over it
+        words, cmds = self.deploy((1, '', 'cp: read-only file system'))
+        self.assertFalse([c for c in cmds if '.acme-prev /etc/stunnel/' in c])
 
 
 if __name__ == '__main__':

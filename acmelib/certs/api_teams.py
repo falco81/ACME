@@ -36,6 +36,7 @@ Enterprise teams (1.0.125, docs/teams.md "Enterprise teams"; the shapes: API_A1 
 """
 from __future__ import annotations
 
+import datetime
 import json
 import re
 import sys
@@ -513,6 +514,7 @@ def _members_json(text):
             if t:
                 fmt = '%Y-%m-%d %H:%M:%S' if t.group(2).count(':') == 2 else '%Y-%m-%d %H:%M'
                 try:
+                    datetime.datetime.strptime('%s %s' % t.groups(), fmt)   # 02-30 refused
                     one['until'] = time.mktime(time.strptime('%s %s' % t.groups(), fmt))
                 except ValueError:
                     raise ValueError('until is YYYY-MM-DD or YYYY-MM-DD HH:MM, not %s' % u[:40])
