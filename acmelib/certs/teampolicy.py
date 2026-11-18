@@ -229,10 +229,21 @@ def need_admin_cert(store, s, b, row):
     except (TypeError, ValueError):
         days = None
     moving = row is not None and _low(owner) != _low(row.get('owner'))
-    need_request(store, team, who, profile='', issuer=b.get('issuer') if 'issuer' in b else (
-        None if row else None), validation=b.get('challenge') if 'challenge' in b else None,
-        names=[str(n) for n in names or [] if isinstance(n, str)], days=days,
-        count=row is None or moving)
+    issuer = b.get('issuer') if 'issuer' in b else None
+    validation = b.get('challenge') if 'challenge' in b else None
+    if moving:
+        # a certificate given to another team: what it is now must be within that team's
+        # limits too (hunt Rt1: only what the body changed was checked - a certificate of
+        # names and a source the team may not use was moved into it unchecked)
+        if names is None:
+            names = S.jload(row.get('names'), []) or []
+        if 'issuer' not in b:
+            issuer = row.get('issuer') or None
+        if 'challenge' not in b:
+            validation = row.get('challenge') or None
+    need_request(store, team, who, profile='', issuer=issuer, validation=validation,
+                 names=[str(n) for n in names or [] if isinstance(n, str)], days=days,
+                 count=row is None or moving)
 
 
 def admin_create_waits(store, s, owner):

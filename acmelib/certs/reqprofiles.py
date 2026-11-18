@@ -330,6 +330,9 @@ def save_profile(store, b, by):
 def asked_follow(store, old, new):
     """A profile renamed (1.0.19): what was asked for from it says its new name - it
     counted no more, and a new CSR for one of them was no longer checked against it."""
+    # the teams' limits naming it follow too (hunt Rt1)
+    from acmelib.certs import teams as T
+    T.policy_rename(store, 'profiles', old, new)
     for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (META_PORTAL + '%',)):
         try:
             got = json.loads(r['v'] or '{}')
@@ -378,6 +381,9 @@ def rename_source(store, family, old, new):
     """A source or a validation renamed (new) or deleted (None): the profiles naming it follow
     (1.0.45) - renamed, a profile said "there is no source" and the portal no longer offered it."""
     key = 'issuer' if family == 'issuer' else 'challenge'
+    # the teams' limits naming it follow too (hunt Rt1)
+    from acmelib.certs import teams as T
+    T.policy_rename(store, 'issuers' if family == 'issuer' else 'validations', old, new)
     for r in rows(store):
         cfg = config_of(r)
         if str(cfg.get(key) or '') == old and new:

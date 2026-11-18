@@ -235,6 +235,11 @@ class MsAdcsRpcIssuer(Issuer):
         given = [x.strip() for x in re.split(r'[,\s;]+', str(self.c('kdc') or '')) if x.strip()]
         out = []
         for g in given:
+            if not g.startswith('[') and g.count(':') > 1:
+                # an IPv6 address without brackets: the whole of it, port 88 (its last group
+                # was taken for a port - 2001:db8::10 asked 2001:db8: on port 10)
+                out.append((g, 88))
+                continue
             m = re.match(r'^\[?([^\]]+?)\]?(?::(\d+))?$', g)
             if m:
                 out.append((m.group(1), int(m.group(2) or 88)))
@@ -403,6 +408,11 @@ class MsAdcsRpcIssuer(Issuer):
         t = str((req.profile or {}).get('template') or self.c('template') or '').strip()
         if not t:
             raise PluginError('set the template', retry=False)
+        if re.search(r'[\x00-\x1f\x7f]', t):
+            # (security) the attributes are "name:value" lines: a template with a line break
+            # added attributes of its own (SAN:dns=... where the CA takes names from them)
+            raise PluginError('%r is not the name of a template (no line breaks or control '
+                              'characters)' % t[:80], retry=False)
         return t
 
     def _attributes(self, template):

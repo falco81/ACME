@@ -372,12 +372,16 @@ class Tree(object):
         for k, t in self.rows.items():
             p = _low(t.get('parent'))
             self.parent[k] = p if p and p in self.rows and p != k else None
-        # a cycle written by hand (never by save_team): broken where it closes
+        # a cycle written by hand (never by save_team): broken where it closes - at a team of
+        # the cycle itself; a team merely below a cycle keeps its parent (hunt Rt1: it was put
+        # at the top level, its inherited capabilities and limits lost)
         for k in list(self.rows):
             seen, at = {k}, self.parent[k]
             while at:
-                if at in seen:
+                if at == k:
                     self.parent[k] = None
+                    break
+                if at in seen:
                     break
                 seen.add(at)
                 at = self.parent.get(at)
@@ -835,6 +839,48 @@ def merge_policies(chain):
     if eff:
         eff['from'] = src
     return eff
+
+
+def policy_rename(store, key, old, new):
+    """A source (key 'issuers'), a validation ('validations') or a request profile ('profiles')
+    renamed: the teams' limits naming it follow (hunt Rt1: they kept the old name, and the team
+    was refused what it was allowed - "the source X is not one it may use (old)"). The
+    pre-approved envelope (approval.outside.profiles) follows a profile too. -> teams changed."""
+    if key not in ('issuers', 'validations', 'profiles') or not new or _low(old) == '' or \
+            str(old) == str(new):
+        return 0
+
+    def swap(lst):
+        if not isinstance(lst, list) or not any(_low(x) == _low(old) for x in lst):
+            return lst, False
+        out = []
+        for x in lst:
+            x = new if _low(x) == _low(old) else x
+            if _low(x) not in {_low(y) for y in out}:
+                out.append(x)
+        return out, True
+
+    n = 0
+    for t in team_rows(store):
+        p = policy_of(t)
+        if not p:
+            continue
+        p[key], hit = swap(p.get(key))
+        if p[key] is None:
+            p.pop(key)
+        a = p.get('approval')
+        if key == 'profiles' and isinstance(a, dict) and isinstance(a.get('outside'), dict):
+            a['outside']['profiles'], hit2 = swap(a['outside'].get('profiles'))
+            if a['outside']['profiles'] is None:
+                a['outside'].pop('profiles')
+            hit = hit or hit2
+        if hit:
+            store.db.update('cert_teams', t['id'], {'policy': json.dumps(p),
+                                                    'updated': _now()})
+            n += 1
+    if n:
+        changed()
+    return n
 
 
 def effective_policy(store, team):
@@ -1426,6 +1472,11 @@ def _clean_parent(store, b, old, name):
     if raw in (None, '', '-'):
         return None
     p = team_get(store, raw)
+    if not p and 'parent' not in b:
+        # the parent it had is gone (an import, another node): the tree puts it at the top
+        # level, and a save that does not move it keeps it there (hunt Rt1: every save of it -
+        # its members, its note - was refused "there is no team")
+        return None
     if not p:
         raise LookupError('there is no team %s to put it under' % raw)
     if old and p['id'] == old['id']:

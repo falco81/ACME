@@ -287,7 +287,10 @@ def prefill(f, platform):
                 o['ccs_path'] = f['ccs_path']
             return o
         return {}
-    files = [x for x in f.get('files') or [] if x.get('path') and not x.get('dynamic')]
+    # an output line is "format path mode owner": a path with a space in it (Apache's quoted
+    # "/etc/ssl/my cert.pem") or not absolute cannot be one - left out, not a broken line
+    files = [x for x in f.get('files') or [] if x.get('path') and not x.get('dynamic') and
+             x['path'].startswith('/') and not re.search(r'\s', x['path'])]
     if not files:
         return {}
     preset = f.get('preset') if _preset(f.get('preset') or '') else 'custom'
@@ -372,7 +375,9 @@ def watch_of(f, host):
             port = int(m.group(1))
             break
     names = list(f.get('names') or []) or list((f.get('cert') or {}).get('sans') or [])
-    sni = next((n for n in names if n and '*' not in n and '$' not in n), '')
+    # a name to ask for: a host name - not nginx's .example.com, example.* or ~regex forms
+    sni = next((n for n in names if n and re.fullmatch(r'[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\.?',
+                                                          str(n))), '')
     return {'kind': check, 'host': host or '', 'port': port, 'sni': sni}
 
 

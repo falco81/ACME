@@ -2986,6 +2986,8 @@ class _Disc(object):
         self.certs = {}             # thumbprint -> facts with where
         self.facts = {}             # path -> facts (or None)
         self.skipped = []
+        self.small = {}             # path -> text of a small configuration file read already
+        self.said = set()           # the services found already (each told once)
 
     def late(self):
         return time.time() > self.until
@@ -3008,6 +3010,8 @@ class _Disc(object):
 
     def text(self, p, most=DISCOVER_CONF_BYTES):
         """A configuration file's text (None: not there, not a plain file, or too many read)."""
+        if (p, most) in self.small:
+            return self.small[(p, most)]
         if self.read >= DISCOVER_CONFS_MOST or self.late():
             return None
         try:
@@ -3025,7 +3029,11 @@ class _Disc(object):
                     break
                 chunks.append(got)
                 left -= len(got)
-            return b''.join(chunks).decode('utf-8', 'replace')
+            text = b''.join(chunks).decode('utf-8', 'replace')
+            if most == DISCOVER_CONF_BYTES and len(text) <= 65536 and len(self.small) < 200:
+                # a snippet included in many places (nginx, Apache) is read once
+                self.small[(p, most)] = text
+            return text
         except OSError:
             return None
         finally:
@@ -3096,6 +3104,11 @@ class _Disc(object):
         certificate there now, the preset, unit, test and reload acme would use."""
         if len(self.found) >= DISCOVER_FOUND_MOST:
             return
+        # the same block read twice (a file included from two places) is one service
+        same = (kind, config, tuple(names), tuple(tuple(x) for x in files), tuple(listen))
+        if same in self.said:
+            return
+        self.said.add(same)
         title, preset, units, test, reload_, port = DISCOVER_SPEC[kind]
         unit = (more or {}).pop('unit', None) or self.unit(units)
         fs, cert = [], None
@@ -3161,8 +3174,20 @@ def cert_facts(pem):
 
 
 # -- the configurations, kind by kind --------------------------------------------------------
-def _nginx_tokens(D, path, depth, seen):
-    """nginx's words of a file, its includes put in place: [(word, file)] - ; { } as words."""
+def _include_ok(p, chain, budget):
+    """Whether an include of `p` is put in place: not one of the files that include it (a loop),
+    and not more includes than DISCOVER_CONFS_MOST in all (a snippet included in several
+    blocks is put in each of them - each server block takes its own copy)."""
+    if p in chain or budget[0] >= DISCOVER_CONFS_MOST:
+        return False
+    budget[0] += 1
+    return True
+
+
+def _nginx_tokens(D, path, depth, chain, prefix='/etc/nginx', budget=None):
+    """nginx's words of a file, its includes put in place: [(word, file)] - ; { } as words.
+    A relative include is of nginx's prefix (the folder of nginx.conf)."""
+    budget = budget if budget is not None else [0]
     text = D.text(path)
     if text is None or depth > DISCOVER_DEPTH:
         return []
@@ -3197,11 +3222,10 @@ def _nginx_tokens(D, path, depth, seen):
         if toks[j] == 'include' and j + 2 < len(toks) and toks[j + 2] == ';':
             pat = toks[j + 1]
             if not pat.startswith('/'):
-                pat = '/etc/nginx/' + pat
+                pat = prefix.rstrip('/') + '/' + pat
             for p in D.glob(pat, 100):
-                if p not in seen and len(seen) < DISCOVER_CONFS_MOST:
-                    seen.add(p)
-                    out += _nginx_tokens(D, p, depth + 1, seen)
+                if _include_ok(p, chain, budget):
+                    out += _nginx_tokens(D, p, depth + 1, chain | {p}, prefix, budget)
             j += 3
             continue
         out.append((toks[j], path))
@@ -3214,7 +3238,12 @@ def _d_nginx(D):
                              '/usr/local/etc/nginx/nginx.conf') if D.isfile(p)), None)
     if not main:
         return
-    toks = _nginx_tokens(D, main, 0, {main})
+    prefix = os.path.dirname(main)
+    toks = _nginx_tokens(D, main, 0, frozenset([main]), prefix)
+
+    def full(v):
+        # a relative ssl_certificate is of nginx's prefix too ($variables left as they are)
+        return v if not v or v.startswith(('/', '$', 'data:')) else prefix + '/' + v
     stack = []                  # [{name, dirs: {directive: [args]}, file}]
     stmt = []
     for w, f in toks:
@@ -3245,8 +3274,8 @@ def _d_nginx(D):
                 names = []
                 for a in blk['dirs'].get('server_name') or []:
                     names += [n for n in a if n not in ('_', '""', '')]
-                files = [('cert', crt[0] if crt else '', 'fullchain-pem'),
-                         ('key', key[0] if key else '', 'key-pem')]
+                files = [('cert', full(crt[0]) if crt else '', 'fullchain-pem'),
+                         ('key', full(key[0]) if key else '', 'key-pem')]
                 D.add('nginx', blk['file'], names, files, listen)
         else:
             stmt.append(w)
@@ -3254,8 +3283,9 @@ def _d_nginx(D):
             break
 
 
-def _apache_lines(D, path, root, depth, seen):
+def _apache_lines(D, path, root, depth, chain, budget=None):
     """Apache's lines of a file, Include / IncludeOptional put in place: [(line, file)]."""
+    budget = budget if budget is not None else [0]
     text = D.text(path)
     if text is None or depth > DISCOVER_DEPTH:
         return []
@@ -3281,9 +3311,8 @@ def _apache_lines(D, path, root, depth, seen):
                 else:
                     more.append(p)
             for p in more:
-                if p not in seen and len(seen) < DISCOVER_CONFS_MOST:
-                    seen.add(p)
-                    out += _apache_lines(D, p, root, depth + 1, seen)
+                if _include_ok(p, chain, budget):
+                    out += _apache_lines(D, p, root, depth + 1, chain | {p}, budget)
             continue
         out.append((line, path))
     return out
@@ -3296,7 +3325,7 @@ def _d_apache(D):
         if not D.isfile(main):
             continue
         vh, glob_ = None, {}
-        for line, f in _apache_lines(D, main, root, 0, {main}):
+        for line, f in _apache_lines(D, main, root, 0, frozenset([main])):
             words = line.split(None, 1)
             k = words[0].lower()
             v = words[1].strip().strip('"') if len(words) > 1 else ''
@@ -3355,8 +3384,10 @@ def _d_haproxy(D):
                 for one in paths:
                     f = D.cert(one, 'haproxy %s' % one)
                     names = (f or {}).get('sans') or ([f['cn']] if f and f.get('cn') else [])
+                    # the test checks the configuration found (/usr/local/etc/haproxy too)
                     D.add('haproxy', main, names, [('combined', one, 'combined-pem')],
-                          [w[1]], {'section': section})
+                          [w[1]], {'section': section,
+                                   'test': 'haproxy -c -q -f %s' % shlex.quote(main)})
         return
 
 
@@ -3403,7 +3434,8 @@ def _d_postfix(D):
               [], files, [])
 
 
-def _dovecot_lines(D, path, depth, seen):
+def _dovecot_lines(D, path, depth, chain, budget=None):
+    budget = budget if budget is not None else [0]
     text = D.text(path)
     if text is None or depth > DISCOVER_DEPTH:
         return []
@@ -3416,9 +3448,8 @@ def _dovecot_lines(D, path, depth, seen):
             if not pat.startswith('/'):
                 pat = os.path.dirname(path) + '/' + pat
             for p in D.glob(pat, 100):
-                if p not in seen:
-                    seen.add(p)
-                    out += _dovecot_lines(D, p, depth + 1, seen)
+                if _include_ok(p, chain, budget):
+                    out += _dovecot_lines(D, p, depth + 1, chain | {p}, budget)
             continue
         if line:
             out.append((line, path))
@@ -3430,7 +3461,7 @@ def _d_dovecot(D):
     if not D.isfile(main):
         return
     top, blocks, stack = {}, [], []
-    for line, f in _dovecot_lines(D, main, 0, {main}):
+    for line, f in _dovecot_lines(D, main, 0, frozenset([main])):
         if line.endswith('{'):
             stack.append({'head': line[:-1].strip(), 'd': {}, 'file': f})
             continue
@@ -3442,9 +3473,12 @@ def _d_dovecot(D):
             continue
         if '=' in line:
             k, v = [x.strip() for x in line.split('=', 1)]
+            # Dovecot 2.4 (Debian 13): ssl_server_cert_file / ssl_server_key_file, a path
+            k = {'ssl_server_cert_file': 'ssl_cert', 'ssl_server_key_file': 'ssl_key'}.get(k, k)
             if k in ('ssl_cert', 'ssl_key'):
-                (stack[-1]['d'] if stack else top)[k] = (v[1:] if v.startswith('<') else v,
-                                                         f)
+                v = v.strip('"')
+                (stack[-1]['d'] if stack else top)[k] = (v[1:].strip() if v.startswith('<')
+                                                         else v, f)
     if top.get('ssl_cert'):
         D.add('dovecot', top['ssl_cert'][1], [], [
             ('cert', top['ssl_cert'][0], 'fullchain-pem'),

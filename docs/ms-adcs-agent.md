@@ -111,7 +111,8 @@ allow adcs-read                                  list every CA of the domain and
   `template=*` with names beside it is not read.
 - **Several templates** in one line, comma between them (`template=WebServer,WebServer2`);
   names compare without regard to case. The template's **name** (cn), not its display
-  name.
+  name. A name with a space is quoted, the whole list in one pair of quotes:
+  `template="Web Server 2,WebServer"` (the agent writes it so).
 - `acme-agent allow adcs "HOST\CA" template=X` **adds** X to the templates the CA's line
   has (one line kept); `acme-agent deny adcs "HOST\CA" template=X` takes X away (the
   line goes with the last one); `acme-agent deny adcs "HOST\CA"` takes the CA away.

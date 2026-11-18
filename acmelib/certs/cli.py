@@ -2011,8 +2011,10 @@ class Cli(object):
                                               'allowed' if t.get('allowed') else ''))
             if c.get('problem'):
                 print('    ! %s' % c['problem'])
-            print('    -> acme-agent allow adcs "%s" template=%s' % (c['config'], ','.join(
-                t['name'] for t in c.get('templates') or []) or '*'))
+            names = ','.join(t['name'] for t in c.get('templates') or []) or '*'
+            if re.search(r'[^A-Za-z0-9_.,*-]', names):
+                names = '"%s"' % names      # a name with a space: one word for the policy
+            print('    -> acme-agent allow adcs "%s" template=%s' % (c['config'], names))
         return 0
 
     def target_agent_discover(self, row, rest):

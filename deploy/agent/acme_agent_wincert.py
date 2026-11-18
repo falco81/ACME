@@ -1328,8 +1328,18 @@ def adcs_add(pol, entry):
 
 
 def adcs_line(entry):
-    """An entry as the line of the policy (and of `acme-agent allow`)."""
-    return 'adcs "%s" template=%s' % (entry['ca'], ','.join(entry['templates']))
+    """An entry as the line of the policy (and of `acme-agent allow`). Template names with a
+    space or brackets are quoted: unquoted, the policy's own line read back (or typed in a
+    prompt) split the name into words and the whole line was refused."""
+    return 'adcs "%s" template=%s' % (entry['ca'], adcs_names_word(entry['templates']))
+
+
+def adcs_names_word(templates):
+    """The value of template= as a policy line (and a prompt) reads it back as one word."""
+    names = ','.join(templates)
+    if re.search(r'[^A-Za-z0-9_.,*-]', names):
+        names = '"%s"' % names
+    return names
 
 
 def allow_adcs_words(ca, templates):
@@ -1379,7 +1389,9 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
 $j = Get-Content -LiteralPath $env:ACME_WIN_IN -Raw -Encoding UTF8 | ConvertFrom-Json
 function Say($o) { Write-Output ('ACME ' + ($o | ConvertTo-Json -Compress -Depth 5)) }
-function Hx($n) { '0x{0:x8}' -f ([int64]$n -band 0xffffffff) }
+# 0xffffffffL: a 64-bit mask (PowerShell reads 0xffffffff as the Int32 -1, which kept an
+# HRESULT negative: 0xffffffff80094012, a code no word of ADCS_CODES matched)
+function Hx($n) { '0x{0:x8}' -f ([int64]$n -band 0xffffffffL) }
 # acme-agent: adcs (ICertRequest / ICertConfig - as certreq and certutil ask the CA)
 $out = @{ action = [string]$j.action }
 try {
@@ -1394,11 +1406,17 @@ try {
     $out.cas = $list
   } elseif ($j.action -eq 'templates') {
     $r = New-Object -ComObject CertificateAuthority.Request
-    # CR_PROP_TEMPLATES (0x1d), PROPTYPE_STRING: "name`noid`n" a template
+    # CR_PROP_TEMPLATES (0x1d), PROPTYPE_STRING: "name`noid`n" a template - a template of
+    # schema 1 (WebServer) has an empty OID line: the OID line (empty or not) is skipped by
+    # what it is, not dropped before pairing (that paired the next template's name as an OID)
     $raw = [string]$r.GetCAProperty([string]$j.ca, 0x1d, 0, 4, 0)
-    $parts = @($raw -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    $parts = @($raw -split "`n" | ForEach-Object { $_.Trim() })
     $names = @()
-    for ($i = 0; $i -lt $parts.Count; $i += 2) { $names += $parts[$i] }
+    $i = 0
+    while ($i -lt $parts.Count) {
+      if ($parts[$i] -ne '') { $names += $parts[$i] }
+      if ($i + 1 -lt $parts.Count -and ($parts[$i + 1] -eq '' -or $parts[$i + 1] -match '^[0-9]+(\.[0-9]+)+$')) { $i += 2 } else { $i += 1 }
+    }
     $disp = @{}
     try {
       $cfg = [string]([ADSI]'LDAP://RootDSE').configurationNamingContext
@@ -1509,9 +1527,20 @@ def adcs_run(A, values, timeout):
     return got
 
 
+def adcs_code(v):
+    """An HRESULT as the script says it -> '0x8009xxxx' (a sign-extended one, 0xffffffff8009xxxx
+    or a negative number, as 32 bits), '' when there is none."""
+    t = str(v or '').strip().lower()
+    try:
+        n = int(t, 16) if t.startswith(('0x', '-0x')) else int(t)
+    except ValueError:
+        return t[:12]
+    return '0x%08x' % (n & 0xffffffff)
+
+
 def adcs_said(got):
     """The words of the CA's refusal (its code, its message)."""
-    code = str(got.get('code') or got.get('status') or '').lower()
+    code = adcs_code(got.get('code') or got.get('status'))
     words = ADCS_CODES.get(code)
     said = _clean(got.get('error') or got.get('message') or '', 300).strip()
     bits = [words or ('the CA denied the request' if got.get('disposition') == 2 else
@@ -1596,7 +1625,7 @@ def adcs(A, pol, args):
     state = ADCS_DISP.get(disp, 'error') if isinstance(disp, int) else 'error'
     out = {'action': act, 'ca': ca, 'template': template, 'state': state,
            'req_id': str(rid) if rid > 0 else '',
-           'code': _clean(got.get('status') or got.get('code'), 12)}
+           'code': _clean(adcs_code(got.get('status') or got.get('code')), 12)}
     if state == 'issued':
         cert = re.sub(r'\s+', '', str(got.get('cert') or ''))
         chain = re.sub(r'\s+', '', str(got.get('chain') or ''))
@@ -1655,7 +1684,8 @@ def adcs_cli(A, argv):
                 if c.get('problem'):
                     print('    ! %s' % c['problem'])
                 print('    -> acme-agent allow adcs %s template=%s' % (
-                    cmd_word(c['config']), ','.join(t['name'] for t in c['templates']) or '*'))
+                    cmd_word(c['config']),
+                    adcs_names_word([t['name'] for t in c['templates']] or ['*'])))
             return 0
         if len(argv) != 3 or argv[1] != '--config':
             raise SystemExit(usage)
