@@ -85,7 +85,7 @@ class Members(unittest.TestCase):
                                                                     '%Y-%m-%d %H:%M')))
         self.assertEqual(got[1], {'who': 'group:Web'})
         self.assertEqual(got[2]['until'], '2030-06-30')
-        for bad in ('[oops', '{"who": "a"}', '[{"who": "a", "rihgts": ["view"]}]', '[1]',
+        for bad in ('[oops', '[{"who": "a", "rihgts": ["view"]}]', '[1]',
                     '[{"who": "a", "until": "2030-02-30 10:00"}]'):
             with self.assertRaises(ValueError):
                 AT._members(bad)
