@@ -34,16 +34,33 @@ acme does not create profiles, VIPs or the SSL VPN itself, and does not switch a
 
 When a certificate on the FortiGate is already bound to policies, VIPs, ZTNA rules, user authentication or anything else, and you only want to swap it, choose in the deployment **Certificate on the FortiGate: Replace an existing certificate in place** and then **The certificate on the FortiGate**:
 
-- **Find on the device** lists the local certificates of the FortiGate (`GET /api/v2/cmdb/vpn.certificate/local?with_meta=1`): name, CN, expiry, issuer, global/vdom and how many objects use it. The one with the names of acme's certificate is marked ★ and chosen. Fortinet factory certificates (`Fortinet_*`, source *factory*) are left out - they are not replaced.
+- **Find on the device** lists the local certificates of the FortiGate (`GET /api/v2/cmdb/vpn.certificate/local?with_meta=1`, over REST with the token): name, CN, expiry, issuer, global/vdom and how many objects use it. The one with the names of acme's certificate is marked ★ and chosen. Fortinet factory certificates (`Fortinet_*`, source *factory*) are left out - they are not replaced.
 - **Type it yourself…** always works too, e.g. when the token may not list the certificates; the line under the list says why the listing failed. The name is case-sensitive.
 
-Each deployment then runs `PUT /api/v2/cmdb/vpn.certificate/local/<name>` with `private-key` (PKCS#8 PEM, encrypted with a one-time `password`; if FortiOS refuses it, once more as a plain PEM key) and `certificate` (the leaf); the intermediates are imported as CA certificates as usual. The **name stays**, so everything bound to it keeps using it and nothing is re-pointed. Admin GUI, SSL VPN, profiles and VIPs are set only when you tick or list them - then to that same name. The key type may change (RSA → ECDSA): the certificate's uses keep it.
+**Replace in place goes over SSH.** Fill in the target's **SSH user (replace in place)** and its key or **SSH password** - an administrator who may change VPN certificates (`vpngrp` read-write; a certificate in the *global* range needs `scope global`, e.g. a *super_admin*). The key card's *Try reaching it* runs `get system status`. Without the SSH sign-in a deployment in this mode fails before anything changes; the default mode (a new certificate each time) never uses SSH.
 
-- The same in every module version (FortiOS 6.0 - 8.0): the `certificate`, `private-key` and `password` attributes of `vpn.certificate local` are in all of them (Fortinet's Ansible collection 2.6.0).
-- A name not on the FortiGate fails before anything is changed; *What happens* shows which certificate is replaced.
-- If FortiOS refuses the update, the deployment fails with its answer and the old certificate stays as it was (acme reads it back to say so); it is never deleted. acme's cleanup of its own older `acme-...` certificates never takes the replaced one.
-- Rights: `vpngrp` read-write (step 1) - reading the list and updating a local certificate are the certificate rights the import needs already. A certificate in the *global* range needs the `scope global` profile.
-- *Not confirmed on a device*: whether every FortiOS build takes a new key for an existing local certificate over REST (the CLI does: `config vpn certificate local` / `edit <name>` / `set private-key` / `set certificate`); if yours refuses, use the default mode (a new certificate each time).
+*Why not the REST API*: FortiOS turns a REST change of a local certificate's `certificate` into CLI lines, and the PEM over several lines breaks them - FortiOS 7.4.13 answers `500`, error `-651`, "value parse error before '-----BEGIN CERTIFICATE-----'", and changes nothing. The CLI takes it.
+
+Each deployment then, over SSH:
+
+```
+get system status                                (version, VDOMs)
+[config global | config vdom / edit <vdom>]      only with VDOMs on: by the certificate's range
+config vpn certificate local
+  edit "<name>"
+    set password "<one-time password>"           the key is sent encrypted with it
+    set private-key "<PEM>"
+    set certificate "<the certificate, PEM>"
+  abort                                          first: FortiOS checks the lines, nothing is saved
+```
+
+and, when FortiOS took every line, the same lines ending with `next` / `end` (saved). If FortiOS refuses the encrypted key, the plain PEM key is tried. Any error in FortiOS's answer ("Command fail", "duplicated", "not a valid"...) stops it with nothing saved; afterwards acme reads the certificate back and its fingerprint must be the new one. The intermediates are imported as CA certificates as usual. The **name stays**, so everything bound to it keeps using it and nothing is re-pointed. Admin GUI, SSL VPN, profiles and VIPs are set only when you tick or list them - then to that same name. The key type may change (RSA → ECDSA): the certificate's uses keep it.
+
+- **Duplicates**: FortiOS refuses a local certificate identical to another one ("This local certificate is duplicated") - e.g. the same certificate imported earlier by a deployment in the default mode. acme compares the new certificate with every local certificate first: already at the chosen name - nothing to do ("already in place"); an unused copy acme made (`acme-…`, used by nothing) - deleted first, and said; a copy that is used, or one acme did not make - the deployment stops before anything changes and names it: point its uses at the chosen name, delete the copy, deploy again.
+- A name not on the FortiGate fails before anything is changed; *What happens* shows the SSH sign-in, which certificate is replaced, the duplicates and the CLI lines (the key not shown).
+- If FortiOS refuses, the deployment fails with its error lines (never a PEM or a key) and the old certificate stays as it was; it is never deleted. acme's cleanup of its own older `acme-...` certificates never takes the replaced one.
+- **The name cannot be edited - that is normal**: FortiOS never lets you rename a local certificate; its GUI *Edit* of any imported certificate shows only *Comments*. Replace in place is how a certificate keeps its name.
+- The same in every module version (FortiOS 6.0 - 8.0).
 
 ## Set up the FortiGate
 
@@ -151,6 +168,7 @@ In the GUI the same is *System → Administrators → Create New → REST API Ad
 | Check the device's certificate | on; off only while the FortiGate still has its self-signed `Fortinet_GUI_Server` |
 | Admin GUI / SSL VPN certificate (deploy) | tick what should use the certificate |
 | SSL/SSH inspection profiles, Virtual IPs (deploy) | one name a line, e.g. `inbound-replace`, `vip-www` |
+| SSH user (replace in place), its key or SSH password | only for *Replace an existing certificate in place*: an admin with `vpngrp` read-write (global range: `scope global`); empty otherwise |
 | Previous versions to keep (advanced) | older acme certificates to keep (one still referenced is never deleted) |
 
 The admin GUI switches to the new certificate at once: with *Check the device's certificate* on, acme's next requests are checked against it (a certificate of a public CA passes; for a private CA set *CA certificate*). The groups not listed in the profile default to `none`.
@@ -196,7 +214,9 @@ diagnose debug reset
 | `424` (Failed Dependency) | invalid value: e.g. a certificate name not in this VDOM, or the wrong shape of `server-cert` / `ssl-certificate` | import in *global* scope (or the right VDOM); choose the module version of the FortiOS the box runs |
 | `429` | rate limit, after too many bad tokens | wait, fix the token |
 | `500` with `"error": <negative number>` | FortiOS refused the change (`-328` on a CA import: it is there already - acme notes it once) | read the detail in acme's job and the `httpsd` debug |
-| *FortiOS refused to replace … in place* | FortiOS did not take the new certificate or key of the local certificate; the old one stayed | the detail in acme's job and the `httpsd` debug; else the default mode (a new certificate) |
+| *FortiOS refused to replace … in place* | FortiOS's CLI did not take the new certificate or key of the local certificate (its error lines are said); nothing was saved, the old one stayed | the lines in acme's job; *duplicated*: another local certificate is the same one - see Duplicates above; else the default mode (a new certificate) |
+| *replace in place goes over SSH and the target has no SSH sign-in* | the mode needs the target's SSH user and key or password | fill them in (an admin with `vpngrp` read-write) |
+| *the FortiGate has this very certificate already as …* | an identical local certificate under another name, used or not acme's - FortiOS refuses a duplicate | point its uses at the chosen name, delete it, deploy again |
 | *there is no local certificate …* | no certificate of that name on the FortiGate (in that VDOM) | **Find on the device**, or the exact name (case matters) |
 | *the module version ... is for FortiOS ...* | the box runs another FortiOS than this version of the target is for | choose the version named in the message (or *any version*) |
 | SSL VPN refused on 7.6 | the model has no SSL VPN / Agentless VPN | leave *SSL VPN certificate* off |

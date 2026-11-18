@@ -1924,12 +1924,40 @@ ANSWERS['fortigate'] = [
         'http_method': 'GET', 'status': 'success', 'results': [
             {'name': '{TAIL}', 'type': 'server-load-balance', 'server-type': 'https',
              'ssl-certificate': [{'name': '{EARLIER:35:6}'}]}]}},
+    # replace in place (1.0.129): every local certificate with its PEM and uses, to look for
+    # a copy of the new one - the one replaced and an earlier acme one hold the earlier
+    # certificate, none the new one
+    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local\?(.*&)?with_meta=1', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': 'Fortinet_Factory', 'source': 'factory', 'range': 'global', 'q_ref': 2},
+            {'name': '{OPT:replace_name}', 'source': 'user', 'range': 'global', 'q_ref': 3,
+             'certificate': '{EARLIER_PEM}'},
+            {'name': '{EARLIER:35:6}', 'source': 'user', 'range': 'global', 'q_ref': 0,
+             'certificate': '{EARLIER_PEM}'}]}},
     {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local\?', 'body': {
         'http_method': 'GET', 'status': 'success', 'results': [
             {'name': 'Fortinet_Factory'}, {'name': 'Fortinet_SSL'},
             {'name': '{EARLIER3:35:6}'}, {'name': '{EARLIER2:35:6}'},
             {'name': '{EARLIER:35:6}'}, {'name': '{CURRENT:35:6}'}]}},
     {'body': {'http_method': 'PUT', 'status': 'success', 'http_status': 200}}]
+# FortiGate over SSH (1.0.129: replace in place goes to the FortiOS CLI): get system status of a
+# 60F without VDOMs; the lines of config vpn certificate local taken (nothing said back); show
+# says the certificate the lines gave (read back when REST does not say it)
+SSH_ANSWERS['fortigate'] = [
+    {'input': r'(?m)^get system status$', 'stdout':
+        'Version: FortiGate-60F v7.4.5,build2702,240926 (GA.M)\n'
+        'Serial-Number: FGT60F\u2039serial\u203a\nVirus-DB: 92.08711(2026-11-17 22:24)\n'
+        'Log hard disk: Not available\nHostname: fw01\nOperation Mode: NAT\n'
+        'Current virtual domain: root\nMax number of virtual domains: 10\n'
+        'Virtual domains status: 1 in NAT mode, 0 in TP mode\n'
+        'Virtual domain configuration: disable\nFIPS-CC mode: disable\n'
+        'Current HA mode: standalone\nSystem time: Wed Nov 18 10:42:26 2026\n'},
+    {'input': r'(?m)^show vpn certificate local ', 'stdout':
+        'config vpn certificate local\n    edit "{SEEN:show vpn certificate local \"([^\"]+)\"}"\n'
+        '        set password ENC \u2039kept\u203a\n        set private-key "\u2039kept\u203a"\n'
+        '        set certificate "{SEEN:set certificate \"(-----BEGIN CERTIFICATE-----[^\"]+)\"}"\n'
+        '    next\nend\n'},
+    {'input': r'(?m)^config vpn certificate local$', 'stdout': ''}]
 ANSWERS['fortigate@6.0'] = [
     {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': dict(
         _FGT_STATUS, version='v6.4.15', build=2095)},

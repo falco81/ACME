@@ -34,16 +34,33 @@ acme nevytváří profily, VIP ani samotnou SSL VPN a nepřepíná inspekční p
 
 Když je certifikát na FortiGate už navázaný na politiky, VIP, pravidla ZTNA, ověřování uživatelů nebo cokoli jiného a chcete ho jen vyměnit, zvolte v nasazení **Certifikát na FortiGate: Nahradit existující certifikát na místě** a pak **Certifikát na FortiGate**:
 
-- **Najít na zařízení** vypíše lokální certifikáty FortiGate (`GET /api/v2/cmdb/vpn.certificate/local?with_meta=1`): jméno, CN, platnost, vydavatele, global/vdom a kolik objektů ho používá. Ten se jmény certifikátu v acme je označen ★ a vybrán. Tovární certifikáty Fortinetu (`Fortinet_*`, zdroj *factory*) jsou vynechány - ty se nenahrazují.
+- **Najít na zařízení** vypíše lokální certifikáty FortiGate (`GET /api/v2/cmdb/vpn.certificate/local?with_meta=1`, přes REST s tokenem): jméno, CN, platnost, vydavatele, global/vdom a kolik objektů ho používá. Ten se jmény certifikátu v acme je označen ★ a vybrán. Tovární certifikáty Fortinetu (`Fortinet_*`, zdroj *factory*) jsou vynechány - ty se nenahrazují.
 - **Zadat ručně…** funguje vždy, např. když token nesmí certifikáty vypsat; řádek pod seznamem řekne, proč výpis selhal. Na velikosti písmen ve jménu záleží.
 
-Každé nasazení pak volá `PUT /api/v2/cmdb/vpn.certificate/local/<jméno>` s `private-key` (PKCS#8 PEM zašifrovaný jednorázovým `password`; když ho FortiOS odmítne, ještě jednou jako nešifrovaný klíč PEM) a `certificate` (koncový certifikát); mezilehlé certifikáty se importují jako certifikáty CA jako obvykle. **Jméno zůstane**, takže vše, co je na něj navázané, ho dál používá a nic se nepřepojuje. Administrační GUI, SSL VPN, profily a VIP se nastavují jen tehdy, když je zaškrtnete nebo vypíšete - a to na totéž jméno. Typ klíče se může změnit (RSA → ECDSA): použití certifikátu zůstanou.
+**Nahrazení na místě jde přes SSH.** Vyplňte v cíli **Uživatel SSH (nahrazení na místě)** a jeho klíč nebo **Heslo SSH** - správce, který smí měnit certifikáty VPN (`vpngrp` čtení i zápis; certifikát v rozsahu *global* potřebuje `scope global`, např. *super_admin*). *Zkusit spojení* na kartě klíče spustí `get system status`. Bez přihlášení SSH nasazení v tomto režimu selže dřív, než se cokoli změní; výchozí režim (pokaždé nový certifikát) SSH nikdy nepoužívá.
 
-- Stejné ve všech verzích modulu (FortiOS 6.0 - 8.0): atributy `certificate`, `private-key` a `password` objektu `vpn.certificate local` mají všechny (kolekce Ansible od Fortinetu 2.6.0).
-- Jméno, které na FortiGate není, selže dřív, než se cokoli změní; *Co se stane* ukáže, který certifikát se nahradí.
-- Když FortiOS změnu odmítne, nasazení selže s jeho odpovědí a starý certifikát zůstane, jak byl (acme si ho znovu přečte, aby to mohlo říct); nikdy se nemaže. Úklid starších certifikátů `acme-...` nahrazený certifikát nikdy nevezme.
-- Oprávnění: `vpngrp` čtení i zápis (krok 1) - výpis a úprava lokálního certifikátu jsou táž práva k certifikátům, jaká potřebuje už import. Certifikát v rozsahu *global* potřebuje profil se `scope global`.
-- *Neověřeno na zařízení*: zda každé sestavení FortiOS přes REST přijme nový klíč existujícího lokálního certifikátu (CLI ano: `config vpn certificate local` / `edit <jméno>` / `set private-key` / `set certificate`); když ho to vaše odmítne, použijte výchozí režim (pokaždé nový certifikát).
+*Proč ne REST API*: FortiOS změnu `certificate` lokálního certifikátu přes REST převádí na řádky CLI a PEM na více řádcích je rozbije - FortiOS 7.4.13 odpoví `500`, chyba `-651`, „value parse error before '-----BEGIN CERTIFICATE-----'“ a nezmění nic. CLI ho přijme.
+
+Každé nasazení pak přes SSH:
+
+```
+get system status                                (verze, VDOM)
+[config global | config vdom / edit <vdom>]      jen se zapnutými VDOM: podle rozsahu certifikátu
+config vpn certificate local
+  edit "<jméno>"
+    set password "<jednorázové heslo>"           klíč jde zašifrovaný tímto heslem
+    set private-key "<PEM>"
+    set certificate "<certifikát, PEM>"
+  abort                                          nejdřív: FortiOS řádky zkontroluje, nic se neuloží
+```
+
+a když FortiOS přijal každý řádek, tytéž řádky zakončené `next` / `end` (uloží se). Když FortiOS zašifrovaný klíč odmítne, zkusí se nešifrovaný klíč PEM. Jakákoli chyba v odpovědi FortiOS („Command fail“, „duplicated“, „not a valid“…) to zastaví a nic se neuloží; potom acme certifikát přečte zpět a jeho otisk musí být ten nový. Mezilehlé certifikáty se importují jako certifikáty CA jako obvykle. **Jméno zůstane**, takže vše, co je na něj navázané, ho dál používá a nic se nepřepojuje. Administrační GUI, SSL VPN, profily a VIP se nastavují jen tehdy, když je zaškrtnete nebo vypíšete - a to na totéž jméno. Typ klíče se může změnit (RSA → ECDSA): použití certifikátu zůstanou.
+
+- **Duplikáty**: FortiOS odmítne lokální certifikát shodný s jiným („This local certificate is duplicated“) - např. stejný certifikát, který dříve importovalo nasazení ve výchozím režimu. acme nový certifikát nejdřív porovná se všemi lokálními certifikáty: už je pod zvoleným jménem - není co dělat („už na místě“); nepoužitá kopie, kterou vytvořilo acme (`acme-…`, nic ji nepoužívá) - nejdřív se smaže a řekne se to; kopie, která se používá, nebo kterou nevytvořilo acme - nasazení se zastaví dřív, než se cokoli změní, a kopii jmenuje: přepojte její použití na zvolené jméno, kopii smažte a nasaďte znovu.
+- Jméno, které na FortiGate není, selže dřív, než se cokoli změní; *Co se stane* ukáže přihlášení SSH, který certifikát se nahradí, duplikáty a řádky CLI (bez klíče).
+- Když FortiOS odmítne, nasazení selže s jeho chybovými řádky (nikdy s PEM nebo klíčem) a starý certifikát zůstane, jak byl; nikdy se nemaže. Úklid starších certifikátů `acme-...` nahrazený certifikát nikdy nevezme.
+- **Jméno nejde upravit - to je v pořádku**: FortiOS lokální certifikát nikdy přejmenovat nedovolí; *Upravit* v jeho GUI ukáže u každého importovaného certifikátu jen *Komentáře*. Nahrazení na místě je právě způsob, jak si certifikát jméno ponechá.
+- Stejné ve všech verzích modulu (FortiOS 6.0 - 8.0).
 
 ## Nastavení FortiGate
 
@@ -151,6 +168,7 @@ V GUI totéž: *System → Administrators → Create New → REST API Admin* (pr
 | Ověřovat certifikát zařízení | zapnuto; vypnuto jen dokud má FortiGate vlastní `Fortinet_GUI_Server` |
 | Certifikát administrace / SSL VPN (nasazení) | zaškrtněte, co má certifikát používat |
 | Inspekční profily SSL/SSH, Virtuální IP (nasazení) | jedno jméno na řádek, např. `inbound-replace`, `vip-www` |
+| Uživatel SSH (nahrazení na místě), jeho klíč nebo heslo SSH | jen pro *Nahradit existující certifikát na místě*: správce s `vpngrp` čtení i zápis (rozsah global: `scope global`); jinak prázdné |
 | Kolik předchozích verzí ponechat (pokročilé) | kolik starších certifikátů acme ponechat (používaný se nikdy nesmaže) |
 
 Administrace přejde na nový certifikát hned: se zapnutým *Ověřovat certifikát zařízení* se další požadavky acme ověřují proti němu (certifikát veřejné CA projde; u soukromé CA nastavte *CA certifikát*). Skupiny, které profil neuvádí, mají výchozí `none`.
@@ -196,7 +214,9 @@ diagnose debug reset
 | `424` (Failed Dependency) | neplatná hodnota: např. jméno certifikátu, který v této VDOM není, nebo špatný tvar `server-cert` / `ssl-certificate` | importujte *globálně* (nebo do správné VDOM); zvolte verzi modulu pro FortiOS, který na krabici běží |
 | `429` | omezení počtu požadavků po mnoha špatných tokenech | počkejte, opravte token |
 | `500` s `"error": <záporné číslo>` | FortiOS změnu odmítl (`-328` při importu CA: ta už tam je - acme to jen jednou poznamená) | přečtěte detail v úloze acme a ladění `httpsd` |
-| *FortiOS refused to replace … in place* | FortiOS nepřijal nový certifikát či klíč lokálního certifikátu; starý zůstal | detail v úloze acme a ladění `httpsd`; jinak výchozí režim (nový certifikát) |
+| *FortiOS refused to replace … in place* | CLI FortiOS nepřijalo nový certifikát či klíč lokálního certifikátu (jeho chybové řádky jsou uvedeny); nic se neuložilo, starý zůstal | řádky v úloze acme; *duplicated*: jiný lokální certifikát je tentýž - viz Duplikáty výše; jinak výchozí režim (nový certifikát) |
+| *replace in place goes over SSH and the target has no SSH sign-in* | režim potřebuje v cíli uživatele SSH a klíč nebo heslo | vyplňte je (správce s `vpngrp` čtení i zápis) |
+| *the FortiGate has this very certificate already as …* | shodný lokální certifikát pod jiným jménem, používaný nebo ne od acme - FortiOS duplikát odmítne | přepojte jeho použití na zvolené jméno, smažte ho, nasaďte znovu |
 | *there is no local certificate …* | to jméno na FortiGate (v té VDOM) není | **Najít na zařízení**, nebo jméno přesně (velikost písmen) |
 | *the module version ... is for FortiOS ...* | na krabici běží jiný FortiOS, než pro který je tato verze cíle | zvolte verzi uvedenou ve zprávě (nebo *jakoukoli verzi*) |
 | SSL VPN odmítnuta na 7.6 | model nemá SSL VPN / Agentless VPN | *Certifikát SSL VPN* nechte vypnutý |
