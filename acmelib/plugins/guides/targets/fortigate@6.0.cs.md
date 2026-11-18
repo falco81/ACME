@@ -49,6 +49,45 @@ Když je certifikát na FortiGate už navázaný na politiky, VIP, pravidla ZTNA
 
 Běžná obnova jsou kroky 1, 2, 5 a 6 - jediný zápis. Když FortiOS PUT odmítne, nic nezmění a acme řekne proč: *duplicated* (stejný certifikát pod jiným jménem), *Invalid private key, password may be required* (klíč nebo jeho heslo), *not a valid/matched certificate* (klíč jiného certifikátu). Služba, která certifikát používá (administrační GUI, VIP…), začne nový posílat sama během několika sekund.
 
+**Nejmenší práva pro nahrazení přes REST API** - profil jen s VPN (`vpngrp`) čtení i zápis a REST API admin s ním (plný profil v části *Nastavení FortiGate* je pro výchozí režim a pro použití, která zaškrtnete):
+
+```text
+config system accprofile
+    edit "acme-replace"
+        set comments "acme: replace certificates in place over the REST API"
+        set scope global
+        set secfabgrp none
+        set ftviewgrp none
+        set authgrp none
+        set sysgrp none
+        set netgrp none
+        set loggrp none
+        set fwgrp none
+        set vpngrp read-write
+        set utmgrp none
+        set wifi none
+    next
+end
+config system api-user
+    edit "acme"
+        set comments "acme certificate manager"
+        set accprofile "acme-replace"
+        set vdom "root"
+        config trusthost
+            edit 1
+                set ipv4-trusthost 192.0.2.10 255.255.255.255
+            next
+        end
+    next
+end
+execute api-user generate-key acme
+```
+
+- `192.0.2.10` je příklad - použijte adresu acme (každý uzel clusteru: `edit 2`...; IPv6: `ipv6-trusthost`). Token se ukáže **jen jednou**.
+- `set scope global`: vybraný certifikát bývá v rozsahu *global* (i na FortiGate bez VDOM). Certifikát jen ve VDOM: stačí `scope vdom` a `set vdom` ten VDOM.
+- V nasazení nechte *Admin GUI certificate*, *SSL VPN certificate*, inspekční profily a virtuální IP vypnuté nebo prázdné - nahrazený certifikát si všechna svá použití ponechá sám a každé z nich by potřebovalo další práva (`sysgrp`, `fwgrp`, `utmgrp`).
+- *Zatím neověřeno na zařízení*: že samotné `vpngrp` stačí na všechna volání (`monitor/system/status`, `monitor/system/available-certificates`). Při odpovědi **403** přidejte `set sysgrp read`, a teprve když to nestačí, `set sysgrp custom` s `cfg` read-write.
+
 **Způsob nahrazení: SSH** je druhá cesta (CLI FortiOS, jako v acme 1.0.129). Vyplňte v cíli **Uživatel SSH (nahrazení přes SSH)** a jeho klíč nebo **Heslo SSH** - správce, který smí měnit certifikáty VPN (`vpngrp` čtení i zápis; certifikát v rozsahu *global* potřebuje `scope global`, např. *super_admin*). *Zkusit spojení* na kartě klíče spustí `get system status`. Pole SSH jsou nepovinná a používá je jen tato cesta; bez nich nasazení nastavené na SSH selže dřív, než se cokoli změní. Přes SSH acme spustí:
 
 ```

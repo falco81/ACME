@@ -4,9 +4,9 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.131 - not released
+## 1.0.131 - 2026-11-18
 
-(nothing yet)
+- FortiGate setup guides (every version, EN and CS): "Replace an existing certificate in place" now gives the least rights for replacing over the REST API as commands - an admin profile `acme-replace` with nothing but VPN (`vpngrp`) read-write, the REST API admin with it and its token - and what to add when FortiOS answers 403.
 
 ## 1.0.130 - 2026-11-18
 

@@ -49,6 +49,45 @@ When a certificate on the FortiGate is already bound to policies, VIPs, ZTNA rul
 
 A usual renewal is steps 1, 2, 5 and 6 - one write. When FortiOS refuses the PUT it changes nothing, and acme says why: *duplicated* (the same certificate under another name), *Invalid private key, password may be required* (the key or its password), *not a valid/matched certificate* (a key of another certificate). The service using the certificate (admin GUI, VIP...) serves the new one by itself within a few seconds.
 
+**The least rights for replacing over the REST API** - a profile with nothing but VPN (`vpngrp`) read-write, and a REST API admin with it (the full profile under *Set up the FortiGate* is for the default mode and the uses you tick):
+
+```text
+config system accprofile
+    edit "acme-replace"
+        set comments "acme: replace certificates in place over the REST API"
+        set scope global
+        set secfabgrp none
+        set ftviewgrp none
+        set authgrp none
+        set sysgrp none
+        set netgrp none
+        set loggrp none
+        set fwgrp none
+        set vpngrp read-write
+        set utmgrp none
+        set wifi none
+    next
+end
+config system api-user
+    edit "acme"
+        set comments "acme certificate manager"
+        set accprofile "acme-replace"
+        set vdom "root"
+        config trusthost
+            edit 1
+                set ipv4-trusthost 192.0.2.10 255.255.255.255
+            next
+        end
+    next
+end
+execute api-user generate-key acme
+```
+
+- `192.0.2.10` is an example - use acme's address (every node of a cluster: `edit 2`...; IPv6: `ipv6-trusthost`). The token is shown **once**.
+- `set scope global`: the chosen certificate is usually in the *global* range (FortiGate without VDOMs too). A certificate only in a VDOM: `scope vdom` is enough, `set vdom` that VDOM.
+- In the deployment leave *Admin GUI certificate*, *SSL VPN certificate*, inspection profiles and virtual IPs off or empty - the replaced certificate keeps all its uses by itself, and each of them would need more rights (`sysgrp`, `fwgrp`, `utmgrp`).
+- *Not yet checked on a device*: that `vpngrp` alone is enough for every call (`monitor/system/status`, `monitor/system/available-certificates`). Answered with **403**: add `set sysgrp read`, and only if that is not enough `set sysgrp custom` with `cfg` read-write.
+
 **How to replace: SSH** is the other way (FortiOS CLI, as in acme 1.0.129). Fill in the target's **SSH user (replace over SSH)** and its key or **SSH password** - an administrator who may change VPN certificates (`vpngrp` read-write; a certificate in the *global* range needs `scope global`, e.g. a *super_admin*). The key card's *Try reaching it* runs `get system status`. These SSH fields are optional and used only by this way; without them a deployment set to SSH fails before anything changes. Over SSH acme runs:
 
 ```
