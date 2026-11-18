@@ -564,10 +564,33 @@ servers (php -S, the demo) use ports of their own.
   at once - or, with the balancer's address trusted, nobody. Either let the balancer keep the
   client's address (HAProxy `mode tcp` with `source 0.0.0.0 usesrc clientip` - transparent, the
   nodes' route back through it; F5 SNAT off), or send the **PROXY protocol** and have nginx read
-  it: `listen 8443 ssl proxy_protocol;` with `set_real_ip_from <the balancer>;` and
-  `real_ip_header proxy_protocol;` in the port's server - not written by acme's root helper
-  today: added by hand, it is overwritten at the next change of the port's servers. Until one of
-  them is in place, raise the limits of *Sign-ins* or keep the port reachable from inside only.
+  it. Since 1.0.128 acme's root helper writes that itself, on every node: with *Settings →
+  Firewall and access → Behind a load balancer or WAF* on and the balancers named
+  (`web_proxy=1`, `web_proxy_from`), and either the header `proxy_protocol` (443 passed through
+  as well) or *The certificate's port: the PROXY protocol* (`certlogin_proxy_protocol=1`: 443
+  ended on the balancer, the port passed through), the port's servers in `acme_certlogin.conf`
+  (this node's name and the VIP address's) get `listen 8443 ssl proxy_protocol;`,
+  `set_real_ip_from` the balancers and `real_ip_header proxy_protocol;` - checked with
+  `nginx -t`, put back when nginx refuses, and kept at every change of the port's servers.
+  Then the sign-in pause and *who may reach* the port (the same networks as the part's pages)
+  see the card's own address:
+
+  ```bash
+  acme --set web_proxy_from=192.0.2.5/32 --set certlogin_proxy_protocol=1 --set web_proxy=1
+  ```
+
+  From then on the port takes only connections that begin with the PROXY header: the balancer
+  must send it to every node (HAProxy `send-proxy-v2`, nginx `stream` `proxy_protocol on`, an F5
+  iRule, a NetScaler TCP profile with `-proxyProtocol ENABLED`), and a browser that goes to a
+  node's port directly gets nothing. The balancer's side for each kind is in *Settings → High
+  availability → Load balancer* and in [load-balancers.md](load-balancers.md#the-certificate-sign-in-port).
+  Until one of these is in place, raise the limits of *Sign-ins* or keep the port reachable
+  from inside only.
+- **The port never publishes the administration.** It serves only the sign-in's own requests
+  (`?api=cert-login`, `?api=cert-try`, and `?api=cert-alive` while the card is watched); every
+  other address there is 404, and each request only to who may reach that part's pages. So a
+  balancer that publishes the port to the internet publishes the sign-in - not `/admin/`. What
+  443 publishes through the balancer is in [load-balancers.md](load-balancers.md#is-the-administration-published-through-the-balancer).
 - **acme's sign-in by a load balancer** ([portal-sso.md](portal-sso.md), `portal_sso`) stays on
   443 and does not touch this: both may be on, each by its own switch.
 - The name the browser uses on the port is the one it opened the pages by (the VIP's or a

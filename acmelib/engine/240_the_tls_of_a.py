@@ -278,6 +278,21 @@ def realip_desired(store):
     return None
 
 
+def certlogin_proxied():
+    """Whether the certificate's own port takes the PROXY protocol (1.0.128): behind a balancer
+    (web_proxy, its addresses), and the header proxy_protocol - 443 passed through, the port with
+    it - or the port alone switched to it (certlogin_proxy_protocol: 443 ended on the balancer,
+    the port passed through, as a client certificate must be)."""
+    if not CONFIG.get('web_proxy'):
+        return False
+    if str(CONFIG.get('web_proxy_header') or '') == 'proxy_protocol':
+        return True
+    try:
+        return bool(int(CONFIG.get('certlogin_proxy_protocol') or 0))
+    except (TypeError, ValueError):
+        return False
+
+
 def sso_peer_desired(store):
     """True: nginx tells the enrolment pages which machine a request came from (ACME_PEER);
     False: no longer; None where the sign-in by the balancer was never switched on (nginx as
@@ -364,6 +379,11 @@ def web_desired(store):
     # The certificate's own port (1.0.100): asked once switched on, or off after.
     cl = certlogin_desired(store)
     if cl is not None:
+        # Behind an L4 balancer that sends the PROXY protocol (1.0.128): the port's servers take
+        # the client's address from it, from the balancers named only - asked only while on, so
+        # the request of everybody else (and its hash) is as it was.
+        if int(cl.get('port') or 0) and rp and rp.get('from') and certlogin_proxied():
+            cl = dict(cl, proxy=list(rp['from']))
         out['certlogin'] = cl
     # The agents' port (1.0.116): asked only while active mode is on, or once off again after.
     ag = agents_desired(store)

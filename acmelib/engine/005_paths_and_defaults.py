@@ -33,6 +33,9 @@ DEFAULTS = {
     'web_proxy_from': '',
     'web_proxy_header': 'X-Forwarded-For',
     'web_proxy_recursive': 1,
+    # The certificate's own port behind an L4 balancer that sends the PROXY protocol (1.0.128):
+    # off - its servers as until now (web_proxy_header=proxy_protocol puts it there as well).
+    'certlogin_proxy_protocol': 0,
     'high_security': 0,
     # Root's actions only from rows of the database acme signed (1.0.40, otp 1.0.231): a setting
     # of this node's config.json, never of the database. 0 - as until now.
@@ -448,6 +451,7 @@ TUNABLE = {
     'upgrade_check': (0, 1), 'upgrade_downgrade': (0, 1),
     'net_confirm_min': (0, 120), 'fw_confirm_min': (0, 120),
     'web_proxy': (0, 1), 'web_proxy_recursive': (0, 1), 'portal_sso': (0, 1),
+    'certlogin_proxy_protocol': (0, 1),
     'names_czsk_letters': (0, 1),
     'names_any_letters': (0, 1),
     'portal': (0, 1), 'portal_who': ('anyone', 'groups'),
@@ -696,6 +700,7 @@ NAMES = {
     'web_proxy_from': 'The load balancers and WAFs',
     'web_proxy_header': 'The header with the client\'s address',
     'web_proxy_recursive': 'Through more than one of them',
+    'certlogin_proxy_protocol': 'The certificate\'s port: the PROXY protocol',
     'names_czsk_letters': 'Czech and Slovak letters in names',
     'names_any_letters': 'Letters of other languages in names',
     'portal': 'The enrolment pages are open',
@@ -1102,10 +1107,21 @@ SAYS = {
                       'separated by spaces. Needed to switch it on: the header of anybody else '
                       'is never believed.',
     'web_proxy_header': 'Where the balancer puts the client\'s address: X-Forwarded-For (the '
-                        'usual), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP...',
+                        'usual), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP... - '
+                        'or proxy_protocol: TLS passed through (L4), the address in the PROXY '
+                        'protocol; nginx then takes only connections that begin with it on 443 '
+                        '(and on the certificate\'s port) - the balancer\'s health check too. '
+                        'Port 80 stays as it is.',
     'web_proxy_recursive': 'On: in a chain (a WAF in front of a balancer), the last address in the '
                            'header that is not one of them is taken. Off: the last one, whoever '
                            'put it there.',
+    'certlogin_proxy_protocol': 'On: the certificate sign-in\'s own port is passed through an L4 '
+                                'balancer that sends the PROXY protocol (HAProxy send-proxy, an '
+                                'F5 iRule, a NetScaler TCP profile) - nginx takes the client\'s '
+                                'address from it there, so that the sign-in pause and who may '
+                                'reach the port see the client, not the balancer. Only from the '
+                                'balancers above. With the header proxy_protocol it is on '
+                                'anyway. Off: the port as until now.',
     'names_czsk_letters': 'The letters of Czech and Slovak with their accents (á č ď é ě í ľ ĺ ň ó ô '
                           'ŕ ř š ť ú ů ý ž ä) in the names of accounts. With both this and the '
                           'one beside it off, a name takes letters without accents, digits, '
@@ -1801,7 +1817,8 @@ SAYS_SHORT = {
 PANES = {
     # Where the change they take back is made (1.0.150), not under sign-ins.
     'network': ['net_confirm_min'],
-    'fw': ['fw_confirm_min', 'web_proxy', 'web_proxy_from', 'web_proxy_header', 'web_proxy_recursive'],
+    'fw': ['fw_confirm_min', 'web_proxy', 'web_proxy_from', 'web_proxy_header', 'web_proxy_recursive',
+           'certlogin_proxy_protocol'],
     'portal': ['portal', 'portal_title', 'portal_directory', 'portal_hint', 'portal_who',
                'portal_groups', 'portal_code',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
@@ -1920,7 +1937,7 @@ ONLY_WHEN = {
     'portal_help': ['portal', '1'], 'portal_tries': ['portal', '1'],
     'portal_wait_min': ['portal', '1'],
     'web_proxy_from': ['web_proxy', '1'], 'web_proxy_header': ['web_proxy', '1'],
-    'web_proxy_recursive': ['web_proxy', '1'],
+    'web_proxy_recursive': ['web_proxy', '1'], 'certlogin_proxy_protocol': ['web_proxy', '1'],
     'portal_sso_from': ['portal_sso', '1'], 'portal_sso_header': ['portal_sso', '1'],
     'portal_sso_key': ['portal_sso', '1'], 'portal_sso_logout': ['portal_sso', '1'],
     'portal_local': ['portal', '1'], 'portal_admins_all': ['portal_local', '1'],
@@ -2395,7 +2412,11 @@ def check_setting(key, value):
                 ipaddress.ip_network(one, strict=False)
             except ValueError:
                 raise BadSetting('login_guard_trusted: %r is not an address or a network' % one)
-    if key == 'web_proxy_header':
+    if key == 'web_proxy_header' and str(got).strip().lower() == 'proxy_protocol':
+        # The PROXY protocol (1.0.128): TLS passed through, the client's address in front of it -
+        # nginx's own word for it, written by root on the 443 listen lines, never port 80's.
+        got = 'proxy_protocol'
+    elif key == 'web_proxy_header':
         # A header's name only (otp 1.0.237) - it goes into nginx's configuration as it is.
         if not re.match(r'^[A-Za-z][A-Za-z0-9-]{0,63}\Z', str(got)) or \
                 str(got).lower() in ('host', 'cookie', 'authorization', 'content-length',

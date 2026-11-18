@@ -147,7 +147,14 @@ def split_peer_says(host, timeout=5.0):
     """What the other node's own /healthz says (1.0.58; 5 s since 1.0.62 - it waits 3 s for its
     daemon before it says "down: the daemon is not answering", and 2 s never heard that): 'up' (200, ok), 'down' (503: its
     daemon or its database does not answer), '' (not asked, refused, anything else). Over
-    HTTPS unchecked - only whether to go on serving is taken from it, never data."""
+    HTTPS unchecked - only whether to go on serving is taken from it, never data. Behind an L4
+    balancer (web_proxy_header proxy_protocol, 1.0.128) the other node's 443 takes only
+    connections that begin with the PROXY protocol: asked with one first ("PROXY UNKNOWN" -
+    its own address stands), then as before."""
+    if CONFIG.get('web_proxy') and str(CONFIG.get('web_proxy_header') or '') == 'proxy_protocol':
+        got = split_peer_says_proxied(host, timeout)
+        if got:
+            return got
     try:
         import urllib.request
         import urllib.error
@@ -165,6 +172,38 @@ def split_peer_says(host, timeout=5.0):
             return 'down' if e.code == 503 and body.startswith('down') else ''
     except Exception:                                   # noqa: BLE001
         return ''
+
+
+def split_peer_says_proxied(host, timeout=5.0):
+    """split_peer_says over a connection that begins with "PROXY UNKNOWN" (1.0.128)."""
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        h = host.strip('[]')
+        with socket.create_connection((h, 443), timeout=timeout) as raw:
+            raw.sendall(b'PROXY UNKNOWN\r\n')
+            with ctx.wrap_socket(raw) as s:
+                s.sendall(('GET /healthz HTTP/1.0\r\nHost: %s\r\nUser-Agent: acme-split\r\n'
+                           'Connection: close\r\n\r\n' % (host if ':' not in h else '[%s]' % h))
+                          .encode('ascii', 'replace'))
+                data = b''
+                while len(data) < 8192:
+                    part = s.recv(4096)
+                    if not part:
+                        break
+                    data += part
+        head, _sep, body = data.partition(b'\r\n\r\n')
+        m = re.match(rb'HTTP/1\.[01] (\d{3})', head)
+        code = int(m.group(1)) if m else 0
+        body = body[:200].decode('utf-8', 'replace')
+        if code == 200 and body.startswith('ok'):
+            return 'up'
+        if code == 503 and body.startswith('down'):
+            return 'down'
+    except Exception:                                   # noqa: BLE001
+        pass
+    return ''
 
 
 def split_preferred_unable(store, now=None):

@@ -8010,13 +8010,114 @@ function lbBlock(tpl, v, title) {
 function lbServers(v, fmt) {
   return v.nodes.map(function (n, i) { return fmt(n, i); }).join('\n');
 }
+/* An address in a network (1.0.128): IPv4 and IPv6, for the guide's question whether the
+   balancer's own address may reach the administration pages. */
+function lbIpBits(ip) {
+  ip = String(ip || '').replace(/^\[|\]$/g, '').split('%')[0];
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+    return {f: 4, b: ip.split('.').map(function (x) { return ('00000000' + (Number(x) & 255).toString(2)).slice(-8); }).join('')};
+  }
+  if (ip.indexOf(':') < 0) return null;
+  var v4 = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (v4) {
+    var q = v4[1].split('.').map(Number);
+    ip = ip.slice(0, -v4[1].length) + ((q[0] << 8) | q[1]).toString(16) + ':' + ((q[2] << 8) | q[3]).toString(16);
+  }
+  var halves = ip.split('::');
+  if (halves.length > 2) return null;
+  var head = halves[0] ? halves[0].split(':') : [], tail = halves.length > 1 && halves[1] ? halves[1].split(':') : [];
+  var fill = 8 - head.length - tail.length;
+  if (fill < 0 || (halves.length === 1 && fill !== 0)) return null;
+  var groups = head.concat(new Array(fill + 1).join('0').split('').map(function () { return '0'; }), tail);
+  if (groups.length !== 8 || !groups.every(function (g) { return /^[0-9a-f]{1,4}$/i.test(g); })) return null;
+  return {f: 6, b: groups.map(function (g) { return ('0000000000000000' + parseInt(g, 16).toString(2)).slice(-16); }).join('')};
+}
+function lbInNet(ip, net) {
+  var parts = String(net || '').split('/'), a = lbIpBits(ip), n = lbIpBits(parts[0]);
+  if (!a || !n || a.f !== n.f) return false;
+  var len = parts.length > 1 ? Number(parts[1]) : a.b.length;
+  if (!(len >= 0 && len <= a.b.length)) return false;
+  return a.b.slice(0, len) === n.b.slice(0, len);
+}
+/* What the guide says of the administration pages (1.0.128): who may reach them, read from
+   nginx as it is, and whether the balancer publishes them - otp's red line, for acme.
+   {level: 'good'|'warn'|'crit', why, nets} */
+function lbAdminExposure(lb, v) {
+  var a = (lb.access || {}).admin;
+  var pp = !!lb.proxy_protocol;
+  var trusted = (lb.trusted || []).some(function (t) { return lbInNet(v.lb, t); });
+  var xff = trusted && lb.header && lb.header !== 'proxy_protocol';
+  if (!a) return {level: 'warn', why: 'unknown', nets: []};
+  var nets = a.from || [];
+  if (v.tls === 'pass') {
+    if (a.any) return {level: 'crit', why: 'any', nets: nets};
+    if (xff && !pp) return {level: 'crit', why: 'xff', nets: nets};
+    if (!pp && nets.some(function (n) { return lbInNet(v.lb, n); })) return {level: 'crit', why: 'balancer', nets: nets};
+    if (!pp) return {level: 'warn', why: 'noproxy', nets: nets};
+    return {level: 'good', why: 'proxy', nets: nets};
+  }
+  if (a.any) return {level: 'warn', why: 'any-end', nets: nets};
+  return {level: 'good', why: 'end', nets: nets};
+}
+/* The certificate sign-in's own port on the balancer (1.0.128): passed through (L4) - the
+   client's certificate must reach nginx - with the PROXY protocol, per kind. `tls` (F5 and
+   NetScaler): the same for 443 itself, TLS passed through. */
+function lbCertPort(kind, v, tls) {
+  if (tls) v = Object.assign({}, v, {cp: 443});
+  if (kind === 'haproxy') {
+    return [['/etc/haproxy/haproxy.cfg - the certificate sign-in\'s port {cp}, passed through, the client\'s address in the PROXY protocol',
+      'frontend acme_cert\n    bind {lb}:{cp}\n    mode tcp\n    timeout client 900s\n    default_backend acme_cert_nodes\n\n'
+      + 'backend acme_cert_nodes\n    mode tcp\n    balance roundrobin\n    timeout server 900s\n'
+      + '    default-server inter 3s fall 2 rise 2 check send-proxy-v2\n'
+      + lbServers(v, function (n, i) { return '    server {n' + i + '} {a' + i + '}:{cp}'; })]];
+  }
+  if (kind === 'nginx') {
+    return [['/etc/nginx/nginx.conf, outside http { } - the certificate sign-in\'s port {cp}, passed through (stream), with the PROXY protocol',
+      'stream {\n    upstream acme_cert_nodes {\n'
+      + lbServers(v, function (n, i) { return '        server {a' + i + '}:{cp} max_fails=2 fail_timeout=10s;'; })
+      + '\n    }\n    server {\n        listen {lb}:{cp};\n        proxy_pass acme_cert_nodes;\n        proxy_protocol on;\n        proxy_timeout 900s;\n    }\n}']];
+  }
+  if (kind === 'f5') {
+    return [[tls ? 'tmsh - TLS passed through: a Standard virtual server without a clientssl profile, the PROXY header from an iRule'
+      : 'tmsh - the certificate sign-in\'s port {cp}: a Standard virtual server WITHOUT a clientssl profile (the card\'s certificate must reach the nodes), the PROXY header from an iRule',
+      'create ltm pool acme_cert monitor tcp load-balancing-mode round-robin members add { '
+      + v.nodes.map(function (n, i) { return '{a' + i + '}:{cp}'; }).join(' ') + ' }\n'
+      + 'create ltm rule acme_proxy_v1 {\nwhen SERVER_CONNECTED {\n    set src [clientside {IP::remote_addr}]\n    set dst [clientside {IP::local_addr}]\n'
+      + '    if { [string first ":" $src] >= 0 } { set fam TCP6 } else { set fam TCP4 }\n'
+      + '    TCP::respond "PROXY $fam $src $dst [clientside {TCP::remote_port}] [clientside {TCP::local_port}]\\r\\n"\n}\n}\n'
+      + 'create ltm virtual acme_cert_vs destination {lb}:{cp} ip-protocol tcp pool acme_cert profiles add { tcp } rules { acme_proxy_v1 } source-address-translation { type automap }'],
+      ['Or without the iRule and without SNAT, the F5 being the nodes\' gateway: the client\'s address then reaches nginx as it is - leave the PROXY protocol off on the nodes for it.', '']].map(function (p) {
+        return tls ? [p[0], p[1].replace(/acme_cert/g, 'acme_https').replace(/acme_proxy_v1/g, 'acme_proxy_443')] : p;
+      });
+  }
+  if (kind === 'netscaler') {
+    return [[tls ? 'NetScaler CLI - TLS passed through: TCP (or SSL_BRIDGE), the PROXY protocol from a TCP profile'
+      : 'NetScaler CLI - the certificate sign-in\'s port {cp}: TCP (or SSL_BRIDGE), never SSL - the card\'s certificate must reach the nodes',
+      'add ns tcpProfile acme_proxy -proxyProtocol ENABLED -proxyProtocolVersion V2\n'
+      + 'add serviceGroup acme_cert TCP -cip DISABLED -tcpProfileName acme_proxy\n'
+      + lbServers(v, function (n, i) { return 'bind serviceGroup acme_cert {n' + i + '} {cp}'; }) + '\n'
+      + 'bind serviceGroup acme_cert -monitorName tcp\n'
+      + 'add lb vserver acme_cert_vs TCP {lb} {cp} -lbMethod ROUNDROBIN -persistenceType NONE\n'
+      + 'bind lb vserver acme_cert_vs acme_cert']].map(function (p) {
+        return tls ? [p[0], p[1].replace(/acme_cert/g, 'acme_https').replace('add ns tcpProfile acme_proxy', 'add ns tcpProfile acme_proxy_443').replace('-tcpProfileName acme_proxy\n', '-tcpProfileName acme_proxy_443\n')] : p;
+      });
+  }
+  if (kind === 'apache') {
+    return [['Apache httpd balances HTTP only, not a TCP connection: the certificate sign-in\'s port {cp} needs HAProxy or nginx (stream) in front of it - their blocks above.', '']];
+  }
+  return [];
+}
 var LB_GUIDES = [
   ['haproxy', 'HAProxy', 'pages', function (v) {
     var out = [];
     if (v.tls === 'end') {
       out.push(['/etc/haproxy/haproxy.cfg - TLS ended on HAProxy',
         'frontend acme_https\n    bind {lb}:443 ssl crt /etc/haproxy/{name}.pem alpn h2,http/1.1\n    bind {lb}:80\n    mode http\n'
-        + '    http-request redirect scheme https unless { ssl_fc }\n    option forwardfor\n    timeout client 900s\n    default_backend acme_nodes\n\n'
+        + '    http-request redirect scheme https unless { ssl_fc }\n'
+        + '    # the enrolment pages only: never /admin/, /healthz or /metrics\n'
+        + '    acl acme_portal path / /index.php /favicon.ico\n    acl acme_portal path_beg /assets/ /pki/\n'
+        + '    http-request deny deny_status 404 unless acme_portal\n'
+        + '    option forwardfor\n    timeout client 900s\n    default_backend acme_nodes\n\n'
         + 'backend acme_nodes\n    mode http\n    balance roundrobin\n    timeout server 900s\n    option httpchk\n'
         + '    http-check send meth GET uri {hc} ver HTTP/1.1 hdr Host {name}\n    http-check expect status 200\n'
         + '    default-server inter 3s fall 2 rise 2 check ssl verify none\n'
@@ -8032,45 +8133,65 @@ var LB_GUIDES = [
     return out;
   }],
   ['nginx', 'nginx', 'pages', function (v) {
-    return [['/etc/nginx/conf.d/acme-lb.conf - open-source nginx checks passively; nginx Plus can ask /healthz (the commented lines)',
+    if (v.tls === 'pass') {
+      return [['/etc/nginx/nginx.conf, outside http { } - TLS passed through (stream), the client\'s address in the PROXY protocol',
+        'stream {\n    upstream acme_nodes {\n'
+        + lbServers(v, function (n, i) { return '        server {a' + i + '}:443 max_fails=2 fail_timeout=10s;'; })
+        + '\n    }\n    server {\n        listen {lb}:443;\n        proxy_pass acme_nodes;\n        proxy_protocol on;\n        proxy_timeout 900s;\n    }\n}']];
+    }
+    return [['/etc/nginx/conf.d/acme-lb.conf - the enrolment pages only (never /admin/, /healthz, /metrics); open-source nginx checks passively, nginx Plus can ask /healthz (the commented lines)',
       'upstream acme_nodes {\n' + lbServers(v, function (n, i) { return '    server {a' + i + '}:443 max_fails=2 fail_timeout=10s;'; })
       + '\n    keepalive 16;\n}\nserver {\n    listen {lb}:80;\n    server_name {name};\n    return 301 https://$host$request_uri;\n}\n'
       + 'server {\n    listen {lb}:443 ssl;\n    http2 on;\n    server_name {name};\n'
       + '    ssl_certificate     /etc/nginx/certs/{name}.pem;\n    ssl_certificate_key /etc/nginx/certs/{name}.key;\n'
-      + '    client_max_body_size 4g;\n    location / {\n        proxy_pass https://acme_nodes;\n        proxy_http_version 1.1;\n'
+      + '    client_max_body_size 4g;\n    location ~ ^/(|index\\.php|favicon\\.ico|assets/.*|pki/.*)$ {\n        proxy_pass https://acme_nodes;\n        proxy_http_version 1.1;\n'
       + '        proxy_set_header Connection "";\n        proxy_set_header Host $host;\n'
       + '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto https;\n'
       + '        proxy_read_timeout 900s;\n        proxy_next_upstream error timeout http_502 http_503 http_504;\n'
-      + '        # nginx Plus: health_check uri={hc} interval=3 fails=2 passes=2 match=acme_ok;\n    }\n}\n'
+      + '        # nginx Plus: health_check uri={hc} interval=3 fails=2 passes=2 match=acme_ok;\n    }\n    location / { return 404; }\n}\n'
       + '# nginx Plus: match acme_ok { status 200; body ~ "^ok "; }']];
   }],
   ['apache', 'Apache httpd', 'pages', function (v) {
-    return [['/etc/httpd/conf.d/acme-lb.conf - mod_proxy_balancer with mod_proxy_hcheck asking /healthz',
+    if (v.tls === 'pass') return [['Apache httpd balances HTTP only: to pass TLS through, use HAProxy or nginx (stream) - their blocks above.', '']];
+    return [['/etc/httpd/conf.d/acme-lb.conf - mod_proxy_balancer with mod_proxy_hcheck asking /healthz; the enrolment pages only',
       'ProxyHCExpr acme_ok {%{REQUEST_STATUS} == 200 && hc(\'body\') =~ /^ok /}\n\n<VirtualHost {lb}:443>\n    ServerName {name}\n'
       + '    SSLEngine on\n    SSLCertificateFile    /etc/pki/tls/certs/{name}.crt\n    SSLCertificateKeyFile /etc/pki/tls/private/{name}.key\n'
       + '    SSLProxyEngine on\n    SSLProxyVerify none\n    SSLProxyCheckPeerName off\n\n    <Proxy "balancer://acme">\n'
       + lbServers(v, function (n, i) { return '        BalancerMember https://{a' + i + '} hcmethod=GET hcuri={hc} hcexpr=acme_ok hcinterval=3 hcpasses=2 hcfails=2'; })
       + '\n        ProxySet lbmethod=byrequests\n    </Proxy>\n    ProxyPreserveHost On\n'
+      + '    # the enrolment pages only: never /admin/, /healthz or /metrics\n'
+      + '    <LocationMatch "^/(?!$|index\\.php$|favicon\\.ico$|assets/|pki/)">\n        Require all denied\n    </LocationMatch>\n'
       + '    ProxyPass        "/" "balancer://acme/" timeout=900\n    ProxyPassReverse "/" "balancer://acme/"\n    LimitRequestBody 0\n</VirtualHost>']];
   }],
   ['f5', 'F5 BIG-IP', 'pages', function (v) {
-    return [['tmsh - a monitor that reads /healthz, the pool, the virtual server (SSL offload, X-Forwarded-For)',
+    if (v.tls === 'pass') {
+      return lbCertPort('f5', v, true);
+    }
+    return [['tmsh - a monitor that reads /healthz, the pool, the virtual server (SSL offload, X-Forwarded-For), the enrolment pages only',
       'create ltm monitor https acme_healthz defaults-from https interval 3 timeout 10 send "GET {hc} HTTP/1.1\\r\\nHost: {name}\\r\\nConnection: close\\r\\n\\r\\n" recv "^ok " recv-disable "maintenance"\n'
       + 'create ltm pool acme_https monitor acme_healthz load-balancing-mode round-robin members add { '
       + v.nodes.map(function (n, i) { return '{a' + i + '}:443'; }).join(' ') + ' }\n'
       + 'create ltm profile http acme_http insert-xforwarded-for enabled\n'
-      + 'create ltm virtual acme_vs destination {lb}:443 ip-protocol tcp pool acme_https profiles add { acme_http clientssl serverssl } source-address-translation { type automap }'],
+      + 'create ltm rule acme_portal_only {\nwhen HTTP_REQUEST {\n    switch -glob -- [HTTP::path] {\n'
+      + '        "/" - "/index.php" - "/favicon.ico" - "/assets/*" - "/pki/*" { }\n        default { HTTP::respond 404 }\n    }\n}\n}\n'
+      + 'create ltm virtual acme_vs destination {lb}:443 ip-protocol tcp pool acme_https profiles add { acme_http clientssl serverssl } rules { acme_portal_only } source-address-translation { type automap }'],
       ['Put your certificate for {name} into the clientssl profile.', '']];
   }],
   ['netscaler', 'Citrix ADC / NetScaler', 'pages', function (v) {
-    return [['NetScaler CLI',
+    if (v.tls === 'pass') {
+      return lbCertPort('netscaler', v, true);
+    }
+    return [['NetScaler CLI - the enrolment pages only (a responder policy: never /admin/, /healthz, /metrics)',
       'add lb monitor acme_healthz HTTP-ECV -send "GET {hc}" -recv "ok " -secure YES -interval 3 -resptimeout 2 -downTime 5\n'
       + lbServers(v, function (n, i) { return 'add server {n' + i + '} {a' + i + '}'; }) + '\n'
       + 'add serviceGroup acme_https SSL -cip ENABLED X-Forwarded-For\n'
       + lbServers(v, function (n, i) { return 'bind serviceGroup acme_https {n' + i + '} 443'; }) + '\n'
       + 'bind serviceGroup acme_https -monitorName acme_healthz\n'
       + 'add lb vserver acme_vs SSL {lb} 443 -lbMethod ROUNDROBIN -persistenceType NONE\n'
-      + 'bind lb vserver acme_vs acme_https\nbind ssl vserver acme_vs -certkeyName {name}']];
+      + 'bind lb vserver acme_vs acme_https\nbind ssl vserver acme_vs -certkeyName {name}\n'
+      + 'add responder action acme_404 respondwith "\\"HTTP/1.1 404 Not Found\\r\\nContent-Length: 0\\r\\n\\r\\n\\""\n'
+      + 'add responder policy acme_portal_only "!(HTTP.REQ.URL.PATH.EQ(\\"/\\") || HTTP.REQ.URL.PATH.EQ(\\"/index.php\\") || HTTP.REQ.URL.PATH.EQ(\\"/favicon.ico\\") || HTTP.REQ.URL.PATH.STARTSWITH(\\"/assets/\\") || HTTP.REQ.URL.PATH.STARTSWITH(\\"/pki/\\"))" acme_404\n'
+      + 'bind lb vserver acme_vs -policyName acme_portal_only -priority 100 -gotoPriorityExpression END -type REQUEST']];
   }]
 ];
 
@@ -8137,6 +8258,7 @@ function drawHaLb(d) {
   host.appendChild(list);
   function values() {
     var v = {lb: LB_UI.lb || v0.lb, name: LB_UI.name || v0.name, hc: v0.hc, tls: v0.tls, nodes: nodes};
+    if ((lb.certlogin || {}).on && lb.certlogin.port) v.cp = lb.certlogin.port;
     nodes.forEach(function (n, i) { v['n' + i] = n.name; v['a' + i] = n.address || '192.0.2.1' + (i + 1); });
     return v;
   }
@@ -8151,8 +8273,40 @@ function drawHaLb(d) {
         : 'Tell the nodes the balancer\'s address, so that the allow lists, the sign-in pause and every log see the client and not the balancer: Settings → Firewall and access → Behind a load balancer or WAF (once, for every node) - or as root on each node:'));
       if (!ok) trust.appendChild(lbBlock('acme --set web_proxy_from={lb}/' + (v.lb.indexOf(':') >= 0 ? '128' : '32') + ' --set web_proxy=1', v, ''));
     } else {
-      trust.appendChild(el('div', 'note', 'Passed through: in /etc/nginx/conf.d/acme.conf on both nodes, the PROXY protocol from the balancer only:'));
-      trust.appendChild(lbBlock('listen 443 ssl proxy_protocol;        # in place of: listen 443 ssl;\nset_real_ip_from {lb};\nreal_ip_header proxy_protocol;\n\nnginx -t && systemctl reload nginx', v, ''));
+      var ppOk = !!lb.proxy_protocol && ok;
+      trust.appendChild(el('div', 'note ' + (ppOk ? 'good' : 'warn'), ppOk
+        ? 'The nodes take the client\'s own address from the PROXY protocol sent by ' + v.lb + ' (port 443).'
+        : 'Passed through: the nodes must take the client\'s address from the PROXY protocol of the balancer, and of nobody else - acme writes it into nginx itself (443 only; port 80 stays as it is, and the node\'s own checks from 127.0.0.1 go on without it): Settings → Firewall and access → Behind a load balancer or WAF, the header proxy_protocol - or as root on each node:'));
+      if (!ppOk) trust.appendChild(lbBlock('acme --set web_proxy_from={lb}/' + (v.lb.indexOf(':') >= 0 ? '128' : '32') + ' --set web_proxy_header=proxy_protocol --set web_proxy=1', v, ''));
+      if (!ppOk) trust.appendChild(el('p', 'note', 'From then on nginx takes only connections that begin with the PROXY header on 443: the balancer\'s health check must send it too (HAProxy: check-send-proxy).'));
+    }
+    /* Is the administration published through the balancer? (1.0.128) */
+    var ex = lbAdminExposure(lb, v);
+    var who = el('div', 'note ' + ex.level);
+    var nets = ex.nets.length ? ex.nets.join(', ') : '';
+    if (ex.why === 'unknown') who.appendChild(el('span', '', 'Who may reach the administration pages is not known here (acme.conf has no ADMIN-ALLOW lines): see Settings → Firewall and access.'));
+    else if (ex.why === 'any') who.appendChild(el('span', '', 'The administration pages are for everybody now: through the balancer that is the internet. Passed through, the balancer cannot see the paths - what keeps the administration from the internet is the nodes themselves: who may reach the administration pages must be your own networks only.'));
+    else if (ex.why === 'balancer') who.appendChild(el('span', '', 'The administration pages are published through the balancer: without the PROXY protocol every client reaches the nodes as the balancer ' + v.lb + ', and ' + v.lb + ' is among those who may reach the administration pages (' + nets + '). Switch the PROXY protocol on (above) - or take the balancer\'s network out of the list.'));
+    else if (ex.why === 'xff') who.appendChild(el('span', '', 'The administration pages are published through the balancer: the nodes believe X-Forwarded-For from ' + v.lb + ', but passed through, the balancer cannot write it - the client writes it himself, any address of your own networks he likes. Switch the header to proxy_protocol (above).'));
+    else if (ex.why === 'noproxy') who.appendChild(el('span', '', 'Without the PROXY protocol every client reaches the nodes as the balancer ' + v.lb + ': the administration pages (' + nets + ') stay shut through it, but the enrolment pages, the sign-in pause and the logs see only the balancer too.'));
+    else if (ex.why === 'proxy') who.appendChild(el('span', '', 'The balancer passes everything through, the administration pages too; the nodes let in only ' + nets + ' to them, judged by the client\'s own address from the PROXY protocol.'));
+    else if (ex.why === 'any-end') who.appendChild(el('span', '', 'The blocks below publish the enrolment pages only - but the administration pages are for everybody: whoever reaches a node\'s own address reaches them. Your own networks only, in Settings → Firewall and access.'));
+    else who.appendChild(el('span', '', 'The blocks below publish the enrolment pages only (/, /assets/, /pki/), never /admin/, /healthz or /metrics; the administration pages are for ' + nets + ' only, on the nodes\' own addresses.'));
+    if (ex.level !== 'good') {
+      var fwGo = el('a', '', 'Settings → Firewall and access');
+      fwGo.href = '#settings/fw';
+      fwGo.onclick = function (e) { e.preventDefault(); showTab('settings'); showPane('fw'); };
+      who.appendChild(document.createTextNode(' '));
+      who.appendChild(fwGo);
+    }
+    trust.appendChild(who);
+    /* The certificate sign-in's own port (1.0.128): passed through, whatever 443 is. */
+    var cl = lb.certlogin || {};
+    if (cl.on && cl.port) {
+      trust.appendChild(el('div', 'note ' + (cl.proxy ? 'good' : 'warn'), cl.proxy
+        ? 'The certificate sign-in\'s port ' + cl.port + ': passed through the balancer (L4), the nodes take the client\'s address from its PROXY protocol.'
+        : 'The certificate sign-in\'s port ' + cl.port + ' must be passed through the balancer (L4: the card\'s certificate must reach nginx) - and without the PROXY protocol the nodes see every card as the balancer\'s one address: each card refused counts against it (the sign-in pause of one is everybody\'s), and who may reach the port is decided by the balancer\'s address - everybody, or nobody. As root on each node (with the balancer\'s address above):'));
+      if (!cl.proxy) trust.appendChild(lbBlock('acme --set web_proxy_from={lb}/' + (v.lb.indexOf(':') >= 0 ? '128' : '32') + ' --set certlogin_proxy_protocol=1 --set web_proxy=1', v, ''));
     }
     clear(list);
     LB_GUIDES.concat([['check', 'Check it', 'after', function () {
@@ -8167,9 +8321,12 @@ function drawHaLb(d) {
       sum.appendChild(el('b', '', g[1]));
       sum.appendChild(el('span', 'tag dim', g[2]));
       det.appendChild(sum);
-      g[3](v).forEach(function (part) {
-        if (part[1]) det.appendChild(lbBlock(part[1], v, part[0].replace(/\{name\}/g, v.name)));
-        else det.appendChild(el('p', 'note', part[0].replace(/\{name\}/g, v.name)));
+      var parts = g[3](v);
+      if (v.cp) parts = parts.concat(lbCertPort(g[0], v));
+      parts.forEach(function (part) {
+        var words = part[0].replace(/\{name\}/g, v.name).replace(/\{cp\}/g, v.cp || '');
+        if (part[1]) det.appendChild(lbBlock(part[1], v, words));
+        else det.appendChild(el('p', 'note', words));
       });
       det.open = !!open[g[0]];
       det.ontoggle = function () { open[g[0]] = det.open; };

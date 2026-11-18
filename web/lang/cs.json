@@ -71687,6 +71687,78 @@
   "rqx_15": {
    "source": "A name is the domain itself or under it. Enter, a comma or a space adds the one typed.",
    "text": "Jméno je doména sama nebo jméno pod ní. Napsanou doménu přidá Enter, čárka nebo mezera."
+  },
+  "lbx_01": {
+   "source": "Passed through: the nodes must take the client's address from the PROXY protocol of the balancer, and of nobody else - acme writes it into nginx itself (443 only; port 80 stays as it is, and the node's own checks from 127.0.0.1 go on without it): Settings → Firewall and access → Behind a load balancer or WAF, the header proxy_protocol - or as root on each node:",
+   "text": "Průchozí TLS: uzly musí brát adresu klienta z PROXY protokolu balanceru, a nikoho jiného – acme ho do nginx zapíše samo (jen 443; port 80 zůstává, jak je, a vlastní kontroly uzlu ze 127.0.0.1 jdou dál bez něj): Nastavení → Firewall a přístup → Za load balancerem nebo WAF, hlavička proxy_protocol – nebo jako root na každém uzlu:"
+  },
+  "lbx_02": {
+   "source": "From then on nginx takes only connections that begin with the PROXY header on 443: the balancer's health check must send it too (HAProxy: check-send-proxy).",
+   "text": "Od té chvíle nginx na 443 přijme jen spojení, která začínají hlavičkou PROXY: posílat ji musí i kontrola zdraví balanceru (HAProxy: check-send-proxy)."
+  },
+  "lbx_03": {
+   "source": "Who may reach the administration pages is not known here (acme.conf has no ADMIN-ALLOW lines): see Settings → Firewall and access.",
+   "text": "Kdo smí na stránky administrace, tu není známo (acme.conf nemá řádky ADMIN-ALLOW): viz Nastavení → Firewall a přístup."
+  },
+  "lbx_04": {
+   "source": "The administration pages are for everybody now: through the balancer that is the internet. Passed through, the balancer cannot see the paths - what keeps the administration from the internet is the nodes themselves: who may reach the administration pages must be your own networks only.",
+   "text": "Stránky administrace jsou teď pro každého: přes balancer to znamená celý internet. Při průchozím TLS balancer cesty nevidí – administraci před internetem chrání jen samotné uzly: na stránky administrace smějí jen vaše vlastní sítě."
+  },
+  "lbx_05": {
+   "source": "The blocks below publish the enrolment pages only - but the administration pages are for everybody: whoever reaches a node's own address reaches them. Your own networks only, in Settings → Firewall and access.",
+   "text": "Bloky níže zveřejní jen stránky pro žadatele – stránky administrace jsou ale pro každého: kdo se dostane na vlastní adresu uzlu, dostane se i na ně. Jen vaše vlastní sítě, v Nastavení → Firewall a přístup."
+  },
+  "lbx_06": {
+   "source": "Settings → Firewall and access",
+   "text": "Nastavení → Firewall a přístup"
+  },
+  "lbx_07": {
+   "source": "Apache httpd balances HTTP only: to pass TLS through, use HAProxy or nginx (stream) - their blocks above.",
+   "text": "Apache httpd rozkládá jen HTTP: pro průchozí TLS použijte HAProxy nebo nginx (stream) – jejich bloky výše."
+  },
+  "lbx_08": {
+   "source": "tmsh - TLS passed through: a Standard virtual server without a clientssl profile, the PROXY header from an iRule",
+   "text": "tmsh – průchozí TLS: virtuální server Standard bez profilu clientssl, hlavička PROXY z iRule"
+  },
+  "lbx_09": {
+   "source": "NetScaler CLI - TLS passed through: TCP (or SSL_BRIDGE), the PROXY protocol from a TCP profile",
+   "text": "NetScaler CLI – průchozí TLS: TCP (nebo SSL_BRIDGE), PROXY protokol z profilu TCP"
+  },
+  "lbx_10": {
+   "source": "Or without the iRule and without SNAT, the F5 being the nodes' gateway: the client's address then reaches nginx as it is - leave the PROXY protocol off on the nodes for it.",
+   "text": "Nebo bez iRule a bez SNAT, když je F5 bránou uzlů: adresa klienta pak k nginx dojde tak, jak je – PROXY protokol pro to na uzlech nechte vypnutý."
+  },
+  "lbx_11": {
+   "source": "/etc/nginx/nginx.conf, outside http { } - TLS passed through (stream), the client's address in the PROXY protocol",
+   "text": "/etc/nginx/nginx.conf, mimo http { } – průchozí TLS (stream), adresa klienta v PROXY protokolu"
+  },
+  "lbx_12": {
+   "source": "/etc/nginx/conf.d/acme-lb.conf - the enrolment pages only (never /admin/, /healthz, /metrics); open-source nginx checks passively, nginx Plus can ask /healthz (the commented lines)",
+   "text": "/etc/nginx/conf.d/acme-lb.conf – jen stránky pro žadatele (nikdy /admin/, /healthz, /metrics); open-source nginx kontroluje pasivně, nginx Plus se umí ptát na /healthz (zakomentované řádky)"
+  },
+  "lbx_13": {
+   "source": "/etc/httpd/conf.d/acme-lb.conf - mod_proxy_balancer with mod_proxy_hcheck asking /healthz; the enrolment pages only",
+   "text": "/etc/httpd/conf.d/acme-lb.conf – mod_proxy_balancer s mod_proxy_hcheck, který se ptá na /healthz; jen stránky pro žadatele"
+  },
+  "lbx_14": {
+   "source": "tmsh - a monitor that reads /healthz, the pool, the virtual server (SSL offload, X-Forwarded-For), the enrolment pages only",
+   "text": "tmsh – monitor, který čte /healthz, pool, virtuální server (SSL offload, X-Forwarded-For), jen stránky pro žadatele"
+  },
+  "lbx_15": {
+   "source": "NetScaler CLI - the enrolment pages only (a responder policy: never /admin/, /healthz, /metrics)",
+   "text": "NetScaler CLI – jen stránky pro žadatele (politika responderu: nikdy /admin/, /healthz, /metrics)"
+  },
+  "lbx_16": {
+   "source": "The certificate's port: the PROXY protocol",
+   "text": "Port certifikátu: PROXY protokol"
+  },
+  "lbx_17": {
+   "source": "Where the balancer puts the client's address: X-Forwarded-For (the usual), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP... - or proxy_protocol: TLS passed through (L4), the address in the PROXY protocol; nginx then takes only connections that begin with it on 443 (and on the certificate's port) - the balancer's health check too. Port 80 stays as it is.",
+   "text": "Kam balancer dává adresu klienta: X-Forwarded-For (obvyklé), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP… – nebo proxy_protocol: průchozí TLS (L4), adresa v PROXY protokolu; nginx pak na 443 (a na portu certifikátu) přijme jen spojení, která jím začínají – i kontrolu zdraví balanceru. Port 80 zůstává, jak je."
+  },
+  "lbx_18": {
+   "source": "On: the certificate sign-in's own port is passed through an L4 balancer that sends the PROXY protocol (HAProxy send-proxy, an F5 iRule, a NetScaler TCP profile) - nginx takes the client's address from it there, so that the sign-in pause and who may reach the port see the client, not the balancer. Only from the balancers above. With the header proxy_protocol it is on anyway. Off: the port as until now.",
+   "text": "Zapnuto: vlastní port přihlášení certifikátem prochází L4 balancerem, který posílá PROXY protokol (HAProxy send-proxy, iRule na F5, profil TCP na NetScaleru) – nginx tam z něj bere adresu klienta, aby pauza přihlášení i to, kdo smí na port, viděly klienta, a ne balancer. Jen od balancerů výše. S hlavičkou proxy_protocol je zapnuto tak jako tak. Vypnuto: port jako dosud."
   }
  },
  "patterns": {
@@ -99605,6 +99677,58 @@
   "ptlm_12": {
    "source": "the test {0} of the team {1} saved on the portal by {2}",
    "text": "test {0} týmu {1} uložil na portálu {2}"
+  },
+  "lbxp_01": {
+   "source": "/etc/haproxy/haproxy.cfg - the certificate sign-in's port {0}, passed through, the client's address in the PROXY protocol",
+   "text": "/etc/haproxy/haproxy.cfg – port přihlášení certifikátem {0}, průchozí, adresa klienta v PROXY protokolu"
+  },
+  "lbxp_02": {
+   "source": "/etc/nginx/nginx.conf, outside http { } - the certificate sign-in's port {0}, passed through (stream), with the PROXY protocol",
+   "text": "/etc/nginx/nginx.conf, mimo http { } – port přihlášení certifikátem {0}, průchozí (stream), s PROXY protokolem"
+  },
+  "lbxp_03": {
+   "source": "tmsh - the certificate sign-in's port {0}: a Standard virtual server WITHOUT a clientssl profile (the card's certificate must reach the nodes), the PROXY header from an iRule",
+   "text": "tmsh – port přihlášení certifikátem {0}: virtuální server Standard BEZ profilu clientssl (certifikát z karty musí dojít až k uzlům), hlavička PROXY z iRule"
+  },
+  "lbxp_04": {
+   "source": "NetScaler CLI - the certificate sign-in's port {0}: TCP (or SSL_BRIDGE), never SSL - the card's certificate must reach the nodes",
+   "text": "NetScaler CLI – port přihlášení certifikátem {0}: TCP (nebo SSL_BRIDGE), nikdy SSL – certifikát z karty musí dojít až k uzlům"
+  },
+  "lbxp_05": {
+   "source": "Apache httpd balances HTTP only, not a TCP connection: the certificate sign-in's port {0} needs HAProxy or nginx (stream) in front of it - their blocks above.",
+   "text": "Apache httpd rozkládá jen HTTP, ne spojení TCP: port přihlášení certifikátem {0} potřebuje před sebou HAProxy nebo nginx (stream) – jejich bloky výše."
+  },
+  "lbxp_06": {
+   "source": "The nodes take the client's own address from the PROXY protocol sent by {0} (port 443).",
+   "text": "Uzly berou vlastní adresu klienta z PROXY protokolu, který posílá {0} (port 443)."
+  },
+  "lbxp_07": {
+   "source": "The administration pages are published through the balancer: without the PROXY protocol every client reaches the nodes as the balancer {0} - which is among those who may reach the administration pages ({1}). Switch the PROXY protocol on (above) - or take the balancer's network out of the list.",
+   "text": "Stránky administrace jsou zveřejněné přes balancer: bez PROXY protokolu přichází na uzly každý klient jako balancer {0} – a ten patří mezi ty, kdo smějí na stránky administrace ({1}). Zapněte PROXY protokol (výše) – nebo síť balanceru ze seznamu vyřaďte."
+  },
+  "lbxp_08": {
+   "source": "The administration pages are published through the balancer: the nodes believe X-Forwarded-For from {0}, but passed through, the balancer cannot write it - the client writes it himself, any address of your own networks he likes. Switch the header to proxy_protocol (above).",
+   "text": "Stránky administrace jsou zveřejněné přes balancer: uzly věří X-Forwarded-For od {0}, jenže při průchozím TLS ho balancer zapsat nemůže – píše si ho klient sám, libovolnou adresu z vašich sítí. Přepněte hlavičku na proxy_protocol (výše)."
+  },
+  "lbxp_09": {
+   "source": "Without the PROXY protocol every client reaches the nodes as the balancer {0}: the administration pages ({1}) stay shut through it, but the enrolment pages, the sign-in pause and the logs see only the balancer too.",
+   "text": "Bez PROXY protokolu přichází na uzly každý klient jako balancer {0}: stránky administrace ({1}) přes něj zůstanou zavřené, ale i stránky pro žadatele, pauza přihlášení a logy vidí jen balancer."
+  },
+  "lbxp_10": {
+   "source": "The balancer passes everything through, the administration pages too; the nodes let in only {0} to them, judged by the client's own address from the PROXY protocol.",
+   "text": "Balancer propouští všechno, i stránky administrace; uzly na ně pustí jen {0}, podle vlastní adresy klienta z PROXY protokolu."
+  },
+  "lbxp_11": {
+   "source": "The blocks below publish the enrolment pages only (/, /assets/, /pki/), never /admin/, /healthz or /metrics; the administration pages are for {0} only, on the nodes' own addresses.",
+   "text": "Bloky níže zveřejní jen stránky pro žadatele (/, /assets/, /pki/), nikdy /admin/, /healthz ani /metrics; stránky administrace jsou jen pro {0}, na vlastních adresách uzlů."
+  },
+  "lbxp_12": {
+   "source": "The certificate sign-in's port {0}: passed through the balancer (L4), the nodes take the client's address from its PROXY protocol.",
+   "text": "Port přihlášení certifikátem {0}: prochází balancerem (L4), uzly berou adresu klienta z jeho PROXY protokolu."
+  },
+  "lbxp_13": {
+   "source": "The certificate sign-in's port {0} must be passed through the balancer (L4: the card's certificate must reach nginx) - and without the PROXY protocol the nodes see every card as the balancer's one address: each card refused counts against it (the sign-in pause of one is everybody's), and who may reach the port is decided by the balancer's address - everybody, or nobody. As root on each node (with the balancer's address above):",
+   "text": "Port přihlášení certifikátem {0} musí balancerem procházet (L4: certifikát z karty musí dojít až k nginx) – a bez PROXY protokolu vidí uzly každou kartu jako jedinou adresu balanceru: každá odmítnutá karta se počítá jí (pauza přihlášení jednoho je pauzou všech) a o tom, kdo smí na port, rozhoduje adresa balanceru – buď každý, nebo nikdo. Jako root na každém uzlu (s adresou balanceru výše):"
   }
  },
  "rich": {

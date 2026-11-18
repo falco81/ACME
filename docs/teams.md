@@ -362,7 +362,19 @@ a team above theirs. A person in no team: the portal as before.
   it is inherited from a team above.
 - **Teams from directory groups** (`POST /api/teams/from_groups`): the groups whose name fits
   a filter (`PKI-*`) each made a team (or a unit) with the group as its member in a chosen
-  role, under a chosen team - previewed first (`dry_run`).
+  role, under a chosen team - previewed first (`dry_run`). Since 1.0.128 groups can also be
+  picked from the directory beside the filter (`groups`: their DNs or names, 200 at most); with
+  the filter left empty only those are made, and a group named that the directory does not know
+  is said in `missing`.
+- **Pick from the directory** (1.0.128): every box of the pages that holds a name of the
+  directory - the access check, Teams from directory groups, the settings' groups of the
+  administrators and of the portal, the directory's look-up and "Try a sign-in", the
+  certificate look-up for a person, the portal's member dialog - has a small search button
+  beside it. It asks the same search as the member picker (`/api/dir/search`, on the portal
+  `dir-search`, which needs `team.members` somewhere) and puts what is picked into the box in
+  the form the box already takes (a DN as one more line, a login, `group:NAME`); what is typed
+  by hand, wildcards too, works as before. It is shown only to those who may search (a
+  certificate administrator or a full one), and says so when no directory is set up.
 
 ### Activity
 

@@ -62,7 +62,7 @@ def _hatls_view_safe(store):
 def lb_facts(store):
     """What the load balancer guides on the pages fill in (1.0.52): the real
     names, addresses and ports of this installation."""
-    server_name, proxies = '', []
+    server_name, proxies, header, pp, access = '', [], '', False, {}
     for p in NGINX_CONF_PATHS:
         try:
             text = Path(p).read_text()
@@ -75,9 +75,26 @@ def lb_facts(store):
             re.search(r'# REALIP-BEGIN(.*?)# REALIP-END', text, re.S)
         if b:
             proxies = re.findall(r'set_real_ip_from\s+([^;\s]+);', b.group(1))
+            hm = re.search(r'real_ip_header\s+([^;\s]+);', b.group(1))
+            header = hm.group(1) if hm else ''
+        # The guide says the truth (1.0.128): whether 443 takes the PROXY protocol, and who may
+        # reach the administration and the enrolment pages - as nginx has it now.
+        pp = bool(re.search(r'(?m)^\s*listen\s+[^;#]*443\b[^;#]*\bproxy_protocol\b', text))
+        for k, mark in (('admin', 'ADMIN'), ('portal', 'PORTAL')):
+            a = re.search(r'# %s-ALLOW-BEGIN\n(.*?)\n[ \t]*# %s-ALLOW-END' % (mark, mark), text, re.S)
+            if a:
+                nets = re.findall(r'(?m)^\s*allow\s+([^;\s]+);', a.group(1))
+                access[k] = {'any': 'all' in nets, 'from': [n for n in nets if n != 'all']}
         break
     v = vip_conf(store)
-    return {'server_name': server_name, 'trusted': proxies,
+    try:
+        cl = {'on': any(cl_on(x) for x in CL_PARTS), 'port': cl_port(),
+              'parts': [x for x in CL_PARTS if cl_on(x)],
+              'proxy': bool(certlogin_proxied() and proxies)}
+    except Exception:                                   # noqa: BLE001
+        cl = {'on': False, 'port': 0, 'parts': [], 'proxy': False}
+    return {'server_name': server_name, 'trusted': proxies, 'header': header,
+            'proxy_protocol': pp, 'access': access, 'certlogin': cl,
             'vip': {'on': bool(v.get('on')), 'address': v.get('address') or '',
                     'fqdn': v.get('fqdn') or ''}}
 

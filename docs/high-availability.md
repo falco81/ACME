@@ -352,10 +352,24 @@ leaving the cluster): [operations.md](operations.md).
       server acme2 192.0.2.12:443 send-proxy-v2 check check-ssl verify none
   ```
 
-  and on both nodes, in `/etc/nginx/conf.d/acme.conf`: `listen 443 ssl
-  proxy_protocol;` (in place of `listen 443 ssl;`), `set_real_ip_from
-  192.0.2.10;` and `real_ip_header proxy_protocol;`. With send-proxy the
-  health check needs `check-send-proxy` as well, or it is refused by nginx.
+  and the nodes told so - acme writes the PROXY-protocol lines into nginx itself
+  (1.0.128), each node's root helper on its own (this node's server and the VIP
+  address's, IPv4 and IPv6; `nginx -t`, put back when refused; port 80 never):
+  `acme --set web_proxy_from=192.0.2.10/32 --set web_proxy_header=proxy_protocol
+  --set web_proxy=1`, once for both nodes (or *Settings → Firewall and access*).
+  With send-proxy the health check needs `check-send-proxy` as well, or it is
+  refused by nginx. The nodes' own checks keep working without it: 127.0.0.1 and
+  ::1 get a 443 line of their own without the PROXY protocol, and the look at the
+  other node's `/healthz` while the nodes are apart sends `PROXY UNKNOWN` first.
+
+  **Passed through, the balancer publishes the administration too** - it cannot
+  see the paths. What keeps `/admin/` from the internet is then *who may reach the
+  administration pages* on the nodes, judged by the client's address from the
+  PROXY protocol; without the PROXY protocol it is judged by the balancer's
+  address, and a balancer in your own networks lets everybody in. Details, and the
+  certificate sign-in's own port (passed through, with
+  `certlogin_proxy_protocol=1` when 443 is ended on the balancer):
+  [load-balancers.md](load-balancers.md#is-the-administration-published-through-the-balancer).
 
 ## SELinux in a cluster (1.0.120)
 

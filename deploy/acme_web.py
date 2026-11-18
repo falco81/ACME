@@ -664,6 +664,12 @@ def firewall(peer, family, on):
 REALIP_BEGIN = '    # ACME-REALIP-BEGIN - behind a load balancer or WAF, as set on the pages\n'
 REALIP_END = '    # ACME-REALIP-END\n'
 HEADER_RE = re.compile(r'^[A-Za-z][A-Za-z0-9-]{0,63}\Z')
+# The PROXY protocol (1.0.128): a 443 listen line acme gave `proxy_protocol` carries this mark
+# (taken out again, only those, when it is switched off); the lines of the loopback addresses
+# without it carry the other - the node's own checks (the VIP address's, install.sh's) come
+# from 127.0.0.1 / ::1 without a PROXY header.
+PROXY_MARK = '# ACME-PROXY-PROTOCOL'
+PROXY_LOCAL_MARK = '# ACME-PROXY-LOCAL'
 
 
 def realip_checked(rp):
@@ -680,9 +686,56 @@ def realip_checked(rp):
         except ValueError:
             raise Refused('realip: %r is not an address or a network' % str(w)[:60])
     head = str(rp.get('header') or 'X-Forwarded-For')
-    if nets and (not HEADER_RE.match(head) or head.lower() in ('host', 'cookie', 'authorization')):
+    if nets and head != 'proxy_protocol' and \
+            (not HEADER_RE.match(head) or head.lower() in ('host', 'cookie', 'authorization')):
         raise Refused('realip: %r is not the name of a header' % head[:60])
     return nets, head, bool(rp.get('recursive'))
+
+
+def _listen_443(line):
+    """(head, rest-of-listen, after) of a 443 listen line of a server { }, or None."""
+    m = re.match(r'^(\s*listen\s+)([^;#]*?)\s*;(.*)$', line)
+    if not m or not re.match(r'^(?:\[[^\]]*\]:|[0-9.*]+:)?443(\s|$)', m.group(2)):
+        return None
+    return m.group(1), m.group(2), m.group(3)
+
+
+def proxy_listens(block, on):
+    """The 443 listen lines of an HTTPS server { } with `proxy_protocol` (on) - each marked, and
+    a line of the loopback address without it next to a wildcard one, for the node's own checks
+    - or without what acme put there (off; a server never given it is returned as it was)."""
+    depth, out, loop, have = 0, [], [], set()
+    for line in block.split('\n'):
+        if depth == 1 and PROXY_LOCAL_MARK in line:
+            continue                    # acme's own loopback lines: made again below when on
+        got = _listen_443(line) if depth == 1 else None
+        if got and (on or PROXY_MARK in line):
+            head, what, after = got
+            after = after.replace('   ' + PROXY_MARK, '').replace(PROXY_MARK, '')
+            words = what.split()
+            if PROXY_MARK in line:
+                words = [w for w in words if w != 'proxy_protocol']
+            if on:
+                if 'proxy_protocol' not in words:
+                    words.append('proxy_protocol')
+                keep = [w for w in words[1:] if w in ('ssl', 'http2')]
+                if words[0] in ('443', '0.0.0.0:443', '*:443'):
+                    loop.append((head, '127.0.0.1:443', keep))
+                elif words[0] == '[::]:443':
+                    loop.append((head, '[::1]:443', keep))
+                line = '%s%s;%s   %s' % (head, ' '.join(words), after, PROXY_MARK)
+            else:
+                line = '%s%s;%s' % (head, ' '.join(words), after)
+        if got:
+            have.add(got[1].split()[0])
+        depth += line.count('{') - line.count('}')
+        out.append(line)
+    add = ['%s%s;   %s - the node\'s own checks, without a PROXY header' % (
+        h, ' '.join([a] + k), PROXY_LOCAL_MARK) for h, a, k in loop if a not in have]
+    if add:
+        last = max(i for i, x in enumerate(out) if _listen_443(x))
+        out[last + 1:last + 1] = add
+    return '\n'.join(out)
 
 
 def realip_into(main, rp):
@@ -696,6 +749,14 @@ def realip_into(main, rp):
         raise Refused('no HTTPS server { } was found in %s' % NGINX_MAIN)
     block = main[where[0]:where[1]]
     new = re.sub(r'    # ACME-REALIP-BEGIN.*?# ACME-REALIP-END\n', '', block, flags=re.S)
+    # The PROXY protocol (1.0.128): 443's listen lines with it, or without what acme put there.
+    pp = bool(nets) and head == 'proxy_protocol'
+    new = proxy_listens(new, pp)
+    if pp:
+        # What the guide of before had people write by hand (set_real_ip_from, real_ip_header
+        # proxy_protocol, in the server itself): acme's lines take their place - two
+        # real_ip_header lines, and nginx -t refuses the whole request.
+        new = _server_lines_out(new, ('set_real_ip_from', 'real_ip_header', 'real_ip_recursive'))
     if nets:
         new = re.sub(r'    # REALIP-BEGIN.*?# REALIP-END\n', '', new, flags=re.S)
         lines = (REALIP_BEGIN + ''.join('    set_real_ip_from %s;\n' % n for n in nets) +
@@ -706,6 +767,22 @@ def realip_into(main, rp):
         cut = nl + 1 if nl >= 0 else head_end
         new = new[:cut] + lines + new[cut:]
     return main[:where[0]] + new + main[where[1]:]
+
+
+def _server_lines_out(block, names):
+    """The server's own `name ...;` lines of `names` taken out - not in a location { }, not
+    inside acme's own REALIP markers (those are put in afresh)."""
+    out, depth, inside = [], 0, False
+    for line in block.split('\n'):
+        if 'ACME-REALIP-BEGIN' in line or re.match(r'^\s*# REALIP-BEGIN', line):
+            inside = True
+        if depth == 1 and not inside and re.match(r'^\s*(%s)\s' % '|'.join(names), line):
+            continue
+        if 'ACME-REALIP-END' in line or re.match(r'^\s*# REALIP-END', line):
+            inside = False
+        depth += line.count('{') - line.count('}')
+        out.append(line)
+    return '\n'.join(out)
 
 
 SSO_PEER_MARK = '# ACME-SSO-PEER'
@@ -968,6 +1045,18 @@ def certlogin_checked(c):
     if c.get('watch'):
         # The card watched (1.0.113): a key only then - the server as it was without it.
         out['watch'] = True
+    if c.get('proxy'):
+        # Behind an L4 balancer that sends the PROXY protocol (1.0.128): its addresses, checked
+        # again here - they go into nginx's configuration as they are. A key only then.
+        nets = []
+        for w in (c.get('proxy') if isinstance(c.get('proxy'), list) else [])[:64]:
+            try:
+                nets.append(str(plain(str(w), 'network')))
+            except ValueError:
+                raise Refused('the certificate\'s port: %r is not an address or a network'
+                              % str(w)[:60])
+        if nets:
+            out['proxy'] = nets
     return out
 
 
@@ -1017,6 +1106,8 @@ def agents_text(main, c, pad='    '):
     p2 = pad * 2
     listens = []
     for line in block.split('\n'):
+        if PROXY_LOCAL_MARK in line:
+            continue                    # the PROXY protocol's loopback lines (1.0.128): 443's own
         m = re.match(r'^\s*listen\s+((?:\[[^\]]*\]:|[0-9.]+:)?)443\b', line)
         if m and (m.group(1) + str(c['port'])) not in listens:
             listens.append(m.group(1) + str(c['port']))
@@ -1087,9 +1178,18 @@ def certlogin_server(block, main, c, pad='    '):
     may reach it as who may reach those pages; nothing served but the sign-in."""
     keep, depth = [], 0
     watch = bool(c.get('watch'))
+    proxy = c.get('proxy') or []
     for line in block.split('\n'):
+        if depth == 1 and PROXY_LOCAL_MARK in line:
+            continue                    # 443's loopback lines (1.0.128): not the port's
         if depth == 1 and CERTLOGIN_KEEP.match(line):
             if re.match(r'^\s*listen\s', line):
+                if PROXY_MARK in line:
+                    # 443's PROXY protocol (1.0.128): the port has it as asked below, not as 443.
+                    line = line.replace('   ' + PROXY_MARK, '').replace(PROXY_MARK, '')
+                    line = re.sub(r'\s+proxy_protocol\b', '', line)
+                if proxy and not re.search(r'\sproxy_protocol\b', line):
+                    line = re.sub(r'\s*;', ' proxy_protocol;', line, count=1)
                 line = re.sub(r'(^\s*listen\s+(?:\[[^\]]*\]:|[0-9.]+:)?)443\b', r'\g<1>%d' % c['port'],
                               line)
                 line = re.sub(r'\s+default_server\b', '', line)
@@ -1156,6 +1256,13 @@ def certlogin_server(block, main, c, pad='    '):
         '%sadd_header X-Content-Type-Options "nosniff" always;' % pad,
         '%sadd_header X-Frame-Options "DENY" always;' % pad,
         '%sadd_header Referrer-Policy "no-referrer" always;' % pad]
+    if proxy:
+        # Behind an L4 balancer (1.0.128): the client's address from its PROXY header - from the
+        # balancers named only - so that the sign-in pause and who may reach the port see the
+        # client. Without it every card refused counted against the balancer's one address.
+        out += ['%sset_real_ip_from       %s;   # the load balancers (Settings - Firewall)' % (pad, n)
+                for n in proxy]
+        out += ['%sreal_ip_header         proxy_protocol;' % pad]
     if c.get('watch'):
         # The card watched (1.0.113): every check a full handshake the card's key signs - no
         # session resumed (cache, tickets), no connection kept for the next one.
@@ -2098,8 +2205,11 @@ def nginx_part(r, last):
                 write_root(NGINX_MAIN, new_main, 0o644)
                 main, changed = new_main, True
                 rp = r['realip']
-                said.append('nginx: the client\'s address from %s when it comes from %s'
-                            % (rp.get('header'), ', '.join(rp.get('from')))
+                said.append(('nginx: the client\'s address from the PROXY protocol (443\'s listen '
+                             'lines, not port 80\'s) when it comes from %s' % ', '.join(rp.get('from'))
+                             if rp.get('header') == 'proxy_protocol' else
+                             'nginx: the client\'s address from %s when it comes from %s'
+                             % (rp.get('header'), ', '.join(rp.get('from'))))
                             if rp.get('from') else 'nginx: no balancer believed any more')
         if r.get('sso_peer') is not None:
             try:
@@ -2132,6 +2242,8 @@ def nginx_part(r, last):
             vb = re.sub(r'(?m)^(\s*)server_name\s+[^;]*;', r'\1server_name %s;' % vip['fqdn'],
                         block, count=1)
             vb = re.sub(r'\s+default_server\b', '', vb)
+            # The loopback lines of the PROXY protocol (1.0.128) are this node's server's alone.
+            vb = '\n'.join(x for x in vb.split('\n') if PROXY_LOCAL_MARK not in x)
             # Its own address as well as its name (1.0.51): a browser that
             # asks for the address itself, or sends no name at all, gets the
             # web address's certificate - not the node's. The address need
@@ -2215,8 +2327,10 @@ def nginx_part(r, last):
                         snap[NGINX_CERTLOGIN][0].decode('utf-8', 'replace') != text:
                     write_root(NGINX_CERTLOGIN, text, 0o644)
                     changed = True
-                    said.append('nginx: the certificate\'s own port %d (%s)' % (
-                        c['port'], ', '.join(p for p in ('admin', 'portal') if c[p])))
+                    said.append('nginx: the certificate\'s own port %d (%s)%s' % (
+                        c['port'], ', '.join(p for p in ('admin', 'portal') if c[p]),
+                        ', the client\'s address from the PROXY protocol of %s' % ', '.join(c['proxy'])
+                        if c.get('proxy') else ''))
                     said.append(certlogin_selinux(c['port']))
             else:
                 gone = [p for p in (NGINX_CERTLOGIN, CERTLOGIN_CA) if os.path.exists(p)]

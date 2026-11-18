@@ -110,8 +110,10 @@ A role of its own for people who should use these pages and nothing else:
   it changes here;
 * **from the directory**: the members of *Group of enrolment-only accounts*
   (`admin_group_portal`, Settings → Accounts, next to the other role groups,
-  picked with *Find the groups*) are let in here even with `portal_who` =
-  groups and in none of `portal_groups`; no account is made for them;
+  picked with *Find the groups*, or with the search button beside the box -
+  1.0.128, as `portal_groups` - which puts the group's DN in as one more line)
+  are let in here even with `portal_who` = groups and in none of
+  `portal_groups`; no account is made for them;
 * **never into the administration**: `/admin/` says "this account signs in on
   the enrolment pages only" (counted as a wrong password); an administrator's
   sign-in given this role (or put into that group) ends at its next request;
@@ -304,7 +306,7 @@ once with the approval's id (`cert_download {..., action: ID}`).
 | `deploy-dry-run` → `POST deploy_dry_run` | `deploy.view` (`test`: `deploy.run`) | `{id}` What happens (the run plan, nothing contacted); `{id, test: 1}` the module's own test on the device |
 | `members&team=` → `GET members` | `team.members` | the members (caps, expired, `me`, `may_change`), those of the teams above, the roles and rights with `givable` |
 | `member-save` / `member-delete` → `POST` | `team.members` | `{team, who, roles[], rights[], until, note}` / `{team, who}` |
-| `dir-search&q=&kind=` → `GET dir_search` | `team.members` somewhere | users / groups of the directory, 20 at most |
+| `dir-search&q=&kind=` → `GET dir_search` | `team.members` somewhere | users / groups of the directory, 20 at most - the member dialog's typing and its *Pick from the directory* button (1.0.128) |
 | `team-save` → `POST team_save` | `team.create` / `team.policy` on the team above | `{name, parent, kind, description, policy}` a team below one of theirs; `{old_name, ...}` renamed, moved, its limits |
 | `team-delete` → `POST team_delete` | `team.create` on the team above | `{name, reparent?, reassign?}` (both default to the team above) |
 | `activity&team=&page=` → `GET activity` | `team.activity` | what happened in the team (50 a page, `below=1`) |
