@@ -133,7 +133,10 @@ function gateForm(g) {
   wrap.appendChild(where);
   var f = el('form', 'gate-form');
   f.autocomplete = 'off';
-  var code = textBox('', '000 000', 'codein gate-code');
+  /* as long as the code is (code_digits, 4-10; hunt Rt6: "000 000" over an 8-digit code) - a
+     code of six as the message writes it, "482 913" */
+  var digits = Number(g.digits) >= 4 && Number(g.digits) <= 10 ? Number(g.digits) : 6;
+  var code = textBox('', digits === 6 ? '000 000' : new Array(digits + 1).join('0'), 'codein gate-code');
   code.inputMode = 'numeric';
   code.autocomplete = 'one-time-code';
   code.maxLength = 32;

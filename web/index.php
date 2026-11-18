@@ -82,8 +82,10 @@ function acme_sso_sign_in(array $info): string
         }
         return '';
     }
-    if ($status === 401 || $status === 403) {
-        // Not this person's any more: whoever was signed in here before is not shown.
+    if (($status === 401 || $status === 403) && !(is_array($data) && !empty($data['untrusted']))) {
+        // Not this person's any more: whoever was signed in here before is not shown. Not when
+        // the header itself was not taken (hunt Rt6: not from a balancer named, or without its
+        // key) - it says nothing of who is here, and a password's sign-in was ended at once.
         acme_clear_session();
     }
     return is_array($data) && !empty($data['error']) ? (string) $data['error']

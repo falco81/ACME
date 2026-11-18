@@ -895,15 +895,20 @@ def sso_note(h, ok, why, peer, name):
         log('the last sign-in by the load balancer could not be noted: %s' % e, 'warn')
 
 
-def sso_refuse(h, peer, name, why, code=401, said=None):
-    """Refused - in the events with the reason, to the page in general words."""
+def sso_refuse(h, peer, name, why, code=401, said=None, untrusted=False):
+    """Refused - in the events with the reason, to the page in general words. `untrusted`: the
+    header itself was not taken (not from a balancer named, or without its key) - it says
+    nothing of who is at the browser, so the page keeps whoever is signed in there (hunt Rt6:
+    a balancer with an old key signed out everybody who then signed in with their password, and
+    told them to sign in with their password)."""
     sso_note(h, False, why, peer, name)
     log_sparing('sso-refused:' + why[:40], 'the enrolment pages refused a sign-in by the load '
                 'balancer from %s (%s): %s' % (peer or '?', name or '?', why), 'warn', every=300)
     h.store.add_event('portal', 'a sign-in by the load balancer was refused (from %s, for %s): '
                       '%s' % (peer or '?', name or '?', why), 'warn', who=name or None)
     raise ApiError(code, said or 'the sign-in through the load balancer was not taken here - '
-                                 'sign in with your password, or ask the administrator')
+                                 'sign in with your password, or ask the administrator',
+                   extra={'untrusted': True} if untrusted else None)
 
 
 @route('POST', '/api/portal/sso')
@@ -928,14 +933,15 @@ def _portal_sso(h):
     if not sso_peer_ok(peer):
         h.failed(key)
         sso_refuse(h, peer, name, 'not from the balancers named (%s)'
-                   % (CONFIG.get('portal_sso_from') or 'none'))
+                   % (CONFIG.get('portal_sso_from') or 'none'), untrusted=True)
     want = setting_secret('portal_sso_key')
     if not want:
         sso_refuse(h, peer, name, 'no key is set (Make a key)', 503)
     if not hmac.compare_digest(given.encode('utf-8', 'replace'), want.encode('utf-8', 'replace')):
         h.failed(key)
         sso_refuse(h, peer, name, 'the key in %s is %s' % (SSO_KEY_HEADER,
-                                                           'not the one set' if given else 'not there'))
+                                                           'not the one set' if given else 'not there'),
+                   untrusted=True)
     if not name or len(name) > 190 or re.search(r'[\x00-\x1f\x7f]', name):
         h.failed(key)
         sso_refuse(h, peer, name[:60], 'no name in %s' % (CONFIG.get('portal_sso_header') or

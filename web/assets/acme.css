@@ -2496,6 +2496,9 @@ td.up-how .up-bar{margin:0}
 /* Each node's own settings (1.0.67). */
 table.node-own{table-layout:fixed;width:100%}
 table.node-own th:first-child,table.node-own td:first-child{width:30%}
+/* Its headings wrap in their column (t6): at 390 px "The cluster’s" ran over the first node's
+   name, and a long node name widened the page. */
+table.node-own th{white-space:normal;overflow-wrap:anywhere}
 table.node-own tr.node-group td{padding-top:18px;padding-bottom:8px;font-size:11.5px;letter-spacing:.06em;
   text-transform:uppercase;color:var(--tx-dim);border-bottom:1px solid var(--line)}
 table.node-own td{vertical-align:middle}
