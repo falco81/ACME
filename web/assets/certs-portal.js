@@ -1173,7 +1173,7 @@ function pickerDialog() {
       card.type = 'button';
       var t = el('div', 'cp-prof-t');
       t.appendChild(data('b', '', p.name));
-      if (p.approval) t.appendChild(el('span', 'tag warn', 'approved first'));
+      if (profWaits(p)) t.appendChild(el('span', 'tag warn', 'approved first'));
       else t.appendChild(el('span', 'tag ok', 'issued at once'));
       card.appendChild(t);
       if (p.description) card.appendChild(data('div', 'cp-prof-d', p.description));
@@ -1193,6 +1193,15 @@ function pickerDialog() {
     }
     body.appendChild(list);
   }, [{words: 'Close', close: true}], 'large');
+}
+/* Whether asking from profile p waits for an approval: the team's rule "always" / "none" over
+   the profile's own (teampolicy.request_waits) - the profile alone said "issued at once" where
+   the team made every request wait. */
+function profWaits(p) {
+  var tp = teamPolicy(), ta = tp && tp.approval && (typeof tp.approval === 'string' ? tp.approval : tp.approval.mode);
+  if (ta === 'always') return true;
+  if (ta === 'none') return false;
+  return !!p.approval;
 }
 /* What one gives, in a few chips. */
 function profileChips(p) {
@@ -1239,7 +1248,7 @@ function profileFacts(p) {
     p.days ? ['Valid for', p.days + ' days'] : null,
     arr(p.eku).length ? ['Used for', ekuChips(p.eku)] : null,
     ['Renews', renew],
-    ['Approval', p.approval ? 'an approver of its team, or an administrator, approves it first' : 'issued at once'],
+    ['Approval', profWaits(p) ? 'an approver of its team, or an administrator, approves it first' : 'issued at once'],
     ['Owner', owner],
     (p.tags || []).length ? ['Tags', data('span', 'mono', p.tags.join(', '))] : null
   ]);
@@ -1301,7 +1310,7 @@ function profileDialog(p, fromPicker) {
     limitsNote(body);
     var ph = el('div', 'cp-prof-head');
     ph.appendChild(data('b', 'cp-prof-name', p.name));
-    ph.appendChild(el('span', 'tag ' + (p.approval ? 'warn' : 'ok'), p.approval ? 'approved first' : 'issued at once'));
+    ph.appendChild(el('span', 'tag ' + (profWaits(p) ? 'warn' : 'ok'), profWaits(p) ? 'approved first' : 'issued at once'));
     body.appendChild(ph);
     if (p.description) body.appendChild(data('p', 'note cp-prof-lede', p.description));
     var facts = el('details', 'cp-facts');
@@ -1391,7 +1400,7 @@ function profileDialog(p, fromPicker) {
     body.appendChild(said);
     showHow();
   }, [{words: fromPicker ? 'Back' : 'Cancel', icon: fromPicker ? 'prev' : null, go: fromPicker ? function () { pickerDialog(); } : null, close: !fromPicker},
-      {words: p.approval ? 'Ask for it' : 'Ask and issue', cls: 'primary', icon: 'add', go: function (b) {
+      {words: profWaits(p) ? 'Ask for it' : 'Ask and issue', cls: 'primary', icon: 'add', go: function (b) {
     said.className = 'said';
     said.textContent = '';
     var bodyOut = {profile: p.name, note: f.note.value, team: f.team ? f.team.value : ''};
