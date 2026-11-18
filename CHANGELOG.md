@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.125 - not released
+## 1.0.125 - 2026-11-18
 
 - Enterprise teams - Settings → Owners and teams rebuilt as an organisation: a tree of units and teams (search, counts, a drawer on phones), each team's page with Overview, Members (directory search, roles, expiry), Limits (every limit with where it comes from), Devices, Certificates and Activity; the Roles matrix; Access check (what a person may and why); teams from directory groups. Nothing changes for an installation that does not use them (docs/teams.md).
 - The certificate portal rebuilt around the team workspace: a team switcher, Overview, Certificates (paged and searched on the server, actions by what the person may), Requests with *Waiting for you* and the approval timeline, Devices with acme-agents (enrolment codes, waiting agents, the server's panel, its policy, what was found on it), Deployments with What happens, Members, Sub-teams and limits, Activity; a person in no team keeps *Your certificates* in the new look (docs/certificate-portal.md).
