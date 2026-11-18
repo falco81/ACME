@@ -298,3 +298,11 @@ A NetScaler or an F5 APM that signs people in against the directory before the c
 portal can hand who it signed in to acme, so that the portal asks no password again - only
 from the balancers named, only with a key of acme's own. *Settings → The enrolment pages →
 Signed in by a load balancer or WAF*; the whole of it in docs/portal-sso.md.
+
+## The settings by key
+
+Settings → Firewall and access → Behind a load balancer or WAF - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Through more than one of them (`web_proxy_recursive`) | `1` | On: in a chain (a WAF in front of a balancer), the last address in the header that is not one of them is taken. Off: the last one, whoever put it there. |

@@ -129,3 +129,23 @@ exactly that back - not the old values worked out again:
   replication both ways, the link between the databases encrypted and checked
   (verify-full) on both nodes with this node's certificate naming the old
   address, and the VIP address (keepalived) set up again.
+
+## The settings by key
+
+Settings → System updates and Settings → Restart and power off - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Look for updates every day (`osup_check`) | `0` | Each node looks what dnf (or apt) has waiting, every day at the time below - for the cards here, the alerts and the report. Nothing is put in. |
+| At (`osup_check_at`) | `06:15` | When, as `HH:MM` on this machine's clock. |
+| Updates on a schedule (`osup_auto`) | `0` | The updates put in by themselves in the window below, one node at a time as by hand - each out of service while it is updated, the VIP address on the other. Off until switched on. |
+| Which (`osup_auto_what`) | `security` | Only the security updates (dnf --security, unattended-upgrade on apt), or every update. (`security` - only the security updates; `all` - every update) |
+| How often (`osup_auto_every`) | `weekly` | A day, a week or a month. (`daily` - every day; `weekly` - every week, on the day below; `monthly` - on the first of every month) |
+| On the day (`osup_auto_day`) | `7` | The day a weekly update goes. (`1` - Monday; `2` - Tuesday; `3` - Wednesday; `4` - Thursday; `5` - Friday; `6` - Saturday; `7` - Sunday) |
+| At (`osup_auto_at`) | `04:45` | When, as `HH:MM` - a quiet hour, away from the backups. |
+| After the update (`osup_auto_reboot`) | `auto` | A node that needs a restart after the update - restarted by itself, one after the other, or offered on the page. (`auto` - restarted by itself where an update needs it; `ask` - a restart offered on the page) |
+| A restart on a schedule (`power_auto`) | `0` | The nodes restarted in the window below, one after the other, each out of service while it is. Off until switched on. |
+| How often (`power_auto_every`) | `weekly` | A week or a month. (`weekly` - every week, on the day below; `monthly` - on the first of every month) |
+| On the day (`power_auto_day`) | `7` | The day a weekly restart goes. (`1` - Monday; `2` - Tuesday; `3` - Wednesday; `4` - Thursday; `5` - Friday; `6` - Saturday; `7` - Sunday) |
+| At (`power_auto_at`) | `05:40` | When, as `HH:MM` on this machine's clock. |
+| Only the nodes that need one (`power_auto_needed`) | `1` | Only the nodes an update left waiting for a restart; off: every node, every time. |

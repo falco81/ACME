@@ -124,3 +124,13 @@ acme --set portal_sso=0     # off: the portal as before, the nginx line taken ou
 
 The console (`acme --console`): *Encryption, sending out, time, network, high security* →
 *Signed in by a load balancer (SSO)*.
+
+## The settings by key
+
+Settings → The enrolment pages → Signed in by a load balancer or WAF - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| The header with who signed in (`portal_sso_header`) | `X-Acme-User` | Where the balancer puts the name it signed in: X-Acme-User, or the one it already sends. The name as people type it - novak, novak@example.cz or EXAMPLE\novak - as on the sign-in of these pages. |
+| The key the balancer sends (`portal_sso_key`) | *empty* | Sent by the balancer in X-Acme-Sso-Key with every request, so that a header put in by anybody else is never taken. Made below (Make a key), shown once; kept sealed. |
+| Where signing out goes (`portal_sso_logout`) | *empty* | Where Sign out sends the browser afterwards - the balancer's own sign-out (NetScaler: /cgi/tmlogout, F5: /vdesk/hangup.php3), so that it does not sign the person in again at once. Empty: the sign-in of these pages, with a button to sign in through the balancer again. |

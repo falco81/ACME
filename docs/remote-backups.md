@@ -194,3 +194,17 @@ node from the first destination switched on into a folder of its own, and:
 Nothing is put back and the database in use is not touched. Each try is
 listed under *Backups tried* with every check, is an event, and one that fails
 is an alert (*A backup that failed or did not come*).
+
+## The settings by key
+
+Settings → Backups - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| How often (`rbackup_every`) | `daily` | daily, or weekly on the day below. |
+| On (1 Monday - 7 Sunday) (`rbackup_day`) | `7` | The day of a weekly backup: 1 is Monday, 7 Sunday. |
+| At (`rbackup_at`) | `04:15` | When, as `HH:MM` on this machine's clock. |
+| Backups kept at each destination (`rbackup_keep`) | `30` | How many of this node's backups each destination keeps; the oldest go first, the newest never. |
+| And none older than (days) (`rbackup_keep_days`) | `0` | Older ones are taken away too - 0: only the count above decides. |
+| Try the backups (`rbackup_verify`) | `off` | The newest backup fetched back, opened with the password, every file checked, the database read through and its secrets tried against the key in it - nothing is put back. After every backup, or once a week. (`off` - only by hand; `after` - after every backup, the one just sent; `weekly` - once a week, the newest one) |
+| The password of the backups (`rbackup_password`) | *empty* | Every backup is locked with it (AES-256, opened with acme or with openssl alone). Keep it apart from the backups as well - in a password vault: without it nobody, you included, opens them. Empty: the backups are not locked, and anybody with one has every private key. |

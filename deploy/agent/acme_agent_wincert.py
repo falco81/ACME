@@ -508,6 +508,16 @@ function Find-Binding($w) {
   if (-not $ip) { $ip = '*' }
   $tail = ':' + [string][int]$w.port + ':' + [string]$w.host
   $want = @(($ip + $tail), ('[' + $ip + ']' + $tail))
+  if ($ip -eq '*') {
+    # no address in the line ('*', as the server sends it then): the binding of this host and
+    # port on any address, the *: one first - as before, and as windows_ssh (hunt R t10: a
+    # binding on 10.0.0.5:443 was "not found", a second one made on *:443 beside it)
+    $t = $tail.ToLower()
+    Get-WebBinding -Name ([string]$w.site) -Protocol https |
+      Where-Object { ([string]$_.bindingInformation).ToLower().EndsWith($t) } |
+      Sort-Object { -not ([string]$_.bindingInformation).StartsWith('*:') } | Select-Object -First 1
+    return
+  }
   Get-WebBinding -Name ([string]$w.site) -Protocol https |
     Where-Object { $want -contains [string]$_.bindingInformation } | Select-Object -First 1
 }

@@ -139,3 +139,13 @@ each node's card shows it arrive.
 - `openssl s_client -connect isemon:6514 -CAfile ca.pem` from a node shows the
   certificate isemon answers with.
 - High security: isemon is sent to over TLS only, with its certificate checked.
+
+## The settings by key
+
+Settings → isemon - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Check isemon's certificate (TLS) (`isemon_verify`) | `1` | isemon's certificate checked against the authority and its name against the address it is sent to. Off: encrypted, but whoever answers is taken. |
+| Each node shows isemon a certificate of its own (TLS) (`isemon_mtls`) | `0` | Each node shows isemon a certificate from acme's own authority (made and renewed by the node itself), so isemon can take lines from acme's nodes only. |
+| isemon's certificate authority (TLS) (`isemon_ca`) | *empty* | The CA certificate (PEM) isemon's certificate is signed by - acme's own authority when *Encrypted sending* made it. Empty: the system's. |

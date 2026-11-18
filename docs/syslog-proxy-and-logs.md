@@ -71,3 +71,21 @@ put the settings in:
 Each node puts them in itself through its root helper (`logs.ask`), within a
 minute of a change, and reads the sizes again every 6 hours; *Put in and look
 again* asks every node now.
+
+## The settings by key
+
+Settings → Syslog and SIEM, Settings → Proxy, and Settings → About → Debug log - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Where to send them (`siem_targets`) | *empty* | `tls://siem.example.cz:6514`, `tcp://host:514` or `udp://host:514`, separated by commas. |
+| The name this machine is written under (`siem_hostname`) | *empty* | The host name on every line. Empty: the node's name. |
+| Check the server's certificate (TLS) (`siem_verify`) | `1` | Off only for a test: anyone between could read and change the lines. |
+| User name at the proxy (`proxy_user`) | *empty* | Where the proxy asks for one. Empty: none. |
+| The new versions of acme (`proxy_update`) | `0` | Looking for a new version of acme and fetching it (Upgrades). |
+| ACME: the CA (Let's Encrypt) (`proxy_acme`) | `0` | Ordering and renewing the certificates, and the CA's renewal window. A proxy down then stops the renewals - they are tried again, well before one runs out. |
+| ACME: the DNS APIs (deSEC, Cloudflare, acme-dns) (`proxy_acme_dns`) | `0` | The TXT record put in and taken away again (DNS-01) through the API of deSEC, Cloudflare or acme-dns. RFC 2136 updates are DNS, never through it. |
+| Debug log (`debug`) | off | Write everything into `/var/log/acme/acme.log`. Loud: for finding something out, not for leaving on. |
+| ...every question asked of the directory (`debug_ldap`) | `1` | Every question asked of a directory and how many answers came back. Never a password. |
+| ...every API call (`debug_api`) | `0` | Every API call the web pages make. |
+| ...every code sent by e-mail and SMS (`debug_codes`) | `1` | Every code sent by e-mail and SMS, step by step: each request to the SMS gateway and its answer with how long it took, each line of the conversation with the mail server. Passwords, tokens and the messages themselves are never written. |

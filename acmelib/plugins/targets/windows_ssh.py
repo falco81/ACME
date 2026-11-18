@@ -149,9 +149,12 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                     pick = ("Where-Object { @(%s, %s) -contains [string]$_.bindingInformation }"
                             % (ps_str(ip + tail), ps_str('[' + ip + ']' + tail)))
                 else:
-                    pick = ("Where-Object { ([string]$_.bindingInformation).EndsWith(%s) } "
+                    # any case, as IIS compares host names (hunt R t10: www.Example.cz in the
+                    # line was "not found" and a second binding refused as a duplicate)
+                    pick = ("Where-Object { ([string]$_.bindingInformation).ToLower()"
+                            ".EndsWith(%s) } "
                             "| Sort-Object { -not ([string]$_.bindingInformation).StartsWith('*:') }"
-                            % ps_str(tail))
+                            % ps_str(tail.lower()))
                 find = ("$b = Get-WebBinding -Name %s -Protocol https | %s | Select-Object -First 1"
                         % (ps_str(site), pick))
                 sc += [

@@ -374,7 +374,7 @@ host, address, platform, key), refused, each confirmation (automatic ones say so
   (each with the line that confirms it: `acme --target-agent NAME confirm FP`). The console:
   Certificates → *Target agents: enrollment codes, agents waiting for confirmation*.
 * API: `GET /api/agents/enroll` (the codes and the agents waiting), `POST /api/agents/enroll
-  {title, mode, port, days, most, auto}`, `POST /api/agents/enroll/revoke {id}`, `GET
+  {title, mode, port, days, most, auto, team}` (`team`: a team's code, docs/teams.md), `POST /api/agents/enroll/revoke {id}`, `GET
   /api/agents/waiting`, `POST /api/agents/confirm-many {items: [{id, fp}]}` (changes: a full
   administrator); `GET /api/agents` carries `enroll` and `waiting` too. nginx's server of the
   agents' port and `web/agent.php` relay `/agent/v1/enroll` (no client certificate - the code
@@ -1129,3 +1129,13 @@ uninstall. An active agent has none (nothing listens).
 ## Later
 
 * Nothing planned.
+
+## The settings by key
+
+Settings → Target agents - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Agents may connect to acme (active mode) (`certs_agents_active`) | `0` | Off (the default): nothing listens for agents here - no port, no server of nginx, nothing opened in the firewall; only passive agents, which acme connects to. On: each node listens on the port below (TLS 1.3, only certificates of acme's agent authority) and acme's firewall lets it in - an agent then connects to acme and nothing needs to be open on its server. |
+| The agents' port (`certs_agents_port`) | `8444` | Where the agents connect to (TCP, on every node). 8444 unless it is taken. |
+| Addresses the agents connect to (`certs_agents_names`) | *empty* | Names or addresses (host or host:port) an active agent is given to connect to, in this order - it tries the next when one does not answer. Empty: the VIP address and each node's. |

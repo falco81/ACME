@@ -440,3 +440,38 @@ at the very first look, nothing that happened later was ever mailed - it is now.
 on every node - and two first rows at once stopped the replication. A test alert
 or *Forget* on the node that does not send no longer writes back an older copy of
 what was sent.
+
+## The settings by key
+
+Settings → Monitoring → SNMPv3, and Settings → Alerts and reports - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Port (UDP) (`snmp_port`) | `161` | 161 is SNMP's. Another where snmpd of the system has it already. |
+| SNMP only from (`snmp_from`) | *empty* | The addresses or networks the monitoring asks from, `10.0.5.0/24, 192.0.2.7`. Empty: anybody with the user and its passphrases. The firewall lets in these only. |
+| User (`snmp_user`) | *empty* | The SNMPv3 user (securityName) the monitoring asks as - the same on every node. |
+| Authentication (`snmp_auth`) | `SHA-256` | HMAC of every message. SHA-256 or SHA-512; SHA-1 only for old monitoring. |
+| Its passphrase (authentication) (`snmp_auth_pass`) | *empty* | 12 characters at least. Kept sealed. |
+| Encryption (`snmp_priv`) | `AES-128` | Every message encrypted. AES-256 is net-snmp's and Zabbix's (“AES256”, not Cisco's “AES256C”). |
+| Its passphrase (encryption) (`snmp_priv_pass`) | *empty* | 12 characters at least - best not the same as the other. Kept sealed. |
+| Contact (sysContact) (`snmp_contact`) | *empty* | Who looks after it - as sysContact.0 says. |
+| Location (sysLocation) (`snmp_location`) | *empty* | Where it is - as sysLocation.0 says. |
+| Traps when something is wrong (`snmp_traps`) | `0` | An SNMPv2 trap (authPriv) when something goes wrong - what the alerts see - and when it is right again, from the node that sends the alerts. |
+| Where traps go (`snmp_trap_to`) | *empty* | host or host:port (162 by default), separated by commas. The receiver knows the user with each node's engine ID (shown below). |
+| Send them to (`alerts_to`) | *empty* | Addresses, separated by commas. The mail goes the way Settings → Mail says. |
+| Only once it has lasted (min) (`alerts_delay_min`) | `5` | A problem shorter than this is not mailed - a node restarted by an update is back in a few minutes. 0: at once. |
+| Remind every (hours) (`alerts_repeat_h`) | `24` | While it lasts, said again this often. 0: once only. |
+| Say when it is over (`alerts_resolved`) | `1` | A mail when what was mailed is over. |
+| The administration's address in the mails (`alerts_url`) | *empty* | Where the links in the mails lead, `https://acme.example.cz/admin/`. Empty: this machine's name. |
+| The database and its replication (`alerts_db`) | `1` | The replication stopped, or the database of a node in trouble. Not while a node is in maintenance, being upgraded, updated or restarted, nor 10 min after - the same outside of them is mailed. |
+| The VIP address (VRRP) (`alerts_vrrp`) | `1` | The VIP address on no node or on both, a node whose keepalived gave it up (FAULT) or is not running. Not during maintenance, upgrades, updates or restarts, nor 10 min after. |
+| A backup that failed or did not come (`alerts_backup`) | `1` | A nightly copy older than 36 hours; a backup to the destinations that failed, or none that went in time. |
+| A disk fuller than (%) (`alerts_disk_pct`) | `85` | A file system acme lives on fuller than this. 0: never. |
+| Active Directory out of reach (`alerts_dir`) | `1` | None of the servers of a directory answers a node. |
+| The SMS gateway failing (`alerts_sms`) | `1` | Three SMS in a row that did not go. |
+| A step waiting for a person (`alerts_hand`) | `1` | What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown in Settings → Upgrades and maintenance. |
+| Send it to (`report_to`) | *empty* | Addresses, separated by commas. Empty: the ones the alerts go to. |
+| Language of the report (`report_lang`) | *empty* | Czech or English, for the report. Empty: the language of the alerts. (`''` - as the alerts; `cs` - Čeština; `en` - English) |
+| How often (`report_every`) | `weekly` | A day, a week (Monday to Sunday) or a month - the one that has just ended. (`daily` - every day, of the day before; `weekly` - every week, of the week before; `monthly` - every month, of the month before) |
+| On the day (`report_day`) | `1` | The day a weekly report goes. (`1` - Monday; `2` - Tuesday; `3` - Wednesday; `4` - Thursday; `5` - Friday; `6` - Saturday; `7` - Sunday) |
+| At (`report_at`) | `07:30` | When, as `HH:MM` on this machine's clock. |

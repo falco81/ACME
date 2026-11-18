@@ -188,7 +188,7 @@ an SSH token away*.
 
 ## The gate's port
 
-*Settings → SSH server → acme's gate for SSH*: the port tried first (18129). Where
+*Settings → SSH server → acme's gate for SSH*: the port tried first (`ssh_gate_port`, 18129). Where
 something else has it, each node takes the next free one of 18129-18199 by
 itself, remembers it and tells its pam_radius; each node's card says which. The
 gate listens on 127.0.0.1 only - nothing to open in the firewall.

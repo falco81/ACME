@@ -735,3 +735,11 @@ And by hand:
 On the pages: *Settings → The database* (copies, dumps, restore, download),
 *Settings → Export and import* (the configuration), *Settings → High
 availability* (the cluster, rebuild).
+
+## The settings by key
+
+Settings → The database - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| A copy of the database every day (`backup_daily`) | `1` | A copy of the database once a day, into `/var/lib/acme/backups`, with the key that opens its secrets beside it. |

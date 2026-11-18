@@ -1414,8 +1414,9 @@ function deviceOpen(r0) {
       buttons.push({words: 'Delete', icon: 'trash', go: function (b) {
         busy(b, true);
         api('device-delete', {id: r.id}).then(function (x) {
-          if (x && x.waits) { toast(x.message || tr('it waits for an approval first'), 'good'); return; }
+          /* asked for: the dialog closed (its Delete again would ask a second time) */
           closeModal();
+          if (x && x.waits) { toast(x.message || tr('it waits for an approval first'), 'good'); refresh(true); return; }
           ok(x.message || tr('deleted'));
           refresh(true);
         }).catch(oops).then(function () { busy(b, false); });

@@ -94,7 +94,8 @@ acme --api GET /api/osup                      # any page's question, as JSON (a 
 ```
 
 A secret is never taken written out on the command line, where `ps` and the
-shell's history keep it: `--secret -`, `--bind-pw -`, `--set KEY=-` ask for it.
+shell's history keep it: `--bind-pw -` and `--set KEY=-` (a setting's secret, or a
+module's: `--source-edit NAME --set token=-`) ask for it.
 
 What lives where:
 

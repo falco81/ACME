@@ -55,3 +55,14 @@ Every mail sent - an alert, a report, a code to sign in with - and what became
 of it is under *Outgoing mail*: sent, waiting for another try, failed. One can
 be sent again or taken away by hand. What a mail holds (a code) is sealed
 while it waits and thrown away once it went.
+
+## The settings by key
+
+Settings → Mail - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Wait for the server (s) (`smtp_timeout_s`) | `20` | How long to wait for the server to answer. |
+| Replies to (`mail_reply_to`) | *empty* | Where a reply goes - a helpdesk, say. Empty: back to the sender. |
+| Port of the recipients' servers (`mail_direct_port`) | `25` | Going direct: the port of the recipients' servers. It is 25 everywhere; another only to test against a server of your own. |
+| Encryption to the recipients' servers (`mail_direct_tls`) | `if-offered` | Going direct: whether a server that offers no STARTTLS still gets the mail, in the clear. Required is safer - a mail can hold a code to sign in with, and anybody on the way can strip the offer - but a domain whose server has no TLS then gets nothing. (`if-offered` - encrypted where the server offers it; `required` - encrypted, or not sent at all) |

@@ -184,3 +184,10 @@ of the domain has to let acme put it there:
 - **A CA of your own** (step-ca, an internal ACME CA): HTTP-01 inside the network,
   nothing on the internet at all - for browsers that trust that CA.
 
+## The settings by key
+
+Settings → Automatic certificates - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Mail of the account at the CA (`acme_email`) | *empty* | Where the CA writes when a certificate runs out unrenewed. Empty: none. |

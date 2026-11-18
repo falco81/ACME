@@ -113,3 +113,22 @@ acme --dir-policy corp           # read the domain's policy now, and the cap rec
 ```
 
 The console has them under *Directories (Active Directory, LDAP)*.
+
+## The settings by key
+
+Settings → Sign-in protection and Settings → Accounts - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Block a place that keeps guessing (`login_guard`) | `0` | Off: only each address and each name count their own wrong passwords on each kind of sign-in - from one place somebody may still try every name a few times. On: the place each sign-in comes from - the address it connects from - is counted too, over these pages and the certificate portal together. Too many refusals from one place, or too many different names refused from it, and it is blocked for a while: its sign-ins are refused at once, nothing of them is checked, no directory is asked. Each node counts what reaches it; who is counted and who is blocked is below, each cleared by hand. Wrong directory passwords per person go with it: off, no cap is applied. |
+| Wrong sign-ins from one place before it is blocked (`login_guard_tries`) | `20` | Refusals from one place within the time below after which it is blocked - wrong passwords, wrong codes, names nobody has. Not counted: refusals that are this server's trouble (a directory away). |
+| Different names refused from one place before it is blocked (`login_guard_names`) | `5` | Different names refused from one place within the time below after which it is blocked - somebody trying many people's passwords. 0: not counted. |
+| ...counted over (min) (`login_guard_window_min`) | `15` | The time over which the refusals of one place are counted. |
+| Blocked for (min) (`login_guard_block_min`) | `30` | How long a place is blocked. Clear it by hand below to let it in at once. |
+| Never blocked (`login_guard_trusted`) | *empty* | Addresses or networks never blocked, one or more, separated by spaces or commas: an office whose people all come from one address, a monitor that signs in now and then. Example: 198.51.100.7 203.0.113.0/24 |
+| A sign-in lasts (h) (`session_hours`) | `12` | How long an administrator stays signed in, however busy. |
+| Group of full administrators (`admin_group_full`) | *empty* | Members may change everything. By name or by whole DN. |
+| Group of certificate administrators (`admin_group_cert`) | *empty* | Members may look at everything and look after the certificates - add, import, renew, deploy, export (no private keys) - and change no setting. |
+| Group of read-only accounts (`admin_group_readonly`) | *empty* | Members may look at everything and change nothing. |
+| Czech and Slovak letters in names (`names_czsk_letters`) | `0` | The letters of Czech and Slovak with their accents (á č ď é ě í ľ ĺ ň ó ô ŕ ř š ť ú ů ý ž ä) in the names of accounts. With both this and the one beside it off, a name takes letters without accents, digits, . _ - and @ only, and one with any other letter is refused: on the enrolment pages, when an account is made and when an administrator from the directory signs in. Most directories keep their sign-in names so (novak), and only the display names have accents - those are never checked. |
+| Letters of other languages in names (`names_any_letters`) | `0` | Letters of every other language in names - Cyrillic, Greek, Polish ł, German ß and ö, and the rest. A name that only looks like another (a Cyrillic а for a Latin a) is one way to pass for somebody: switch it on only where such names are really used. On, it takes the Czech and Slovak letters too. |

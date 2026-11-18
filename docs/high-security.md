@@ -168,3 +168,11 @@ the mode, acme's module, the labels, booleans and ports acme needs, what SELinux
 what puts it right - with the steps to make it ready, enforcing, or permissive again. Where SELinux is on, the security check lists what keeps
 a node from being protected as it should; where it is disabled, it says nothing. See
 [selinux.md](selinux.md).
+
+## The settings by key
+
+Settings → High security - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| High security (`high_security`) | `0` | Every way of doing something less safely switched off - plain LDAP, unencrypted mail, syslog and backups, certificates not checked, weak TLS, SSH with passwords, exports not locked and the rest listed above. Switched on only once nothing stands against it; off by default. |

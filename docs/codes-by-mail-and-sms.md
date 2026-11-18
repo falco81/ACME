@@ -81,3 +81,31 @@ acme --sms-test "+420 603 123 456"      # a test SMS now, said what the gateway 
   same directory password (OWA), whoever stole the password reads the code
   too. Prefer the app, or SMS; high security refuses both mail and SMS
   for the administration ([high-security.md](high-security.md)).
+
+## The settings by key
+
+Settings → Codes by e-mail and SMS - also `acme --set KEY=VALUE`:
+
+| Setting | Default | |
+|---------|---------|--|
+| Language of the codes (`code_lang`) | *empty* | The language of the mail or SMS with the code - unless the page it was asked from is in another one (the language of the page is taken then). (`''` - as the mail (Language of the mail); `cs` - Čeština; `en` - English) |
+| A mail with a code is (`code_mail_fmt`) | `html` | HTML in the look of acme's other mails, the plain text always beside it - or plain text alone, for mail systems that strip HTML or people who want it so. (`html` - HTML, as acme's other mails look - with the plain text beside it; `text` - plain text only) |
+| How SMS is sent (`sms_mode`) | `off` | An SMS gateway with an HTTP API (most operators and services), or a GSM modem on this machine run by smstools3 or gammu-smsd: acme writes each message as a file into its spool folder, or a Teltonika gateway (TRB140, RUT…) on the network through its own API, the way zigmon sends its texts. Off: no code and no alert goes by SMS. (`off` - off - no SMS is sent; `http` - an SMS gateway with an HTTP API; `spool` - a modem on this machine - a file into the spool of smstools / gammu; `teltonika` - a Teltonika gateway (TRB140, RUT…) on the network - as zigmon uses it) |
+| Country code for numbers written without one (`sms_prefix`) | `+420` | A number typed as 603 123 456 becomes +420603123456. Empty: a number has to be typed with its country code. |
+| Without accents (one SMS, not two) (`sms_plain`) | `1` | A letter with an accent makes the whole SMS the wide alphabet, 70 characters a part instead of 160: the code goes in one message when the accents are left out (kód → kod). |
+| The gateway's address (URL) (`sms_url`) | *empty* | Where the message is sent. {to} is the number (+420…), {to_digits} the number without + , {text} the message, {token} the key below - each written as an address needs it. https://sms.example.cz/api/send?to={to}&text={text} |
+| HTTP method (`sms_method`) | `POST` | POST sends the body below; GET only the address. (`POST` - POST; `GET` - GET) |
+| The gateway's key ({token}) (`sms_token`) | *empty* | The gateway's API key or password, kept sealed in the database and put where {token} is written. Never shown again. |
+| The gateway said it was sent when the answer holds (`sms_ok_status`) | *empty* | Some gateways answer 200 to everything: a word their answer holds only when it was sent - "ok", ""status":"sent"". Empty: any 2xx answer. |
+| What is sent (body) (`sms_body`) | *empty* | For POST. Starting with { it is JSON and the values are written as JSON strings: {"to": "{to}", "text": "{text}"}; otherwise a form: to={to}&text={text}. Empty: the address alone. |
+| Headers (`sms_headers`) | *empty* | One a line, Name: value - Authorization: Bearer {token}. Content-Type is set by itself. |
+| The spool folder (`sms_spool_dir`) | `/var/spool/sms/outgoing` | smstools3: /var/spool/sms/outgoing. A file "To: 420…" and the text is written there and the modem's daemon sends it. The service runs as acme: that user needs to be able to write into the folder (a group, chmod g+w). |
+| The Teltonika's address (`sms_tel_host`) | *empty* | The gateway on the network: 192.168.1.1, or host:port. The same box zigmon sends its texts through can send these too. |
+| Its interface (`sms_tel_api`) | `rest` | RutOS 7 offers its own API out of the box; the older Post/Get service has to be switched on by hand under Services → Mobile Utilities → SMS gateway. (`rest` - RutOS's own API (/api, RutOS 7 - the default); `cgi` - the older Post/Get SMS service (/cgi-bin/sms_send)) |
+| Its modem (`sms_tel_modem`) | *empty* | Which modem sends - 1-1, 3-1… Empty: the one the gateway names first. |
+| Over HTTPS (`sms_tel_https`) | `1` | A TRB serves both; HTTPS keeps its password and the codes off the wire. |
+| Its user (`sms_tel_user`) | `admin` | An account of the gateway that may use its API (admin, or one made for this under System → Administration → User settings). |
+| Its password (`sms_tel_password`) | *empty* | Its password, kept sealed in the database. Never shown again. |
+| Check its certificate (`sms_tel_verify`) | `0` | Checked against the certificates imported below - the gateway's own (read from it with one click) or the authority and chain that signed it; with none imported, against the authorities this machine trusts. Off: any certificate is taken. |
+
+The debug log of the codes (*Settings → About*, with *Debug log* on): see *When a code does not arrive* above.

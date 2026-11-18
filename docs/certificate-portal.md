@@ -13,7 +13,7 @@ Settings → The portal (`sect-portal`, `PANES['portal']`):
 
 | key | default | |
 |---|---|---|
-| `portal` | 0 | the pages are open |
+| `portal` | 1 | the pages are open (certificates on them only with `portal_cert`, below) |
 | `portal_directory` | | the directory people sign in against (else the administrators' one) |
 | `portal_who`, `portal_groups` | anyone | anybody the directory lets in, or only members of these groups |
 | `portal_session_min`, `portal_tries`, `portal_wait_min` | 15, 5, 15 | how long a sign-in lasts; wrong passwords before a pause |
@@ -23,7 +23,7 @@ Settings → The portal (`sect-portal`, `PANES['portal']`):
 | `portal_local_code` | same | the one-time code for acme's own accounts: as `portal_code`, off, or `mail` / `sms` / `sms_mail` / `mail_sms` |
 | `portal_enrolers` | 1 | accounts of the role *enrolment pages only* sign in (acme's own, and the directory's group `admin_group_portal`) |
 | `portal_krb`, `portal_krb_auto`, `portal_krb_realm` | 0, 0, | **signing in with Windows (Kerberos)** - the portal's own switches, independent of the administration's ([kerberos-sso.md](kerberos-sso.md)) |
-| `portal_certlogin`, `portal_certlogin_match`, `portal_certlogin_crl` | 0, compat, 1 | **signing in with a certificate** (a smart card, a YubiKey) - the portal's own switches, on the certificate's port shared with the administration ([certificate-sign-in.md](certificate-sign-in.md)) |
+| `portal_certlogin`, `portal_certlogin_match`, `portal_certlogin_crl` | 0, strong, 1 | **signing in with a certificate** (a smart card, a YubiKey) - the portal's own switches, on the certificate's port shared with the administration ([certificate-sign-in.md](certificate-sign-in.md)) |
 | `portal_password_off` | 0 | *No password at all on the portal - only Windows or a certificate* |
 
 **Signing in with Windows** (1.0.99): with `portal_krb` on and a keytab put in, a browser of the
