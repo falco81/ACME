@@ -30,6 +30,21 @@ Everything else acme uses - the certificate import, `system global admin-server-
 
 acme does not create profiles, VIPs or the SSL VPN itself, and does not switch an inspection profile to `server-cert-mode replace` - set that up once yourself.
 
+## Replace an existing certificate in place (keep its uses)
+
+When a certificate on the FortiGate is already bound to policies, VIPs, ZTNA rules, user authentication or anything else, and you only want to swap it, choose in the deployment **Certificate on the FortiGate: Replace an existing certificate in place** and then **The certificate on the FortiGate**:
+
+- **Find on the device** lists the local certificates of the FortiGate (`GET /api/v2/cmdb/vpn.certificate/local?with_meta=1`): name, CN, expiry, issuer, global/vdom and how many objects use it. The one with the names of acme's certificate is marked ★ and chosen. Fortinet factory certificates (`Fortinet_*`, source *factory*) are left out - they are not replaced.
+- **Type it yourself…** always works too, e.g. when the token may not list the certificates; the line under the list says why the listing failed. The name is case-sensitive.
+
+Each deployment then runs `PUT /api/v2/cmdb/vpn.certificate/local/<name>` with `private-key` (PKCS#8 PEM, encrypted with a one-time `password`; if FortiOS refuses it, once more as a plain PEM key) and `certificate` (the leaf); the intermediates are imported as CA certificates as usual. The **name stays**, so everything bound to it keeps using it and nothing is re-pointed. Admin GUI, SSL VPN, profiles and VIPs are set only when you tick or list them - then to that same name. The key type may change (RSA → ECDSA): the certificate's uses keep it.
+
+- The same in every module version (FortiOS 6.0 - 8.0): the `certificate`, `private-key` and `password` attributes of `vpn.certificate local` are in all of them (Fortinet's Ansible collection 2.6.0).
+- A name not on the FortiGate fails before anything is changed; *What happens* shows which certificate is replaced.
+- If FortiOS refuses the update, the deployment fails with its answer and the old certificate stays as it was (acme reads it back to say so); it is never deleted. acme's cleanup of its own older `acme-...` certificates never takes the replaced one.
+- Rights: `vpngrp` read-write (step 1) - reading the list and updating a local certificate are the certificate rights the import needs already. A certificate in the *global* range needs the `scope global` profile.
+- *Not confirmed on a device*: whether every FortiOS build takes a new key for an existing local certificate over REST (the CLI does: `config vpn certificate local` / `edit <name>` / `set private-key` / `set certificate`); if yours refuses, use the default mode (a new certificate each time).
+
 ## Set up the FortiGate
 
 You need a *super_admin* to create the profile and the API user (only a super admin may create or change an API admin).
@@ -180,7 +195,9 @@ diagnose debug reset
 | `404` | no such profile / VIP / VDOM | check the names (case matters) and the VDOM |
 | `424` (Failed Dependency) | invalid value: e.g. a certificate name not in this VDOM, or the wrong shape of `server-cert` / `ssl-certificate` | import in *global* scope (or the right VDOM); choose the module version of the FortiOS the box runs |
 | `429` | rate limit, after too many bad tokens | wait, fix the token |
-| `500` with `"error": <negative number>` | FortiOS refused the change (e.g. the certificate already exists on CA import - acme ignores that) | read the detail in acme's job and the `httpsd` debug |
+| `500` with `"error": <negative number>` | FortiOS refused the change (`-328` on a CA import: it is there already - acme notes it once) | read the detail in acme's job and the `httpsd` debug |
+| *FortiOS refused to replace … in place* | FortiOS did not take the new certificate or key of the local certificate; the old one stayed | the detail in acme's job and the `httpsd` debug; else the default mode (a new certificate) |
+| *there is no local certificate …* | no certificate of that name on the FortiGate (in that VDOM) | **Find on the device**, or the exact name (case matters) |
 | *the module version ... is for FortiOS ...* | the box runs another FortiOS than this version of the target is for | choose the version named in the message (or *any version*) |
 | SSL VPN refused on 7.6 | the model has no SSL VPN / Agentless VPN | leave *SSL VPN certificate* off |
 

@@ -28,6 +28,21 @@ Vše ostatní, co acme používá - import certifikátu, `system global admin-se
 
 acme nevytváří profily, VIP ani samotnou SSL VPN a nepřepíná inspekční profil na `server-cert-mode replace` - to nastavte jednou sami.
 
+## Nahradit existující certifikát na místě (jeho použití zůstanou)
+
+Když je certifikát na FortiGate už navázaný na politiky, VIP, pravidla ZTNA, ověřování uživatelů nebo cokoli jiného a chcete ho jen vyměnit, zvolte v nasazení **Certifikát na FortiGate: Nahradit existující certifikát na místě** a pak **Certifikát na FortiGate**:
+
+- **Najít na zařízení** vypíše lokální certifikáty FortiGate (`GET /api/v2/cmdb/vpn.certificate/local?with_meta=1`): jméno, CN, platnost, vydavatele, global/vdom a kolik objektů ho používá. Ten se jmény certifikátu v acme je označen ★ a vybrán. Tovární certifikáty Fortinetu (`Fortinet_*`, zdroj *factory*) jsou vynechány - ty se nenahrazují.
+- **Zadat ručně…** funguje vždy, např. když token nesmí certifikáty vypsat; řádek pod seznamem řekne, proč výpis selhal. Na velikosti písmen ve jménu záleží.
+
+Každé nasazení pak volá `PUT /api/v2/cmdb/vpn.certificate/local/<jméno>` s `private-key` (PKCS#8 PEM zašifrovaný jednorázovým `password`; když ho FortiOS odmítne, ještě jednou jako nešifrovaný klíč PEM) a `certificate` (koncový certifikát); mezilehlé certifikáty se importují jako certifikáty CA jako obvykle. **Jméno zůstane**, takže vše, co je na něj navázané, ho dál používá a nic se nepřepojuje. Administrační GUI, SSL VPN, profily a VIP se nastavují jen tehdy, když je zaškrtnete nebo vypíšete - a to na totéž jméno. Typ klíče se může změnit (RSA → ECDSA): použití certifikátu zůstanou.
+
+- Stejné ve všech verzích modulu (FortiOS 6.0 - 8.0): atributy `certificate`, `private-key` a `password` objektu `vpn.certificate local` mají všechny (kolekce Ansible od Fortinetu 2.6.0).
+- Jméno, které na FortiGate není, selže dřív, než se cokoli změní; *Co se stane* ukáže, který certifikát se nahradí.
+- Když FortiOS změnu odmítne, nasazení selže s jeho odpovědí a starý certifikát zůstane, jak byl (acme si ho znovu přečte, aby to mohlo říct); nikdy se nemaže. Úklid starších certifikátů `acme-...` nahrazený certifikát nikdy nevezme.
+- Oprávnění: `vpngrp` čtení i zápis (krok 1) - výpis a úprava lokálního certifikátu jsou táž práva k certifikátům, jaká potřebuje už import. Certifikát v rozsahu *global* potřebuje profil se `scope global`.
+- *Neověřeno na zařízení*: zda každé sestavení FortiOS přes REST přijme nový klíč existujícího lokálního certifikátu (CLI ano: `config vpn certificate local` / `edit <jméno>` / `set private-key` / `set certificate`); když ho to vaše odmítne, použijte výchozí režim (pokaždé nový certifikát).
+
 ## Nastavení FortiGate
 
 Profil a API uživatele musí založit *super_admin* (API admina smí vytvořit či změnit jen super admin).
@@ -161,7 +176,9 @@ diagnose debug reset
 | `404` | takový profil / VIP / VDOM není | zkontrolujte jména (záleží na velikosti písmen) a VDOM |
 | `424` (Failed Dependency) | neplatná hodnota: např. jméno certifikátu, který v této VDOM není, nebo špatný tvar `server-cert` / `ssl-certificate` | importujte *globálně* (nebo do správné VDOM); zvolte verzi modulu pro FortiOS, který na krabici běží |
 | `429` | omezení počtu požadavků po mnoha špatných tokenech | počkejte, opravte token |
-| `500` s `"error": <záporné číslo>` | FortiOS změnu odmítl (např. CA už existuje při importu - to acme ignoruje) | přečtěte detail v úloze acme a ladění `httpsd` |
+| `500` s `"error": <záporné číslo>` | FortiOS změnu odmítl (`-328` při importu CA: ta už tam je - acme to jen jednou poznamená) | přečtěte detail v úloze acme a ladění `httpsd` |
+| *FortiOS refused to replace … in place* | FortiOS nepřijal nový certifikát či klíč lokálního certifikátu; starý zůstal | detail v úloze acme a ladění `httpsd`; jinak výchozí režim (nový certifikát) |
+| *there is no local certificate …* | to jméno na FortiGate (v té VDOM) není | **Najít na zařízení**, nebo jméno přesně (velikost písmen) |
 | *the module version ... is for FortiOS ...* | na krabici běží jiný FortiOS, než pro který je tato verze cíle | zvolte verzi uvedenou ve zprávě (nebo *jakoukoli verzi*) |
 
 *Nejisté*: zda je po změně přes REST potřeba uložení, když je `cfg-save` nastaveno na `manual` (ve výchozím stavu se ukládá); přesná záporná čísla chyb FortiOS se mezi verzemi liší.

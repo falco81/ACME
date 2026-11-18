@@ -924,11 +924,15 @@ FortiOS REST API with an API token (`Authorization: Bearer`):
    most) through `monitor/vpn-certificate/local/import` - PKCS#12 with a
    one-time password (or certificate + key PEM), in *global* scope (every
    VDOM and the admin GUI) or the VDOM;
-2. imports the intermediates as CA certificates (an existing one is skipped);
+2. imports the intermediates as CA certificates (an existing one - FortiOS error `-328` -
+   is said once, quietly);
 3. as asked: `system global admin-server-cert`, `vpn ssl settings servercert`,
    `firewall ssl-ssh-profile <name> server-cert` and `firewall vip <name>
    ssl-certificate` (the shape by the module version, below);
 4. deletes older acme certificates beyond *keep* (one still referenced stays).
+
+Or, with *Replace an existing certificate in place* (below), updates a certificate the
+FortiGate has already under its own name, its uses kept.
 
 `vdom` (target, or per deployment) is sent as `?vdom=`.
 
@@ -964,6 +968,46 @@ group the 6.0.4 reference gives - and SSL VPN), `sysgrp` custom `cfg`
 read-write for `admin-server-cert`, `fwgrp` read-write for VIPs, `utmgrp`
 read-write for SSL/SSH inspection profiles. The exact commands are in the
 setup guides.
+
+**Replace an existing certificate in place** (1.0.128, every module version): the
+deployment option *Certificate on the FortiGate* - `mode` `new` (default: a new
+`acme-...` certificate each time, as above) or `replace` - with *The certificate on the
+FortiGate* (`replace_name`). For a certificate already bound to policies, VIPs, ZTNA,
+user authentication and the like that should only be swapped:
+
+- *Find on the device* (a list field, `catalog` `local_certs`) reads `GET cmdb
+  vpn.certificate/local?with_meta=1`: name, CN, expiry, issuer, range and the count of
+  uses (`q_ref`) of each; the one whose CN (or a SAN) is a name of the deployed
+  certificate is marked ★ and chosen; Fortinet factory ones (`Fortinet_*`, source
+  `factory`) are left out. *Type it yourself…* always works; a listing that fails says why
+  (a 403: the token's `vpngrp` read).
+- The deployment reads `cmdb vpn.certificate/local/<name>` (not there: it fails before
+  anything changes; a factory one is refused), then `PUT cmdb vpn.certificate/local/<name>`
+  with `private-key` (PKCS#8 PEM encrypted with a one-time `password`; refused - once more
+  as a plain PEM key) and `certificate` (the leaf), in the deployment's VDOM. The
+  intermediates go in as CA certificates as for a new one. The name stays, so every
+  reference keeps it; admin GUI / SSL VPN / profiles / VIPs are set only when ticked or
+  listed - to that name. A key of another type (RSA → ECDSA) is said.
+- A refusal fails the deployment with FortiOS's answer; the certificate is read back and
+  said untouched (it is never deleted). An answer of success while the device still holds
+  another certificate fails too. Cleanup of older `acme-...` certificates never takes the
+  replaced one (even one named `acme-...`).
+- *What happens* says which certificate is replaced, that its uses stay, its count of uses.
+- Rights: `vpngrp` read-write, as for the import (*VPN* - the certificates); a certificate
+  in the global range needs `scope global`.
+- **Certainty**: `certificate`, `private-key`, `password` are attributes of `vpn
+  certificate local` in FortiOS 6.0.0 - 8.0.0 (Fortinet's Ansible collection 2.6.0, the
+  CLI reference); updating them in place is what the CLI does (`edit <name>` / `set
+  private-key` / `set certificate`). Not confirmed on a device: that every build takes a
+  new key over REST (an encrypted key is sent first, as FortiOS keeps keys), and whether
+  `certificate` takes a whole chain - acme sends the leaf only. The import endpoint is not
+  used to overwrite (it does not replace a name that exists).
+
+**CA certificates there already** (1.0.128): FortiOS answers the import of a CA
+certificate it holds with 500 and error `-328`; acme then reads `cmdb vpn.certificate/ca`
+once and, when the certificate is in it (or the list cannot be read), says once "the
+intermediate CA certificate is on the FortiGate already" instead of a line per import. A
+`-328` for one that is not in the list is said as before.
 
 **Example**: admin GUI on, SSL VPN on, VIPs `web-https`, verify
 `vpn.example.com:443` and `fw.example.com:8443`.

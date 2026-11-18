@@ -71759,6 +71759,66 @@
   "lbx_18": {
    "source": "On: the certificate sign-in's own port is passed through an L4 balancer that sends the PROXY protocol (HAProxy send-proxy, an F5 iRule, a NetScaler TCP profile) - nginx takes the client's address from it there, so that the sign-in pause and who may reach the port see the client, not the balancer. Only from the balancers above. With the header proxy_protocol it is on anyway. Off: the port as until now.",
    "text": "Zapnuto: vlastní port přihlášení certifikátem prochází L4 balancerem, který posílá PROXY protokol (HAProxy send-proxy, iRule na F5, profil TCP na NetScaleru) – nginx tam z něj bere adresu klienta, aby pauza přihlášení i to, kdo smí na port, viděly klienta, a ne balancer. Jen od balancerů výše. S hlavičkou proxy_protocol je zapnuto tak jako tak. Vypnuto: port jako dosud."
+  },
+  "fgr_01": {
+   "source": "Certificate on the FortiGate",
+   "text": "Certifikát na FortiGate"
+  },
+  "fgr_02": {
+   "source": "a new one each time (acme-<name>-<date>), the uses below switched to it",
+   "text": "pokaždé nový (acme-<jméno>-<datum>), použití níže přepnuta na něj"
+  },
+  "fgr_03": {
+   "source": "Replace an existing certificate in place",
+   "text": "Nahradit existující certifikát na místě"
+  },
+  "fgr_04": {
+   "source": "Replace in place: the certificate keeps its name and everything bound to it keeps using it - nothing is re-pointed",
+   "text": "Nahradit na místě: certifikát si ponechá jméno a vše, co je na něj navázané, ho dál používá – nic se nepřepojuje"
+  },
+  "fgr_05": {
+   "source": "The certificate on the FortiGate",
+   "text": "Nahrazovaný certifikát na FortiGate"
+  },
+  "fgr_06": {
+   "source": "Find on the device",
+   "text": "Najít na zařízení"
+  },
+  "fgr_07": {
+   "source": "a local certificate (System → Certificates) - found on the device or typed by hand; its certificate and key are replaced, its name stays",
+   "text": "lokální certifikát (Systém → Certifikáty) – nalezený na zařízení nebo zadaný ručně; nahradí se jeho certifikát a klíč, jméno zůstane"
+  },
+  "fgr_08": {
+   "source": "used once",
+   "text": "použitý jednou"
+  },
+  "fgr_09": {
+   "source": "the intermediate CA certificate is on the FortiGate already",
+   "text": "mezilehlý certifikát CA už na FortiGate je"
+  },
+  "fgr_10": {
+   "source": "the intermediate CA certificates are on the FortiGate already",
+   "text": "mezilehlé certifikáty CA už na FortiGate jsou"
+  },
+  "fgr_11": {
+   "source": "replace in place: no certificate on the FortiGate is chosen - find it on the device or type its name",
+   "text": "nahradit na místě: není vybrán žádný certifikát na FortiGate – najděte ho na zařízení, nebo zadejte jeho jméno"
+  },
+  "fgr_12": {
+   "source": "Imports the certificate through the FortiOS REST API and uses it for the admin GUI, SSL VPN, inspection profiles and virtual IPs; deletes older ones acme put there. Any FortiOS: the shapes of the profile and VIP certificate fields are taken from the version the FortiGate says. Or replaces a certificate the FortiGate has in place (its name and uses kept).",
+   "text": "Importuje certifikát přes FortiOS REST API a použije ho pro administrační GUI, SSL VPN, inspekční profily a virtuální IP; starší, které tam acme dalo, smaže. Libovolný FortiOS: tvar polí certifikátu v profilu a VIP se řídí verzí, kterou FortiGate ohlásí. Nebo nahradí certifikát, který FortiGate už má, na místě (jeho jméno i použití zůstanou)."
+  },
+  "fgr_13": {
+   "source": "FortiOS 6.0 - 6.4: an inspection profile's server-cert and a virtual IP's ssl-certificate are set as a name. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there - or replaces a certificate the FortiGate has in place (its name and uses kept). Refused on a FortiGate that says another FortiOS.",
+   "text": "FortiOS 6.0 - 6.4: server-cert inspekčního profilu a ssl-certificate virtuální IP se nastavují jako jméno. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže – nebo nahradí certifikát, který FortiGate už má, na místě (jeho jméno i použití zůstanou). Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
+  },
+  "fgr_14": {
+   "source": "FortiOS 7.0 - 7.4.1: an inspection profile's server-cert is a list of certificates (others in it kept), a virtual IP's ssl-certificate a name. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there - or replaces a certificate the FortiGate has in place (its name and uses kept). Refused on a FortiGate that says another FortiOS.",
+   "text": "FortiOS 7.0 - 7.4.1: server-cert inspekčního profilu je seznam certifikátů (ostatní v něm zůstanou), ssl-certificate virtuální IP je jméno. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže – nebo nahradí certifikát, který FortiGate už má, na místě (jeho jméno i použití zůstanou). Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
+  },
+  "fgr_15": {
+   "source": "FortiOS 7.4.2 - 8.0 (7.4.x, 7.6.x, 8.0): an inspection profile's server-cert and a virtual IP's ssl-certificate are lists of certificates (others in them kept); \"SSL VPN\" is the Agentless VPN of 7.6.3 and later. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there - or replaces a certificate the FortiGate has in place (its name and uses kept). Refused on a FortiGate that says another FortiOS.",
+   "text": "FortiOS 7.4.2 - 8.0 (7.4.x, 7.6.x, 8.0): server-cert inspekčního profilu i ssl-certificate virtuální IP jsou seznamy certifikátů (ostatní v nich zůstanou); \"SSL VPN\" je od 7.6.3 Agentless VPN. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže – nebo nahradí certifikát, který FortiGate už má, na místě (jeho jméno i použití zůstanou). Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
   }
  },
  "patterns": {
@@ -99729,6 +99789,110 @@
   "lbxp_13": {
    "source": "The certificate sign-in's port {0} must be passed through the balancer (L4: the card's certificate must reach nginx) - and without the PROXY protocol the nodes see every card as the balancer's one address: each card refused counts against it (the sign-in pause of one is everybody's), and who may reach the port is decided by the balancer's address - everybody, or nobody. As root on each node (with the balancer's address above):",
    "text": "Port přihlášení certifikátem {0} musí balancerem procházet (L4: certifikát z karty musí dojít až k nginx) – a bez PROXY protokolu vidí uzly každou kartu jako jedinou adresu balanceru: každá odmítnutá karta se počítá jí (pauza přihlášení jednoho je pauzou všech) a o tom, kdo smí na port, rozhoduje adresa balanceru – buď každý, nebo nikdo. Jako root na každém uzlu (s adresou balanceru výše):"
+  },
+  "fgrp_01": {
+   "source": "replacing the certificate {0} in place: the same name, everything that uses it keeps using it ({1})",
+   "text": "certifikát {0} se nahrazuje na místě: stejné jméno, vše, co ho používá, ho používá dál ({1})"
+  },
+  "fgrp_02": {
+   "source": "replacing the certificate {0} in place: the same name, everything that uses it keeps using it",
+   "text": "certifikát {0} se nahrazuje na místě: stejné jméno, vše, co ho používá, ho používá dál"
+  },
+  "fgrp_03": {
+   "source": "now {0}, valid to {1}",
+   "text": "nyní {0}, platný do {1}"
+  },
+  "fgrp_04": {
+   "source": "used {0} times",
+   "text": "použitý {0}×"
+  },
+  "fgrp_05": {
+   "source": "{0} holds this certificate already",
+   "text": "{0} už tento certifikát drží"
+  },
+  "fgrp_06": {
+   "source": "the key type changes from {0} to {1} - what uses {2} keeps it (a VIP that holds an RSA and an ECDSA certificate side by side may need a look)",
+   "text": "typ klíče se mění z {0} na {1} – co používá {2}, ho používá dál (VIP, která drží certifikát RSA a ECDSA vedle sebe, může chtít zkontrolovat)"
+  },
+  "fgrp_07": {
+   "source": "{0} replaced in place - its name and every use of it kept",
+   "text": "{0} nahrazen na místě – jeho jméno i všechna použití zůstala"
+  },
+  "fgrp_08": {
+   "source": "{0} replaced in place",
+   "text": "{0} nahrazen na místě"
+  },
+  "fgrp_10": {
+   "source": "FortiOS did not take the encrypted key ({0}) - trying the key as plain PEM",
+   "text": "FortiOS nepřijal zašifrovaný klíč ({0}) – zkouší se klíč jako nešifrovaný PEM"
+  },
+  "fgrp_11": {
+   "source": "FortiOS refused to replace {0} in place: {1} - {2} is untouched (the old certificate, nothing deleted)",
+   "text": "FortiOS odmítl nahradit {0} na místě: {1} – {2} zůstal nedotčen (starý certifikát, nic se nesmazalo)"
+  },
+  "fgrp_12": {
+   "source": "FortiOS refused to replace {0} in place: {1} - check {2} on the FortiGate",
+   "text": "FortiOS odmítl nahradit {0} na místě: {1} – zkontrolujte {2} na FortiGate"
+  },
+  "fgrp_13": {
+   "source": "FortiOS refused to replace {0} in place: {1}",
+   "text": "FortiOS odmítl nahradit {0} na místě: {1}"
+  },
+  "fgrp_14": {
+   "source": "FortiOS answered yes, yet {0} still holds another certificate - it may not replace a certificate of this kind in place (a factory or CA-made one?)",
+   "text": "FortiOS odpověděl úspěchem, ale {0} drží stále jiný certifikát – certifikát tohoto druhu možná nahradit na místě nejde (tovární, nebo vytvořený CA?)"
+  },
+  "fgrp_15": {
+   "source": "{0} is a Fortinet factory certificate - it is not replaced; choose a certificate of your own",
+   "text": "{0} je tovární certifikát Fortinetu – nenahrazuje se; vyberte vlastní certifikát"
+  },
+  "fgrp_16": {
+   "source": "there is no local certificate {0} on the FortiGate (VDOM {1}) - nothing was changed (Find on the device lists them; the name is case-sensitive)",
+   "text": "lokální certifikát {0} na FortiGate (VDOM {1}) není – nic se nezměnilo (Najít na zařízení je vypíše; na velikosti písmen ve jménu záleží)"
+  },
+  "fgrp_17": {
+   "source": "there is no local certificate {0} on the FortiGate - nothing was changed (Find on the device lists them; the name is case-sensitive)",
+   "text": "lokální certifikát {0} na FortiGate není – nic se nezměnilo (Najít na zařízení je vypíše; na velikosti písmen ve jménu záleží)"
+  },
+  "fgrp_18": {
+   "source": "the certificates cannot be listed: {0} - type the name of the certificate instead",
+   "text": "certifikáty nelze vypsat: {0} – zadejte jméno certifikátu ručně"
+  },
+  "fgrp_19": {
+   "source": "the token may not read the certificates ({0}) - its admin profile needs VPN (vpngrp) read, and the acme server among its trusted hosts",
+   "text": "token nesmí certifikáty číst ({0}) – jeho profil správce potřebuje čtení VPN (vpngrp) a server acme mezi důvěryhodnými hostiteli"
+  },
+  "fgrp_20": {
+   "source": "the VDOM {0} is not there (404)",
+   "text": "VDOM {0} neexistuje (404)"
+  },
+  "fgrp_21": {
+   "source": "{0} certificates found on the FortiGate",
+   "text": "{0} {0:certifikát nalezen|certifikáty nalezeny|certifikátů nalezeno} na FortiGate"
+  },
+  "fgrp_22": {
+   "source": "{0} certificate found on the FortiGate",
+   "text": "{0} {0:certifikát nalezen|certifikáty nalezeny|certifikátů nalezeno} na FortiGate"
+  },
+  "fgrp_23": {
+   "source": "{0} Fortinet factory ones left out (not replaced)",
+   "text": "{0} {0:tovární certifikát|tovární certifikáty|továrních certifikátů} Fortinetu {0:vynechán|vynechány|vynecháno} (nenahrazují se)"
+  },
+  "fgrp_24": {
+   "source": "{0} Fortinet factory one left out (not replaced)",
+   "text": "{0} {0:tovární certifikát|tovární certifikáty|továrních certifikátů} Fortinetu {0:vynechán|vynechány|vynecháno} (nenahrazují se)"
+  },
+  "fgrp_25": {
+   "source": "★ {0} has the names of this certificate",
+   "text": "★ {0} má jména tohoto certifikátu"
+  },
+  "fgrp_30": {
+   "source": "replacing {0} in place",
+   "text": "nahrazení {0} na místě"
+  },
+  "fgrp_31": {
+   "source": "reading the certificate {0}",
+   "text": "čtení certifikátu {0}"
   }
  },
  "rich": {

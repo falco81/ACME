@@ -30,6 +30,17 @@ no version of its own. Hence three versions, besides the plain one:
 
 A version sends its shapes and no other; the FortiOS version the box says is
 checked first, one outside the range refused before anything is changed.
+
+Replace in place (1.0.128, every version): a deployment may instead update a local
+certificate the FortiGate has already - chosen from "Find on the device" (cmdb
+vpn.certificate/local, with_meta for its count of uses; Fortinet factory ones left out) or
+typed. PUT cmdb vpn.certificate/local/<name> with "private-key" (PKCS#8 PEM encrypted with
+a one-time "password"; refused: plain PEM once more) and "certificate" (the leaf; the
+intermediates imported as CA certificates, as for a new one). Its name stays, so every
+policy, VIP, ZTNA rule or user-auth setting bound to it keeps it; nothing is re-pointed but
+what the deployment lists. A name not on the box fails before anything changes; a refusal
+leaves the old certificate as it was (read back to say so); cleanup never takes it.
+The attributes are in FortiOS 6.0 - 8.0 alike (Fortinet's Ansible collection).
 """
 from __future__ import annotations
 
@@ -77,7 +88,8 @@ class FortiGateTarget(HttpTarget):
     description = ('Imports the certificate through the FortiOS REST API and uses it for the '
                    'admin GUI, SSL VPN, inspection profiles and virtual IPs; deletes older '
                    'ones acme put there. Any FortiOS: the shapes of the profile and VIP '
-                   'certificate fields are taken from the version the FortiGate says.')
+                   'certificate fields are taken from the version the FortiGate says. Or '
+                   'replaces a certificate the FortiGate has in place (its name and uses kept).')
     doc = 'targets.md'
     fields = http_fields(443, 'fw.example.local') + [
         field('token', 'API token', 'secret', required=True,
@@ -344,7 +356,7 @@ class FortiGateTarget(HttpTarget):
         """The local certificate `name` as cmdb has it ({} when there is none)."""
         st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/local/%s'
                          % urllib.parse.quote(name, safe=''), ok=(200, 404), vdom=vdom,
-                         what='reading the certificate %s' % name)
+                         what='reading the certificate %s' % name, with_meta=1)
         if st != 200 or not isinstance(d, dict):
             return {}
         r = d.get('results')
@@ -410,22 +422,27 @@ class FortiGateTarget(HttpTarget):
                               'choose a certificate of your own' % name, retry=False)
         old = self.pem_facts(row.get('certificate'))
         uses = row.get('q_ref')
+        now = []
+        if old:
+            now.append('now %s, valid to %s' % (old.get('cn') or '?',
+                                                self.day(old.get('not_after'))))
+        if text(uses).strip().isdigit():
+            now.append('used %s times' % uses if text(uses).strip() != '1' else 'used once')
         self.ctx.step('replacing the certificate %s in place: the same name, everything that '
-                      'uses it keeps using it%s' % (
-                          name, (' (now: %s, valid to %s)' % (old.get('cn') or '?',
-                                                              self.day(old.get('not_after'))))
-                          if old else ''))
+                      'uses it keeps using it%s' % (name, (' (%s)' % '; '.join(now))
+                                                    if now else ''))
         did = []
-        if old.get('fp') and old['fp'] == norm_fp(fp_of(bundle)):
+        if old.get('fp') and old['fp'] == norm_fp(fp_of(bundle)) and \
+                not as_bool(options.get('force')):
             self.ctx.step('%s holds this certificate already' % name, 'ok')
         else:
             new_fam = family_of(bundle)
             old_fam = 'ec' if old.get('key', '').startswith('ec') else (
                 'rsa' if old.get('key', '').startswith('rsa') else old.get('key', ''))
             if old_fam and new_fam and old_fam != new_fam:
-                self.ctx.step('the key changes from %s to %s: what uses %s keeps it, but a '
-                              'VIP or profile that holds one certificate of each kind may '
-                              'need a look' % (old_fam.upper(), new_fam.upper(), name), 'warn')
+                self.ctx.step('the key type changes from %s to %s - what uses %s keeps it '
+                              '(a VIP that holds an RSA and an ECDSA certificate side by side '
+                              'may need a look)' % (old_fam.upper(), new_fam.upper(), name))
             self.put_in_place(bundle, name, vdom, row)
             self.ctx.step('%s replaced in place - its name and every use of it kept' % name,
                           'ok')
@@ -654,7 +671,8 @@ class FortiGateTarget(HttpTarget):
 _SAME = (' Imports the certificate (monitor/vpn-certificate/local/import), uses it for the '
          'admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings '
          'servercert), inspection profiles and virtual IPs, deletes older ones acme put '
-         'there. Refused on a FortiGate that says another FortiOS.')
+         'there - or replaces a certificate the FortiGate has in place (its name and uses '
+         'kept). Refused on a FortiGate that says another FortiOS.')
 
 
 class FortiGate60Target(FortiGateTarget):

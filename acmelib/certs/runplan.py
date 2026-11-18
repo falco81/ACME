@@ -1902,6 +1902,15 @@ _FGT_STATUS = {'http_method': 'GET', 'status': 'success', 'serial': 'FGT60F\u203
                    'model_name': 'FortiGate', 'model_number': '60F', 'hostname': 'fw01'}}
 ANSWERS['fortigate'] = [
     {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': _FGT_STATUS},
+    # replace in place (1.0.128): a certificate of the FortiGate's own (not acme-...) is
+    # there, holding the earlier certificate, used three times (asked again once replaced: as it is)
+    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/(?!acme-)[^/?]+', 'times': 1,
+     'body': {'http_method': 'GET', 'status': 'success', 'results': [
+         {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3,
+          'certificate': '{EARLIER_PEM}'}]}},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/(?!acme-)[^/?]+',
+     'body': {'http_method': 'GET', 'status': 'success', 'results': [
+         {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3}]}},
     {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/[^/?]+', 'status': 404,
      'body': {'http_method': 'GET', 'status': 'error', 'http_status': 404, 'vdom': 'root'}},
     {'method': 'POST', 'url': r'/vpn-certificate/(local|ca)/import', 'body': {
