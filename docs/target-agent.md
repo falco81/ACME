@@ -987,7 +987,8 @@ files), `proxmox` (pveproxy-ssl.pem), `pbs` (proxy.pem), `openldap`, `grafana`, 
 `webmin`, `vsftpd`, `mariadb`, `files` (certificate files in the folders the policy's `allow
 file` lines name). **Windows kinds:** `iis` (sites and their https bindings, the bound
 thumbprint), `rdp` (the listener), `store` (LocalMachine\My: every certificate, whether acme
-imported it) and the roles of acme_agent_winroles (`sql` with each instance's certificate, `winrm`
+imported it; a certificate a binding or the listener takes from another store of the machine -
+IIS' Web Hosting, the listener's own Remote Desktop store - is read there, not said missing) and the roles of acme_agent_winroles (`sql` with each instance's certificate, `winrm`
 HTTPS listeners, `ldaps`, `ftp`, `adfs`, `rdgw` with theirs; `exchange`, `wap`, `sstp`, `ccs`,
 `rds`, `sharepoint`, `wac`, `lync` found by the roles' own detection).
 

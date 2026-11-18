@@ -158,37 +158,91 @@ def write_root(path, text, mode):
         raise
 
 
+# The folders pg_path_checked() let through, as it found them: {folder: (device, inode)}. Hunt R
+# t9: the folder was used by its path afterwards - the postgres account (its home holds the data
+# folder) put a link to another folder (/etc/profile.d) in its place while root waited on
+# PostgreSQL's answer, and root wrote the file there, its text postgres's.
+PG_DIRS = {}
+
+
+def _pg_dir_fd(folder):
+    """The folder opened once - and refused when it is not the one pg_path_checked() saw."""
+    d = os.open(folder or '.', os.O_RDONLY | os.O_DIRECTORY)
+    st = os.fstat(d)
+    want = PG_DIRS.get(os.path.normpath(folder or '.'))
+    if want is not None and (st.st_dev, st.st_ino) != want:
+        os.close(d)
+        raise Refused('%s is not the folder it was a moment ago (a link put in its place?) - not '
+                      'touched' % folder[:100])
+    return d
+
+
 def pg_file_put(path, text, mode, uid=None, gid=None):
     """A file in a folder of PostgreSQL's, replaced whole (1.0.149): written
     to a new file of an unguessable name, its mode and owner set on the open
     file, then renamed over - never a name followed, which whoever runs as
-    postgres could have made a link to a file of root's."""
-    folder = os.path.dirname(path)
-    fd, tmp = tempfile.mkstemp(prefix='.acme-', dir=folder)
+    postgres could have made a link to a file of root's. The folder itself
+    through one descriptor, the one that was checked (hunt R t9)."""
+    folder, name = os.path.split(path)
+    d = _pg_dir_fd(folder)
+    fd, tmp = None, None
     try:
+        for _ in range(100):
+            tmp = '.acme-%s' % os.urandom(6).hex()
+            try:
+                fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600,
+                             dir_fd=d)
+                break
+            except FileExistsError:
+                tmp = None
+        if fd is None:
+            raise Refused('no new file could be made in %s' % folder[:100])
         os.fchmod(fd, mode)
         if uid is not None:
             os.fchown(fd, uid, gid if gid is not None else -1)
         with os.fdopen(fd, 'w') as f:
             fd = None
             f.write(text)
-        os.replace(tmp, path)
+        os.replace(tmp, name, src_dir_fd=d, dst_dir_fd=d)
     except BaseException:
         if fd is not None:
             os.close(fd)
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+        if tmp is not None:
+            try:
+                os.unlink(tmp, dir_fd=d)
+            except OSError:
+                pass
         raise
+    finally:
+        os.close(d)
+
+
+def _pg_file_read_st(path):
+    folder, name = os.path.split(path)
+    d = _pg_dir_fd(folder)
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=d)
+    finally:
+        os.close(d)
+    with os.fdopen(fd, 'r') as f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode):
+            raise Refused('%s is not a plain file' % path)
+        return f.read(), st
 
 
 def pg_file_read(path):
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(fd, 'r') as f:
-        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
-            raise Refused('%s is not a plain file' % path)
-        return f.read()
+    return _pg_file_read_st(path)[0]
+
+
+def pg_file_unlink(path):
+    """A file of a folder of PostgreSQL's taken away - in the folder that was checked."""
+    folder, name = os.path.split(path)
+    d = _pg_dir_fd(folder)
+    try:
+        os.unlink(name, dir_fd=d)
+    finally:
+        os.close(d)
 
 
 def pg_path_checked(path, folder=False):
@@ -235,13 +289,16 @@ def pg_path_checked(path, folder=False):
                 st.st_uid not in own or st.st_mode & 0o002:
             raise Refused('%s is not PostgreSQL\'s own (a link, or owned or written by another '
                           'account) - not touched' % p[:100])
+        if want_dir:
+            # Used later by this very folder only (hunt R t9) - not whatever its path leads to then.
+            PG_DIRS[os.path.normpath(p)] = (st.st_dev, st.st_ino)
     return path
 
 
 def pg_file_copy(src, dst):
-    """src copied to dst the same way; its owner and mode kept."""
-    st = os.lstat(src)
-    pg_file_put(dst, pg_file_read(src), stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
+    """src copied to dst the same way; its owner and mode kept (of the file read)."""
+    text, st = _pg_file_read_st(src)
+    pg_file_put(dst, text, stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
 
 
 # ---- what a request may hold ---------------------------------------------------------
@@ -1597,12 +1654,52 @@ def certlogin_listening(port):
 SELINUX_PORTS = os.path.join(WEB_DIR, 'selinux-ports')
 
 
+def _selinux_ports_dir():
+    """(folder descriptor, name, close it) of the list: in the web folder through its one
+    descriptor (hunt R t9) - by its path the acme account could have it lead anywhere (a link in
+    place of its web folder), and root wrote the list there."""
+    folder, name = os.path.split(SELINUX_PORTS)
+    if os.path.normpath(folder) == os.path.normpath(WEB_DIR):
+        return web_fd(), name, False
+    return os.open(folder, os.O_RDONLY | os.O_DIRECTORY), name, True
+
+
 def selinux_ports_read():
     try:
-        with open(SELINUX_PORTS) as f:
-            return sorted({int(x) for x in f.read().split() if x.isdigit() and 0 < int(x) < 65536})
+        d, name, close = _selinux_ports_dir()
     except OSError:
         return []
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=d)
+        with os.fdopen(fd, 'rb') as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return []
+            text = f.read(65536).decode('ascii', 'replace')
+        return sorted({int(x) for x in text.split() if x.isdigit() and 0 < int(x) < 65536})
+    except OSError:
+        return []
+    finally:
+        if close:
+            os.close(d)
+
+
+def selinux_ports_put(ports):
+    d, name, close = _selinux_ports_dir()
+    tmp = '.%s.%d' % (name, os.getpid())
+    try:
+        try:
+            os.unlink(tmp, dir_fd=d)
+        except OSError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=d)
+        with os.fdopen(fd, 'w') as f:
+            f.write(''.join('%d\n' % p for p in sorted(ports)))
+            f.flush()
+            os.fchmod(f.fileno(), 0o644)
+        os.replace(tmp, name, src_dir_fd=d, dst_dir_fd=d)
+    finally:
+        if close:
+            os.close(d)
 
 
 def certlogin_selinux(port):
@@ -1624,8 +1721,7 @@ def certlogin_selinux(port):
                        capture_output=True, text=True)
     if r.returncode == 0:
         try:
-            write_root(SELINUX_PORTS, ''.join('%d\n' % p for p in
-                                              sorted(set(selinux_ports_read()) | {port})), 0o644)
+            selinux_ports_put(set(selinux_ports_read()) | {port})
         except OSError:
             pass
     return ('SELinux: nginx may listen on %d (http_port_t)' % port) if r.returncode == 0 else \
@@ -2942,7 +3038,7 @@ def pgtls_server(r):
                 path = os.path.join(data, name)
                 if old is None:
                     try:
-                        os.unlink(path)
+                        pg_file_unlink(path)
                     except OSError:
                         pass
                 else:
@@ -3108,7 +3204,7 @@ def pgtls_server_off(r):
     if data:
         for name in ('acme-ha.key', 'acme-ha.crt'):
             try:
-                os.unlink(os.path.join(data, name))
+                pg_file_unlink(os.path.join(data, name))
                 gone.append(name)
             except FileNotFoundError:
                 pass

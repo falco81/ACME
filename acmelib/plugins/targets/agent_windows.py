@@ -71,9 +71,15 @@ def win_path(p):
 
 
 def cmd_word(s):
-    """A word of a command line as an administrator types it (cmd.exe, PowerShell)."""
+    """A word of a command line as an administrator types it (cmd.exe, PowerShell). The lines
+    are typed in an elevated PowerShell: a word PowerShell would expand inside "..." ($name,
+    $(...), ${...}, a backtick) is put in '...' (a ' in it doubled) - "Shop $live" was typed as
+    "Shop " and the policy got another name."""
     s = str(s)
-    return '"%s"' % s if (not s or re.search(r'[\s&|<>^%;,()\'`$]', s)) else s
+    if re.search(r'`|\$[A-Za-z0-9_?^${(]', s):
+        return "'%s'" % s.replace("'", "''")
+    return '"%s"' % s if (not s or re.search(r'[\s&|<>^%;,()\'`${}]', s) or
+                          s[0] in '#@') else s
 
 
 def _tokens(text):

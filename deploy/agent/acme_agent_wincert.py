@@ -90,9 +90,15 @@ def iis_allowed(pol, site):
 
 
 def cmd_word(s):
-    """A word of a command line as an administrator types it (cmd.exe, PowerShell)."""
+    """A word of a command line as an administrator types it (cmd.exe, PowerShell). The lines
+    are typed in an elevated PowerShell: a word PowerShell would expand inside "..." ($name,
+    $(...), ${...}, a backtick) is put in '...' (a ' in it doubled) - "Shop $live" was typed as
+    "Shop " and the policy got another name."""
     s = str(s)
-    return '"%s"' % s if (not s or re.search(r'[\s&|<>^%;,()\'`$]', s)) else s
+    if re.search(r'`|\$[A-Za-z0-9_?^${(]', s):
+        return "'%s'" % s.replace("'", "''")
+    return '"%s"' % s if (not s or re.search(r'[\s&|<>^%;,()\'`${}]', s) or
+                          s[0] in '#@') else s
 
 
 def allow_iis_words(site):
@@ -496,8 +502,14 @@ function Say($o) { Write-Output ('ACME ' + ($o | ConvertTo-Json -Compress -Depth
 $store = 'Cert:\LocalMachine\My'
 function Iis-Ready { if (@($j.iis).Count -gt 0) { Import-Module WebAdministration } }
 function Find-Binding($w) {
-  Get-WebBinding -Name ([string]$w.site) -Protocol https -Port ([int]$w.port) `
-    -HostHeader ([string]$w.host) | Select-Object -First 1
+  # exactly the binding IP:PORT:HOST (Get-WebBinding takes an empty -HostHeader as any host
+  # and has no say on the address): never another site's host or address on the same port
+  $ip = [string]$w.ip
+  if (-not $ip) { $ip = '*' }
+  $tail = ':' + [string][int]$w.port + ':' + [string]$w.host
+  $want = @(($ip + $tail), ('[' + $ip + ']' + $tail))
+  Get-WebBinding -Name ([string]$w.site) -Protocol https |
+    Where-Object { $want -contains [string]$_.bindingInformation } | Select-Object -First 1
 }
 function Site-There($name) { [bool](Get-Website | Where-Object { $_.Name -eq $name }) }
 function Rdp-Setting {
@@ -585,6 +597,7 @@ foreach ($w in @($j.iis)) {
   }
   Say @{ step = 'iis'; site = $site; host = [string]$w.host; port = [int]$w.port;
          ip = [string]$w.ip; old = $old; created = $created }
+  if (-not $b) { throw ('the new https binding of the IIS site ' + $site + ' is not found') }
   if ($old -ne $thumb) {
     # as acme's windows_ssh: AddSslCertificate replaces the one there; only when IIS refuses
     # that (an http.sys binding left behind) is it taken away first and added again
@@ -616,8 +629,7 @@ foreach ($w in @($j.iis)) {
     if ($b) {
       if ($w.created) {
         try { $b.RemoveSslCertificate() } catch { }
-        Remove-WebBinding -Name ([string]$w.site) -Protocol https -Port ([int]$w.port) `
-          -HostHeader ([string]$w.host)
+        $b | Remove-WebBinding
       } elseif ([string]$w.old -ne [string]$j.thumb) {
         if ([string]$w.old) {
           try { $b.AddSslCertificate([string]$w.old, 'My') }
@@ -1714,15 +1726,29 @@ $k = @($j.kinds)
 $out = @{ store = @(); iis = @(); rdp = ''; roles = @{} }
 function Epoch($d) { [int64](($d.ToUniversalTime() - [datetime]'1970-01-01T00:00:00').TotalSeconds) }
 $n = 0
+function Facts($c) {
+  $san = @()
+  try { $san = @($c.DnsNameList | ForEach-Object { [string]$_.Unicode }) } catch { }
+  @{ thumb = [string]$c.Thumbprint; subject = [string]$c.Subject;
+     issuer = [string]$c.Issuer; not_after = (Epoch $c.NotAfter);
+     serial = [string]$c.SerialNumber; sans = $san;
+     friendly = [string]$c.FriendlyName; has_key = [bool]$c.HasPrivateKey }
+}
 foreach ($c in @(Get-ChildItem -LiteralPath $store)) {
   if ($n -ge 300) { break }
   $n += 1
-  $san = @()
-  try { $san = @($c.DnsNameList | ForEach-Object { [string]$_.Unicode }) } catch { }
-  $out.store += @{ thumb = [string]$c.Thumbprint; subject = [string]$c.Subject;
-                   issuer = [string]$c.Issuer; not_after = (Epoch $c.NotAfter);
-                   serial = [string]$c.SerialNumber; sans = $san;
-                   friendly = [string]$c.FriendlyName; has_key = [bool]$c.HasPrivateKey }
+  $out.store += (Facts $c)
+}
+# a certificate a binding or the listener takes from another store of the machine (IIS' Web
+# Hosting, the listener's own Remote Desktop store): read there - it is not missing
+$out.other = @()
+function Other-Cert([string]$t, [string]$sn) {
+  if ($t -notmatch '^[0-9A-Fa-f]{40}$' -or $sn -notmatch '^[A-Za-z0-9 _-]{1,64}$' -or $sn -eq 'My') { return }
+  if (@($out.other).Count -ge 32) { return }
+  try {
+    $p = 'Cert:\LocalMachine\' + $sn + '\' + $t
+    if (Test-Path -LiteralPath $p) { $f = Facts (Get-Item -LiteralPath $p); $f.store = $sn; $out.other += $f }
+  } catch { }
 }
 if ($k -contains 'iis') {
   try {
@@ -1732,12 +1758,16 @@ if ($k -contains 'iis') {
       foreach ($b in @($s.bindings.Collection | Where-Object { $_.protocol -eq 'https' })) {
         $bs += @{ info = [string]$b.bindingInformation; thumb = [string]$b.certificateHash;
                   store = [string]$b.certificateStoreName; sni = [int]$b.sslFlags }
+        Other-Cert ([string]$b.certificateHash) ([string]$b.certificateStoreName)
       }
       $out.iis += @{ site = [string]$s.Name; state = [string]$s.State; bindings = $bs }
     }
   } catch { $out.iis_error = [string]$_.Exception.Message }
 }
-if ($k -contains 'rdp') { try { $out.rdp = [string](Rdp-Setting).SSLCertificateSHA1Hash } catch { } }
+if ($k -contains 'rdp') {
+  try { $out.rdp = [string](Rdp-Setting).SSLCertificateSHA1Hash } catch { }
+  Other-Cert $out.rdp 'Remote Desktop'
+}
 if ($k -contains 'sql') {
   try {
     $names = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction SilentlyContinue
@@ -1856,6 +1886,13 @@ def discover(A, pol, kinds):
         if isinstance(c, dict):
             f = _store_facts(c, acme)
             if f:
+                store[f['thumbprint']] = f
+    # bound from another store of the machine (Web Hosting, Remote Desktop): not missing
+    for c in (got.get('other') or [])[:32]:
+        if isinstance(c, dict):
+            f = _store_facts(c, acme)
+            if f and f['thumbprint'] not in store:
+                f['store'] = _clean(c.get('store'), 64)
                 store[f['thumbprint']] = f
     found, skipped = [], []
 
