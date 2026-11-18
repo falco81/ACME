@@ -61,6 +61,7 @@ const { chromium } = require('playwright');
 
     // ---- Owners and teams: "Make it an owner" pressed twice ----
     await pane('teams');
+    await page.locator('.tmx-vbtn[data-view="tags"]').click();
     const mk = page.locator('.tm-legacy-row', {hasText: 'q3-legacy-owner'}).locator('button');
     await mk.waitFor({timeout: 20000});
     await mk.evaluate(b => { b.click(); b.click(); });
