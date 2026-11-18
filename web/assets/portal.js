@@ -137,6 +137,8 @@ function gateForm(g) {
      code of six as the message writes it, "482 913" */
   var digits = Number(g.digits) >= 4 && Number(g.digits) <= 10 ? Number(g.digits) : 6;
   var code = textBox('', digits === 6 ? '000 000' : new Array(digits + 1).join('0'), 'codein gate-code');
+  /* ...and nine or ten of them fit the box (spaced as six are, the last ones were scrolled away) */
+  if (digits > 8) code.style.letterSpacing = '2px';
   code.inputMode = 'numeric';
   code.autocomplete = 'one-time-code';
   code.maxLength = 32;
