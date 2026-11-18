@@ -141,6 +141,8 @@ def scope_hostkey_keeper(store, scope):
     return keep
 
 
+_TOKEN_LOCK = threading.Lock()     # an HTTP-01 token's record read and written again
+
 AIA_MISSING = 'unable to get local issuer certificate'
 _AIA_FOUND = {}                 # (host, port) -> (when, the intermediates fetched for it)
 
@@ -558,7 +560,7 @@ class RunContext(base.Context):
         self.store.db.insert('dns_records', {
             'name': name, 'rtype': rtype, 'value': str(value), 'ttl': int(ttl or 60),
             'expires': t + 6 * 3600, 'created': t,
-            'owner': ('job:%s' % self.job.id) if self.job is not None else self.scope,
+            'owner': self._dns_owner(),
             'note': 'put by %s' % self.scope})
         self.record_names.append((name, rtype, str(value)))
         self.step('DNS: %s %s "%s" put in acme\'s own DNS server' % (name, rtype, value))
@@ -570,19 +572,46 @@ class RunContext(base.Context):
             self.store.db.run('DELETE FROM dns_records WHERE name = ? AND rtype = ?',
                               (name, rtype))
         else:
-            self.store.db.run('DELETE FROM dns_records WHERE name = ? AND rtype = ? AND value = ?',
-                              (name, rtype, str(value)))
+            # Two jobs proving one authorization of a CA put the same record (t8): the first
+            # done took the other's away too, while its CA could still be looking. Only this
+            # job's own then; one put by no job of ours (a leftover) is taken as before.
+            args = (name, rtype, str(value))
+            sql = 'DELETE FROM dns_records WHERE name = ? AND rtype = ? AND value = ?'
+            if self.store.db.row(sql.replace('DELETE', 'SELECT id', 1) + ' AND owner = ?',
+                                 args + (self._dns_owner(),)):
+                self.store.db.run(sql + ' AND owner = ?', args + (self._dns_owner(),))
+            else:
+                self.store.db.run(sql, args)
+
+    def _dns_owner(self):
+        return ('job:%s' % self.job.id) if self.job is not None else self.scope
 
     # ---- HTTP-01 on this server's port 80 -----------------------------------------------
     def http_token_put(self, token, key_authorization):
         if not re.match(r'^[A-Za-z0-9_-]{8,256}\Z', str(token or '')):
             raise base.PluginError('that is not an ACME token', retry=False)
-        self.store.set_meta(CHAL_PREFIX + token, json.dumps(
-            {'auth': str(key_authorization), 'at': time.time()}))
+        # Two jobs proving one authorization of a CA answer the same token (t8): who put it
+        # is kept with it, so the first done does not take away what the other still needs.
+        with _TOKEN_LOCK:
+            have = S.jload(self.store.get_meta(CHAL_PREFIX + token), {}) or {}
+            by = [o for o in (have.get('by') or []) if isinstance(o, str)] \
+                if isinstance(have, dict) and have.get('auth') == str(key_authorization) else []
+            if self._dns_owner() not in by:
+                by.append(self._dns_owner())
+            self.store.set_meta(CHAL_PREFIX + token, json.dumps(
+                {'auth': str(key_authorization), 'at': time.time(), 'by': by}))
         self.tokens.append(token)
 
     def http_token_drop(self, token):
-        self.store.db.run('DELETE FROM meta WHERE k = ?', (CHAL_PREFIX + str(token),))
+        k = CHAL_PREFIX + str(token)
+        with _TOKEN_LOCK:
+            have = S.jload(self.store.get_meta(k), {}) or {}
+            by = (have.get('by') or []) if isinstance(have, dict) else []
+            if isinstance(by, list) and self._dns_owner() in by and len(by) > 1:
+                have['by'] = [o for o in by if o != self._dns_owner()]
+                self.store.set_meta(k, json.dumps(have))
+                return
+            self.store.db.run('DELETE FROM meta WHERE k = ?', (k,))
 
     def http_file_put(self, host, path, content, ttl_s=30 * 86400):
         """A commercial CA's DCV file answered on this server's port 80 for

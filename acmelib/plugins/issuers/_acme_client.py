@@ -578,9 +578,13 @@ class AcmeClient(object):
                 except PluginError as e:
                     self.ctx.debug('ACME: alternate chain %s not fetched: %s' % (link, e))
         want = preferred.strip().lower()
-        for text, where in tried:
-            if chain_matches(text, want):
-                return text, where
+        # The chain whose top is issued by the CA named first (t8), as certbot chooses: a
+        # default chain carrying that root cross-signed by an older one was taken before the
+        # alternate ending at it. Then one that has it anywhere, as before.
+        for strict in (True, False):
+            for text, where in tried:
+                if chain_matches(text, want, strict):
+                    return text, where
         self.say('no chain of the CA ends at "%s" - its default chain is used' % preferred, 'warn')
         return first, 'default'
 
@@ -619,8 +623,9 @@ def parse_links(value):
     return out
 
 
-def chain_matches(text, want):
-    """Does this chain end at, or come from, the CA named `want` (lower case)?"""
+def chain_matches(text, want, top_only=False):
+    """Does this chain end at, or come from, the CA named `want` (lower case)?
+    `top_only`: only whether its top is issued by it."""
     pems = der.split_pem_chain(text)
     if not pems:
         return False
@@ -629,5 +634,7 @@ def chain_matches(text, want):
     except (der.DerError, ValueError, IndexError):
         return False
     top = certs[-1]
+    if top_only:
+        return (top.issuer_cn or '').lower() == want
     names = {(top.issuer_cn or '').lower()} | {(c.subject_cn or '').lower() for c in certs[1:]}
     return want in names
