@@ -336,6 +336,9 @@ Enterprise teams (1.0.125):
     acme --roles                                   the roles and their capabilities
     acme --role-add NAME --caps cert.view,cert.renew [--description ..] / --role-del NAME [--strip]
     acme --team-access WHO                         what a person may in which team, and why
+    acme --team-activity NAME [--below] [--limit N]   what happened in the team (its Activity tab)
+    acme --teams-from-groups 'PKI-*' [--member-role Requester] [--parent TEAM] [--team-kind unit] [--yes]
+                                                   teams from directory groups: the preview, made with --yes
     acme --target-edit NAME --owner TEAM|-         a team's device (- acme's own); --target-add too
     acme --target-agent enroll new --owner TEAM    a team's enrollment code
 

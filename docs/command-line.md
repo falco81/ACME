@@ -212,6 +212,8 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 | `acme --team-del NAME --parent TEAM\|- [--yes]` | delete one with teams below it: they move under TEAM (`-` the top level) |
 | `acme --roles [--json]` · `acme --role-add NAME --caps cert.view,cert.renew [--description TEXT]` · `acme --role-del NAME [--strip] [--yes]` | the roles and their capabilities; a role of your own |
 | `acme --team-access WHO [--json]` | what a person (`local:NAME`, a user of the directory) may in which team, why, and the limits in force |
+| `acme --team-activity NAME [--below] [--limit N] [--json]` | what happened in the team, newest first (`--below`: the teams below it too) |
+| `acme --teams-from-groups FILTER [--member-role ROLE] [--parent TEAM] [--team-kind team\|unit] [--yes]` | a team of each directory group whose name fits (`PKI-*`), the group its member as ROLE (Viewer): shown first, made with `--yes` |
 | `acme --target-add NAME --kind KIND ... --owner TEAM` · `acme --target-edit NAME --owner TEAM\|-` | a team's device (`-`: acme's own again) |
 | `acme --target-agent enroll new --owner TEAM [...]` | a team's enrollment code: the servers enrolling with it become that team's targets |
 

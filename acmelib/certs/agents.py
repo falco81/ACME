@@ -1550,14 +1550,20 @@ def poll(store, body, cert_pem, verify, ip=''):
 
 def _take(store, tid):
     out = []
+    waiting = []
     for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ?", ('agentq:%d:%%' % tid,)):
+        q = _jload(r['v'], {})
+        if isinstance(q, dict) and q.get('state') == 'queued':
+            waiting.append((q, r['k']))
+    # oldest first (hunt t3): with more than 20 waiting, the ones queued first are handed over
+    # first - not in whatever order the database returns them
+    waiting.sort(key=lambda x: (x[0].get('at') if isinstance(x[0].get('at'), (int, float)) else 0))
+    for q, k in waiting:
         if len(out) >= 20:
             # hunt R t2: the ones beyond the 20 handed over stay queued for the next poll -
             # they were marked sent and never handed over (the job waited out its time)
             break
-        q = _jload(r['v'], {})
-        if not isinstance(q, dict) or q.get('state') != 'queued':
-            continue
+        r = {'k': k}
         q['state'] = 'sent'
         q['sent'] = time.time()
         q['node'] = E.node_name()
