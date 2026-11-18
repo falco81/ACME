@@ -565,6 +565,12 @@ class Approvals(unittest.TestCase):
         self.assertTrue(TP.action_needs_approval(STORE, 'Web', 'revoke'))
         self.assertFalse(TP.action_needs_approval(STORE, 'Web', 'delete'))
         rec = TP.action_ask(STORE, 'Web', 'revoke', 'web1', {'by': 'eva', 'ids': ['local:eva']})
+        # asked again while it waits: the same one, not a second (hunt t10)
+        self.assertEqual(TP.action_ask(STORE, 'Web', 'revoke', 'web1',
+                                       {'by': 'eva', 'ids': ['local:eva']})['id'], rec['id'])
+        other = TP.action_ask(STORE, 'Web', 'revoke', 'web2', {'by': 'eva', 'ids': ['local:eva']})
+        self.assertNotEqual(other['id'], rec['id'])
+        STORE.db.run('DELETE FROM meta WHERE k = ?', (TP.ACTION_META + other['id'],))
         ap = lambda who: {'by': who, 'ids': ['local:' + who],
                           'caps': T.person_caps(STORE, {'local:' + who}, [])}
         with self.assertRaises(E.ApiError):

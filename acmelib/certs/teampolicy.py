@@ -728,6 +728,15 @@ def action_ask(store, team, action, ref, asker, words=''):
     team = team_name(store, team)
     if not team:
         raise E.ApiError(404, 'there is no team %s' % team)
+    # the same person asking again for the same thing while it waits: that one, not a second
+    # (hunt t10 - a second press of Delete made a second waiting action)
+    for r in store.db.rows("SELECT v FROM meta WHERE k LIKE 'teams:action:%'"):
+        old = S.jload(r['v'], None)
+        if isinstance(old, dict) and old.get('state') == 'waiting' and \
+                _low(old.get('team')) == _low(team) and old.get('action') == action and \
+                str(old.get('ref')) == str(ref) and \
+                _same_person({'ids': old.get('ids'), 'by': old.get('by')}, asker):
+            return old
     aid = secrets.token_hex(8)
     rec = {'id': aid, 'team': team, 'action': action, 'ref': ref, 'words': str(words)[:500],
            'by': str(asker.get('by') or '?')[:190],
