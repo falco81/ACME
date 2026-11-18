@@ -63,6 +63,24 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'roles', 'role_add', 'role_del', 'team_access', 'team_activity', 'teams_from_groups',
         'team_show', 'target_agent')
 
+# Options that only go with these (hunt R t10): beside any other, they were silently left out
+WITH_ONLY = {
+    'owner': ('cert_add', 'cert_edit', 'import_file', 'certs', 'target_add', 'target_edit',
+              'target_agent'),
+    'team_kind': ('team_add', 'team_edit', 'teams_from_groups'),
+    'members': ('team_add', 'team_edit'),
+    'contact_mail': ('team_add', 'team_edit'),
+    'policy': ('team_add', 'team_edit'),
+    'description': ('team_add', 'team_edit', 'role_add'),
+    'reassign': ('team_del',),
+    'colour': ('tag_add',),
+    'strip': ('tag_del', 'role_del'),
+    'caps': ('role_add',),
+    'below': ('team_activity',),
+    'member_role': ('teams_from_groups',),
+    'parent': ('ca_sub', 'team_add', 'team_edit', 'team_del', 'teams_from_groups'),
+}
+
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
             'challenge': ('validation', 'validations', 'validation'),
@@ -79,7 +97,8 @@ def add_args(p):
     g = p.add_argument_group('CERTIFICATES', 'Certificates kept, renewed and deployed by acme. '
                              'What the pages do, these do (docs/command-line.md); with --json '
                              'each answers JSON.')
-    g.add_argument('--certs', action='store_true', help='every certificate (--search TEXT)')
+    g.add_argument('--certs', action='store_true', help='every certificate (--search TEXT, --owner TEAM, '
+                   '--issuer SOURCE)')
     g.add_argument('--cert', metavar='NAME', help='one certificate: its versions, deployments '
                    'and jobs')
     g.add_argument('--cert-add', metavar='NAME', help='a certificate to keep: --names, and '
@@ -101,7 +120,7 @@ def add_args(p):
     g.add_argument('--decline', metavar='NAME', help='decline one asked for on the portal: '
                    '--why says why (the person who asked is told)')
     g.add_argument('--issuer', metavar='NAME', help='with --cert-add, --cert-edit: where it '
-                   'comes from (acme --sources)')
+                   'comes from (acme --sources); with --certs: only those from it')
     g.add_argument('--challenge', metavar='NAME', help='with --cert-add, --cert-edit: how its '
                    'names are proved (acme --validations)')
     g.add_argument('--key-type', metavar='TYPE', help='with --cert-add, --cert-edit, '
@@ -140,7 +159,7 @@ def add_args(p):
     g.add_argument('--csr-answer', nargs=2, metavar=('NAME', 'FILE'), help='the certificate '
                    'the authority sent back for that CSR')
     g.add_argument('--import', dest='import_file', metavar='FILE', help='a certificate from a '
-                   'file (PEM, DER, PFX/P12, P7B, JKS...) - --name, --password')
+                   'file (PEM, DER, PFX/P12, P7B, JKS...) - --name, --password, --owner, --note')
     g.add_argument('--into', metavar='CERT', help='with --import: a new version of this '
                    'certificate kept here (its names, its deployments), not a new one')
     g.add_argument('--name', metavar='NAME', help='with --import, --ca-import: the name it is '
@@ -251,7 +270,8 @@ def add_args(p):
     g.add_argument('--owner', metavar='TEAM', default=None,
                    help='with --target-add, --target-edit: the team whose device it is (- or '
                         '"": acme\'s own); with --cert-add, --cert-edit: the team it belongs '
-                        'to (as --set owner=TEAM); with --target-agent enroll new: the servers '
+                        'to (as --set owner=TEAM), with --import: the new one\'s; with --certs: '
+                        'only the team\'s; with --target-agent enroll new: the servers '
                         'enrolling become that team\'s targets')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
@@ -756,7 +776,11 @@ class Cli(object):
 
     # ---- certificates ----------------------------------------------------------------------
     def certs(self):
+        # --owner TEAM and --issuer SOURCE: the list's own filters, as the page's (hunt R t10:
+        # both were taken and every certificate listed)
         got = self.api('GET', '/api/certs', args={'search': self.args.search or '',
+                                                  'owner': (self.args.owner or '').strip(),
+                                                  'issuer': (self.args.issuer or '').strip(),
                                                   'per': '1000'})
         if self.json:
             self.out(got)
@@ -1314,7 +1338,16 @@ class Cli(object):
                 'filename': os.path.basename(a.import_file), 'password': pw}
         if a.name:
             body['name'] = a.name
+        # its owner and note, as the page's Import (hunt R t10: taken and left out)
+        if getattr(a, 'owner', None) is not None:
+            body['owner'] = '' if a.owner.strip() in ('', '-') else a.owner.strip()
+        if a.note:
+            body['note'] = a.note
         if getattr(a, 'into', None):                    # a new version of one kept (1.0.80)
+            if 'owner' in body or 'note' in body:
+                raise SystemExit('acme: --owner and --note are of a new certificate - a new '
+                                 'version keeps those of %s (acme --cert-edit %s --owner TEAM)'
+                                 % (a.into, a.into))
             body['id'] = self.cert_ref(a.into)['id']
             body.pop('name', None)
             if getattr(a, 'force', False):
@@ -2963,6 +2996,11 @@ class Cli(object):
                                                                              rows]})
 
 
+def _opt(k):
+    """An option as it is typed (import_file is --import)."""
+    return 'import' if k == 'import_file' else k.replace('_', '-')
+
+
 def run(args):
     if not asked(args):
         return None
@@ -2977,11 +3015,23 @@ def run(args):
     if len(acting) > 1:
         raise SystemExit('acme: --%s - one of them at a time' % ', --'.join(
             k.replace('_', '-') for k in acting))
+    # An option that only goes with some others, beside one that does not read it (hunt R t10:
+    # `--certs --owner X` listed every certificate, `--selfsigned --owner X`, `--ca-create
+    # --parent CA`, `--tag-add --description`, `--team-add --caps` did their thing without it)
+    main = acting or given
+    for k, goes in WITH_ONLY.items():
+        if getattr(args, k, None) not in (None, False) and main and \
+                not any(m in goes for m in main):
+            raise SystemExit('acme: --%s goes with --%s - not with --%s (nothing was done)' % (
+                _opt(k), ', --'.join(_opt(g) for g in goes), _opt(main[0])))
+    # --set only where it is read (hunt R t10: --selfsigned, --import, --check-names,
+    # --cert-check and --dry-run let it by - the certificate was made, imported or the job run,
+    # and only then "nothing of it was saved", exit 2)
     if getattr(args, 'set', None) and acting and not re.search(
-            r'(_add|_edit|_test|_discover)$|^(selfsigned|ca_create|ca_sub|ca_sign|ca_renew|'
-            r'ca_edit|cert_check|check_names|dry_run|import_file)$', acting[0]):
+            r'(_add|_edit|_test|_discover)$|^(ca_create|ca_sub|ca_sign|ca_renew|'
+            r'ca_edit)$', acting[0]):
         raise SystemExit('acme: --set does not go with --%s - nothing was done (the settings: '
-                         'acme --set KEY=VALUE on its own)' % acting[0].replace('_', '-'))
+                         'acme --set KEY=VALUE on its own)' % _opt(acting[0]))
     cli = Cli(args)
     rc = cli.run()
     if getattr(args, 'set', None) and not getattr(cli, 'sets_used', False):

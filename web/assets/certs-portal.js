@@ -488,8 +488,9 @@ function certDialog(id, fresh) {
     buttons.push({words: 'Delete', icon: 'trash', go: function (b) {
       busy(b, true);
       api('cert-delete', {id: c.id}).then(function (d) {
-        if (d && d.waits) { toast(d.message || 'it waits for an approval first', 'good'); return; }
+        /* asked for: the dialog closed (its Delete again would ask a second time) */
         closeModal();
+        if (d && d.waits) { toast(d.message || 'it waits for an approval first', 'good'); load(); return; }
         toast(d.message || 'deleted', 'good');
         load();
       }).catch(oops).then(function () { busy(b, false); });
@@ -775,12 +776,17 @@ function downloadDialog(c) {
           body2.password = pw1.value;
         }
         busy(go, true);
+        var asked = false;
         api('cert-download', body2).then(function (d) {
-          if (d && d.waits) { toast(d.message || 'it waits for an approval first', 'good'); return; }
+          if (d && d.waits) { asked = true; toast(d.message || 'it waits for an approval first', 'good'); return; }
           saveB64(d);
           toast('downloaded: ' + (d.filename || ''), 'good');
           if (pw1) { pw1.value = ''; pw2.value = ''; }
-        }).catch(oops).then(function () { busy(go, false); });
+        }).catch(oops).then(function () {
+          busy(go, false);
+          /* asked for: not a second time from here (each click asked again) */
+          if (asked) go.disabled = true;
+        });
       };
       item.appendChild(go);
       list.appendChild(item);

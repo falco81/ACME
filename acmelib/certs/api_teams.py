@@ -451,7 +451,7 @@ def add_args(p):
     g.add_argument('--tag-add', metavar='TAG', help='a tag of the catalog: --colour, --note')
     g.add_argument('--tag-del', metavar='TAG', help='delete one; carried, with --strip')
     g.add_argument('--colour', choices=T.COLOURS, help='with --tag-add')
-    g.add_argument('--strip', action='store_true', help='with --tag-del')
+    g.add_argument('--strip', action='store_true', help='with --tag-del, --role-del')
     g.add_argument('--teams-adopt', action='store_true', help='owners and tags made from what '
                    'certificates say now')
     # 1.0.125: enterprise teams - the tree, limits, roles, the access check
