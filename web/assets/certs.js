@@ -3217,6 +3217,30 @@ function targetTestsPart(certId, t, saved, pending) {
 function deployable(t) {
   return !(plugOf('target', (t || {}).kind) || {}).connector;
 }
+/* Owners and teams as this account sees them (teams.js), kept for the pickers below. */
+var TEAMS_D = null;
+function teamsNow() {
+  if (!window.ACME_TEAMS || !ACME_TEAMS.load) return Promise.resolve(null);
+  return ACME_TEAMS.load().then(function (d) { TEAMS_D = d || null; return TEAMS_D; }, function () { return null; });
+}
+/** Whether this account may deploy a certificate of `owner` to the target t: an account of
+    some teams only deploys a team's certificate to a device of that team, of one above or
+    below it, or of acme's own (teampolicy.need_deploy) - the others' devices were offered
+    and refused on Save (hunt Rt4). Everything, as before, for an account of every team. */
+function teamDeviceOk(owner, t) {
+  var d = TEAMS_D;
+  if (!d || !d.scoped || !d.scoped.manage || !owner || !t || !t.owner) return true;
+  var low = function (s) { return String(s || '').trim().toLowerCase(); };
+  var par = {};
+  arr(d.teams).forEach(function (x) { par[low(x.name)] = low(x.parent); });
+  var team = low(owner), dev = low(t.owner);
+  if (!(team in par)) return true;
+  var above = function (from, to) {
+    for (var x = from, i = 0; x && i < 100; x = par[x], i++) if (x === to) return true;
+    return false;
+  };
+  return above(team, dev) || above(dev, team);
+}
 /** A target that can be the default (the one a new deployment is offered first): one that takes
     any certificate - not a connector, nor a device that makes its own key (it takes only the
     certificate made for that key; certs/default refuses it). */
@@ -3387,7 +3411,8 @@ function deployEdit(o) {
                /* from a target's window the certificate's row is not given: asked for, so its
                   card says its state and names as when it is picked (it said "web –") */
                certId ? (o.cert ? Promise.resolve(null) : capi('certs/one' + qs({id: certId})).then(function (x) { return (x && x.cert) || null; }).catch(function () { return null; }))
-                 : capi('certs' + qs({per: 1000})).then(function (x) { return rowsOf(x, 'certs'); }).catch(function () { return []; })])
+                 : capi('certs' + qs({per: 1000})).then(function (x) { return rowsOf(x, 'certs'); }).catch(function () { return []; }),
+               teamsNow()])
   .then(function (got) {
     if (!modalStill(ticket)) return;
     var targets = got[1], certs = certId ? [] : got[2];
@@ -3535,6 +3560,8 @@ function deployEdit(o) {
         var haveHere = {};
         arr(o.have).forEach(function (x) { haveHere[String(x)] = 1; });
         certs = certs.filter(function (x) { return !x.csr_from || (x.csr_from === tName && !haveHere[String(x.id)]); });
+        /* ...nor, to an account of some teams, another team's certificate for this team's device */
+        certs = certs.filter(function (x) { return teamDeviceOk(x.owner, target()); });
         certPick = certPickList(certs, tName, function (id) { cSel.value = String(id); paintCert(); drawFields(); }, o.have);
         var paintCert = function () {
           clear(certChosen);
@@ -3587,6 +3614,8 @@ function deployEdit(o) {
         var depHas = {};
         arr(o.cert && o.cert.deploys).forEach(function (x) { depHas[x.target] = 1; });
         var free = targets.filter(deployable).filter(function (t) { return csrFrom ? (t.name === csrFrom && !depHas[t.name]) : !devKeyOf(t); });
+        /* ...nor, to an account of some teams, another team's device (refused on Save) */
+        free = free.filter(function (t) { return teamDeviceOk((o.cert || {}).owner, t); });
         tSel = selectBox([['', '']].concat(free.map(function (t) { return [t.name, t.name]; })), tName || '');
         tSel.hidden = true;
         var chosenBox = el('div', 'ck-attach-row on dp-chosen');
@@ -6370,7 +6399,10 @@ function certWizard(cert, detail, opts) {
     else if (W.d.csr_from) host.appendChild(el('p', 'muted small', 'Its key is made by the device of ' + W.d.csr_from + ': it goes there alone, right after each issue - the deployment is made by itself.'));
     /* a device's own key: that target only; any other certificate: not to a target whose
        device makes keys (it takes only a certificate for its own) */
-    W.targets.filter(function (t) { return W.d.csr_from ? t.name === W.d.csr_from : !devPlug(t); }).forEach(function (t) {
+    W.targets.filter(function (t) { return W.d.csr_from ? t.name === W.d.csr_from : !devPlug(t); })
+      /* to an account of some teams: the devices of the owner's team (and of acme's own), and
+         those it is deployed to already - another team's was refused on Save (hunt Rt4) */
+      .filter(function (t) { return W.deploys[t.name] || teamDeviceOk(W.d.owner, t); }).forEach(function (t) {
       var p = plugVersion(plugOf('target', t.kind), t.version);
       var row = el('div', 'ct-dep' + (W.deploys[t.name] ? ' on' : ''));
       var top = el('label', 'ct-dep-top');
@@ -6892,7 +6924,7 @@ function certWizard(cert, detail, opts) {
      (or on the other node) is offered at once. */
   var fresh = function (key) { return loadRows(key, true).catch(function () { return []; }); };
   Promise.all([fresh('sources'), fresh('validation'), fresh('targets'), plugins(true).catch(function () { return null; }),
-               MOVE ? capi('checks' + qs({cert_id: c.id})).catch(function () { return {}; }) : null])
+               MOVE ? capi('checks' + qs({cert_id: c.id})).catch(function () { return {}; }) : null, teamsNow()])
     .then(function (got) {
       if (!modalStill(ticket)) return;
       W.sources = got[0];
@@ -8799,8 +8831,10 @@ function drawOverviewCerts(box, d, counts, total) {
       /* every failed job, not the deployments alone (1.0.125): a deployment that fails is mostly
          one step of an issue or a renewal (kind issue/renew), and "deployment · failed" showed
          "No job matches the filter" under a tile counting 2 */
+      /* ...and with both, the certificates whose renewal or a deployment failed (hunt Rt4: the
+         tile said 3 - 2 renewals, 1 deployment - and opened the 2 failed renewals alone) */
       if (t[4] === 'failed' && !c('failed') && depBad) { openJobs({ok: '0'}); return; }
-      openCerts({state: t[4]});
+      openCerts({state: t[4] === 'failed' && depBad ? 'failing' : t[4]});
     };
     card.onclick = open;
     card.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); open(); } };

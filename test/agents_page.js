@@ -207,7 +207,7 @@ const path = require('path');
         + ' if (what === "agents/confirm") return c({agent: Object.assign({}, ONE, {pending: null})});'
         + ' if (what === "agents/update") return c({said: "acme-agent 1.0.117 is installed", agent: ONE});'
         + ' if (what.indexOf("agents/builder") === 0) return c(window.WINB || {agent: ONE, facts: FACTS, templates: TPL, needs: BNEEDS, acme_from: ["192.0.2.11", "192.0.2.12"], design: SAVED});'
-        + ' if (what === "agents/design") { SAVED = {n: 1, at: Date.now() / 1000, by: "tester", title: body.title, note: body.note, text: body.text, state: body.state, compare: {state: "differs", added: [], removed: []}, history: []}; return c({design: SAVED}); }'
+        + ' if (what === "agents/design") { SAVED = {n: 1, at: Date.now() / 1000, by: "tester", title: body.title, note: body.note, text: body.text, state: body.design_state, compare: {state: "differs", added: [], removed: []}, history: []}; return c({design: SAVED}); }'
         + ' if (what.indexOf("agents/design?") === 0) return c({design: DESIGN});'
         + ' if (what === "agents/design/forget") return c({design: null});'
         + ' if (what === "agents/updates") return c({rows: [{id: 2, name: "mail-gw", mode: "active", version: "1.0.115", offered: "1.0.116", ok: true, why: ""},'
@@ -556,7 +556,7 @@ const path = require('path');
       await page.waitForTimeout(200);
       out.checks[tag + 'builder_saved'] = await page.evaluate((file) => {
         var x = SENT.filter(function (y) { return y[0] === 'agents/design'; }).pop();
-        return !!x && x[1].text === file && x[1].title === 'web1 - nginx and Postfix' && x[1].id === 1 && Array.isArray(x[1].state.files)
+        return !!x && x[1].text === file && x[1].title === 'web1 - nginx and Postfix' && x[1].id === 1 && Array.isArray(x[1].design_state.files) && x[1].state === undefined
           && document.querySelector('.pb-save-st').textContent.indexOf('v1') >= 0;
       }, file);
       if (shots) { await page.evaluate(() => { var o = document.querySelector('.pb-out'); o.scrollIntoView(); }); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-saved-' + lang + width + '.png')}); }

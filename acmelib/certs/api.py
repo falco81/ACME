@@ -206,6 +206,11 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
             t = time.time()
             where.append('not_after > ? AND not_after < ?')
             args += [t, t + int(E.CONFIG.get('certs_notify_days') or 14) * 86400]
+        elif state == 'failing':
+            # what the Overview's tile Failing counts (hunt Rt4): a renewal failed, or a
+            # deployment of it - its list showed the failed renewals alone ("3" opened 2)
+            where.append("(state = 'failed' OR id IN (SELECT cert_id FROM cert_deploys WHERE "
+                         "state = 'failed'))")
         else:
             where.append('state = ?')
             args.append(state)

@@ -1324,9 +1324,11 @@ function blockedBox(a) {
   if (b.at) { h.appendChild(noI18n(el('span', 'muted small', ' · '))); h.appendChild(el('span', 'muted small', ago(b.at))); }
   box.appendChild(h);
   if (b.what) box.appendChild(mono(String(b.what), 'ag-blocked-what'));
-  var lines = arr(b.allow).filter(Boolean).map(function (x) { return 'sudo ' + x; });
+  /* a Windows server has no sudo (hunt R t4): the lines in an elevated prompt there */
+  var win = a.platform === 'windows' || a.kind === 'agent_windows';
+  var lines = arr(b.allow).filter(Boolean).map(function (x) { return (win ? '' : 'sudo ') + x; });
   if (lines.length) {
-    box.appendChild(el('span', 'dbw-k', 'Allow it on the server, as root'));
+    box.appendChild(el('span', 'dbw-k', win ? 'Allow it on the server, in an elevated prompt' : 'Allow it on the server, as root'));
     box.appendChild(cmdBox(lines.join('\n'), 'small'));
   }
   return box;
@@ -1415,8 +1417,14 @@ function policyView(pol, at) {
     var r = el('div', 'ag-pol-i');
     r.appendChild(mono(f.dir));
     var m = el('span', 'ag-pol-m');
-    m.appendChild(mono(f.owner + ':' + f.group));
-    m.appendChild(mono(('000' + Number(f.mode || 0).toString(8)).slice(-4)));
+    /* a Windows folder (C:\certs): its readers, no owner or mode - it said "IIS_IUSRS:" 0666 */
+    if (/^[A-Za-z]:\\/.test(String(f.dir || ''))) {
+      if (arr(f.readers).length) { m.appendChild(el('span', 'small', 'readers')); m.appendChild(mono(arr(f.readers).join(', '))); }
+      else m.appendChild(el('span', 'small', 'the folder’s own permissions'));
+    } else {
+      m.appendChild(mono(f.owner + ':' + f.group));
+      m.appendChild(mono(('000' + Number(f.mode || 0).toString(8)).slice(-4)));
+    }
     r.appendChild(m);
     return r;
   });
@@ -1466,6 +1474,35 @@ function policyView(pol, at) {
     var r = el('div', 'ag-pol-i');
     r.appendChild(el('span', '', 'allowed - a package signed by the release key, a newer version only'));
     return r;
+  });
+  /* what a Windows agent allows besides, and discovery (hunt R t4): a policy of only these said
+     "Nothing is allowed yet: acme can do nothing on this server" */
+  var line = function (words, mo) {
+    var r = el('div', 'ag-pol-i');
+    if (words) r.appendChild(el('span', '', words));
+    if (mo) r.appendChild(mono(mo, words ? 'muted' : ''));
+    return r;
+  };
+  group('Machine store', pol.store ? [1] : [], function () { return line('certificates imported into', 'Cert:\\LocalMachine\\My'); });
+  group('IIS sites', arr(pol.iis), function (x) { return x === '*' ? line('every IIS site of this server', '') : line('', x); });
+  group('Remote Desktop', pol.rdp ? [1] : [], function () { return line('the certificate of the Remote Desktop listener', 'RDP-tcp'); });
+  group('Windows roles', Object.keys(pol.roles && typeof pol.roles === 'object' ? pol.roles : {}).sort(), function (k) {
+    var r = line('', k);
+    if (arr(pol.roles[k]).length) { var m = el('span', 'ag-pol-m'); m.appendChild(mono(arr(pol.roles[k]).join(', '))); r.appendChild(m); }
+    return r;
+  });
+  group('Read on the key', arr(pol.key_read), function (x) { return line('', x); });
+  group('Microsoft CA (AD CS)', arr(pol.adcs).concat(pol.adcs_read ? [{read: true}] : []), function (x) {
+    if (x.read) return line('every CA of the domain and its templates listed (read-only)', '');
+    var r = line('', String(x.ca || ''));
+    var m = el('span', 'ag-pol-m');
+    if (arr(x.templates)[0] === '*') m.appendChild(el('span', 'small', 'any template'));
+    else m.appendChild(mono(arr(x.templates).join(', ')));
+    r.appendChild(m);
+    return r;
+  });
+  group('Discovery', arr(pol.discover).length ? [1] : [], function () {
+    return arr(pol.discover)[0] === '*' ? line('every kind this agent knows (read-only)', '') : line('read-only:', arr(pol.discover).join(', '));
   });
   if (!any) box.appendChild(el('p', 'ag-pol-none', 'Nothing is allowed yet: acme can do nothing on this server. Allow what its deployments need there (acme-agent allow …) - each deployment says what it needs.'));
   arr(pol.problems).forEach(function (p) { box.appendChild(data('div', 'note warn small', String(p))); });
