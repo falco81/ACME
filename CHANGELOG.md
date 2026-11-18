@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.133 - not released
+
+(nothing yet)
+
 ## 1.0.132 - 2026-11-18
 
 - FortiGate, replace in place over the REST API: an intermediate CA certificate FortiOS refused to import (error -324 on a FortiGate-VM with an EVAL licence, an RSA authority) stopped the deployment with nothing replaced; the VDOM scope is tried as well, then the certificate is replaced all the same with a warning (as the default mode does) - the guides say so, and how to import the authority by hand.
