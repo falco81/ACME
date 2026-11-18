@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.130 - not released
+
+(nothing yet)
+
 ## 1.0.129 - 2026-11-18
 
 - FortiGate, "Replace an existing certificate in place" (1.0.128) failed on FortiOS 7.4.13: the REST
