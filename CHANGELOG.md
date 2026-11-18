@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.129 - not released
+
+(nothing yet)
+
 ## 1.0.128 - 2026-11-18
 
 - **FortiGate: replace an existing certificate in place.** A deployment's new option *Certificate on the FortiGate → Replace an existing certificate in place* with *The certificate on the FortiGate* updates a local certificate the FortiGate already has (`PUT cmdb/vpn.certificate/local/<name>`: `private-key` encrypted with a one-time `password`, plain PEM when refused, and `certificate`) instead of importing it under a new dated name - its name stays, so every policy, VIP, ZTNA rule or user-auth setting bound to it keeps it, and nothing is re-pointed but what the deployment lists. In every module version (FortiOS 6.0 - 8.0). Off by default: existing deployments are unchanged.
