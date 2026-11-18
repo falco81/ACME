@@ -1347,10 +1347,18 @@ def guard(h, s, method, path):
         if b.get('id') not in (None, '', 0):
             need_cert(store, s, _cert_of_deploy(store, b['id']), right, 'deploy')
         crow = need_cert(store, s, _ref(b, 'cert_id'), right, 'deploy')
-        if path == '/api/deploys/save' and crow is not None and not unscoped(s, 'manage') and \
+        sends = path in ('/api/deploys/save', '/api/deploys/dry_run')
+        if sends and crow is None and not unscoped(s, 'manage') and \
+                b.get('id') not in (None, '', 0) and b.get('target') not in (None, ''):
+            # a deployment saved (or tried) without its certificate keeps the one it has (the
+            # route takes it): its team's limits on the device all the same (hunt R t8 - one of
+            # a team's certificates moved to another team's device by its id alone, unchecked)
+            crow = cert_of_ref(store, _cert_of_deploy(store, b['id']))
+        if sends and crow is not None and not unscoped(s, 'manage') and \
                 b.get('target') not in (None, ''):
             # a team's certificate to a device of its own (or acme's), of a module its limits
-            # allow (hunt C1: checked on the portal only)
+            # allow (hunt C1: checked on the portal only) - and tried there (hunt R t8: the test
+            # writes the files, the key too, into a folder on another team's device)
             from acmelib.certs import teampolicy as TP
             TP.need_deploy(store, crow, S.plugin_row(store, 'target', b.get('target')),
                            str(s.get('name') or '?'))
