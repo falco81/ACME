@@ -136,19 +136,31 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             host = parts[1] if len(parts) > 1 else ''
             port = as_int(parts[2], 443) if len(parts) > 2 and parts[2] else 443
             ip = parts[3] if len(parts) > 3 and parts[3] else '*'
-            iis.append((site, host, port, ip))
+            iis.append((site, host, port, ip, len(parts) > 3 and bool(parts[3])))
         if iis:
             sc.append("Import-Module WebAdministration")
-            for site, host, port, ip in iis:
+            for site, host, port, ip, ip_said in iis:
                 sni = 1 if host else 0
+                # Hunt t9: exactly this host on this port (Get-WebBinding takes an empty
+                # -HostHeader as any host - another site name's binding was changed); the
+                # address too when the line says one, the *: binding first when it does not
+                tail = ':%d:%s' % (port, host)
+                if ip_said:
+                    pick = ("Where-Object { @(%s, %s) -contains [string]$_.bindingInformation }"
+                            % (ps_str(ip + tail), ps_str('[' + ip + ']' + tail)))
+                else:
+                    pick = ("Where-Object { ([string]$_.bindingInformation).EndsWith(%s) } "
+                            "| Sort-Object { -not ([string]$_.bindingInformation).StartsWith('*:') }"
+                            % ps_str(tail))
+                find = ("$b = Get-WebBinding -Name %s -Protocol https | %s | Select-Object -First 1"
+                        % (ps_str(site), pick))
                 sc += [
-                    "$b = Get-WebBinding -Name %s -Protocol https -Port %d -HostHeader %s "
-                    "| Select-Object -First 1" % (ps_str(site), port, ps_str(host)),
+                    find,
                     "if (-not $b) { New-WebBinding -Name %s -Protocol https -Port %d "
-                    "-HostHeader %s -IPAddress %s -SslFlags %d; "
-                    "$b = Get-WebBinding -Name %s -Protocol https -Port %d -HostHeader %s "
-                    "| Select-Object -First 1 }" % (ps_str(site), port, ps_str(host), ps_str(ip),
-                                                    sni, ps_str(site), port, ps_str(host)),
+                    "-HostHeader %s -IPAddress %s -SslFlags %d; %s }"
+                    % (ps_str(site), port, ps_str(host), ps_str(ip), sni, find),
+                    "if (-not $b) { throw %s }" % ps_str('the IIS binding %s %s:%d could not be '
+                                                         'found or made' % (site, host or ip, port)),
                     # 1.0.120: a binding whose ip:port holds a certificate in http.sys
                     # already refuses AddSslCertificate (error 183): taken away, added again -
                     # as the agent does

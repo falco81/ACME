@@ -564,6 +564,25 @@ def ha_repl_state(store):
     return out
 
 
+def ha_refresh_sub(db, sub):
+    """The list of tables `sub` takes read again (REFRESH PUBLICATION) - a table a later
+    version added is taken from then on. Its rows already on the other node are copied over
+    too where every table not taken yet is empty here (1.0.127): with copy_data = false, what
+    the other node wrote there between the upgrades of the two nodes - a custom role made on
+    the node upgraded first - was never on this one, and lost with a failover. A table that
+    has rows here already gets nothing copied, as before: rows of this node's that went over
+    would come back and collide."""
+    taken = set(str(r['n']) for r in db.rows(
+        'SELECT c.relname AS n FROM pg_subscription_rel r JOIN pg_subscription s ON '
+        's.oid = r.srsubid JOIN pg_class c ON c.oid = r.srrelid WHERE s.subname = ? AND '
+        's.subdbid = (SELECT oid FROM pg_database WHERE datname = current_database())', (sub,)))
+    new = [t for t in db.tables() if t not in taken]
+    copy = bool(new) and not any(db.value('SELECT 1 FROM %s LIMIT 1' % t) for t in new)
+    db.run(RawSql('ALTER SUBSCRIPTION %s REFRESH PUBLICATION WITH (copy_data = %s)'
+                  % (sub, 'true' if copy else 'false')))
+    return copy
+
+
 def ha_peer_columns():
     """Tables and columns of a later version - or of a module - made on the
     other node too: logical replication stops on a row of a table or with a
@@ -818,8 +837,7 @@ def ha_control(store, act, by=''):
         on_peer(r)
     if act == 'refresh':
         if has(here, sub_in):
-            here.run('ALTER SUBSCRIPTION %s REFRESH PUBLICATION WITH (copy_data = false)'
-                     % sub_in)
+            ha_refresh_sub(here, sub_in)
         said.append('the list of tables taken from the other was read again')
     if act == 'stop':
         # Both directions taken away; both nodes go on alone, each with what

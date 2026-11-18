@@ -1080,8 +1080,7 @@ class Daemon(object):
                 if sub and int(db.value('SELECT COUNT(*) FROM pg_subscription_rel r JOIN '
                                         'pg_subscription s ON s.oid = r.srsubid WHERE '
                                         's.subname = ?', (sub,)) or 0) < len(TABLES):
-                    db.run(RawSql('ALTER SUBSCRIPTION %s REFRESH PUBLICATION WITH '
-                                  '(copy_data = false)' % sub))
+                    ha_refresh_sub(db, sub)
             except Exception as e:                      # noqa: BLE001
                 log('the tables taken from the other node could not be read again: %s'
                     % str(e).split('\n')[0][:200], 'info')

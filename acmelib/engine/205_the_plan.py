@@ -480,8 +480,7 @@ def ha_refresh_tables(store):
     try:
         far = ha_peer_db()
         try:
-            far.run('ALTER SUBSCRIPTION %s REFRESH PUBLICATION WITH (copy_data = false)'
-                    % ha_sub_here(far, slot))
+            ha_refresh_sub(far, ha_sub_here(far, slot))
         finally:
             far.close()
     except Exception as e:                              # noqa: BLE001

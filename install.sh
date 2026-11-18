@@ -1159,6 +1159,18 @@ if old_map:
     text = text.replace(old_map.group(0),
                         'map $args $acme_login_key {\n    "~(^|&)api=login(&|$)"   $binary_remote_addr;', 1)
     said.append('the sign-in limit sees every spelling of api=login')
+# Signing in with Windows (1.0.99) and with a certificate (1.0.100) under the same limit: only a
+# new file had them, an upgraded one let either be asked for at 10 a second.
+login_line = re.search(r'(?m)^([ \t]*)"~\(\^\|&\)api=login\(&\|\$\)"[ \t]+\$binary_remote_addr;[^\n]*\n', text)
+if login_line:
+    more = ''
+    for api, why in (('kerberos-login', 'signing in with Windows (1.0.99)'),
+                     ('cert-nonce', '...with a certificate (1.0.100)')):
+        if 'api=%s(' % api not in text:
+            more += '%s"~(^|&)api=%s(&|$)" $binary_remote_addr;   # %s\n' % (login_line.group(1), api, why)
+    if more:
+        text = text[:login_line.end()] + more + text[login_line.end():]
+        said.append('the sign-in limit covers signing in with Windows and with a certificate')
 # no second Content-Security-Policy from nginx - the pages send their
 # own, with a nonce, and a browser given two enforces both.
 text, n = re.subn(r'(?m)^\s*add_header\s+Content-Security-Policy\s+"[^"]*"[^\n]*\n', '', text)
