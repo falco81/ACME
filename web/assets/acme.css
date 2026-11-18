@@ -2404,6 +2404,8 @@ select.vip-iface{min-width:150px}
 .lb-guide > .lb-block,.lb-guide > .note{margin:12px 14px}
 .lb-block{display:flex;flex-direction:column;gap:6px}
 .lb-block-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+/* The copy button never squeezed by a long title (t6): at 390 px its words ran out of it. */
+.lb-block-h > .btn{flex-shrink:0}
 .lb-code{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;
   overflow-x:auto;overflow-y:visible;white-space:pre;font-size:12px}
 .lbv{color:var(--info);background:var(--info-bg);border-radius:4px;padding:0 2px}
@@ -2710,6 +2712,7 @@ td.mq-said{max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:elli
 .tx-field{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .tx-field:first-of-type{margin-top:4px}
 .tx-field-h{display:flex;gap:8px;align-items:center}
+.tx-field-h > .btn{flex-shrink:0}
 .tx-field-h .tag{font-size:10px}
 .tx-rich{min-height:44px}
 .tx-count{display:flex;gap:8px;align-items:center;margin-top:8px}

@@ -95,17 +95,19 @@ class Zones(object):
     and the zones. Built again when the records or the settings change."""
 
     def __init__(self, cfg, rows, now):
-        self.zones = sorted({D.norm(z) for z in _split(cfg.get('dns_zone')) if D.norm(z)},
+        # an international zone in its IDNA form, as the questions come (Hunt R t6: written
+        # as příklad.cz, every question was REFUSED)
+        self.zones = sorted({D.ascii_name(z) for z in _split(cfg.get('dns_zone')) if D.norm(z)},
                             key=lambda z: -len(z))
         # the first one written is "the" zone relative names belong to
-        self.first = D.norm(_split(cfg.get('dns_zone'))[0]) if self.zones else ''
+        self.first = D.ascii_name(_split(cfg.get('dns_zone'))[0]) if self.zones else ''
         try:
             self.ttl = max(0, int(cfg.get('dns_ttl') or 60))
         except (TypeError, ValueError):
             self.ttl = 60
         self.data = {}
         self.problems = []
-        self.ns = [D.norm(x) for x in _split(cfg.get('dns_ns_names'))] or \
+        self.ns = [D.ascii_name(x) for x in _split(cfg.get('dns_ns_names'))] or \
             (['ns1.' + self.first] if self.first else [])
         mail = str(cfg.get('dns_soa_mail') or '').strip()
         if '@' in mail:
@@ -169,7 +171,7 @@ class Zones(object):
         for item in _split(cfg.get('dns_ns_addresses')):
             if '=' in item:
                 n, _, a = item.partition('=')
-                named.setdefault(D.norm(n), []).append(a.strip())
+                named.setdefault(D.ascii_name(n), []).append(a.strip())
             else:
                 bare.append(item)
         inside = [n for n in self.ns if self.zone_of(n) is not None]
@@ -197,8 +199,8 @@ class Zones(object):
         if name in ('@', ''):
             return self.first
         if name.endswith('.'):
-            return D.norm(name)
-        n = D.norm(name)
+            return D.ascii_name(name)
+        n = D.ascii_name(name)
         if self.zone_of(n) is not None or not self.first:
             return n
         if n.endswith('.@'):
@@ -209,11 +211,11 @@ class Zones(object):
         t = D.type_code(str(rtype or '').strip())
         if t not in SERVED_TYPES:
             raise ValueError('type %s is not served' % D.type_name(t))
-        name = D.norm(name)
+        name = D.ascii_name(name)
         if not name:
             raise ValueError('no name')
         if t in (2, 5, 12):
-            value = D.norm(value)
+            value = D.ascii_name(value)
         value = str(value if value is not None else '').strip()
         D.rdata_to_wire(t, value)                       # a value that cannot be written is said now
         D.name_labels(name)
@@ -224,7 +226,7 @@ class Zones(object):
             rr.append((int(ttl), value))
 
     def zone_of(self, name):
-        name = D.norm(name)
+        name = D.ascii_name(name)
         for z in self.zones:                            # longest first
             if name == z or D.in_zone(name, z):         # by labels where escaped (1.0.51)
                 return z

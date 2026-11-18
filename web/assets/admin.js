@@ -15666,7 +15666,7 @@ function rbPutBackConfirm(what) {
     if (what.node) facts.push(['On', what.node]);
     if (what.manifest) {
       var m = what.manifest;
-      facts = [['Made', m.made_words], ['On', m.node + ' (' + (m.host || '') + ')'], ['acme', m.acme], ['Certificates', m.certs != null ? String(m.certs) : '–'], ['Database', m.engine_words || m.engine]];
+      facts = [['Made', m.made_words], ['On', m.node + ' (' + (m.host || '') + ')'], ['acme', m.acme], ['Certificates', (m.counts || {}).certs != null ? String(m.counts.certs) : '–'], ['Database', m.engine_words || m.engine]];
     }
     if (facts.length) body.appendChild(peekFacts(facts));
     body.appendChild(el('p', 'note warn', 'Everything in the database is replaced with what the backup holds - certificates and their keys, accounts, settings, logs, and who is signed in: you sign in again afterwards, with an account the backup has. A copy of what is here now is made first (Settings → The database → Copies). In a cluster it goes over to the other node too.'));

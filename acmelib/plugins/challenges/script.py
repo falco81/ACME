@@ -7,6 +7,7 @@ import os
 import subprocess
 
 from acmelib.plugins.base import PluginError, field
+from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, as_list
 
 
@@ -90,9 +91,20 @@ class Script(DnsChallenge):
         self._token = token
         return DnsChallenge.present(self, name, token, key_authorization, txt_value)
 
+    def place(self, kind, name, where, content):
+        # Hunt R t6: a CA's DCV record (txt-any) came here without present() - add_txt read
+        # the name of the order before (or failed: no attribute '_name'); now the name and
+        # the record placed are the ones said
+        n = D.norm(name)
+        while n.startswith('*.'):
+            n = n[2:]
+        self._name, self._rr, self._token = n or D.norm(where), D.norm(where), ''
+        return DnsChallenge.place(self, kind, name, where, content)
+
     def add_txt(self, fqdn, value):
-        self._run('present', self._name, fqdn, self._rr, value, getattr(self, '_token', ''))
-        return {'name': self._name, 'rr': self._rr}
+        name, rr = getattr(self, '_name', None) or fqdn, getattr(self, '_rr', None) or fqdn
+        self._run('present', name, fqdn, rr, value, getattr(self, '_token', ''))
+        return {'name': name, 'rr': rr}
 
     def del_txt(self, fqdn, value, handle):
         h = handle or {}

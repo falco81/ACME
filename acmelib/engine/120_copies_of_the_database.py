@@ -121,7 +121,13 @@ STALE_WORK = ('acme-rbackup-', 'acme-putback-', 'acme-download-', 'acme-dl-', 'a
               'acme-fetch-',
               # (1.0.51) the weekly try of a backup (all of it unpacked, secrets.key with it), a
               # copy unlocked to be put back, a MariaDB dump unpacked, a copy uploaded
-              'acme-verify-', 'acme-restore-', 'acme-sql-', 'acme-upload-')
+              'acme-verify-', 'acme-restore-', 'acme-sql-', 'acme-upload-',
+              # (1.0.127) the command line's: a copy with its key opened (secrets.key in clear
+              # beside it), and the files it took in to be read (a copy, the .key beside it)
+              'acme-bundle-', '.acme-cli-')
+# The files sent from the pages to be put back, kept an hour (1.0.127): taken away only at the
+# next upload - one never put back stayed for good (an unlocked backup: every private key).
+STALE_UPLOADS = ('rbackup-uploads', 'db-uploads')
 
 
 def stale_work_away(older=6 * 3600):
@@ -151,6 +157,19 @@ def stale_work_away(older=6 * 3600):
                 pass
     except OSError:
         pass
+    for sub in STALE_UPLOADS:
+        try:
+            ups = list((STATE_DIR / sub).iterdir())
+        except OSError:
+            continue
+        for p in ups:
+            try:
+                if time.time() - p.lstat().st_mtime > 3600 and not p.is_dir():
+                    p.unlink()
+                    log('a file sent to be put back and left, taken away: %s/%s'
+                        % (sub, p.name), 'info')
+            except OSError:
+                pass
     for p in items:
         if not p.name.startswith(STALE_WORK):
             continue

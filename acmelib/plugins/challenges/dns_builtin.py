@@ -66,10 +66,12 @@ class BuiltinDns(DnsChallenge):
 
     # -- acme's zone ----------------------------------------------------------
     def zones(self):
-        return [D.norm(z) for z in as_list(settings(self.ctx).get('dns_zone')) if D.norm(z)]
+        # in their IDNA form, as acme's DNS server answers them (Hunt R t6)
+        return [D.ascii_name(z) for z in as_list(settings(self.ctx).get('dns_zone'))
+                if D.norm(z)]
 
     def zone(self):
-        want = D.norm(self.c('zone', ''))
+        want = D.ascii_name(self.c('zone', ''))
         zs = self.zones()
         if want:
             if zs and want not in zs and not any(D.in_zone(want, z) for z in zs):
@@ -153,7 +155,8 @@ class BuiltinDns(DnsChallenge):
 
     @staticmethod
     def _zones_of(settings_):
-        return [D.norm(z) for z in as_list((settings_ or {}).get('dns_zone')) if D.norm(z)]
+        return [D.ascii_name(z) for z in as_list((settings_ or {}).get('dns_zone'))
+                if D.norm(z)]
 
     @classmethod
     def place_problem(cls, proof, where, config, settings_):

@@ -390,7 +390,9 @@ def rb_run(store, by, only=None, progress=None):
             raise RbError('the backup came out unlocked (its password was taken away meanwhile) '
                           '- not sent anywhere')
         run.update(file=m['file'], bytes=m['bytes'], encrypted=m['encrypted'],
-                   rows=sum((m.get('counts') or {}).values()))
+                   rows=sum((m.get('counts') or {}).values()),
+                   # how many certificates it holds - the pages' card of each node shows it
+                   certs=(m.get('counts') or {}).get('certs'))
         sha = os.path.join(work, m['file'] + '.sha256')
         md = os.path.join(work, m['file'].split('.tar.gz')[0] + '-RESTORE.md')
         for i, t in enumerate(targets):

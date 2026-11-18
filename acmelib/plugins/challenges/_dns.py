@@ -81,6 +81,23 @@ def norm(name):
     return str(name or '').strip().rstrip('.').lower()
 
 
+def ascii_name(name):
+    """norm(), and a name written with letters beyond ASCII in its IDNA form, as DNS
+    carries it (příklad.cz -> xn--pklad-zsa96e.cz); a label that cannot be written so
+    is left as it is."""
+    n = norm(name)
+    if not any(ord(c) > 127 for c in n):
+        return n
+    out = []
+    for lab in n.split('.'):
+        try:
+            out.append(lab.encode('idna').decode('ascii').lower()
+                       if any(ord(c) > 127 for c in lab) else lab)
+        except UnicodeError:
+            out.append(lab)
+    return '.'.join(out)
+
+
 def _label_bytes(label):
     if any(ord(c) > 127 for c in label):
         try:

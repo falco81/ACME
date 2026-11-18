@@ -511,7 +511,15 @@ class DnsChallenge(Challenge):
         fqdn, rr, txt = handle.get('fqdn'), handle.get('rr'), handle.get('txt')
         if mode == 'resolvers':
             return self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
-        ok = self.seen_by_authority(fqdn, txt, since=handle.get('at'))
+        try:
+            ok = self.seen_by_authority(fqdn, txt, since=handle.get('at'))
+        except PluginError as e:
+            # Hunt R t6: the zone not found by its SOA once (a resolver that did not answer
+            # while ready() was asked again and again) failed the whole order - now its name
+            # servers cannot be asked from here, and the resolvers decide
+            self.say_once('auth:' + D.norm(fqdn), 'the name servers of %s could not be asked: '
+                          '%s - the resolvers are asked instead' % (D.norm(fqdn), e), 'warn')
+            ok = None
         if ok is None:                          # the name servers cannot be reached from here
             ok = self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
         if ok and mode == 'auth+public':
