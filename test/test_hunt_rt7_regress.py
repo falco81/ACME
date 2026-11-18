@@ -41,8 +41,9 @@ def owner_of(name):
 class CertOwnerOption(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        got = run('--team-add', 'Web')
-        assert got.returncode == 0, got.stdout + got.stderr
+        for args in (('--team-add', 'Web'), ('--cert-add', 'rt7c', '--names', 'rt7c.example.com')):
+            got = run(*args)
+            assert got.returncode == 0, got.stdout + got.stderr
 
     def test_add_with_owner(self):
         got = run('--cert-add', 'rt7a', '--names', 'rt7a.example.com', '--owner', 'Web')
@@ -68,7 +69,7 @@ class CertOwnerOption(unittest.TestCase):
         got = run('--validation-edit', 'This server HTTP-01', '--owner', 'Web')
         self.assertEqual(got.returncode, 1)
         self.assertIn('--owner goes with --target-add', got.stderr)
-        got = run('--cert-edit', 'rt7a')
+        got = run('--cert-edit', 'rt7c')
         self.assertEqual(got.returncode, 1)
         self.assertIn('--owner', got.stderr)       # said among what can be changed
 

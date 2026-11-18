@@ -1131,7 +1131,7 @@ function actionDecide(a, yes, b) {
   if (yes) { send('', b); return; }
   var why = null;
   modal(tr('Decline'), function (body) {
-    body.appendChild(el('p', 'note', 'The person who asked is told why, by mail.'));
+    body.appendChild(el('p', 'note', 'The person who asked sees why in the team's actions.'));
     why = el('textarea');
     why.rows = 3;
     body.appendChild(formField('Why', why, ''));

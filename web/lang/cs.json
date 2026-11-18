@@ -71331,6 +71331,54 @@
   "z_1683": {
    "source": "The machine itself - its addresses, IPv6, gateway, DNS and host name - is set per node in Settings → Network. Its clock is in Settings → Time.",
    "text": "Samotný stroj – jeho adresy, IPv6, brána, DNS a hostname – se nastavuje pro každý uzel v Nastavení → Síť. Jeho hodiny jsou v Nastavení → Čas."
+  },
+  "z_1684": {
+   "source": "The person who asked sees why in the team's actions.",
+   "text": "Žadatel uvidí důvod v akcích týmu."
+  },
+  "z_1685": {
+   "source": "You asked for it; an administrator approves it (or not). Look here to see when they have - no mail is sent to you.",
+   "text": "Požádali jste o něj; správce ho schválí (nebo ne). Kdy se tak stane, uvidíte zde – e-mail vám nepřijde."
+  },
+  "z_1686": {
+   "source": "Someone asked for it; you may approve or decline it. They see what you decide here - no mail is sent to them.",
+   "text": "Někdo o něj požádal; můžete ho schválit nebo zamítnout. Co rozhodnete, uvidí zde – e-mail mu nepřijde."
+  },
+  "z_1687": {
+   "source": "The person who asked sees why here, on the portal - no mail is sent to them.",
+   "text": "Žadatel uvidí důvod zde na portálu – e-mail mu nepřijde."
+  },
+  "z_1688": {
+   "source": "declined - no mail is sent to the person who asked",
+   "text": "zamítnuto – žadateli e-mail nepřijde"
+  },
+  "z_1689": {
+   "source": "An approver of the team approves it first (the team’s rule); look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.",
+   "text": "Nejdřív ho schválí schvalovatel týmu (pravidlo týmu); kdy se tak stane, uvidíte zde – e-mail vám nepřijde. Pak se vydá a před koncem platnosti se bude obnovovat sám."
+  },
+  "z_1690": {
+   "source": "An administrator approves it first; look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.",
+   "text": "Nejdřív ho schválí správce; kdy se tak stane, uvidíte zde – e-mail vám nepřijde. Pak se vydá a před koncem platnosti se bude obnovovat sám."
+  },
+  "z_1691": {
+   "source": "It is not issued.",
+   "text": "Nevydá se."
+  },
+  "z_1692": {
+   "source": "names in one certificate",
+   "text": "počet jmen v jednom certifikátu"
+  },
+  "z_1693": {
+   "source": "days before the end",
+   "text": "dní před koncem"
+  },
+  "z_1694": {
+   "source": "the validity",
+   "text": "platnost"
+  },
+  "z_1695": {
+   "source": "putting the previous certificate back",
+   "text": "vracení předchozího certifikátu"
   }
  },
  "patterns": {
@@ -99097,6 +99145,50 @@
   "pz_533": {
    "source": "the name servers of {0} could not be asked: {1} - the resolvers are asked instead",
    "text": "jmenné servery {0} se nepodařilo dotázat: {1} – místo nich se ptá resolverů"
+  },
+  "pz_t7decl": {
+   "source": "declined - {0} sees why in the team's actions",
+   "text": "zamítnuto - {0} uvidí důvod v akcích týmu"
+  },
+  "pz_534": {
+   "source": "{0} declined - nobody is told",
+   "text": "{0} zamítnut – nikdo se to nedozví"
+  },
+  "pz_535": {
+   "source": "{0} declined - {1} is not told by mail: no e-mail address of theirs is known",
+   "text": "{0} zamítnut – {1} nedostane e-mail: jeho e-mailová adresa není známa"
+  },
+  "pz_536": {
+   "source": "{0} declined - {1} is not told by mail: sending mail is switched off",
+   "text": "{0} zamítnut – {1} nedostane e-mail: odesílání pošty je vypnuté"
+  },
+  "pz_537": {
+   "source": "It is not issued. {0} sees it declined on the portal, with what you write.",
+   "text": "Nevydá se. {0} ho na portálu uvidí zamítnutý i s tím, co napíšete."
+  },
+  "pz_538": {
+   "source": "{0} sees it declined on the portal, with what you write.",
+   "text": "{0} ho na portálu uvidí zamítnutý i s tím, co napíšete."
+  },
+  "pz_539": {
+   "source": "names in one certificate: {0} to {1}",
+   "text": "jmen v jednom certifikátu: {0} až {1}"
+  },
+  "pz_540": {
+   "source": "days before the end: {0} to {1}",
+   "text": "dní před koncem: {0} až {1}"
+  },
+  "pz_541": {
+   "source": "the validity: {0} to {1}",
+   "text": "platnost: {0} až {1}"
+  },
+  "pz_542": {
+   "source": "writing {0} failed (exit {1}): {2}",
+   "text": "zápis {0} selhal (kód {1}): {2}"
+  },
+  "pz_543": {
+   "source": "{0} is not the name of a template (no line breaks or control characters)",
+   "text": "{0} není název šablony (bez zalomení řádků a řídicích znaků)"
   }
  },
  "rich": {
