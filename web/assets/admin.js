@@ -1502,7 +1502,7 @@ function peekClusterCard() {
       var tr = el('tr');
       tr.appendChild(noI18n(el('td', 'mono', n.name)));
       tr.appendChild(noI18n(el('td', 'mono', n.version || '?')));
-      tr.appendChild(el('td', 'muted', ago(n.at)));
+      tr.appendChild(el('td', 'muted', haHeard(n)));
       var st = el('td');
       st.appendChild(el('span', 'tag ' + (n.alive ? (n.maintenance ? 'warn' : 'ok') : 'crit'), n.alive ? (n.maintenance ? 'in maintenance' : 'answering') : 'gone'));
       tr.appendChild(st);
@@ -7467,7 +7467,7 @@ function loadHa(live) {
       var v = el('td', n.version !== d.version ? 'warn' : '', n.version || '?');
       if (n.version !== d.version) explain(v, 'Not the version this node runs (' + d.version + '): both nodes should run the same one.');
       tr.appendChild(v);
-      tr.appendChild(el('td', 'muted', ago(n.at)));
+      tr.appendChild(el('td', 'muted', haHeard(n)));
       var st = el('td');
       st.appendChild(el('span', 'tag ' + (n.alive ? 'ok' : 'crit'), n.alive ? 'answering' : 'gone'));
       tr.appendChild(st);
@@ -10227,6 +10227,12 @@ function certOcsp(host, p) {
    is typed, then shows every step live as the daemon does it - and the
    result, with the next step. */
 var HA_PHRASE_ABC = 'abcdefghijkmnopqrstuvwxyz23456789';
+/* When a node was last heard from (t6): by the age the daemon measured, as the settings' pill
+   does - by the browser's own clock a node answering said "10 min ago" on a laptop ten minutes
+   ahead, and the clocks of the nodes themselves (clock_beat) were left out. */
+function haHeard(n) {
+  return ago(typeof n.age === 'number' ? Date.now() / 1000 - n.age : n.at);
+}
 function haIp(text) {
   var t = String(text || '').trim();
   if (/^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(t)) return true;
