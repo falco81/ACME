@@ -23,6 +23,9 @@ const { chromium } = require('playwright');
       await page.waitForTimeout(1500);
       await page.evaluate(() => document.querySelector('.tabs button[data-tab="settings"]').click());
       await page.evaluate(() => document.querySelector('#ctl-nav button[data-pane="reqprofiles"]').click());
+      // the cards first (1.0.128): the table is the view beside them
+      await page.waitForFunction(() => document.querySelector('#rp-host .tmx-vbtn[data-view="table"]'), null, {timeout: 20000});
+      await page.evaluate(() => document.querySelector('#rp-host .tmx-vbtn[data-view="table"]').click());
       await page.waitForFunction(() => document.querySelector('.rp-table tr.rp-row'), null, {timeout: 20000});
       await page.waitForTimeout(800);
       out.seen.push(await page.evaluate(([lang, w]) => {

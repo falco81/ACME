@@ -112,23 +112,30 @@ function scan(arg) {
       }
       if (await modalOpen()) await page.keyboard.press('Escape');
     };
-    /* a dialog opened by clicking sel (a selector, or a function in the page that clicks) */
-    const dialog = async (where, sel) => {
+    /* a dialog opened by clicking the n-th drawn sel; soft: a button that may open none */
+    const dialog = async (where, sel, n, soft) => {
       try {
-        const clicked = await page.evaluate(sel => {
-          const b = Array.from(document.querySelectorAll(sel)).find(x => x.getClientRects().length && !x.disabled);
+        const clicked = await page.evaluate(([sel, n]) => {
+          const b = Array.from(document.querySelectorAll(sel)).filter(x => x.getClientRects().length && !x.disabled)[n || 0];
           if (!b) return false;
           b.click();
           return true;
-        }, sel);
+        }, [sel, n || 0]);
         if (!clicked) { out.steps.push(tag + ' ' + where + ' (no ' + sel + ')'); return; }
-        await page.waitForFunction(() => { const m = document.getElementById('modal'); return m && !m.hidden; }, null, {timeout: 8000});
+        const up = await page.waitForFunction(() => { const m = document.getElementById('modal'); return m && !m.hidden; }, null,
+                                              {timeout: soft ? 3500 : 8000}).then(() => true, e => { if (soft) return false; throw e; });
+        if (!up) { out.steps.push(tag + ' ' + where + ' (no dialog)'); return; }
         await pause(1300);
         await look(where, '#modal');
       } catch (e) {
         out.steps.push(tag + ' ' + where + ' (' + String(e.message || e).split('\n')[0] + ')');
       }
       await shut();
+    };
+    /* the add buttons of what is shown (at most two) */
+    const addButtons = async (where, scope) => {
+      const n = await page.$$eval(scope + ' button[data-icon="add"]', bs => bs.filter(b => b.getClientRects().length && !b.disabled).length);
+      for (let i = 0; i < Math.min(n, 2); i++) await dialog(where + ': add #' + (i + 1), scope + ' button[data-icon="add"]', i, true);
     };
     try {
       if (what === 'admin') {
@@ -156,6 +163,7 @@ function scan(arg) {
             }
           }
           if (t === 'events') await dialog('tab events: the daemon log', '#log-read');
+          if (!adds.length && t !== 'events') await addButtons('tab ' + t, '#tab-' + t);
         }
         await tab('settings');
         const panes = await page.$$eval('#ctl-nav button[data-pane]', bs => bs.filter(b => b.getClientRects().length).map(b => b.dataset.pane));
@@ -164,7 +172,7 @@ function scan(arg) {
           await pause(1300);
           if (p !== 'teams') {
             await look('settings ' + p);
-            if (p === 'people') { await dialog('settings people: #us-add', '#us-add'); await dialog('settings people: #ad-add', '#ad-add'); }
+            await addButtons('settings ' + p, '#pane-' + p);
             continue;
           }
           await page.waitForSelector('#tmx .tmx-vbtn', {timeout: 20000}).catch(() => {});
@@ -175,6 +183,10 @@ function scan(arg) {
             await pause(1300);
             const v = await page.evaluate(i => document.querySelectorAll('#tmx .tmx-vbtn')[i].textContent.trim().replace(/\s*\d+$/, ''), i);
             await look('settings teams / ' + v);
+            if (i === 1) {
+              await dialog('settings teams / Roles: a new role', '#tmx-role-add');
+              await dialog('settings teams / Roles: a role changed', '.tmx-role-edit');
+            }
             if (i === 0) {
               // the team with the most members, and each of its tabs
               await page.evaluate(() => {
@@ -187,6 +199,11 @@ function scan(arg) {
                 await page.evaluate(x => document.querySelector('#tmx .tmx-tab[data-tab="' + x + '"]').click(), x);
                 await pause(1300);
                 await look('settings teams / Organisation / Big team / ' + x);
+                if (x === 'members') await dialog('settings teams / Big team: add a member', '#tmx-addm');
+                if (x === 'devices') await dialog('settings teams / Big team: devices', '#tmx-assign');
+              }
+              for (const d of ['#tmx-edit', '#tmx-move', '#tmx-add-team']) {
+                await dialog('settings teams / Big team: ' + d, d);
               }
             }
           }

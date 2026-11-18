@@ -4712,12 +4712,13 @@ window.addEventListener('storage', function (e) {
    the directory: a certificate administrator or a full one in the administration; on the
    portal only where the caller says so (those who manage a team's members).
 
-     dirPick(input, {kinds: ['user'] | ['group'] | ['user', 'group'],
+     dirPickButton(input, {kinds: ['user'] | ['group'] | ['user', 'group'],
                      format: 'dn' | 'login' | 'who' | function (row, kind),
                      list: '' (one value) | 'dnlist' (; or new lines) | 'lines' | 'comma',
                      directory: name | function () - the administration's directory to ask,
                      has / toggle: function (row, kind) - a list of the caller's own,
                      picked: function (row, kind) - told after the box was filled,
+                     quiet: true - only 'change' is sent to the box, not 'input',
                      after: element - the button goes right after it, the box is not wrapped,
                      id, title, may}) */
 var DIRPICK = {open: null};
@@ -4758,8 +4759,9 @@ function dirPickSame(line, r) {
     return x && String(x).toLowerCase() === l;
   });
 }
-function dirPickTold(input) {
-  input.dispatchEvent(new Event('input', {bubbles: true}));
+function dirPickTold(input, quiet) {
+  /* quiet: the box's own search as one types is not set off by what was picked */
+  if (!quiet) input.dispatchEvent(new Event('input', {bubbles: true}));
   input.dispatchEvent(new Event('change', {bubbles: true}));
 }
 function dirPickClose() {
@@ -4872,10 +4874,10 @@ function dirPickOpen(btn, input, opts) {
       var was = items.some(function (line) { return dirPickSame(line, r); });
       items = was ? items.filter(function (line) { return !dirPickSame(line, r); }) : items.concat([v]);
       input.value = dirPickJoin(items, input, opts.list);
-      dirPickTold(input);
+      dirPickTold(input, opts.quiet);
     } else {
       input.value = v;
-      dirPickTold(input);
+      dirPickTold(input, opts.quiet);
     }
     if (multi) {
       var on = has(r, k);
@@ -5030,7 +5032,7 @@ function dirPickOpen(btn, input, opts) {
   ask();
   setTimeout(function () { q.focus(); }, 30);
 }
-function dirPick(input, opts) {
+function dirPickButton(input, opts) {
   opts = opts || {};
   if (!input || input._dirPick || input.disabled || !dirPickMay(opts)) return null;
   input._dirPick = true;
@@ -5059,6 +5061,6 @@ function dirPick(input, opts) {
     row.appendChild(host);
     row.appendChild(b);
   }
-  input._dirPickButton = b;
+  input._dirPickBtn = b;
   return b;
 }

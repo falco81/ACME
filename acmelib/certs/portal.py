@@ -1077,7 +1077,29 @@ def _certs_answer(h, s, have, sufs, iss, n):
             'profiles': reqprofiles.usable(h, s), 'free_form': bool(sufs and iss),
             'may_ask': n < most(),
             # whether they are told by mail when what they ask for is approved (hunt Rt7)
-            'told_by_mail': bool(mail_on() and mail_of((s.get('data') or {}).get('mail')))}
+            'told_by_mail': bool(mail_on() and mail_of((s.get('data') or {}).get('mail'))),
+            # what each of their teams' limits leave of the free form (1.0.128): the sources
+            # it may use with the portal's validation, and whether a wildcard is taken
+            'team_limits': team_limits(h.store, [n for n, r in my_teams(h, s).values()
+                                                 if 'request' in r], [i['name'] for i in iss])}
+
+
+def team_limits(store, teams_, issuers):
+    """{team: {issuers: [...], wildcards: bool}} of the teams whose limits narrow the free
+    form - a team without limits is not said (everything as before)."""
+    from acmelib.certs import teams as T
+    val = str(E.CONFIG.get('portal_cert_challenge') or '') or None
+    out = {}
+    for name in teams_:
+        eff = T.effective_policy(store, name)
+        if not eff:
+            continue
+        ok = [i for i in issuers
+              if (eff.get('issuers') is None or i.lower() in {str(x).lower()
+                                                              for x in eff['issuers']})
+              and T.pair_allowed(eff, i, val)]
+        out[name] = {'issuers': ok, 'wildcards': bool(T.policy_value(eff, 'wildcards'))}
+    return out
 
 
 EXPIRING_S = 30 * 86400

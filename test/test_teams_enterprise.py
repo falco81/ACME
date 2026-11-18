@@ -248,7 +248,8 @@ class Roles(unittest.TestCase):
 
     def test_builtin_roles_caps(self):
         want = {
-            'Viewer': {'cert.view', 'deploy.view', 'target.view', 'team.view'},
+            # test.view (1.0.128): every role built on the Viewer sees the team's tests
+            'Viewer': {'cert.view', 'deploy.view', 'target.view', 'team.view', 'test.view'},
         }
         want['Requester'] = want['Viewer'] | {'cert.request'}
         want['Renewer'] = want['Viewer'] | {'cert.renew', 'cert.auto'}
@@ -260,10 +261,12 @@ class Roles(unittest.TestCase):
         want['Approver'] = want['Viewer'] | {'cert.approve'}
         want['Team manager'] = want['Viewer'] | {'team.members', 'team.policy', 'team.create',
                                                   'team.activity'}
+        # 1.0.128: the Device manager manages the team's tests
+        want['Device manager'] |= {'test.manage'}
         want['Team owner'] = set(T.CAPS)
         got = {r['name']: set(r['caps']) for r in T.roles(STORE) if r['builtin']}
         self.assertEqual(got, want)
-        self.assertEqual(len(T.CAPS), 20)
+        self.assertEqual(len(T.CAPS), 22)
 
     def test_old_rights_unchanged(self):
         self.assertEqual(T.RIGHT_CAPS['view'], {'cert.view', 'deploy.view', 'target.view',

@@ -273,7 +273,7 @@
 .ag-confirm-en{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--tx-dim)}
 .ag-confirm-en .ag-ic{color:var(--violet)}
 .ag-confirm-en b{color:var(--tx);overflow-wrap:anywhere}
-.ag-many{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;padding-right:2px}
+.ag-many{display:flex;flex-direction:column;gap:8px;padding-right:2px}
 .ag-many-one{display:flex;flex-direction:column;gap:6px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
   background:var(--panel2)}
 /* enrollment codes */

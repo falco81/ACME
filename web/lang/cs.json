@@ -71391,6 +71391,302 @@
   "z_1698": {
    "source": "no new file could be made in",
    "text": "nešlo vytvořit nový soubor ve složce"
+  },
+  "dpk_1": {
+   "source": "Pick from the directory",
+   "text": "Vybrat z adresáře"
+  },
+  "dpk_2": {
+   "source": "Pick groups from the directory",
+   "text": "Vybrat skupiny z adresáře"
+  },
+  "dpk_3": {
+   "source": "Pick a group from the directory",
+   "text": "Vybrat skupinu z adresáře"
+  },
+  "dpk_4": {
+   "source": "Pick people from the directory",
+   "text": "Vybrat lidi z adresáře"
+  },
+  "dpk_5": {
+   "source": "Pick a person from the directory",
+   "text": "Vybrat osobu z adresáře"
+  },
+  "dpk_6": {
+   "source": "Part of a group’s name",
+   "text": "Část názvu skupiny"
+  },
+  "dpk_7": {
+   "source": "Part of a name, a login or a mail",
+   "text": "Část jména, přihlašovacího jména nebo e-mailu"
+  },
+  "dpk_8": {
+   "source": "Search the directory",
+   "text": "Hledat v adresáři"
+  },
+  "dpk_9": {
+   "source": "Type at least two letters.",
+   "text": "Napište aspoň dvě písmena."
+  },
+  "dpk_10": {
+   "source": "Each one picked goes into the box; picked again, it comes out.",
+   "text": "Každá vybraná položka se vloží do pole; vybraná znovu se z něj odebere."
+  },
+  "dpk_11": {
+   "source": "Typing the name by hand works as before.",
+   "text": "Jméno lze i nadále napsat ručně."
+  },
+  "dpk_12": {
+   "source": "No directory is set up to search - type the name by hand.",
+   "text": "Není nastaven žádný adresář, ve kterém by se dalo hledat – napište jméno ručně."
+  },
+  "dpk_13": {
+   "source": "You may not search the directory here - type the name by hand.",
+   "text": "Zde nemáte oprávnění hledat v adresáři – napište jméno ručně."
+  },
+  "dpk_14": {
+   "source": "The directory could not be searched - type the name by hand.",
+   "text": "V adresáři se nepodařilo hledat – napište jméno ručně."
+  },
+  "dpk_15": {
+   "source": "Nothing found.",
+   "text": "Nic nenalezeno."
+  },
+  "dpk_16": {
+   "source": "Pick from the directory: search people and groups and put the one picked here.",
+   "text": "Vybrat z adresáře: vyhledat lidi a skupiny a vložit sem vybranou položku."
+  },
+  "dpk_17": {
+   "source": "Pick from the directory: search the groups and put the ones picked here.",
+   "text": "Vybrat z adresáře: vyhledat skupiny a vložit sem ty vybrané."
+  },
+  "dpk_18": {
+   "source": "Pick from the directory: search people and put the one picked here.",
+   "text": "Vybrat z adresáře: vyhledat osobu a vložit ji sem."
+  },
+  "dpk_19": {
+   "source": "Or pick groups from the directory with the search button beside the filter.",
+   "text": "Nebo vyberte skupiny z adresáře tlačítkem hledání vedle filtru."
+  },
+  "dpk_20": {
+   "source": "Picked from the directory - besides what the filter finds (leave it empty for these alone):",
+   "text": "Vybráno z adresáře – navíc k tomu, co najde filtr (pro samotné tyto ho nechte prázdný):"
+  },
+  "dpk_21": {
+   "source": "the groups picked are a list of their DNs or names",
+   "text": "vybrané skupiny se zadávají jako seznam jejich DN nebo názvů"
+  },
+  "rqx_1": {
+   "source": "Cards",
+   "text": "Karty"
+  },
+  "rqx_2": {
+   "source": "General",
+   "text": "Obecné"
+  },
+  "rqx_3": {
+   "source": "Find a profile…",
+   "text": "Najít profil…"
+  },
+  "rqx_4": {
+   "source": "Add the first profile",
+   "text": "Přidat první profil"
+  },
+  "rqx_5": {
+   "source": "No request profile yet",
+   "text": "Zatím žádný profil žádosti"
+  },
+  "rqx_6": {
+   "source": "The portal asks with its free form (The enrolment pages), if that is set. A profile sets everything beforehand - the source, the names allowed, the key, the subject and approval: people give only the names.",
+   "text": "Portál pak žádá svým volným formulářem (Stránky registrace), pokud je zapnutý. Profil nastaví vše předem – zdroj, povolená jména, klíč, předmět i schvalování: lidé zadají jen jména."
+  },
+  "rqx_7": {
+   "source": "Nothing found",
+   "text": "Nic nenalezeno"
+  },
+  "rqx_8": {
+   "source": "No profile has these words in its name, description, source, domains or teams.",
+   "text": "Žádný profil nemá tato slova v názvu, popisu, zdroji, doménách ani týmech."
+  },
+  "rqx_9": {
+   "source": "Duplicate this profile",
+   "text": "Zduplikovat tento profil"
+  },
+  "rqx_10": {
+   "source": "In the limits of",
+   "text": "V limitech týmů"
+  },
+  "rqx_11": {
+   "source": "Sections",
+   "text": "Oddíly"
+  },
+  "rqx_12": {
+   "source": "On the portal",
+   "text": "Na portálu"
+  },
+  "rqx_13": {
+   "source": "They give",
+   "text": "Zadají sami"
+  },
+  "rqx_14": {
+   "source": "public",
+   "text": "veřejný"
+  },
+  "tlm_1": {
+   "source": "see the team's tests",
+   "text": "vidět testy týmu"
+  },
+  "tlm_2": {
+   "source": "add, change, delete and run the team's tests",
+   "text": "přidávat, měnit, mazat a spouštět testy týmu"
+  },
+  "tlm_3": {
+   "source": "sees the team's certificates, deployments, devices and tests",
+   "text": "vidí certifikáty, nasazení, zařízení a testy týmu"
+  },
+  "tlm_4": {
+   "source": "the test needs a name",
+   "text": "test potřebuje název"
+  },
+  "tlm_5": {
+   "source": "which test? (its id)",
+   "text": "který test? (jeho id)"
+  },
+  "tlm_6": {
+   "source": "there is no such test of your teams",
+   "text": "vaše týmy takový test nemají"
+  },
+  "tlm_7": {
+   "source": "add or change tests",
+   "text": "přidávat nebo měnit testy"
+  },
+  "tlm_8": {
+   "source": "see the tests",
+   "text": "vidět testy"
+  },
+  "tlm_9": {
+   "source": "see the test modules",
+   "text": "vidět moduly testů"
+  },
+  "tlm_10": {
+   "source": "see the sources and validations for limits",
+   "text": "vidět zdroje a validace pro limity"
+  },
+  "tlm_11": {
+   "source": "Sources with their validations",
+   "text": "Zdroje s jejich validacemi"
+  },
+  "tlm_12": {
+   "source": "A certificate from a source here is proved only by the validations picked for it. A source not here only where Sources lists it.",
+   "text": "Certifikát ze zdroje uvedeného zde se prokazuje jen validacemi, které jsou pro něj vybrané. Zdroj, který tu není, smí jen tam, kde ho uvádí Zdroje."
+  },
+  "tlm_13": {
+   "source": "Wildcard names",
+   "text": "Wildcard jména"
+  },
+  "tlm_14": {
+   "source": "Names like *.example.com in its certificates.",
+   "text": "Jména jako *.example.com v jeho certifikátech."
+  },
+  "tlm_15": {
+   "source": "Test modules",
+   "text": "Moduly testů"
+  },
+  "tlm_16": {
+   "source": "Which kinds of tests its members may create and run.",
+   "text": "Jaké druhy testů smějí jeho členové vytvářet a spouštět."
+  },
+  "tlm_17": {
+   "source": "a wildcard waits",
+   "text": "wildcard čeká"
+  },
+  "tlm_18": {
+   "source": "A wildcard waits",
+   "text": "Wildcard čeká"
+  },
+  "tlm_19": {
+   "source": "any validation",
+   "text": "jakákoli validace"
+  },
+  "tlm_22": {
+   "source": "add a source…",
+   "text": "přidat zdroj…"
+  },
+  "tlm_23": {
+   "source": "no validation in the catalog",
+   "text": "v katalogu není žádná validace"
+  },
+  "tlm_24": {
+   "source": "no source in the catalog",
+   "text": "v katalogu není žádný zdroj"
+  },
+  "tlm_25": {
+   "source": "manage tests",
+   "text": "spravovat testy"
+  },
+  "tlm_26": {
+   "source": "never a wildcard name",
+   "text": "nikdy wildcard jméno"
+  },
+  "tlm_28": {
+   "source": "What the team’s servers really serve - each test connects to a server and reads its certificate.",
+   "text": "Co servery týmu skutečně servírují – každý test se připojí k serveru a přečte jeho certifikát."
+  },
+  "tlm_29": {
+   "source": "Search tests",
+   "text": "Hledat testy"
+  },
+  "tlm_31": {
+   "source": "A test connects to a server (HTTPS, SMTP, LDAPS…) and says which certificate it serves.",
+   "text": "Test se připojí k serveru (HTTPS, SMTP, LDAPS…) a řekne, jaký certifikát servíruje."
+  },
+  "tlm_32": {
+   "source": "No test here matches what you are looking for.",
+   "text": "Žádný test tu neodpovídá tomu, co hledáte."
+  },
+  "tlm_34": {
+   "source": "Run it",
+   "text": "Spustit"
+  },
+  "tlm_35": {
+   "source": "no team of yours lets you add tests",
+   "text": "žádný z vašich týmů vám nedovoluje přidávat testy"
+  },
+  "tlm_36": {
+   "source": "The test belongs to it: its members see it and run it.",
+   "text": "Test patří jemu: jeho členové ho vidí a spouštějí."
+  },
+  "tlm_37": {
+   "source": "The test modules the team may use",
+   "text": "Moduly testů, které tým smí používat"
+  },
+  "tlm_38": {
+   "source": "What does it test? Pick its module - then fill in what that module needs.",
+   "text": "Co testuje? Vyberte jeho modul – pak vyplňte, co ten modul potřebuje."
+  },
+  "tlm_39": {
+   "source": "The team’s limits allow no test module - ask its manager.",
+   "text": "Limity týmu nedovolují žádný modul testů – požádejte jeho správce."
+  },
+  "tlm_41": {
+   "source": "Off: it is not run.",
+   "text": "Vypnuto: nespouští se."
+  },
+  "tlm_42": {
+   "source": "what it tests",
+   "text": "co testuje"
+  },
+  "tlm_43": {
+   "source": "The team’s certificates have no wildcard names.",
+   "text": "Certifikáty týmu nemají wildcard jména."
+  },
+  "tlm_44": {
+   "source": "The team’s limits allow none of the sources here.",
+   "text": "Limity týmu nedovolují žádný ze zdrojů, které tu jsou."
+  },
+  "rqx_15": {
+   "source": "A name is the domain itself or under it. Enter, a comma or a space adds the one typed.",
+   "text": "Jméno je doména sama nebo jméno pod ní. Napsanou doménu přidá Enter, čárka nebo mezera."
   }
  },
  "patterns": {
@@ -99253,6 +99549,62 @@
   "pz_555": {
    "source": "a file sent to be put back and left, taken away: {0}",
    "text": "soubor nahraný k obnovení a ponechaný byl odstraněn: {0}"
+  },
+  "pdpk_1": {
+   "source": "{0} of these in the box",
+   "text": "{0} z nich {0:je|jsou|je} v poli"
+  },
+  "pdpk_2": {
+   "source": "too many groups picked at once (at most {0})",
+   "text": "najednou je vybráno příliš mnoho skupin (nejvýše {0})"
+  },
+  "ptlm_1": {
+   "source": "its certificates have no wildcard names - not {0}",
+   "text": "jeho certifikáty nemají wildcard jména – ne {0}"
+  },
+  "ptlm_2": {
+   "source": "a certificate from {0} is proved by {1} only - not {2}",
+   "text": "certifikát od {0} se prokazuje jen přes {1} – ne přes {2}"
+  },
+  "ptlm_3": {
+   "source": "its tests are of the modules {0} - not {1}",
+   "text": "jeho testy jsou z modulů {0} – ne {1}"
+  },
+  "ptlm_4": {
+   "source": "the test goes through {0}, which is not a connector of the team {1}",
+   "text": "test vede přes {0}, což není konektor týmu {1}"
+  },
+  "ptlm_5": {
+   "source": "the test {0} is not one of the team {1}",
+   "text": "test {0} nepatří týmu {1}"
+  },
+  "ptlm_6": {
+   "source": "{0} not allowed above it",
+   "text": "{0} – nad ním není dovoleno"
+  },
+  "ptlm_7": {
+   "source": "only from the sources {0}",
+   "text": "jen ze zdrojů {0}"
+  },
+  "ptlm_8": {
+   "source": "look at the test {0}",
+   "text": "prohlížet test {0}"
+  },
+  "ptlm_9": {
+   "source": "change the test {0}",
+   "text": "měnit test {0}"
+  },
+  "ptlm_10": {
+   "source": "delete the test {0}",
+   "text": "smazat test {0}"
+  },
+  "ptlm_11": {
+   "source": "run the test {0}",
+   "text": "spustit test {0}"
+  },
+  "ptlm_12": {
+   "source": "the test {0} of the team {1} saved on the portal by {2}",
+   "text": "test {0} týmu {1} uložil na portálu {2}"
   }
  },
  "rich": {

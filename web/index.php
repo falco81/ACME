@@ -218,7 +218,10 @@ if (isset($_GET['api'])) {
                     'deploy-save' => 'deploy_save', 'deploy-delete' => 'deploy_delete',
                     'deploy-run' => 'deploy_run', 'deploy-dry-run' => 'deploy_dry_run',
                     'member-save' => 'member_save', 'member-delete' => 'member_delete',
-                    'team-save' => 'team_save', 'team-delete' => 'team_delete'];
+                    'team-save' => 'team_save', 'team-delete' => 'team_delete',
+                    /* the team's tests (1.0.128) */
+                    'test-save' => 'test_save', 'test-delete' => 'test_delete',
+                    'test-run' => 'test_run'];
     /* GET: the arguments each takes, nothing else passed on (each 200 characters at most). */
     $team_reads = ['teams' => [], 'inbox' => [], 'timeline' => ['id'],
                    'devices' => ['team', 'below', 'q'], 'device' => ['id'], 'kinds' => ['team'],
@@ -226,7 +229,9 @@ if (isset($_GET['api'])) {
                    'agent-builder' => ['id'], 'agent-discover' => ['id', 'cached', 'kind'],
                    'deploys' => ['team', 'below'],
                    'members' => ['team'], 'dir-search' => ['q', 'kind'],
-                   'activity' => ['team', 'page', 'per', 'below']];
+                   'activity' => ['team', 'page', 'per', 'below'],
+                   'tests' => ['team', 'below', 'q'], 'test' => ['id'], 'test-kinds' => ['team'],
+                   'policy-catalog' => ['team']];
     if ($post && isset($team_writes[$what])) {
         if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 256 * 1024) {
             http_response_code(413);

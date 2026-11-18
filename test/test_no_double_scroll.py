@@ -44,10 +44,11 @@ ALLOW = [
     '.tmx-tree-s',
     # popovers and dropdowns: above the page, gone on a click elsewhere
     '.ctl-found', '.t-suggest', '.cols-menu', '.acct-panel', '.tm-cpick-panel', '.pw-switch-p',
-    '.ck-pickmenu',
+    '.dpk-pop', '.hl-panel',
     # fixed-height viewers of a log or of code: a window onto text, not content of the page
     '.joblines', 'pre.lines', '.ct-log', '.fw-pre', '.tx-pre', '.mon-pre', '.clk-pre',
-    '.cv-pem-t', '.cv-raw', '.pb-pre', '.ag-tok', 'textarea',
+    '.cv-pem-t', '.cv-raw', '.pb-pre', '.ag-code pre', '.rp-pkt-tree', '.rb-keybox pre', '.ag-design-diff',
+    'textarea',
 ]
 
 

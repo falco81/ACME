@@ -341,7 +341,8 @@ def from_groups(h, b, by, may_make=True, seen=None):
         raise E.ApiError(400, 'the groups picked are a list of their DNs or names')
     picked = [str(x).strip()[:500] for x in picked if str(x or '').strip()]
     if len(picked) > FROM_GROUPS_PICKED_MOST:
-        raise E.ApiError(400, 'at most %d groups may be picked at once' % FROM_GROUPS_PICKED_MOST)
+        raise E.ApiError(400, 'too many groups picked at once (at most %d)'
+                         % FROM_GROUPS_PICKED_MOST)
     typed = str(b.get('filter') or '').strip()
     pattern = TP.group_pattern(typed) if typed or not picked else ''
     role = str(b.get('role') or 'Viewer').strip()
@@ -481,7 +482,9 @@ def add_args(p):
                    'certificates say now')
     # 1.0.125: enterprise teams - the tree, limits, roles, the access check
     g.add_argument('--policy', metavar='JSON', help='with --team-add/-edit: its limits, '
-                   '\'{"profiles": ["Web"], "max_days": 90, "approval": "always"}\' (\'{}\' none)')
+                   '\'{"profiles": ["Web"], "max_days": 90, "approval": "always"}\' (\'{}\' none); '
+                   'also "wildcards": false, "pairs": {"SOURCE": ["VALIDATION"]}, "test_kinds": '
+                   '["https"] (docs/teams.md "Limits")')
     g.add_argument('--description', metavar='TEXT', help='with --team-add/-edit, --role-add')
     g.add_argument('--roles', action='store_true', help='the roles: built in and your own, with '
                    'their capabilities')

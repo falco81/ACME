@@ -106,7 +106,8 @@ RIGHT_CAPS['manage'] = RIGHT_CAPS['request'] | {'cert.renew', 'cert.auto', 'cert
 LEGACY_MANAGE = 'legacy.manage'
 RIGHT_CAPS['manage'] = RIGHT_CAPS['manage'] | {LEGACY_MANAGE}
 RIGHT_CAPS['approve'] = RIGHT_CAPS['view'] | {'cert.approve'}
-# test.view (1.0.128): a viewer sees the team's tests too - the old right `view` stays as it was
+# test.view (1.0.128): every role built on the Viewer sees the team's tests too (a Team manager
+# gives the Viewer role); the old right `view` stays exactly as it was (VIEW_CAPS)
 _R_VIEWER = VIEW_CAPS | {'test.view'}
 _R_REQUESTER = _R_VIEWER | {'cert.request'}
 _R_RENEWER = _R_VIEWER | {'cert.renew', 'cert.auto'}
@@ -584,15 +585,18 @@ def session_caps(store, s):
 # ---------------------------------------------------------------------------
 # Policy: a team's limits (1.0.125)
 # ---------------------------------------------------------------------------
-POLICY_LISTS = ('profiles', 'issuers', 'validations', 'target_kinds', 'suffixes')
+POLICY_LISTS = ('profiles', 'issuers', 'validations', 'target_kinds', 'suffixes', 'test_kinds')
+# wildcards (1.0.128): false - no name of its certificates starts with "*."
 POLICY_BOOLS = {'free_form': True, 'key_download': True, 'agents': True,
-                'agents_auto_confirm': False}
+                'agents_auto_confirm': False, 'wildcards': True}
 POLICY_INTS = ('max_certs', 'max_days')
 APPROVAL_MODES = ('none', 'outside', 'profile', 'always')        # weakest first
 APPROVERS = ('team', 'parent', 'team_or_parent', 'both')
 APPROVE_ACTIONS = ('revoke', 'delete', 'key', 'device')
 POLICY_KEYS = POLICY_LISTS + tuple(POLICY_BOOLS) + POLICY_INTS + ('approval',
-                                                                  'approve_actions')
+                                                                  'approve_actions', 'pairs')
+OUTSIDE_KEYS = ('profiles', 'suffixes', 'max_days', 'key_types', 'wildcards')
+PAIRS_MOST = 200
 
 
 def policy_of(t):
@@ -654,8 +658,8 @@ def clean_approval(v):
     if v.get('outside') not in (None, '', {}):
         o = v['outside']
         if not isinstance(o, dict):
-            raise ValueError('approval.outside is {profiles, suffixes, max_days, key_types}')
-        bad = set(o) - {'profiles', 'suffixes', 'max_days', 'key_types'}
+            raise ValueError('approval.outside is {%s}' % ', '.join(OUTSIDE_KEYS))
+        bad = set(o) - set(OUTSIDE_KEYS)
         if bad:
             raise ValueError('approval.outside knows no %s' % ', '.join(sorted(bad)))
         oo = {}
@@ -664,8 +668,91 @@ def clean_approval(v):
                 oo[k] = _words_list(o[k], 'approval.outside.' + k, low=k != 'profiles')
         if o.get('max_days') not in (None, ''):
             oo['max_days'] = _pos_int(o['max_days'], 'approval.outside.max_days')
+        if o.get('wildcards') not in (None, ''):
+            oo['wildcards'] = _bool(o['wildcards'], 'approval.outside.wildcards')
         out['outside'] = oo
     return out
+
+
+def _bool(v, what):
+    if not isinstance(v, bool) and str(v).lower() not in ('0', '1', 'true', 'false'):
+        raise ValueError('%s is true or false' % what)
+    return v if isinstance(v, bool) else str(v).lower() in ('1', 'true')
+
+
+def clean_pairs(v):
+    """pairs (1.0.128): {source: [validations]} - the validations a certificate from that
+    source may use. None: no limit; {} : no source is paired (only `issuers` may still allow
+    one, docs/teams.md "Sources with their validations")."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        try:
+            v = json.loads(v) if v.strip() else {}
+        except ValueError:
+            raise ValueError('pairs is {"source": ["validation", ...]}')
+    if not isinstance(v, dict):
+        raise ValueError('pairs is {"source": ["validation", ...]} (or null: no limit)')
+    out = {}
+    for k, vals in v.items():
+        k = str(k).strip()
+        if not k or len(k) > 190 or any(ord(c) < 32 for c in k):
+            raise ValueError('pairs: %r is not the name of a source' % k[:60])
+        if _low(k) in {_low(x) for x in out}:
+            raise ValueError('pairs: the source %s is there twice' % k)
+        got = _words_list(vals if vals is not None else [], 'pairs.' + k, low=False)
+        out[k] = got
+    if len(out) > PAIRS_MOST:
+        raise ValueError('pairs: %d sources at most' % PAIRS_MOST)
+    return out
+
+
+def level_pairs(p):
+    """The pairs one team's own policy allows ({source lower: (name, [validations] | None)}),
+    or None when it says no `pairs`. A source it does not pair but lists in its own `issuers`
+    is allowed with any validation (None)."""
+    if not isinstance(p, dict) or p.get('pairs') is None:
+        return None
+    out = {}
+    for k, vals in p['pairs'].items():
+        out[_low(k)] = (k, list(vals or []))
+    for k in p.get('issuers') or []:
+        if _low(k) not in out:
+            out[_low(k)] = (k, None)
+    return out
+
+
+def _meet_pairs(a, b):
+    """Two levels' pairs in force at once: the sources both allow, each with the validations
+    both allow (None - any)."""
+    if a is None or b is None:
+        return b if a is None else a
+    out = {}
+    for k, (name, va) in a.items():
+        if k not in b:
+            continue
+        vb = b[k][1]
+        if va is None or vb is None:
+            v = vb if va is None else va
+        else:
+            mine = {_low(x) for x in vb}
+            v = [x for x in va if _low(x) in mine]
+        out[k] = (name, None if v is None else list(v))
+    return out
+
+
+def pair_allowed(eff, issuer, validation):
+    """Whether a certificate from `issuer` may use `validation` under an effective policy's
+    pairs (True where it says no pairs; a validation '' or None - the source alone)."""
+    pairs = (eff or {}).get('pairs')
+    if pairs is None or not issuer:
+        return True
+    hit = [v for k, v in pairs.items() if _low(k) == _low(issuer)]
+    if not hit:
+        return False
+    if not validation or hit[0] is None:
+        return True
+    return _low(validation) in {_low(x) for x in hit[0]}
 
 
 def _pos_int(v, what):
@@ -714,6 +801,8 @@ def clean_policy(v):
         a = clean_approval(v['approval'])
         if a:
             out['approval'] = a
+    if v.get('pairs') is not None:
+        out['pairs'] = clean_pairs(v['pairs'])
     if v.get('approve_actions') is not None:
         acts = _words_list(v['approve_actions'], 'approve_actions')
         bad = [a for a in acts if a not in APPROVE_ACTIONS]
@@ -777,6 +866,9 @@ def _meet_envelopes(a, b):
     ds = [x.get('max_days') for x in (a, b) if x.get('max_days') is not None]
     if ds:
         out['max_days'] = min(int(d) for d in ds)
+    ws = [x.get('wildcards') for x in (a, b) if x.get('wildcards') is not None]
+    if ws:
+        out['wildcards'] = all(bool(w) for w in ws)
     return out
 
 
@@ -785,7 +877,12 @@ def merge_policies(chain):
     intersection - a team below only narrows what those above allow. `from` says which team's
     limit each key is (the inner-most that narrowed it)."""
     eff, src = {}, {}
+    pairs = None
     for team, p in chain:
+        lv = level_pairs(p)
+        if lv is not None:
+            pairs = _meet_pairs(pairs, lv)
+            src['pairs'] = team
         for k in POLICY_LISTS:
             if p.get(k) is None:
                 continue
@@ -840,6 +937,8 @@ def merge_policies(chain):
             eff['approve_actions'] = sorted(set(eff.get('approve_actions') or [])
                                             | set(p['approve_actions']))
             src['approve_actions'] = team
+    if pairs is not None:
+        eff['pairs'] = {name: v for name, v in pairs.values()}
     if eff:
         eff['from'] = src
     return eff
@@ -872,6 +971,18 @@ def policy_rename(store, key, old, new):
         p[key], hit = swap(p.get(key))
         if p[key] is None:
             p.pop(key)
+        pr = p.get('pairs')
+        if isinstance(pr, dict) and key in ('issuers', 'validations'):
+            # the source or validation paired follows (1.0.128)
+            np = {}
+            for k, vals in pr.items():
+                if key == 'issuers' and _low(k) == _low(old):
+                    k, hit = new, True
+                if key == 'validations':
+                    vals, hit3 = swap(vals)
+                    hit = hit or hit3
+                np[k] = vals
+            p['pairs'] = np
         a = p.get('approval')
         if key == 'profiles' and isinstance(a, dict) and isinstance(a.get('outside'), dict):
             a['outside']['profiles'], hit2 = swap(a['outside'].get('profiles'))
@@ -1530,6 +1641,9 @@ def _follow_rename(store, old_name, name):
                  (name, _low(old_name)))
     store.db.run('UPDATE cert_targets SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                  (name, _low(old_name)))
+    # and the tests it owns (1.0.128)
+    store.db.run('UPDATE cert_tests SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
+                 (name, _low(old_name)))
     _enroll_follow(store, old_name, name)
     from acmelib.certs import teampolicy as TP
     TP.actions_follow(store, old_name, name)
@@ -1673,6 +1787,8 @@ def delete_team(store, name, by, reassign=None, reparent=None):
         store.db.run('UPDATE certs SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                      (moved, _low(t['name'])))
     store.db.run('UPDATE cert_targets SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
+                 (moved or None, _low(t['name'])))
+    store.db.run('UPDATE cert_tests SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                  (moved or None, _low(t['name'])))
     if kids:
         store.db.run('UPDATE cert_teams SET parent = ?, updated = ? WHERE LOWER(TRIM(parent)) = ?',

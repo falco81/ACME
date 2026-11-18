@@ -610,8 +610,9 @@ def plugin_public(store, family, row, full=False):
                                    'created_by', 'updated', 'last_ok', 'last_error')}
     out['config'] = cfg
     out['secret_set'] = is_set
-    if family == 'target':
-        out['owner'] = row.get('owner') or ''      # the team whose device it is (1.0.125)
+    if family in ('target', 'check'):
+        # the team whose device (1.0.125) or test (1.0.128) it is
+        out['owner'] = row.get('owner') or ''
     out['state'] = jload(row.get('state'), {})
     if 'tags' in row:
         out['tags'] = jload(row.get('tags'), [])

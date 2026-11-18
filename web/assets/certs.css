@@ -731,7 +731,7 @@ textarea.df-code-t:focus{border:0}
 .ct-oi-all{margin:0;align-items:center;white-space:nowrap}
 .ct-oi-n{margin-left:2px}
 .ct-oi-host{margin-bottom:16px}
-.ct-oi-list{border:1px solid var(--line);border-radius:12px;background:var(--panel2);max-height:min(52vh,560px);overflow:auto}
+.ct-oi-list{border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .ct-oi-row{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
 .ct-oi-row:last-child{border-bottom:0}
 .ct-oi-row:hover{background:rgba(88,166,255,.06)}
@@ -753,7 +753,6 @@ textarea.df-code-t:focus{border:0}
 @media (max-width:640px){
   .ct-oi-row{padding:10px 11px;gap:10px}
   .ct-oi-top > .btn{width:100%;margin-top:0}
-  .ct-oi-list{max-height:none}
 }
 
 /* A certificate whose private key acme does not hold. */
@@ -970,7 +969,7 @@ body.app-shell #pane-modules #md-list .scroll.lt-held{max-height:none;flex:1 1 a
 .md-vrow:last-child{margin-bottom:0}
 /* A list chosen from what there is (a connector's tests): a table, "Add" under it. */
 .ck-chosen .btnrow{margin-top:8px}
-.ck-pickmenu{margin-top:6px;display:flex;flex-direction:column;max-width:420px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel2,var(--panel));padding:4px}
+.ck-pickmenu{margin-top:6px;display:flex;flex-direction:column;max-width:420px;border:1px solid var(--line);border-radius:8px;background:var(--panel2,var(--panel));padding:4px}
 .ck-pickmenu[hidden]{display:none}
 .ck-pickmenu-o{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;font-size:13px}
 .ck-pickmenu-o:hover,.ck-pickmenu-o:focus-visible{background:var(--hover,rgba(127,127,127,.12))}
@@ -1115,7 +1114,9 @@ td.acc-role{white-space:nowrap}
 .df-tpl-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 10px}
 .df-tpl{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:16px;min-height:420px}
 .df-tpl-l{display:flex;flex-direction:column;gap:8px;min-width:0}
-.df-tpl-list{display:flex;flex-direction:column;gap:3px;max-height:460px;overflow:auto;padding-right:4px}
+.df-tpl-list{display:flex;flex-direction:column;gap:3px;padding-right:4px}
+/* the list flows with the window (1.0.128); what was chosen stays in sight beside it */
+.df-tpl-r{position:sticky;top:0;align-self:start}
 .df-tpl-g{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:10px 4px 4px}
 .df-tpl-g:first-child{margin-top:2px}
 .df-tpl-app{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;cursor:pointer;border:1px solid transparent}
@@ -1140,7 +1141,7 @@ td.acc-role{white-space:nowrap}
 .df-tpl-cmd pre{margin:0;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font-size:12px;white-space:pre-wrap;word-break:break-all}
 @media (max-width:760px){
   .df-tpl{grid-template-columns:1fr}
-  .df-tpl-list{max-height:220px}
+  .df-tpl-r{position:static}
   .df-tpl-how{grid-template-columns:1fr}
 }
 /* Run the tests (1.0.73): the tests that will run, then only run or run and report */
@@ -1149,7 +1150,7 @@ td.acc-role{white-space:nowrap}
 .rt-big b{font-size:26px;font-weight:700}
 .rt-sum{display:flex;gap:6px;flex-wrap:wrap}
 .rt-n{margin-left:6px}
-.rt-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;max-height:230px;overflow:auto;margin-bottom:14px}
+.rt-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;margin-bottom:14px}
 .rt-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 11px;border-bottom:1px solid var(--line)}
 .rt-row:last-child{border-bottom:0}
 .rt-w{display:flex;flex-direction:column;min-width:0}
@@ -1305,7 +1306,7 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .ct-holdbox-b{display:flex;gap:8px;flex-wrap:wrap}
 /* A deployment's target, picked from the list (1.0.90): the chosen one in the field */
 .dp-pick{margin:4px 0 8px}
-.dp-pick .ck-attach{max-height:min(52vh,560px);overflow:auto;padding-right:2px}
+.dp-pick .ck-attach{padding-right:2px}
 .dp-chosen{display:flex;align-items:center;gap:10px;min-height:38px;padding:4px 0;flex-wrap:wrap}
 .dp-chosen .ct-kind-ic{width:30px;height:30px;font-size:11px;border-radius:8px;flex:none}
 .dp-chosen .ck-attach-w{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}

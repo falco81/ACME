@@ -1489,11 +1489,14 @@
     {k: 'free_form', g: 'req', type: 'bool', label: 'Ask without a profile', says: 'The portal\'s free form - names and source chosen by the person.'},
     {k: 'issuers', g: 'req', type: 'list', cat: 'issuers', label: 'Sources', says: 'Where its certificates may come from.'},
     {k: 'validations', g: 'req', type: 'list', cat: 'validations', label: 'Validations', says: 'How the names of its certificates may be proved.'},
+    {k: 'pairs', g: 'req', type: 'pairs', label: 'Sources with their validations', says: 'A certificate from a source here is proved only by the validations picked for it. A source not here only where Sources lists it.'},
     {k: 'suffixes', g: 'req', type: 'list', cat: 'free', label: 'Domains', says: 'Every name of its certificates must be under one of these.'},
+    {k: 'wildcards', g: 'req', type: 'bool', label: 'Wildcard names', says: 'Names like *.example.com in its certificates.'},
     {k: 'max_days', g: 'req', type: 'int', label: 'Longest validity', unit: 'days', says: 'The most days a certificate of the team may be valid.'},
     {k: 'max_certs', g: 'req', type: 'int', label: 'Most certificates', unit: 'certificates', says: 'How many certificates the team - with the teams below it - may own.'},
     {k: 'key_download', g: 'dev', type: 'bool', label: 'Download the private key', says: 'Files with the private key (PFX, PEM with the key) may be downloaded.'},
     {k: 'target_kinds', g: 'dev', type: 'list', cat: 'kinds', label: 'Target modules', says: 'Which kinds of devices its members may create and use.'},
+    {k: 'test_kinds', g: 'dev', type: 'list', cat: 'test_kinds', label: 'Test modules', says: 'Which kinds of tests its members may create and run.'},
     {k: 'agents', g: 'dev', type: 'bool', label: 'Target agents', says: 'Servers with acme-agent may be the team\'s devices.'},
     {k: 'agents_auto_confirm', g: 'dev', type: 'bool', label: 'Agents confirmed by themselves', says: 'Agents enrolling with the team\'s code become its devices without waiting for a confirmation.'},
     {k: 'approval', g: 'appr', type: 'approval', label: 'Approval of requests', says: 'Whether what its members ask for waits, and who approves it.'},
@@ -1517,10 +1520,11 @@
     return Promise.all([rows('reqprofiles', 'profiles'), rows('sources'), rows('validations'),
                         api('plugins').catch(function () { return {}; })]).then(function (x) {
       var kinds = ((x[3] && (x[3].target || x[3].targets)) || []).map(function (p) { return [p.kind, p.title || p.kind]; });
+      var tkinds = ((x[3] && (x[3].check || x[3].checks)) || []).map(function (p) { return [p.kind, p.title || p.kind]; });
       UI.cats = {profiles: x[0].map(function (r) { return [r.name, r.name]; }),
                  issuers: x[1].map(function (r) { return [r.name, r.name + (r.kind ? ' · ' + r.kind : '')]; }),
                  validations: x[2].map(function (r) { return [r.name, r.name + (r.kind ? ' · ' + r.kind : '')]; }),
-                 kinds: kinds, actions: ((TM.d || {}).approve_actions || Object.keys(ACTION_WORDS)).map(function (a) { return [a, ACTION_WORDS[a] || a]; }),
+                 kinds: kinds, test_kinds: tkinds, actions: ((TM.d || {}).approve_actions || Object.keys(ACTION_WORDS)).map(function (a) { return [a, ACTION_WORDS[a] || a]; }),
                  key_types: KEY_TYPES.map(function (k) { return [k, k]; })};
       return UI.cats;
     });
@@ -1540,15 +1544,88 @@
       if (!v.length) box.appendChild(chip('none at all', 'crit', 'ban'));
       v.forEach(function (x) {
         if (p.cat === 'actions') box.appendChild(chip(ACTION_WORDS[x] || x, 'info'));
-        else box.appendChild(dataChip(p.cat === 'kinds' ? catWord('kinds', x) : x, 'info'));
+        else box.appendChild(dataChip(p.cat === 'kinds' || p.cat === 'test_kinds' ? catWord(p.cat, x) : x, 'info'));
       });
+    } else if (p.type === 'pairs') {
+      var ks = Object.keys(v || {});
+      if (!ks.length) box.appendChild(chip('none at all', 'crit', 'ban'));
+      ks.forEach(function (k) { box.appendChild(pairChip(k, v[k])); });
     } else if (p.type === 'approval') {
       var a = typeof v === 'string' ? {mode: v} : (v || {});
       box.appendChild(chip(MODE_WORDS[a.mode] || a.mode, a.mode === 'none' ? 'ok' : a.mode === 'always' ? 'warn' : 'info', 'check'));
       if (a.approvers) box.appendChild(chip(APPROVER_WORDS[a.approvers] || a.approvers, 'dim', 'people'));
       if (Number(a.count) === 2) box.appendChild(chip('four eyes', 'violet', 'eye'));
       if (a.self) box.appendChild(chip('may approve their own', 'dim'));
+      if (a.outside && a.outside.wildcards === false) box.appendChild(chip('a wildcard waits', 'warn'));
     }
+    return box;
+  }
+  /* one source with its validations: "acme-le → dns-web, http-web" (null: any validation) */
+  function pairChip(src, vals) {
+    var c = el('span', 'chip info tmx-pair');
+    c.appendChild(data('b', '', src));
+    c.appendChild(document.createTextNode(' → '));
+    if (vals === null || vals === undefined) c.appendChild(el('span', '', 'any validation'));
+    else if (!vals.length) c.appendChild(el('span', '', 'no validation'));
+    else c.appendChild(data('span', '', vals.join(', ')));
+    return c;
+  }
+  /* pairs: no limit, or these sources each with the validations picked for it (catalogs) */
+  function pairsEditor(value, changedTo, noLimit) {
+    var box = el('div', 'tmx-list tmx-pairs');
+    box.id = 'tmx-pairs';
+    var map = value && typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : null;
+    var s = segmented([['', noLimit || 'No limit'], ['on', 'Only these']], map ? 'on' : '');
+    s.classList.add('small');
+    box.appendChild(s);
+    var list = el('div', 'tmx-pairl');
+    box.appendChild(list);
+    var srcs = (UI.cats && UI.cats.issuers) || [], vals = (UI.cats && UI.cats.validations) || [];
+    var put = function () { changedTo(map ? JSON.parse(JSON.stringify(map)) : null); };
+    var paint = function () {
+      clear(list);
+      list.hidden = !map;
+      if (!map) return;
+      Object.keys(map).forEach(function (src) {
+        var row = el('div', 'tmx-pairr');
+        var h = el('div', 'tmx-pairh');
+        var sc = dataChip(catWord('issuers', src), 'info', 'cert');
+        if (!srcs.some(function (x) { return x[0] === src; })) sc.classList.add('gone');
+        h.appendChild(sc);
+        h.appendChild(el('span', 'muted small', 'proved by'));
+        var x = el('button', 'tmx-chip-x');
+        x.type = 'button';
+        x.innerHTML = iconMarkup('close', 11);
+        x.setAttribute('aria-label', tr('Take it off'));
+        x.onclick = function () { delete map[src]; paint(); put(); };
+        h.appendChild(x);
+        row.appendChild(h);
+        row.appendChild(listEditor({k: 'pairs', cat: 'validations'}, map[src] || [], function (v) {
+          map[src] = v || [];
+          put();
+        }, {always: true}));
+        list.appendChild(row);
+      });
+      var left = srcs.filter(function (x) { return map[x[0]] === undefined; });
+      if (left.length) {
+        var sel = el('select', 'tmx-addsel');
+        sel.id = 'tmx-pairs-add';
+        var o0 = el('option', '', 'add a source…');
+        o0.value = '';
+        sel.appendChild(o0);
+        left.forEach(function (x) { var o = data('option', '', x[1]); o.value = x[0]; sel.appendChild(o); });
+        sel.onchange = function () { if (sel.value) { map[sel.value] = []; paint(); put(); } };
+        list.appendChild(sel);
+      } else if (!srcs.length) list.appendChild(el('span', 'muted small', 'nothing in the catalog'));
+      if (!Object.keys(map).length) list.insertBefore(chip('none at all', 'crit', 'ban'), list.firstChild);
+      if (!vals.length) list.appendChild(el('span', 'muted small', 'no validation in the catalog'));
+    };
+    s.addEventListener('change', function () {
+      map = s.value === 'on' ? (map || {}) : null;
+      paint();
+      put();
+    });
+    paint();
     return box;
   }
   function fromBadge(from, here) {
@@ -1719,6 +1796,11 @@
       }, {anyWords: noLimit}));
     } else if (p.type === 'approval') {
       c.appendChild(approvalEditor(own, touched, noLimit));
+    } else if (p.type === 'pairs') {
+      c.appendChild(pairsEditor(own[p.k], function (v) {
+        if (v === null) delete own[p.k]; else own[p.k] = v;
+        touched();
+      }, noLimit));
     }
     return row;
   }
@@ -1729,6 +1811,7 @@
     var list = Array.isArray(value) ? value.slice() : null;
     var s = segmented([['', opts.anyWords || 'No limit'], ['on', opts.onWords || 'Only these']], list ? 'on' : '');
     s.classList.add('small');
+    if (opts.always) { list = list || []; s.value = 'on'; s.hidden = true; }    /* a list always (a pair's validations) */
     box.appendChild(s);
     var chips = el('div', 'tmx-lchips');
     box.appendChild(chips);
@@ -1839,6 +1922,11 @@
         md.placeholder = tr('any');
         md.oninput = function () { if (md.value) a.outside.max_days = Number(md.value); else delete a.outside.max_days; put(); };
         env.appendChild(formField('Longest validity (days)', md));
+        var wc = segmented([['', 'Any'], ['no', 'A wildcard waits', 'ban']], a.outside.wildcards === false ? 'no' : '');
+        wc.classList.add('small');
+        wc.id = 'tmx-env-wild';
+        wc.addEventListener('change', function () { if (wc.value === 'no') a.outside.wildcards = false; else delete a.outside.wildcards; put(); });
+        env.appendChild(formField('Wildcard names', wc));
         more.appendChild(env);
       }
     };
@@ -2374,7 +2462,44 @@
     t.appendChild(tb);
     scroller.appendChild(t);
     wrap.appendChild(scroller);
+    matrixHead(scroller, t, thead);
     return wrap;
+  }
+  /* The matrix has no height of its own (1.0.128): it flows with the pane - one scrollbar, the
+     pane's - and its headings stick to the top of the pane (position:sticky, teams.css). Wider
+     than the pane, its box scrolls sideways (.wide); a box that scrolls sideways is where
+     sticky stops, so then the headings are moved down here as the pane scrolls. */
+  function matrixHead(box, t, thead) {
+    var q = 0;
+    var pane = function () {
+      for (var n = box.parentElement; n && n !== document.body; n = n.parentElement) {
+        if (/auto|scroll/.test(getComputedStyle(n).overflowY) && n.scrollHeight > n.clientHeight + 1) return n;
+      }
+      return null;
+    };
+    var fit = function () {
+      q = 0;
+      if (!box.isConnected) { stop(); return; }
+      var wide = t.offsetWidth > box.clientWidth + 1;
+      box.classList.toggle('wide', wide);
+      var dy = 0;
+      if (wide) {
+        var p = pane(), r = t.getBoundingClientRect();
+        dy = Math.max(0, Math.min((p ? p.getBoundingClientRect().top : 0) - r.top, r.height - thead.offsetHeight));
+      }
+      thead.style.transform = dy ? 'translateY(' + Math.round(dy) + 'px)' : '';
+    };
+    var tick = function () { if (!q) q = requestAnimationFrame(fit); };
+    var ro = window.ResizeObserver ? new ResizeObserver(tick) : null;
+    var stop = function () {
+      document.removeEventListener('scroll', tick, true);
+      window.removeEventListener('resize', tick);
+      if (ro) ro.disconnect();
+    };
+    document.addEventListener('scroll', tick, true);
+    window.addEventListener('resize', tick);
+    if (ro) ro.observe(box);
+    setTimeout(tick, 0);
   }
   var CAP_SAVE = {};
   function toggleCap(r, cap, mk) {
@@ -2482,6 +2607,11 @@
     go.id = 'tmx-ac-go';
     row.appendChild(go);
     card.appendChild(row);
+    /* a person picked from the directory by the button beside the box (1.0.128) */
+    if (typeof dirPickButton === 'function') {
+      dirPickButton(q, {kinds: ['user'], format: 'login', quiet: true, id: 'tmx-ac-pick', after: f,
+                  picked: function () { setTimeout(function () { check(); }, 0); }});
+    }
     var sugg = el('div', 'tmx-dir-list tmx-ac-sugg');
     card.appendChild(sugg);
     wrap.appendChild(card);
@@ -2638,7 +2768,7 @@
   /* ---- teams from directory groups: a wizard with a preview --------------------------- */
   function fromGroups() {
     var st = {filter: 'CN=PKI-*', role: 'Requester', parent: UI.team || '', kind: 'team', preview: null};
-    var f = {};
+    var f = {picked: []};
     modal('Teams from directory groups', function (body) {
       body.classList.add('tmx-dlg', 'tmx-wiz');
       var steps = el('div', 'tmx-steps');
@@ -2655,7 +2785,55 @@
       f.filter = textBox(st.filter, 'CN=PKI-*', 'mono');
       f.filter.id = 'tmx-fg-filter';
       noI18n(f.filter);
-      g.appendChild(formField('Groups', f.filter, 'A name with * where anything may stand: CN=PKI-*, *-certs.'));
+      var gItem = formField('Groups', f.filter, 'A name with * where anything may stand: CN=PKI-*, *-certs.');
+      g.appendChild(gItem);
+      /* ...and groups picked from the directory beside the filter (1.0.128): each a team as well;
+         with the filter left empty, only those */
+      var pickedBox = el('div', 'tmx-fg-picked');
+      pickedBox.id = 'tmx-fg-picked';
+      var paintPicked = function () {
+        clear(pickedBox);
+        if (!f.picked.length) {
+          pickedBox.appendChild(el('span', 'muted small', 'Or pick groups from the directory with the search button beside the filter.'));
+          return;
+        }
+        pickedBox.appendChild(el('span', 'muted small', 'Picked from the directory - besides what the filter finds (leave it empty for these alone):'));
+        var chips = el('div', 'tmx-fg-chips');
+        f.picked.forEach(function (p) {
+          var c = el('span', 'chip tmx-fg-chip');
+          c.dataset.dn = p.dn;
+          var w = data('span', 'mono', p.cn);
+          explain(w, p.dn);
+          c.appendChild(w);
+          var x = iconButton('close', 'Take it out');
+          x.onclick = function () {
+            f.picked = f.picked.filter(function (y) { return y !== p; });
+            fromGroups._ok = false;
+            paintPicked();
+          };
+          c.appendChild(x);
+          chips.appendChild(c);
+        });
+        pickedBox.appendChild(chips);
+      };
+      var pickedAt = function (r) {
+        var dn = low(r.dn || r.who);
+        return f.picked.filter(function (p) { return low(p.dn) === dn; })[0] || null;
+      };
+      if (typeof dirPickButton === 'function') {
+        dirPickButton(f.filter, {kinds: ['group'], id: 'tmx-fg-pick', title: 'Pick groups from the directory',
+          format: function (r) { return r.dn || r.who; },
+          has: function (r) { return !!pickedAt(r); },
+          toggle: function (r) {
+            var was = pickedAt(r);
+            if (was) f.picked = f.picked.filter(function (p) { return p !== was; });
+            else f.picked.push({dn: r.dn || r.who, cn: r.cn || r.who});
+            fromGroups._ok = false;
+            paintPicked();
+          }});
+        gItem.appendChild(pickedBox);
+        paintPicked();
+      }
       f.role = selectBox(((TM.d || {}).roles || []).map(function (r) { return [r.name, r.name]; }), st.role);
       f.role.id = 'tmx-fg-role';
       g.appendChild(formField('The group\'s role', f.role));
@@ -2686,7 +2864,10 @@
   function fgRun(f, dry, b) {
     var prev = fromGroups._prev;
     var body = {filter: f.filter.value.trim(), role: f.role.value, parent: f.parent.value || '', kind: f.kind.value, dry_run: dry};
-    if (!body.filter) { toast('which groups?', 'bad'); return; }
+    /* the groups picked from the directory go with the filter - and only when there are some,
+       so what is sent with none is what it always was */
+    if ((f.picked || []).length) body.groups = f.picked.map(function (p) { return p.dn; });
+    if (!body.filter && !body.groups) { toast('which groups?', 'bad'); return; }
     busy(b, true);
     clear(prev);
     prev.appendChild(asking());

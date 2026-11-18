@@ -18,7 +18,7 @@
 'use strict';
 
 var WS = {d: null, me: null, team: '*', view: 'home', below: true, host: null, main: null,
-          nav: null, inbox: null, timer: null, seq: 0, devQ: '', certQ: {q: '', state: ''}};
+          nav: null, inbox: null, timer: null, seq: 0, devQ: '', testQ: '', certQ: {q: '', state: ''}};
 
 /* ---- icons of its own --------------------------------------------------------------------- */
 var OWN_ICONS = {
@@ -345,6 +345,7 @@ var VIEWS = [
   {id: 'certs', icon: 'cert', words: 'Certificates', may: function () { return can('cert.view'); }},
   {id: 'inbox', icon: 'inbox', words: 'Requests', may: function () { return can('cert.view') || can('cert.request') || canApprove(); }},
   {id: 'devices', icon: 'server', words: 'Devices', may: function () { return can('target.view'); }},
+  {id: 'tests', icon: 'check', words: 'Tests', may: function () { return can('test.view'); }},
   {id: 'deploys', icon: 'deploy', words: 'Deployments', may: function () { return can('deploy.view'); }},
   {id: 'members', icon: 'people', words: 'Members', may: function () { return can('team.members'); }},
   {id: 'teams', icon: 'tree', words: 'Sub-teams & limits', may: function () { return can('team.create') || can('team.policy'); }},
@@ -445,7 +446,7 @@ function go(view, first) {
   clear(main);
   main.className = 'pw-main pw-v-' + view;
   try {
-    ({home: viewHome, certs: viewCerts, inbox: viewInbox, devices: viewDevices, deploys: viewDeploys,
+    ({home: viewHome, certs: viewCerts, inbox: viewInbox, devices: viewDevices, tests: viewTests, deploys: viewDeploys,
       members: viewMembers, teams: viewTeams, activity: viewActivity})[view](main);
   } catch (e) {
     if (window.console) console.error(e);
@@ -577,7 +578,7 @@ var CAP_SHORT = {'cert.request': 'ask for certificates', 'cert.renew': 'renew', 
   'cert.delete': 'delete', 'cert.key': 'download keys', 'cert.approve': 'approve requests',
   'deploy.run': 'deploy', 'deploy.manage': 'set up deployments', 'target.manage': 'manage devices',
   'target.test': 'test devices', 'team.members': 'manage members', 'team.policy': 'set limits',
-  'team.create': 'create sub-teams', 'team.activity': 'see the activity'};
+  'team.create': 'create sub-teams', 'team.activity': 'see the activity', 'test.manage': 'manage tests'};
 function viewHome(main) {
   var t = teamOf(WS.team), all = WS.team === '*';
   var hero = el('section', 'pw-hero');
@@ -798,6 +799,9 @@ function policyRows(pol) {
   if (pol.issuers) rows.push(['issuers', 'Sources', list(pol.issuers)]);
   if (pol.validations) rows.push(['validations', 'Validation', list(pol.validations)]);
   if (pol.target_kinds) rows.push(['target_kinds', 'Device modules', list(pol.target_kinds)]);
+  if (pol.test_kinds) rows.push(['test_kinds', 'Test modules', list(pol.test_kinds)]);
+  if (pol.wildcards === false) rows.push(['wildcards', 'Wildcard names', chip('not allowed', 'crit', 'ban')]);
+  if (pol.pairs) rows.push(['pairs', 'Sources with their validations', pairsView(pol.pairs)]);
   if (pol.key_download === false) rows.push(['key_download', 'Private keys', chip('never downloaded', 'crit', 'ban')]);
   if (pol.agents === false) rows.push(['agents', 'Agents', chip('not allowed', 'crit', 'ban')]);
   if (pol.approval) {
@@ -814,6 +818,23 @@ function policyRows(pol) {
     rows.push(['approve_actions', 'Also approved first', aw]);
   }
   return rows;
+}
+/** pairs: each source with the validations it is proved by (null: any validation) */
+function pairsView(pairs) {
+  var w = el('span', 'pw-chips');
+  var ks = Object.keys(pairs || {});
+  if (!ks.length) w.appendChild(chip('none', 'crit'));
+  ks.forEach(function (k) {
+    var c = el('span', 'tag info pw-pair');
+    c.appendChild(data('b', '', k));
+    c.appendChild(document.createTextNode(' → '));
+    var v = pairs[k];
+    if (v === null || v === undefined) c.appendChild(el('span', '', 'any validation'));
+    else if (!v.length) c.appendChild(el('span', '', 'no validation'));
+    else c.appendChild(data('span', '', v.join(', ')));
+    w.appendChild(c);
+  });
+  return w;
 }
 function limitsCard(t) {
   var c = card('Limits in force', 'shield', 'pw-limits');
@@ -855,6 +876,8 @@ function limitsNote() {
   if (pol.suffixes) parts.push('only names under ' + arr(pol.suffixes).join(', '));
   if (pol.max_days) parts.push('valid ' + pol.max_days + ' days at most');
   if (pol.free_form === false) parts.push('never without a profile');
+  if (pol.wildcards === false) parts.push('never a wildcard name');
+  if (pol.pairs) parts.push('only from the sources ' + Object.keys(pol.pairs).join(', '));
   var a = pol.approval && (typeof pol.approval === 'string' ? {mode: pol.approval} : pol.approval);
   if (!parts.length && !(a && a.mode)) return null;
   var box = el('div', 'pw-note');
@@ -1627,6 +1650,292 @@ function deviceForm(row, kind, team, kinds, k) {
   }}], 'large');
 }
 
+/* ---- tests: the team's tests of what its servers serve (1.0.128), done as devices are ---- */
+function viewTests(main) {
+  var bs = [];
+  if (can('test.manage')) {
+    var add = cmdButton('Add a test', 'add', 'primary');
+    add.id = 'pw-add-test';
+    add.onclick = function () { testDialog(null); };
+    bs.push(add);
+  }
+  main.appendChild(pageHead('check', 'Tests', 'What the team’s servers really serve - each test connects to a server and reads its certificate.', bs));
+  var bar = el('div', 'pw-bar');
+  bar.appendChild(searchBox(WS.testQ, tr('Search tests'), function (q) { WS.testQ = q; paint(); }));
+  main.appendChild(bar);
+  var grid = el('div', 'pw-devs pw-tests');
+  grid.id = 'pw-tests';
+  grid.appendChild(skeleton(3, 'pw-skels-grid'));
+  main.appendChild(grid);
+  var seq = WS.seq, rows = [];
+  var paint = function () {
+    clear(grid);
+    var q = low(WS.testQ);
+    var shown = rows.filter(function (r) {
+      return !q || low([r.name, r.kind, r.title, r.owner, r.note, (r.config || {}).host].join(' ')).indexOf(q) >= 0;
+    });
+    if (!rows.length) {
+      var b = null;
+      if (can('test.manage')) { b = cmdButton('Add a test', 'add', 'primary'); b.onclick = function () { testDialog(null); }; }
+      grid.appendChild(emptyState('check', 'No test yet', 'A test connects to a server (HTTPS, SMTP, LDAPS…) and says which certificate it serves.', b));
+      return;
+    }
+    if (!shown.length) { grid.appendChild(emptyState('search', 'Nothing matches', 'No test here matches what you are looking for.')); return; }
+    shown.forEach(function (r) { grid.appendChild(testCard(r)); });
+    explainWhatWasDrawn(grid);
+  };
+  askTops('test.view', 'tests').then(function (d) {
+    if (seq !== WS.seq) return;
+    rows = d.rows.sort(function (a, b) { return low(a.name) < low(b.name) ? -1 : 1; });
+    paint();
+  }).catch(function (e) { if (seq === WS.seq) failed(grid, e); });
+}
+function testState(r) {
+  if (!r.enabled) return chip('switched off', 'dim');
+  var bad = !!r.last_error;
+  var s = el('span', 'pw-state ' + (bad ? 'crit' : (r.last_ok ? 'ok' : 'dim')));
+  s.appendChild(dot(bad ? 'crit' : (r.last_ok ? 'ok' : 'dim')));
+  s.appendChild(el('span', '', bad ? 'failing' : (r.last_ok ? 'works' : 'not run yet')));
+  return s;
+}
+function testCard(r) {
+  var c = el('button', 'pw-dev pw-test' + (r.enabled ? '' : ' off'));
+  c.type = 'button';
+  var top = el('div', 'pw-dev-top');
+  top.appendChild(ic('check', 22, 'pw-dev-ic k-x'));
+  var w = el('div', 'pw-dev-w');
+  w.appendChild(data('b', 'pw-dev-n', r.name));
+  w.appendChild(r.title ? el('span', 'pw-dev-k', r.title) : data('span', 'pw-dev-k', r.kind));
+  top.appendChild(w);
+  top.appendChild(testState(r));
+  c.appendChild(top);
+  var cfg = r.config || {};
+  var meta = el('div', 'pw-dev-m');
+  if (cfg.host) {
+    var h = el('span', 'pw-dev-host');
+    h.appendChild(ic('globe', 13));
+    h.appendChild(data('span', 'mono', cfg.host + (cfg.port ? ':' + cfg.port : '')));
+    meta.appendChild(h);
+  }
+  meta.appendChild(teamChip(r.owner, 'small'));
+  c.appendChild(meta);
+  if (r.last_ok || r.last_error) {
+    var foot = el('div', 'pw-dev-f');
+    var l = el('span', 'pw-dev-l ' + (r.last_error ? 'bad' : 'good'));
+    l.appendChild(el('span', '', r.last_error ? 'last failed' : 'last went well'));
+    if (r.last_ok && !r.last_error) { l.appendChild(document.createTextNode(' · ')); l.appendChild(el('span', '', agoW(r.last_ok))); }
+    foot.appendChild(l);
+    c.appendChild(foot);
+  }
+  c.onclick = function () { testOpen(r); };
+  return c;
+}
+/** One test: its settings (secrets only set / not set) - and Run, Edit, Delete where the team
+    gives test.manage. */
+function testOpen(r0) {
+  modal(r0.name, function (body) { body.appendChild(skeleton(3)); }, [{words: 'Close', close: true}], 'large');
+  var ticket = modalTicket();
+  Promise.all([api('test&id=' + r0.id), api('test-kinds&team=' + encodeURIComponent(r0.owner || '')).catch(function () { return {}; })]).then(function (both) {
+    if (!modalStill(ticket)) return;
+    var r = both[0].test || r0, may = r.may || {};
+    var labels = {}, choices = {}, flags = {};
+    arr(both[1].kinds).forEach(function (k) {
+      if (k.kind !== r.kind) return;
+      arr(k.fields).forEach(function (f) {
+        if (!f || !f.key) return;
+        labels[f.key] = f.label || f.key;
+        if (f.type === 'bool') flags[f.key] = 1;
+        arr(f.options).forEach(function (o) { if (Array.isArray(o) && o.length > 1) (choices[f.key] = choices[f.key] || {})[String(o[0])] = o[1]; });
+      });
+    });
+    var manage = may.manage || teamCaps(r.owner).indexOf('test.manage') >= 0;
+    var buttons = [{words: 'Close', close: true}];
+    if (manage) {
+      buttons.push({words: 'Delete', icon: 'trash', go: function (b) {
+        busy(b, true);
+        api('test-delete', {id: r.id}).then(function (x) {
+          closeModal();
+          ok(x.message || tr('deleted'));
+          refresh(WS.view === 'tests');
+        }).catch(oops).then(function () { busy(b, false); });
+      }});
+      buttons.push({words: 'Edit', icon: 'edit', go: function () { modalOver(function () { testDialog(r); }, function () { testOpen(r); }); }});
+      buttons.push({words: 'Run it', icon: 'play', cls: 'primary', noConfirm: true, go: function (b) { runTest(r, b); }});
+    }
+    modal(r.name, function (body) {
+      var head = el('div', 'pw-dh');
+      head.appendChild(ic('check', 26, 'pw-dh-ic'));
+      var w = el('div', 'pw-dh-w');
+      var t = el('div', 'pw-dh-t');
+      t.appendChild(data('b', '', r.name));
+      t.appendChild(testState(r));
+      w.appendChild(t);
+      var s = el('div', 'pw-dh-s');
+      s.appendChild(r.title ? el('span', '', r.title) : data('span', '', r.kind));
+      s.appendChild(teamChip(r.owner, 'small'));
+      w.appendChild(s);
+      head.appendChild(w);
+      body.appendChild(head);
+      var tb = el('div', 'pw-testbox');
+      tb.id = 'pw-testbox';
+      body.appendChild(tb);
+      if (r.last_error) { var le = data('div', 'note warn', String(r.last_error)); body.appendChild(le); }
+      var pairs = [];
+      Object.keys(r.config || {}).forEach(function (k) {
+        var v = r.config[k];
+        if ((r.secrets || {})[k] !== undefined) return;
+        if (v === '' || v === null || v === undefined || typeof v === 'object') return;
+        if (flags[k]) pairs.push([labels[k] || k, el('span', '', v && v !== '0' && v !== 'false' ? 'yes' : 'no')]);
+        else if (choices[k] && choices[k][String(v)] !== undefined) pairs.push([labels[k] || k, el('span', '', choices[k][String(v)])]);
+        else pairs.push([labels[k] || k, data('span', 'mono small', String(v))]);
+      });
+      Object.keys(r.secrets || {}).forEach(function (k) {
+        pairs.push([labels[k] || k, chip(r.secrets[k] ? 'set' : 'not set', r.secrets[k] ? 'ok' : 'dim', 'lock')]);
+      });
+      if (r.note) pairs.push(['Note', data('span', '', r.note)]);
+      pairs.push(['Added', when(r.created)]);
+      var h4 = el('h4', 'pw-cm-h');
+      h4.appendChild(ic('gear', 15));
+      h4.appendChild(el('span', '', 'Its settings'));
+      body.appendChild(h4);
+      body.appendChild(kvTable(pairs));
+    }, buttons, 'large');
+  }).catch(function (e) { if (modalStill(ticket)) failed($('modal-body'), e); });
+}
+function runTest(r, b) {
+  var box = $('pw-testbox');
+  busy(b, true);
+  if (box) { clear(box); box.className = 'pw-testbox run'; box.appendChild(el('span', 'pw-spin')); box.appendChild(el('span', '', 'Testing - acme connects to it now…')); }
+  api('test-run', {id: r.id}, 120).then(function (x) {
+    showTest(box, x);
+  }).catch(function (e) { showTest(box, {ok: false, said: String(e.message || e)}); }).then(function () { busy(b, false); });
+}
+/** Add or change a test: the module first (those the team's test_kinds allow), then its own
+    fields as the administration draws them - secrets "set - leave empty to keep it". */
+function testDialog(row) {
+  var mayTeams = teamsWith('test.manage');
+  var team = row ? row.owner : (mayTeams.indexOf(WS.team) >= 0 ? WS.team : mayTeams[0]);
+  if (!team) { toast(tr('no team of yours lets you add tests'), 'bad'); return; }
+  modal(row ? tr('Change') + ' ' + row.name : tr('Add a test'), function (body) { body.appendChild(skeleton(3)); }, [{words: 'Close', close: true}], 'large');
+  var ticket = modalTicket();
+  Promise.all([api('test-kinds&team=' + encodeURIComponent(team)), needForms()]).then(function (got) {
+    if (!modalStill(ticket)) return;
+    var k = got[0];
+    var kinds = arr(k.kinds);
+    if (row) {
+      var mine = kinds.filter(function (x) { return x.kind === row.kind; })[0];
+      if (!mine) throw new Error(tr('its module is not one the team may use any more'));
+      testForm(row, mine, team);
+      return;
+    }
+    if (kinds.length === 1) { testForm(null, kinds[0], team); return; }
+    modal(tr('Add a test'), function (body) {
+      if (mayTeams.length > 1) {
+        var ts = selectBox(mayTeams.map(function (x) { return [x, x]; }), team);
+        noI18n(ts);
+        ts.id = 'pw-test-team';
+        ts.onchange = function () {
+          closeModal();
+          var keep = WS.team;
+          WS.team = ts.value;
+          try { testDialog(null); } finally { WS.team = keep; }
+        };
+        body.appendChild(formField('For the team', ts, 'The test belongs to it: its members see it and run it.'));
+      }
+      if (k.limit) {
+        var n = el('div', 'pw-note');
+        n.appendChild(ic('shield', 17));
+        var nw = el('div', '');
+        nw.appendChild(el('b', '', 'The test modules the team may use'));
+        var lw = el('span', '');
+        lw.appendChild(data('span', '', arr(k.limit).join(', ')));
+        if (k.from) { lw.appendChild(document.createTextNode(' · ')); lw.appendChild(el('span', '', 'set by')); lw.appendChild(document.createTextNode(' ')); lw.appendChild(data('b', '', k.from)); }
+        nw.appendChild(lw);
+        n.appendChild(nw);
+        body.appendChild(n);
+      }
+      body.appendChild(el('p', 'note', 'What does it test? Pick its module - then fill in what that module needs.'));
+      var grid = el('div', 'pw-kinds');
+      grid.id = 'pw-test-kinds';
+      kinds.forEach(function (x) {
+        var b = el('button', 'pw-kind');
+        b.type = 'button';
+        b.dataset.kind = x.kind;
+        b.appendChild(ic('check', 22, 'pw-kind-ic'));
+        var w = el('span', 'pw-kind-w');
+        w.appendChild(el('b', '', x.title || x.kind));
+        if (x.description) w.appendChild(el('span', 'pw-kind-d', x.description));
+        b.appendChild(w);
+        b.onclick = function () { testForm(null, x, team); };
+        grid.appendChild(b);
+      });
+      if (!kinds.length) grid.appendChild(emptyState('ban', 'No module allowed', 'The team’s limits allow no test module - ask its manager.'));
+      body.appendChild(grid);
+    }, [{words: 'Close', close: true}], 'large');
+  }).catch(function (e) { if (modalStill(ticket)) failed($('modal-body'), e); });
+}
+function testForm(row, kind, team) {
+  var form = null, name = null, note = null, on = null, said = null;
+  modal(row ? tr('Change') + ' ' + row.name : (kind.title || kind.kind), function (body) {
+    var head = el('div', 'pw-dh');
+    head.appendChild(ic('check', 24, 'pw-dh-ic'));
+    var w = el('div', 'pw-dh-w');
+    var t = el('div', 'pw-dh-t');
+    t.appendChild(el('b', '', kind.title || kind.kind));
+    w.appendChild(t);
+    var s = el('div', 'pw-dh-s');
+    s.appendChild(el('span', '', 'for the team'));
+    s.appendChild(teamChip(team, 'small'));
+    w.appendChild(s);
+    head.appendChild(w);
+    body.appendChild(head);
+    var g = el('div', 'formgrid');
+    name = textBox(row ? row.name : '', 'web1-https', 'mono');
+    name.id = 'pw-test-name';
+    noI18n(name);
+    if (row) name.disabled = true;
+    g.appendChild(formField('Name', name, row ? 'Its name stays.' : 'How it is called here - unique.'));
+    on = switchBox(row ? !!row.enabled : true);
+    g.appendChild(formField('Switched on', on, 'Off: it is not run.'));
+    body.appendChild(g);
+    form = window.ACME_CERTS.fieldForm(kind.fields || [], row ? row.config : {}, row ? row.secrets : {}, {});
+    var fh = el('h4', 'pw-cm-h');
+    fh.appendChild(ic('gear', 15));
+    fh.appendChild(el('span', '', 'Its settings'));
+    body.appendChild(fh);
+    body.appendChild(form.node);
+    note = el('textarea');
+    note.rows = 2;
+    note.value = row ? row.note || '' : '';
+    note.placeholder = 'what it tests';
+    var nf = formField('A note', note, '');
+    nf.classList.add('wide');
+    body.appendChild(nf);
+    said = el('div', 'said');
+    body.appendChild(said);
+  }, [{words: row ? 'Close' : 'Back', icon: row ? null : 'prev', close: !!row, go: row ? null : function () { testDialog(null); }},
+      {words: row ? 'Save' : 'Add it', cls: 'primary', icon: row ? 'save' : 'add', go: function (b) {
+    said.className = 'said';
+    said.textContent = '';
+    var bad = form.check();
+    if (!row && !name.value.trim()) { said.className = 'said bad'; said.textContent = tr('Give it a name.'); name.focus(); return; }
+    if (bad) { said.className = 'said bad'; said.textContent = bad; return; }
+    busy(b, true);
+    var body = {team: team, kind: kind.kind, enabled: on._get() ? 1 : 0, note: note.value, config: form.read()};
+    if (row) body.id = row.id; else body.name = name.value.trim();
+    api('test-save', body).then(function (x) {
+      closeModal();
+      ok(x.message || tr('saved'));
+      refresh(WS.view === 'tests');
+      var one = x.test || {id: x.id, name: body.name, kind: kind.kind, owner: team};
+      if (!row) setTimeout(function () { testOpen(one); }, 50);
+    }).catch(function (e) {
+      said.className = 'said bad';
+      said.textContent = String(e.message || e);
+    }).then(function () { busy(b, false); });
+  }}], 'large');
+}
+
 /* ---- agents: waiting ones, join and enrollment codes, the server panel ------------------- */
 function fpBig(fp) {
   var box = noI18n(el('div', 'ag-fp small'));
@@ -2301,6 +2610,12 @@ function memberDialog(t, d, m) {
     noI18n(who);
     if (m) who.disabled = true;
     top.appendChild(formField('Who', who, 'A person (name, UPN or e-mail), a directory group (group:NAME) or an account of acme’s own (local:NAME). Type to search the directory.'));
+    /* ...or pick from the directory by the button beside the box (1.0.128): the same search,
+       for those who manage the team's members - what they type works as before */
+    if (!m && typeof dirPickButton === 'function') {
+      dirPickButton(who, {kinds: ['user', 'group'], format: 'who', may: true, quiet: true, id: 'pw-mem-pick',
+                    picked: function () { clear(results); }});
+    }
     results = el('div', 'pw-mfind-r');
     top.appendChild(results);
     body.appendChild(top);
@@ -2616,13 +2931,80 @@ function limitsEditor(parent, own) {
     var s = selectBox([['1', yes], ['0', no]], own[key] === false ? '0' : '1');
     row(key, label, s, own[key] !== undefined, function () { return s.value === '1'; }, eff[key] === undefined ? undefined : tr(eff[key] ? yes : no));
   };
+  /* the sources with their validations (pairs): a source from the catalog, then its
+     validations from the catalog - what is in force above the team only */
+  function pairsRow() {
+    var map = own.pairs ? JSON.parse(JSON.stringify(own.pairs)) : (eff.pairs ? JSON.parse(JSON.stringify(eff.pairs)) : {});
+    Object.keys(map).forEach(function (k) { if (map[k] === null) map[k] = []; });
+    var box = el('div', 'pw-pairs');
+    box.id = 'pw-led-pairs';
+    var cat = {sources: [], validations: []};
+    var paint = function () {
+      clear(box);
+      Object.keys(map).forEach(function (src) {
+        var r = el('div', 'pw-pairr');
+        var h = el('div', 'pw-pairh');
+        h.appendChild(ic('cert', 14));
+        h.appendChild(data('b', '', src));
+        h.appendChild(el('span', 'muted small', 'proved by'));
+        var x = el('button', 'pw-pairx');
+        x.type = 'button';
+        x.setAttribute('aria-label', tr('Take it off'));
+        x.innerHTML = iconMarkup('close', 12);
+        x.onclick = function () { delete map[src]; paint(); };
+        h.appendChild(x);
+        r.appendChild(h);
+        var vs = el('div', 'pw-pairv');
+        var names = cat.validations.map(function (v) { return v.name; });
+        arr(map[src]).forEach(function (v) { if (names.indexOf(v) < 0) names.push(v); });
+        names.forEach(function (v) {
+          var lab = el('label', 'pw-check');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = arr(map[src]).indexOf(v) >= 0;
+          cb.onchange = function () {
+            var l = arr(map[src]).filter(function (y) { return y !== v; });
+            if (cb.checked) l.push(v);
+            map[src] = l;
+          };
+          lab.appendChild(cb);
+          lab.appendChild(data('span', '', v));
+          vs.appendChild(lab);
+        });
+        if (!names.length) vs.appendChild(el('span', 'muted small', 'no validation in the catalog'));
+        r.appendChild(vs);
+        box.appendChild(r);
+      });
+      var left = cat.sources.filter(function (x) { return map[x.name] === undefined; });
+      if (left.length) {
+        var sel = selectBox([['', tr('add a source…')]].concat(left.map(function (x) { return [x.name, x.name + (x.kind ? ' · ' + x.kind : '')]; })), '');
+        sel.id = 'pw-pairs-add';
+        noI18n(sel);
+        sel.onchange = function () { if (sel.value) { map[sel.value] = []; paint(); } };
+        box.appendChild(sel);
+      } else if (!Object.keys(map).length) box.appendChild(el('span', 'muted small', 'no source in the catalog'));
+    };
+    paint();
+    if (parent && parent.name) {
+      api('policy-catalog&team=' + encodeURIComponent(parent.name)).then(function (d) {
+        cat.sources = arr(d.sources);
+        cat.validations = arr(d.validations);
+        paint();
+      }).catch(function () { });
+    }
+    row('pairs', 'Sources with their validations', box, own.pairs !== undefined, function () { return JSON.parse(JSON.stringify(map)); },
+        eff.pairs ? Object.keys(eff.pairs).map(function (k) { return k + ' → ' + (eff.pairs[k] === null ? tr('any validation') : arr(eff.pairs[k]).join(', ')); }).join('; ') : undefined);
+  }
   var profs = (window.ACME_PORTAL_CERTS && window.ACME_PORTAL_CERTS.data() && arr(window.ACME_PORTAL_CERTS.data().profiles).map(function (p) { return p.name; })) || [];
   listRow('profiles', 'Request profiles', 'a profile’s name', profs.concat(arr(eff.profiles)));
   boolRow('free_form', 'Without a profile', 'may ask', 'never');
   listRow('suffixes', 'Names under', 'example.com', arr(eff.suffixes));
   numRow('max_days', 'Longest validity', 'days');
   numRow('max_certs', 'Most certificates', '');
+  boolRow('wildcards', 'Wildcard names', 'allowed', 'not allowed');
+  pairsRow();
   listRow('target_kinds', 'Device modules', 'ssh, agent, f5…', arr(eff.target_kinds));
+  listRow('test_kinds', 'Test modules', 'https, smtp, ldaps…', arr(eff.test_kinds));
   boolRow('key_download', 'Private keys', 'may be downloaded', 'never downloaded');
   boolRow('agents', 'Agents', 'allowed', 'not allowed');
   /* approval */

@@ -66,7 +66,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
 # Options that only go with these (hunt R t10): beside any other, they were silently left out
 WITH_ONLY = {
     'owner': ('cert_add', 'cert_edit', 'import_file', 'certs', 'target_add', 'target_edit',
-              'target_agent'),
+              'target_agent', 'check_add', 'check_edit'),
     # (a source's, a validation's, a test's: refused by Cli._owner in words of their own)
     'team_kind': ('team_add', 'team_edit', 'teams_from_groups'),
     'members': ('team_add', 'team_edit'),
@@ -270,7 +270,8 @@ def add_args(p):
     # 1.0.126: a team's devices and agents (docs/teams.md) - the pages could, the CLI could not
     g.add_argument('--owner', metavar='TEAM', default=None,
                    help='with --target-add, --target-edit: the team whose device it is (- or '
-                        '"": acme\'s own); with --cert-add, --cert-edit: the team it belongs '
+                        '"": acme\'s own); with --check-add, --check-edit: the team whose test it '
+                        'is; with --cert-add, --cert-edit: the team it belongs '
                         'to (as --set owner=TEAM), with --import: the new one\'s; with --certs: '
                         'only the team\'s; with --target-agent enroll new: the servers '
                         'enrolling become that team\'s targets')
@@ -1707,9 +1708,9 @@ class Cli(object):
         owner = getattr(self.args, 'owner', None)
         if owner is None:
             return
-        if fam != 'target':
-            raise SystemExit('acme: --owner goes with --target-add, --target-edit (a %s has no '
-                             'owner)' % FAMILIES[fam][0])
+        if fam not in ('target', 'check'):
+            raise SystemExit('acme: --owner goes with --target-add, --target-edit, --check-add, '
+                             '--check-edit (a %s has no owner)' % FAMILIES[fam][0])
         body['owner'] = '' if owner.strip() in ('', '-') else owner.strip()
 
     def fam_add(self, fam, name):

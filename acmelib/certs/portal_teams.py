@@ -16,6 +16,13 @@ downwards) and the team's limits (teampolicy); a refusal is 403 in words and an 
     POST /api/portal/device_delete          {id}
     POST /api/portal/device_test            {id}
     GET  /api/portal/kinds?team=            the modules the team may use, with their fields
+    GET  /api/portal/tests?team=[&below=1]  the team's tests (1.0.128) - test.view
+    GET  /api/portal/test?id=               one test: its settings, secrets set / not set
+    GET  /api/portal/test_kinds?team=       the test modules the team may use (test_kinds)
+    POST /api/portal/test_save              {id?, team, name, kind, config, note, enabled}
+    POST /api/portal/test_delete            {id}                      - test.manage
+    POST /api/portal/test_run               {id}
+    GET  /api/portal/policy_catalog?team=   the sources and validations to pair (team.policy)
     POST /api/portal/agent_code             {id}   a one-time join code of a team's agent target
     POST /api/portal/enroll_code            {team, title, mode, port, days, most, auto}
     POST /api/portal/enroll_revoke          {id}
@@ -558,7 +565,7 @@ def _kinds_of(me, team):
     return out
 
 
-def _choices_of_team(me, team, one):
+def _choices_of_team(me, team, one, tests=False):
     """A module's form with the choices its fields read from acme (options_from) cut to what
     the team may choose (hunt C1: every connector of acme and of the other teams was listed,
     by name, to any member who may see devices): the connectors among the team's devices (its
@@ -576,6 +583,13 @@ def _choices_of_team(me, team, one):
             o = _low(r.get('owner'))
             if o in near and 'target.view' in me.caps(o):
                 got.add(r['name'])
+        if tests:
+            # a test's connector may also be one of the team's tests (1.0.128)
+            for r in me.store.db.rows("SELECT name, owner FROM cert_tests WHERE COALESCE("
+                                      "owner, '') <> '' AND kind = 'ssh_relay'"):
+                o = _low(r.get('owner'))
+                if o in near and 'test.view' in me.caps(o):
+                    got.add(r['name'])
         return got
 
     def cut(fields):
@@ -743,6 +757,221 @@ def _device_test(h):
     # as it is saved - settings not saved are tried by saving them (as a certificate
     # administrator's Test in the administration)
     return A.family_test(h.store, 'target', {'id': row['id']}, me.by)
+
+
+# ---------------------------------------------------------------------------
+# Tests: the tests a team owns (1.0.128, docs/teams.md "Tests of a team")
+# ---------------------------------------------------------------------------
+def test_public(store, row):
+    """A test as the portal shows it: as a device is (device_public) - every secret '' with
+    `secrets` saying whether it is set, never a secret nor its dots."""
+    pub = S.plugin_public(store, 'check', row, full=False)
+    cls = S.row_class('check', row)
+    secrets = S.secret_fields(cls) if cls else set()
+    cfg = pub.get('config') or {}
+    for k in list(cfg):
+        v = cfg[k]
+        if k in secrets or (isinstance(v, str) and (v.startswith('sealed:') or E.is_masked(v))):
+            cfg[k] = ''
+    pub['config'] = cfg
+    is_set = set(pub.get('secret_set') or [])
+    pub['secrets'] = {k: k in is_set for k in sorted(secrets | is_set)}
+    pub['owner'] = row.get('owner') or None
+    pub.pop('state', None)
+    pub.pop('secret_set', None)
+    return pub
+
+
+def test_of(me, ref, cap, doing):
+    """(row, team) of a team's test where they hold `cap` on its team - 404 for acme's own
+    tests and another team's."""
+    try:
+        ident = _ident(ref)
+    except ValueError:
+        raise E.ApiError(400, 'which test? (its id)')
+    row = me.store.db.row('SELECT * FROM cert_tests WHERE id = ?', (ident,))
+    if not row or not _low(row.get('owner')) or _low(row.get('owner')) not in me.tr.rows or \
+            (not me.all and _low(row.get('owner')) not in me.pc):
+        raise E.ApiError(404, 'there is no such test of your teams')
+    team = me.need(row['owner'], cap, '%s the test %s' % (doing, row['name']))
+    return row, team
+
+
+def _test_kinds_of(me, team):
+    """The test modules a team may use on the portal (its test_kinds), their choices cut to
+    the team's connectors."""
+    allowed = TP.test_kinds_allowed(T.effective_policy(me.store, team))
+    view = A.plugins_view(me.store)
+    out = []
+    for one in view.get('check') or []:
+        k = one.get('kind')
+        if allowed is not None and _low(k) not in {_low(x) for x in allowed}:
+            continue
+        out.append(_choices_of_team(me, team, one, tests=True))
+    return out
+
+
+def _test_refs_ok(me, team, cfg, row=None):
+    """A test going through a connector (`via`) - a connector of a team they see (a target
+    connector, a server with acme-agent, or a connector of the tests), never acme's own nor
+    another team's; a connector of the tests runs only the team's own tests (`tests`). A
+    value the test has already (set by an administrator) is kept as it is."""
+    had = (S.jload((row or {}).get('config'), {}) or {}) if row else {}
+    near = set(me.tr.chain(team)) | set(me.tr.descendants(team))
+    for key in sorted(k for k in (cfg or {}) if k == 'via' or str(k).endswith('_via')):
+        via = str(cfg.get(key) or '').strip()
+        if not via or (row is not None and via == str(had.get(key) or '').strip()):
+            continue
+        # as the run finds it (runtime._jump): a connector of the targets, else one of the
+        # tests, else a server's agent
+        got = me.store.db.row("SELECT owner FROM cert_targets WHERE name = ? AND kind = "
+                              "'ssh_connector'", (via,))
+        cap = 'target.view'
+        if not got:
+            got = me.store.db.row("SELECT owner FROM cert_tests WHERE name = ? AND kind = "
+                                  "'ssh_relay'", (via,))
+            cap = 'test.view'
+        if not got:
+            got = me.store.db.row("SELECT owner FROM cert_targets WHERE name = ? AND kind IN "
+                                  "('agent', 'agent_windows')", (via,))
+            cap = 'target.view'
+        if not got or _low(got.get('owner')) not in near or cap not in me.caps(got.get('owner')):
+            me.deny('the test goes through %s, which is not a connector of the team %s' % (
+                via[:120], team))
+    names = (cfg or {}).get('tests')
+    if names is not None:
+        if isinstance(names, str):
+            names = [x.strip() for x in names.splitlines()]
+        before = set(had.get('tests') or []) if row is not None else set()
+        for n in [str(x).strip() for x in names or [] if str(x).strip()]:
+            if n in before:
+                continue
+            got = me.store.db.row('SELECT owner FROM cert_tests WHERE name = ?', (n,))
+            if not got or _low(got.get('owner')) not in near or \
+                    'test.view' not in me.caps(got.get('owner')):
+                me.deny('the test %s is not one of the team %s' % (n[:120], team))
+
+
+@route('GET', 'tests')
+def _tests(h):
+    me = Me(h)
+    team = me.need(h.arg('team'), 'test.view', 'see the tests')
+    want = me.below(team, 'test.view', _flag(h, 'below'))
+    q = _low(h.arg('q'))[:200]
+    rows = []
+    for r in h.store.db.rows("SELECT * FROM cert_tests WHERE COALESCE(owner, '') <> '' "
+                             "ORDER BY name"):
+        if _low(r.get('owner')) not in want:
+            continue
+        if q and q not in ('%s %s %s' % (r['name'], r.get('kind'), r.get('note') or '')).lower():
+            continue
+        rows.append(test_public(h.store, r))
+    c = me.caps(team)
+    return {'team': team, 'rows': rows, 'total': len(rows),
+            'may': {'manage': 'test.manage' in c}}
+
+
+@route('GET', 'test')
+def _test(h):
+    me = Me(h)
+    row, team = test_of(me, h.arg('id'), 'test.view', 'look at')
+    out = test_public(h.store, row)
+    out['may'] = {'manage': 'test.manage' in me.caps(team)}
+    return {'test': out, 'team': team}
+
+
+@route('GET', 'test_kinds')
+def _test_kinds(h):
+    me = Me(h)
+    team = me.need(h.arg('team'), 'test.view', 'see the test modules')
+    eff = T.effective_policy(h.store, team)
+    allowed = TP.test_kinds_allowed(eff)
+    return {'team': team, 'kinds': _test_kinds_of(me, team),
+            'limit': None if allowed is None else list(allowed),
+            'from': (eff.get('from') or {}).get('test_kinds')}
+
+
+@route('POST', 'test_save')
+def _test_save(h):
+    me = Me(h)
+    b = h.body()
+    row = None
+    if b.get('id') not in (None, '', 0):
+        row, _old = test_of(me, b.get('id'), 'test.manage', 'change')
+    team = me.need(b.get('team') or (row or {}).get('owner'), 'test.manage',
+                   'add or change tests')
+    kind = str(b.get('kind') or (row or {}).get('kind') or '').strip()
+    if not kind:
+        raise E.ApiError(400, 'which module (kind)?')
+    TP.need_test_kind(h.store, team, kind, me.name)
+    cfg = b.get('config')
+    if cfg is not None and not isinstance(cfg, dict):
+        raise E.ApiError(400, 'config is the module\'s settings {key: value}')
+    if isinstance(cfg, dict):
+        _test_refs_ok(me, team, cfg, row if row is not None and row.get('kind') == kind
+                      else None)
+    body = {'owner': team, 'kind': kind}
+    for k in ('name', 'config', 'note', 'enabled'):
+        if k in b:
+            body[k] = b[k]
+    if row is not None:
+        body['id'] = row['id']
+        if isinstance(cfg, dict) and row.get('kind') == kind:
+            try:
+                A.kept_secrets_guard(h.store, 'check', {'id': row['id'], 'kind': kind,
+                                                        'config': cfg}, me.admin())
+            except E.ApiError:
+                me.deny('%s keeps secrets: type them again when you change its other settings '
+                        '(they would go to the new place)' % row['name'])
+    elif not body.get('name'):
+        raise E.ApiError(400, 'the test needs a name')
+    rid = A.family_save(h.store, 'check', body, me.by)
+    got = h.store.db.row('SELECT * FROM cert_tests WHERE id = ?', (rid,))
+    h.store.add_event('certificates', 'the test %s of the team %s saved on the portal by %s' % (
+        got['name'], team, me.name), who=me.name)
+    return {'id': rid, 'test': test_public(h.store, got), 'message': '%s saved' % got['name']}
+
+
+@route('POST', 'test_delete')
+def _test_delete(h):
+    me = Me(h)
+    row, team = test_of(me, h.body().get('id'), 'test.manage', 'delete')
+    uses = A.family_uses(h.store, 'check', row)
+    if uses:
+        raise E.ApiError(409, A._uses_said(row, uses))
+    name = A.family_delete(h.store, 'check', {'id': row['id']}, me.by)
+    return {'message': '%s deleted' % name}
+
+
+@route('POST', 'test_run')
+def _test_run(h):
+    me = Me(h)
+    row, _team = test_of(me, h.body().get('id'), 'test.manage', 'run')
+    # as it is saved (as a certificate administrator's Test in the administration)
+    return A.family_test(h.store, 'check', {'id': row['id']}, me.by)
+
+
+@route('GET', 'policy_catalog')
+def _policy_catalog(h):
+    """The names of the sources and validations (never their settings) a team's limits may
+    pair (1.0.128) - for a holder of team.policy, cut to what is in force above the team."""
+    me = Me(h)
+    # the team whose limits are in force above the one designed (its parent)
+    team = me.need(h.arg('team'), 'team.policy', 'see the sources and validations for limits')
+    eff = T.effective_policy(h.store, team)
+
+    def rows(table, key):
+        allowed = eff.get(key)
+        keep = None if allowed is None else {_low(x) for x in allowed}
+        return [{'name': r['name'], 'kind': r.get('kind') or ''}
+                for r in h.store.db.rows('SELECT name, kind FROM %s ORDER BY name' % table)
+                if keep is None or _low(r['name']) in keep]
+    src = rows('cert_issuers', 'issuers')
+    if eff.get('pairs') is not None:
+        paired = {_low(k) for k in eff['pairs']}
+        src = [r for r in src if _low(r['name']) in paired]
+    return {'team': team, 'sources': src, 'validations': rows('cert_challenges', 'validations'),
+            'pairs': eff.get('pairs')}
 
 
 # ---------------------------------------------------------------------------
@@ -1318,6 +1547,21 @@ def widened(eff_parent, new):
                     # a wider envelope let through without an approval (hunt C1)
                     out.append((k, 'what goes without an approval would be wider than above '
                                    'it'))
+    if base.get('pairs') is not None and (new.get('pairs') is not None or 'issuers' in new):
+        # the sources with their validations (1.0.128): every pair said here allowed above
+        mine = T.level_pairs(new) or {}
+        have = {_low(k): v for k, v in base['pairs'].items()}
+        extra = []
+        for k, (nm, vals) in sorted(mine.items()):
+            if k not in have:
+                extra.append(nm)
+            elif have[k] is not None and (vals is None or any(
+                    _low(v) not in {_low(x) for x in have[k]} for v in vals)):
+                extra.append('%s with %s' % (nm, ', '.join(
+                    v for v in (vals or ['any validation'])
+                    if vals is None or _low(v) not in {_low(x) for x in have[k]})))
+        if extra:
+            out.append(('pairs', '%s not allowed above it' % ', '.join(extra[:10])))
     if new.get('agents_auto_confirm') and not T.policy_value(base, 'agents_auto_confirm'):
         out.append(('agents_auto_confirm', 'agents confirmed by themselves are allowed by the '
                                            'administrators only'))
@@ -1332,7 +1576,8 @@ def _same_envelope(a, b):
         if (x is None) != (y is None) or (x is not None and {_low(i) for i in x} !=
                                           {_low(i) for i in y}):
             return False
-    return a.get('max_days') == b.get('max_days')
+    return a.get('max_days') == b.get('max_days') and \
+        (a.get('wildcards') is False) == (b.get('wildcards') is False)
 
 
 def need_policy(me, parent, policy, team):
@@ -1355,7 +1600,7 @@ def name_free(me, name):
         me.deny('a team is not called as a person is (%s) - choose another name' % name[:120])
     if low in me.tr.rows:
         return                  # taken: save_team says so in its own words
-    for table in ('certs', 'cert_targets'):
+    for table in ('certs', 'cert_targets', 'cert_tests'):
         if me.store.db.value('SELECT COUNT(*) FROM %s WHERE LOWER(TRIM(owner)) = ?' % table,
                              (low,), 0):
             me.deny('%s is the owner of certificates or devices already - a team made here '

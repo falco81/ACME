@@ -53,7 +53,7 @@ const path = require('path');
       out['box_' + tag] = [box0, box1];
       // Find again: the result stays while it asks, nothing collapses
       const h0 = await page.evaluate(() => document.getElementById('modal-body').scrollHeight);
-      await page.locator('#modal-body .clk-find button').click();
+      await page.locator('#modal-body .clk-find button:not(.dpk-btn)').click();
       await page.waitForTimeout(60);
       const hmid = await page.evaluate(() => document.getElementById('modal-body').scrollHeight);
       await page.waitForTimeout(600);

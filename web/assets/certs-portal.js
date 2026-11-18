@@ -863,6 +863,17 @@ function askDialog() {
       Array.prototype.slice.call(teamSel.options, 1).forEach(function (o) { noI18n(o); });
       body.appendChild(formField('Whose it is', teamSel, 'The team it belongs to: its members see it here too.'));
     }
+    /* the team's limits (1.0.128): only the sources it may use with the portal's validation */
+    var fitIssuers = function () {
+      var lim = teamSel && (d.team_limits || {})[teamSel.value];
+      var allowed = lim ? iss.filter(function (i) { return (lim.issuers || []).indexOf(i) >= 0; }) : iss;
+      var was = issuerSel.value;
+      clear(issuerSel);
+      allowed.forEach(function (i) { var o = el('option', '', i); o.value = i; noI18n(o); issuerSel.appendChild(o); });
+      if (allowed.indexOf(was) >= 0) issuerSel.value = was;
+      issuerSel.disabled = !allowed.length;
+    };
+    if (teamSel) { teamSel.addEventListener('change', fitIssuers); fitIssuers(); }
     noteBox = el('textarea');
     noteBox.rows = 2;
     noteBox.placeholder = 'what it is for (the administrator sees this)';
@@ -876,6 +887,9 @@ function askDialog() {
     if (!names.length) { sayBad(said, 'Which names? One a line.'); namesBox.focus(); return; }
     var bad = names.filter(function (n) { return !underSuffix(n, sufs); });
     if (bad.length) { sayBad(said, 'Only names under ' + sufs.join(', ') + ' may be asked for here.'); namesBox.focus(); return; }
+    var lim = teamSel && (d.team_limits || {})[teamSel.value];
+    if (lim && lim.wildcards === false && names.some(function (n) { return n.indexOf('*.') === 0; })) { sayBad(said, 'The team’s certificates have no wildcard names.'); namesBox.focus(); return; }
+    if (lim && !issuerSel.value) { sayBad(said, 'The team’s limits allow none of the sources here.'); return; }
     busy(b, true);
     api('cert-request', {names: names, issuer: issuerSel.value, key_type: keySel.value, note: noteBox.value,
                          team: teamSel ? teamSel.value : ''}).then(function (got) {

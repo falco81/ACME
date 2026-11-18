@@ -164,6 +164,7 @@ What a member may do is a set of capabilities:
 | `cert.approve` | approve or decline the team's requests |
 | `deploy.view` / `deploy.run` / `deploy.manage` | see / run / add, change, delete deployments |
 | `target.view` / `target.manage` / `target.test` | see / add, change, delete (and confirm agents) / test the team's devices |
+| `test.view` / `test.manage` | see / add, change, delete and run the team's tests (1.0.128, "Tests of a team" below) |
 | `team.view` | see the team, its members and its limits |
 | `team.members` | add, change and remove members - never giving more than one holds oneself |
 | `team.policy` | change the limits of the teams **below** (never one's own team's, never wider) |
@@ -195,15 +196,18 @@ Built-in roles (in the code, not changed, not deleted):
 
 | role | capabilities |
 |---|---|
-| Viewer | cert.view, deploy.view, target.view, team.view |
+| Viewer | cert.view, deploy.view, target.view, team.view, test.view |
 | Requester | Viewer + cert.request |
 | Renewer | Viewer + cert.renew, cert.auto |
 | Deployer | Viewer + deploy.run |
-| Device manager | Viewer + target.manage, target.test, deploy.manage, deploy.run |
+| Device manager | Viewer + target.manage, target.test, deploy.manage, deploy.run, test.manage |
 | Certificate manager | Requester + Renewer + cert.edit, cert.revoke, cert.delete, cert.key, deploy.run, deploy.manage - it does not approve (that is the Approver's); a member with the OLD right `manage` still approves, as before |
 | Approver | Viewer + cert.approve |
 | Team manager | Viewer + team.members, team.policy, team.create, team.activity |
 | Team owner | every capability |
+
+`test.view` (1.0.128) is part of the Viewer, so of every role built on it; the old rights give
+exactly what they gave before (none of them gives a test capability).
 
 Roles of one's own are kept in `cert_roles` (`name`, `description`, `caps`) - part of the
 configuration: backed up, exported and imported, replicated (`CERT_CARRY_TABLES`). Renaming
@@ -226,8 +230,11 @@ Every key is optional; a key not said is no limit from that team.
 | `free_form` | may ask without a profile (the portal's free form) - default true |
 | `issuers` | the sources its certificates may come from |
 | `validations` | the validations they may use |
+| `pairs` | the sources with their validations (1.0.128): `{"acme-le": ["dns-web"]}` - below |
 | `target_kinds` | the target modules of its devices (`["ssh", "agent", "f5"]`) |
+| `test_kinds` | the test modules of its tests (`["https", "smtp"]`, 1.0.128) |
 | `suffixes` | the names its certificates must be under |
+| `wildcards` | its certificates may have a wildcard name (`*.example.com`) - default true (1.0.128) |
 | `max_certs` | the most certificates the team, with the teams below it, may own |
 | `max_days` | the longest validity it may ask for |
 | `key_download` | files with the private key may be downloaded - default true |
@@ -238,13 +245,61 @@ Every key is optional; a key not said is no limit from that team.
 
 The limits in force are the **intersection** of the team's own and of every team above it:
 a team below only narrows (lists intersected - a suffix under another taken as the narrower,
-the smallest number, a switch off anywhere is off). A refusal names the team whose limit
+the smallest number, a switch off anywhere is off, a source with a validation only where every
+level allows the pair). A refusal names the team whose limit
 refused it ("the team Europe does not allow it: ...", `403`) and is an event.
 
 They are checked where a team member acts: the portal's request (free form and request
-profiles), a certificate a scoped certificate administrator makes or changes, the download
-of a key on the portal, a device and a deployment of the team (`teampolicy.need_*`,
-used by the portal's team pages). A full administrator is never limited.
+profiles, the names of a CSR), a new CSR with other names, a certificate a scoped certificate
+administrator makes or changes, the download of a key on the portal, a device, a test and a
+deployment of the team (`teampolicy.need_*`, used by the portal's team pages). A full
+administrator is never limited.
+
+#### No wildcards (`wildcards`, 1.0.128)
+
+`"wildcards": false` - no name of the team's certificates starts with `*.`: refused (`403`, an
+event, the team named) on the portal's free form, from a request profile, in a CSR sent to one,
+in a new CSR with other names, and for a scoped certificate administrator making a certificate
+or changing its names. False on any team above - false below, whatever the team below says.
+The pre-approved envelope of `approval` (`outside`) takes `"wildcards": false` too: a wildcard
+is not refused, it waits for an approval.
+
+#### Sources with their validations (`pairs`, 1.0.128)
+
+`"pairs": {"SOURCE": ["VALIDATION", ...]}` - a certificate from a source named here is proved
+only by the validations listed for it (its own validation and each name's own one); `[]` - that
+source with no validation (an authority of acme's own). The rule, per team:
+
+- a team without `pairs` says nothing of it (as before);
+- a team with `pairs`: a source in it - with its validations only; a source not in it - only
+  where **the same team's** `issuers` lists it (then with any validation `validations` allows);
+  any other source is refused;
+- in force is the pair every level allows: `pairs` of a team below is intersected with those
+  above it (sources both name, validations both list) - `issuers` of another level never opens
+  what one level's `pairs` closed.
+
+A new certificate saved without a source is checked with the default source (and its default
+validation) it will get. `issuers` and `validations` are still checked on their own. A source or validation renamed is
+renamed in `pairs` too. Checked where `issuers` and `validations` are (above); the portal's free
+form offers a team only the sources it may use with the portal's validation.
+
+#### Tests of a team (`test_kinds`, 1.0.128)
+
+A test (Certificates → Tests, `cert_tests`) has an `owner` like a target: a team, or empty -
+acme's own, as before (an older database is given the column empty; the column is replicated
+and exported with the table). Its members work with them on the portal, *Tests* in the team
+workspace: `test.view` lists them (its own and, with "below", the teams' below), `test.manage`
+adds, changes, deletes and runs them - only of the modules `test_kinds` allows, through a
+connector of the team only, never another team's test nor acme's own, and never a secret
+shown back (only whether it is set). A full administrator sets the owner of any test
+(`POST /api/tests/save {owner}`, `acme --check-edit NAME --owner TEAM`). In the administration
+the Tests tab stays as before - a full administrator's (no scoping of tests or targets there).
+Renaming or deleting a team takes its tests along as its devices.
+
+    GET  /api/portal/tests?team=[&below=1]   GET /api/portal/test?id=   GET /api/portal/test_kinds?team=
+    POST /api/portal/test_save {id?, team, name, kind, config, note, enabled}
+    POST /api/portal/test_delete {id}        POST /api/portal/test_run {id}
+    GET  /api/portal/policy_catalog?team=    the names of the sources and validations (team.policy)
 
 ### Approvals
 
@@ -261,6 +316,8 @@ used by the portal's team pages). A full administrator is never limited.
   one of the team above.
 - `count`: `2` - two different people approve (four eyes).
 - `self`: whether the person who asked may approve it (default false - never).
+- `outside` is `{profiles, suffixes, max_days, key_types, wildcards}` - `"wildcards": false`:
+  a wildcard name is outside the envelope (it waits).
 
 Each approval and decline is recorded with the request (who, when, words) and shown in its
 timeline; the request goes on once the rule is met; one decline declines it. The approvers
@@ -341,6 +398,7 @@ Enterprise teams (1.0.125):
     acme --teams-from-groups 'PKI-*' [--member-role Requester] [--parent TEAM] [--team-kind unit] [--yes]
                                                    teams from directory groups: the preview, made with --yes
     acme --target-edit NAME --owner TEAM|-         a team's device (- acme's own); --target-add too
+    acme --check-edit NAME --owner TEAM|-          a team's test (1.0.128); --check-add too
     acme --target-agent enroll new --owner TEAM    a team's enrollment code
 
 In `--members` the old rights stay rights, other words are roles, `@YYYY-MM-DD` ends the
@@ -364,6 +422,30 @@ members this way when one of them needs it.
                                                    members and limits columns at 48 characters)
 
 `--note ''` and `--description ''` with `--team-edit` take the note or the description away.
+
+## Typical setup
+
+A team that runs its own servers: creates its devices and tests of some kinds only, asks for
+certificates of its domain only, from one source with one validation, never a wildcard, and may
+not make sources or validations (nobody on a team can - those stay the administrators').
+
+    acme --team-edit Web --policy '{
+      "target_kinds": ["ssh", "iis"],
+      "test_kinds": ["https", "smtp"],
+      "issuers": ["acme-le"],
+      "pairs": {"acme-le": ["dns-web"]},
+      "suffixes": ["web.example.com"],
+      "wildcards": false
+    }'
+    acme --team-edit Web --members '[{"who": "group:Web-Admins", "roles": ["Device manager", "Requester"]}]'
+    acme --team-show Web
+
+On the pages: Settings → Certificates → **Owners and teams** → the team → **Limits** → *Set
+limits* (or the pencil): *Requests* - **Sources** (Only these: acme-le), **Sources with their
+validations** (Only these, *add a source…* acme-le, then *add…* dns-web), **Domains**
+(web.example.com), **Wildcard names** (Forbidden); *Keys, devices and agents* - **Target
+modules** and **Test modules** (Only these, from the catalog); **Save the limits**. A team
+manager above it does the same on the portal: *Sub-teams & limits* → the team → *Limits*.
 
 ## What the roles mean for keys and the network (read before delegating)
 

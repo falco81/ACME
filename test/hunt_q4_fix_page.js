@@ -61,8 +61,8 @@ const { chromium } = require('playwright');
 
     // ---- Request profiles: the source deleted ----
     await pane(page, 'reqprofiles');
-    await page.locator('#rp-host tr.rp-row', {hasText: 'q4-gone'}).waitFor({timeout: 20000});
-    await page.locator('#rp-host tr.rp-row', {hasText: 'q4-gone'}).locator('.rp-edit').click();
+    await page.locator('#rp-host .rp-row', {hasText: 'q4-gone'}).waitFor({timeout: 20000});
+    await page.locator('#rp-host .rp-row', {hasText: 'q4-gone'}).locator('.rp-edit').click();
     await page.waitForTimeout(800);
     out.rpIssuer = await page.locator('#rp-f-issuer').inputValue();
     out.rpWarn = await page.evaluate(() => { const w = document.querySelector('#modal-body .rp-gone'); return w && !w.hidden ? w.textContent : ''; });
@@ -78,7 +78,7 @@ const { chromium } = require('playwright');
     out.rpWarnPicked = await page.evaluate(() => { const w = document.querySelector('#modal-body .rp-gone'); return w && !w.hidden ? w.textContent : ''; });
     await shut(page);
     // one whose source is there: nothing said
-    await page.locator('#rp-host tr.rp-row', {hasText: 'q4-fine'}).locator('.rp-edit').click();
+    await page.locator('#rp-host .rp-row', {hasText: 'q4-fine'}).locator('.rp-edit').click();
     await page.waitForTimeout(800);
     out.rpFineIssuer = await page.locator('#rp-f-issuer').inputValue();
     out.rpFineWarn = await page.evaluate(() => !!document.querySelector('#modal-body .rp-gone:not([hidden])'));
@@ -101,8 +101,8 @@ const { chromium } = require('playwright');
     // ---- the same refusal in Czech ----
     const cs = await signIn(name, 'cs');
     await pane(cs, 'reqprofiles');
-    await cs.locator('#rp-host tr.rp-row', {hasText: 'q4-gone'}).waitFor({timeout: 20000});
-    await cs.locator('#rp-host tr.rp-row', {hasText: 'q4-gone'}).locator('.rp-edit').click();
+    await cs.locator('#rp-host .rp-row', {hasText: 'q4-gone'}).waitFor({timeout: 20000});
+    await cs.locator('#rp-host .rp-row', {hasText: 'q4-gone'}).locator('.rp-edit').click();
     await cs.waitForTimeout(800);
     await cs.locator('#modal-foot button.primary').last().click();
     await cs.waitForTimeout(1500);
@@ -110,7 +110,7 @@ const { chromium } = require('playwright');
     out.rpToastCs = await cs.evaluate(() => { const t = document.querySelector('.toast.show.bad'); return t ? t.textContent : ''; });
     await shut(cs);
     // a refusal with a name in it
-    await cs.locator('#rp-host tr.rp-row', {hasText: 'q4-fine'}).locator('.rp-edit').click();
+    await cs.locator('#rp-host .rp-row', {hasText: 'q4-fine'}).locator('.rp-edit').click();
     await cs.waitForTimeout(800);
     await cs.fill('#rp-f-name', 'q4-gone');
     await cs.locator('#modal-foot button.primary').last().click();

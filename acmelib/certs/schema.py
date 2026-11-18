@@ -127,7 +127,9 @@ SCHEMA = [
     ('cert_tests', '''CREATE TABLE IF NOT EXISTS cert_tests (
         id {ID}, name {K} NOT NULL UNIQUE, kind {K}, config {B}, state {B}, enabled {I},
         note {T}, created {N}, created_by {K}, updated {N}, last_ok {N}, last_error {T},
-        tags {T})'''),
+        tags {T}, owner {K})'''),
+    # owner (1.0.128, docs/teams.md "Tests of a team"): the team whose test it is - NULL acme's
+    # own, as before (a column added to an older database by add_missing_columns)
     # A test attached to a certificate (acmelib/certs/checks.py) - and how it went last; after_target
     # (1.0.65): run after a deployment on that target only ('' - after any of its deployments)
     # (last_state ok | warn | old | other | answer | unreachable, last_detail: JSON of

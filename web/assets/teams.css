@@ -330,7 +330,8 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 .tmx-dir{display:flex;flex-direction:column;gap:8px}
 .tmx-dir-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tmx-dir-row .tmx-find{flex:1 1 260px}
-.tmx-dir-list{display:flex;flex-direction:column;gap:3px;max-height:280px;overflow:auto;transition:opacity .15s}
+/* what was found flows with the dialog or the pane (1.0.128): no scrollbar of its own inside theirs */
+.tmx-dir-list{display:flex;flex-direction:column;gap:3px;transition:opacity .15s}
 .tmx-dir-list.busy{opacity:.5}
 .tmx-dir-list:empty{display:none}
 .tmx-dir-it{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent;min-width:0}
@@ -367,7 +368,7 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 .tmx-qbtn:hover{color:var(--info);border-color:color-mix(in srgb,var(--info) 45%,var(--line))}
 .tmx-until-s{flex-basis:100%}
 .tmx-dlg .set-item{margin-top:12px}
-.tmx-picklist{display:flex;flex-direction:column;gap:2px;max-height:min(48vh,420px);overflow:auto;margin-top:8px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.tmx-picklist{display:flex;flex-direction:column;gap:2px;margin-top:8px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .tmx-tp-it{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;min-height:34px}
 .tmx-tp-it:hover{background:var(--panel)}
 .tmx-tp-it.on{background:var(--info-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--info) 45%,transparent)}
@@ -460,7 +461,12 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 
 /* Roles: the matrix */
 .tmx-roles{border:1px solid var(--line);border-radius:var(--r,14px);background:var(--panel);padding:16px 18px}
-.tmx-mx-s{overflow:auto;max-width:100%;border:1px solid var(--line);border-radius:12px;max-height:calc(100vh - 260px)}
+/* No height of its own (1.0.128): the matrix flows with the pane, whose scrollbar is the one, and
+   its headings stick to the top of the pane - overflow:clip is no scrolling box, so sticky reaches
+   the pane. Wider than the pane, the box scrolls sideways (.wide, matrixHead in teams.js). */
+.tmx-mx-s{overflow:clip;max-width:100%;border:1px solid var(--line);border-radius:12px}
+.tmx-mx-s.wide{overflow-x:auto;overflow-y:hidden}
+.tmx-mx-s.wide > .tmx-mx > thead{position:relative;z-index:5}
 .tmx-mx{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
 .tmx-mx th{text-transform:none;letter-spacing:0;white-space:normal;color:var(--tx);font-size:13px;font-weight:600}
 .tmx-mx th,.tmx-mx td{border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);padding:0}
@@ -624,3 +630,10 @@ button.tmx-tick.on{border:0}
 /* keyboard: every control of the pane its ring (some had none - all:unset took the browser's) */
 .tmx-chip-x:focus-visible,.tmx-link:focus-visible,.tmx-kid:focus-visible,.tmx-qbtn:focus-visible,.tmx-tp-it:focus-visible,
 .tmx-dname:focus-visible,.tmx-ac-tn:focus-visible{outline:2px solid var(--info);outline-offset:2px;border-radius:6px}
+
+/* sources with their validations (1.0.128, the limit `pairs`) */
+.tmx-pairl{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0;max-width:100%}
+.tmx-pairl[hidden]{display:none}
+.tmx-pairr{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.tmx-pairh{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.tmx-pair b{font-weight:600}

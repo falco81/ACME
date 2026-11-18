@@ -15,6 +15,7 @@ nothing waits that did not wait before.
     request_waits(store, team, ...)         whether a request waits for approval (the rule)
     need_key_download(store, team, who)     a file with the private key
     need_target_kind(store, team, kind)     a device (target) of the team
+    need_test_kind(store, team, kind)       a test of the team (test_kinds, 1.0.128)
     need_deploy(store, cert, target, who)   a deployment by the team
     need_admin_cert(store, s, b, row)       a certificate a scoped administrator makes/changes
     admin_create_waits(store, s, owner)     its approval forced (policy approval "always")
@@ -136,7 +137,13 @@ def inside_envelope(eff, profile=None, names=(), days=None, key_type=None):
     if o.get('key_types') is not None and key_type and _low(key_type) not in {
             _low(k) for k in o['key_types']}:
         return False
+    if o.get('wildcards') is False and any(is_wildcard(n) for n in names or ()):
+        return False
     return True
+
+
+def is_wildcard(name):
+    return str(name or '').strip().startswith('*.')
 
 
 def request_waits(store, team, profile_waits, profile=None, names=(), days=None,
@@ -194,6 +201,23 @@ def need_target_kind(store, team, kind, who=''):
                'its devices are of the modules %s - not %s' % (', '.join(kinds) or 'none', kind))
 
 
+def test_kinds_allowed(eff):
+    """The test modules a team may make (None: any)."""
+    return (eff or {}).get('test_kinds')
+
+
+def need_test_kind(store, team, kind, who=''):
+    """A test of the team of this module: one its test_kinds allow (1.0.128)."""
+    team = team_name(store, team)
+    if not team:
+        return
+    eff = _eff(store, team)
+    kinds = eff.get('test_kinds')
+    if kinds is not None and _low(kind) not in {_low(k) for k in kinds}:
+        refuse(store, who, _from(eff, 'test_kinds', team),
+               'its tests are of the modules %s - not %s' % (', '.join(kinds) or 'none', kind))
+
+
 def need_deploy(store, cert, target, who=''):
     """A deployment of a team's certificate (made by the team): to a device of the team (or of
     a team above or below it) or of acme's own, of a module its limits allow."""
@@ -248,14 +272,35 @@ def need_admin_cert(store, s, b, row):
         ((row or {}).get('challenge_map') if moving else None)
     if isinstance(cmap, str):
         cmap = S.jload(cmap, {})
+    eff = _eff(store, team)
     if isinstance(cmap, dict):
-        eff = _eff(store, team)
         for v in sorted({str(x).strip() for x in cmap.values()
                          if isinstance(x, str) and str(x).strip()}):
             _check_eff(store, team, eff, who, None, v, (), None, False)
     need_request(store, team, who, profile='', issuer=issuer, validation=validation,
                  names=[str(n) for n in names or [] if isinstance(n, str)], days=days,
                  count=row is None or moving)
+    if eff.get('pairs') is not None and (row is None or moving or 'issuer' in b or
+                                         'challenge' in b or 'challenge_map' in b):
+        # the source with its validations (1.0.128): what the certificate will use - the
+        # source and validation sent, else those it has, and every validation of its names
+        src = issuer if 'issuer' in b or row is None else (row or {}).get('issuer')
+        val = validation if 'challenge' in b or row is None else (row or {}).get('challenge')
+        if row is None and 'issuer' not in b:
+            # a new one without a source takes the default one (and its default validation,
+            # api.cert_save) - checked as that
+            from acmelib.certs import defaults as DF
+            di = DF.default_issuer(store)
+            src = di['name'] if di else None
+            if di and 'challenge' not in b and not b.get('challenge_map'):
+                dc = DF.default_challenge(store, di)
+                val = dc['name'] if dc else None
+        if not isinstance(cmap, dict):
+            cmap = S.jload((row or {}).get('challenge_map'), {}) or {}
+        vals = {str(val or '').strip()} | {str(x).strip() for x in (cmap or {}).values()
+                                           if isinstance(x, str)}
+        for v in sorted(x for x in vals if x) or ['']:
+            need_pair(store, team, eff, who, src, v or None)
 
 
 def admin_create_waits(store, s, owner):
@@ -270,6 +315,21 @@ def admin_create_waits(store, s, owner):
     return bool(eff.get('approval')) and T.approval_rule(eff)['mode'] == 'always'
 
 
+def need_pair(store, team, eff, who, issuer, validation):
+    """pairs (1.0.128): the source with a validation its team pairs with it."""
+    if eff.get('pairs') is None or not issuer or T.pair_allowed(eff, issuer, validation):
+        return
+    pairs = eff['pairs']
+    hit = [v for k, v in pairs.items() if _low(k) == _low(issuer)]
+    if not hit:
+        refuse(store, who, _from(eff, 'pairs', team),
+               'the source %s is not one it may use (%s)' % (
+                   issuer, ', '.join(sorted(pairs)) or 'none'))
+    refuse(store, who, _from(eff, 'pairs', team),
+           'a certificate from %s is proved by %s only - not %s' % (
+               issuer, ', '.join(hit[0]) or 'nothing', validation))
+
+
 def _check_eff(store, team, eff, who, issuer, validation, names, days, count):
     if issuer and eff.get('issuers') is not None and _low(issuer) not in {
             _low(x) for x in eff['issuers']}:
@@ -281,6 +341,13 @@ def _check_eff(store, team, eff, who, issuer, validation, names, days, count):
         refuse(store, who, _from(eff, 'validations', team),
                'the validation %s is not one it may use (%s)' % (
                    validation, ', '.join(eff['validations']) or 'none'))
+    if issuer and eff.get('pairs') is not None:
+        need_pair(store, team, eff, who, issuer, validation)
+    if not T.policy_value(eff, 'wildcards'):
+        bad = [str(n) for n in names or () if is_wildcard(n)]
+        if bad:
+            refuse(store, who, _from(eff, 'wildcards', team),
+                   'its certificates have no wildcard names - not %s' % ', '.join(bad[:10]))
     if eff.get('suffixes') is not None:
         bad = [n for n in names or () if not name_in_suffixes(n, eff['suffixes'])]
         if bad:

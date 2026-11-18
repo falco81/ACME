@@ -2786,6 +2786,12 @@ function settingItemBare(s) {
   input.addEventListener('input', function () { markDirty(item, s); });
   input.addEventListener('change', function () { markDirty(item, s); });
   item.appendChild(input);
+  /* The groups of a setting picked straight from the directory too (1.0.128): their DN, one
+     more line of the list - typed by hand, as before, works as it did. */
+  if (DIRPICK_SETTINGS[s.key] && ADMIN && typeof dirPickButton === 'function') {
+    dirPickButton(input, {kinds: ['group'], format: 'dn', list: 'dnlist', id: 'set-' + s.key + '-pick',
+                    directory: DIRPICK_SETTINGS[s.key] === 'portal' ? portalGroupsDirectory : agDirectory});
+  }
   if (s.key === 'portal_groups' && ADMIN) {
     /* The groups found in the directory and picked, rather than typed - the
        same list as for the administrators' groups. */
@@ -2935,6 +2941,15 @@ function hsList(host, rows, cls, title, redraw) {
 /** The groups that may sign in to the portal, found in the directory: each one's button
     puts it into the box or takes it out, and the box is saved with the
     other settings as before. */
+/* The settings that hold directory groups, and whose directory they are looked up in. */
+var DIRPICK_SETTINGS = {portal_groups: 'portal', admin_group_full: 'admin', admin_group_cert: 'admin',
+                        admin_group_token: 'admin', admin_group_readonly: 'admin', admin_group_portal: 'admin'};
+/** The directory the portal signs people in against, as set in the editor now - or the
+    administrators' one. */
+function portalGroupsDirectory() {
+  return String(readValue(settingByKey('portal_directory') || {key: 'portal_directory'}) || '')
+    || agDirectory();
+}
 function portalGroupsPick(input, item, s) {
   var dirs = SETTINGS.directories || [];
   if (!dirs.length) { toast('there is no directory to look in: Settings → Accounts, The directories', 'bad'); return; }
@@ -3629,7 +3644,11 @@ function askInModal(title, lede, fields, words, icon, go) {
       });
       boxes.push(input);
       g.appendChild(formField(f.label, shown, f.says));
-      if (f.people) personSuggest(input, f.people);
+      if (f.people) {
+        personSuggest(input, f.people);
+        /* ...and picked from the directory by its button (1.0.128) */
+        if (typeof dirPickButton === 'function') dirPickButton(input, {kinds: ['user'], format: 'login', quiet: true, directory: f.people.directory || '', id: f.pickId || null});
+      }
     });
     body.appendChild(g);
     setTimeout(function () { if (boxes[0]) boxes[0].focus(); }, 60);
@@ -3641,7 +3660,7 @@ function askInModal(title, lede, fields, words, icon, go) {
 function lookupDir(name) {
   askInModal('Look a name up in ' + name, 'What the directory says about one person: who they are, whether the '
     + 'account is switched off or has run out, and every group they are in, those inside groups as well.',
-    [{label: 'Who', placeholder: 'novak@example.cz or novak', mono: true, people: {directory: name},
+    [{label: 'Who', placeholder: 'novak@example.cz or novak', mono: true, people: {directory: name}, pickId: 'dir-look-pick',
       says: 'A whole name, or a short one - or part of a name, and pick one.'}], 'Look it up', 'search', function (v) {
       var who = v[0].trim();
       if (!who) { toast('type a name first', 'bad'); return; }
@@ -7151,6 +7170,7 @@ if ($('ag-find')) {
       name.type = 'text';
       name.placeholder = 'novak, novak@example.cz or EXAMPLE\\novak';
       one.appendChild(name);
+      if (typeof dirPickButton === 'function') dirPickButton(name, {kinds: ['user'], format: 'login', directory: agDirectory, id: 'ag-try-pick'});
       body.appendChild(one);
       var two = el('div', 'set-item');
       two.appendChild(el('label', '', 'Their password'));
@@ -8976,6 +8996,11 @@ function certLookup(part, who) {
     bar.appendChild(seg);
     body.appendChild(bar);
     personSuggest(box, {directory: ((d.parts || {})[part] || {}).directory || '', picked: function () { setTimeout(run, 0); }});
+    if (typeof dirPickButton === 'function') {
+      dirPickButton(box, {kinds: ['user'], format: 'login', quiet: true, id: 'clk-pick', after: box.parentNode,
+                    directory: function () { return (((CERTC.d || {}).parts || {})[CLOOK.part] || {}).directory || ''; },
+                    picked: function () { setTimeout(run, 0); }});
+    }
     res = el('div', 'clk-res');
     body.appendChild(res);
   }, [{words: 'Close', close: true}], 'medium clk-box');

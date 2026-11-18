@@ -2533,8 +2533,9 @@ def family_save(store, family, b, by):
         fields['note'] = _text(b, 'note', 4000)
     if family == 'target' and ('tags' in b or not row):
         fields['tags'] = json.dumps(_tags_of(b))
-    if family == 'target' and 'owner' in b:
-        # the team whose device it is (1.0.125, docs/teams.md): '' / null acme's own
+    if family in ('target', 'check') and 'owner' in b:
+        # the team whose device it is (1.0.125, docs/teams.md): '' / null acme's own - and
+        # whose test it is (1.0.128)
         fields['owner'] = target_owner(store, b.get('owner'))
     made = None
     served_before = None

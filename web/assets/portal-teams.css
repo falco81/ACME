@@ -374,7 +374,7 @@ ol.pw-tl::before{content:'';position:absolute;left:17px;top:14px;bottom:14px;wid
 .pw-flow-s select{width:100%}
 .pw-pick-on{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--info-bg);color:var(--tx)}
 .pw-pick-on b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.pw-pick-l{display:flex;flex-direction:column;gap:2px;margin-top:6px;max-height:210px;overflow:auto}
+.pw-pick-l{display:flex;flex-direction:column;gap:2px;margin-top:6px}
 .pw-pick-o{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13.5px;min-width:0}
 .pw-pick-o > span:nth-child(2){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pw-pick-o:hover,.pw-pick-o:focus-visible{background:var(--panel)}
@@ -564,3 +564,12 @@ body.pw-on .wrap.portal{max-width:1400px}
 
 /* keyboard: the remove mark of a chip its ring, as every other control here */
 .pw-chipin-c button:focus-visible{outline:2px solid var(--info);outline-offset:1px}
+
+/* the limit "sources with their validations" (1.0.128, pairs) */
+.pw-pairs{display:flex;flex-direction:column;gap:8px;min-width:0;max-width:100%}
+.pw-pairr{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.pw-pairh{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.pw-pairv{display:flex;flex-wrap:wrap;gap:6px 14px;min-width:0}
+.pw-pairx{all:unset;cursor:pointer;margin-left:auto;display:inline-flex;padding:2px;border-radius:6px;color:var(--muted)}
+.pw-pairx:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.pw-pair b{font-weight:600}
