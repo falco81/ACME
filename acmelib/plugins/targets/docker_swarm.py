@@ -80,6 +80,11 @@ class DockerSwarmTarget(SshMixin, Base):
         crt, key = name + '.crt', name + '.key'
         targets = {'crt': text(self.opt(options, 'cert_target', 'tls.crt')).strip(),
                    'key': text(self.opt(options, 'key_target', 'tls.key')).strip()}
+        for k, v in targets.items():
+            # one field of --secret-add source=..,target=..,mode=..: a comma would add fields
+            if not v or ',' in v or '=' in v:
+                raise PluginError('"%s" is not a file name in the container (no comma or =)' % v,
+                                  retry=False)
         svcs = lines(options.get('services'))
         for sv in svcs:
             if not _SVC_RE.match(sv):

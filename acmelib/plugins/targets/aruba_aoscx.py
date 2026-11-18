@@ -113,8 +113,13 @@ class ArubaAosCxTarget(HttpTarget):
             st, hd, d = self.req('POST', '%s/login?%s' % (self.v(), qs), b'', auth=False,
                                  what='signing in')
         except PluginError as e:
-            raise PluginError(str(e).replace(text(self.c('password') or '\0'), '…'),
-                              retry=False)
+            msg, pw = str(e), text(self.c('password') or '')
+            # the password raw and as the login URL carries it (urlencode: quote_plus; or quote)
+            for form in sorted({pw, urllib.parse.quote_plus(pw), urllib.parse.quote(pw, safe='')},
+                               key=len, reverse=True):
+                if form:
+                    msg = msg.replace(form, '…')
+            raise PluginError(msg, retry=False)
         ck = text(hd.get('set-cookie'))
         if not ck:
             raise PluginError('the switch gave no session cookie', retry=False)

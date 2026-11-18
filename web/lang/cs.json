@@ -99189,6 +99189,10 @@
   "pz_543": {
    "source": "{0} is not the name of a template (no line breaks or control characters)",
    "text": "{0} není název šablony (bez zalomení řádků a řídicích znaků)"
+  },
+  "pz_t8swarm": {
+   "source": "\"{0}\" is not a file name in the container (no comma or =)",
+   "text": "„{0}“ není název souboru v kontejneru (bez čárky a =)"
   }
  },
  "rich": {
