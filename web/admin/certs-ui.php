@@ -244,6 +244,7 @@ function acme_certs_settings_nav(): void
     <button type="button" data-pane="agents" data-icon="terminal" title="Servers that take their certificates through acme-agent, without acme holding any of their credentials: the agent to install, acme's agent authority, active mode and its port, and every agent's state.">Target agents</button>
     <button type="button" data-pane="modules" data-icon="list" data-cicon="module" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
     <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
+    <button type="button" data-pane="reqprofiles" data-icon="list" title="What people may ask for on the portal with everything set beforehand - the source, the validation, the names allowed, the key or their CSR, the subject, approval and owner: they give only the names.">Request profiles</button>
 <?php
 }
 

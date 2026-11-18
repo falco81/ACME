@@ -4699,3 +4699,368 @@ window.addEventListener('storage', function (e) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
   else setTimeout(go, 0);
 })();
+
+/* ==========================================================================
+   Pick from the directory (1.0.128)
+   ==========================================================================
+   A small search button beside a box that holds a name of the directory - a group's DN in a
+   setting, a person's login, a team member's group:NAME - opening a popover that asks the
+   directory as one types (the administration's /api/dir/search, the portal's dir-search, the
+   same search as the team member picker) and puts what is picked into the box in the form the
+   box already takes: one value, or one more line of a list. What is typed by hand works as it
+   did (wildcards too); the button is only an addition. It is drawn only for those who may ask
+   the directory: a certificate administrator or a full one in the administration; on the
+   portal only where the caller says so (those who manage a team's members).
+
+     dirPick(input, {kinds: ['user'] | ['group'] | ['user', 'group'],
+                     format: 'dn' | 'login' | 'who' | function (row, kind),
+                     list: '' (one value) | 'dnlist' (; or new lines) | 'lines' | 'comma',
+                     directory: name | function () - the administration's directory to ask,
+                     has / toggle: function (row, kind) - a list of the caller's own,
+                     picked: function (row, kind) - told after the box was filled,
+                     after: element - the button goes right after it, the box is not wrapped,
+                     id, title, may}) */
+var DIRPICK = {open: null};
+function dirPickPortal() { return !/\/admin\//.test(location.pathname); }
+function dirPickMay(opts) {
+  if (opts && opts.may !== undefined) return !!opts.may;
+  if (dirPickPortal()) return false;
+  return typeof ME === 'object' && !!ME && (ME.role === 'fulladmin' || ME.role === 'certadmin');
+}
+function dirPickSearch(q, kind, opts) {
+  if (dirPickPortal()) return api('dir-search&kind=' + kind + '&q=' + encodeURIComponent(q));
+  var d = typeof opts.directory === 'function' ? opts.directory() : opts.directory;
+  return api('dir/search&q=' + encodeURIComponent(q) + '&kind=' + kind + '&limit=20'
+             + (d ? '&directory=' + encodeURIComponent(d) : ''));
+}
+/* What goes into the box for a row found: the form the box already takes. */
+function dirPickValue(r, kind, format) {
+  if (typeof format === 'function') return String(format(r, kind) || '');
+  if (format === 'dn') return String(r.dn || r.who || '');
+  if (format === 'login') return kind === 'group' ? String(r.who || '') : String(r.upn || r.sam || r.who || '');
+  return String(r.who || r.dn || '');
+}
+function dirPickItems(v, list) {
+  var re = list === 'comma' ? /,/ : (list === 'lines' ? /\n/ : /[;\n]/);
+  return String(v || '').split(re).map(function (x) { return x.trim(); }).filter(Boolean);
+}
+function dirPickJoin(items, input, list) {
+  if (list === 'comma') return items.join(', ');
+  if (list === 'lines') return items.join('\n');
+  /* in the separator the box already uses, as the administrators' groups do (agToggle) */
+  var v = String(input.value || '');
+  return items.join(/\n/.test(v) || (input.tagName === 'TEXTAREA' && !/;/.test(v)) ? '\n' : '; ');
+}
+/* A line of a list that stands for this row: its DN, its name, its login - any case. */
+function dirPickSame(line, r) {
+  var l = String(line || '').trim().toLowerCase();
+  return [r.dn, r.who, r.cn, r.upn, r.sam, r.cn ? 'group:' + r.cn : ''].some(function (x) {
+    return x && String(x).toLowerCase() === l;
+  });
+}
+function dirPickTold(input) {
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+  input.dispatchEvent(new Event('change', {bubbles: true}));
+}
+function dirPickClose() {
+  var o = DIRPICK.open;
+  if (!o) return;
+  DIRPICK.open = null;
+  clearInterval(o.timer);
+  document.removeEventListener('mousedown', o.outside, true);
+  document.removeEventListener('keydown', o.keys, true);
+  window.removeEventListener('scroll', o.place, true);
+  window.removeEventListener('resize', o.place);
+  if (o.pop.parentNode) o.pop.parentNode.removeChild(o.pop);
+  o.btn.setAttribute('aria-expanded', 'false');
+  o.btn.classList.remove('on');
+}
+function dirPickOpen(btn, input, opts) {
+  dirPickClose();
+  var kinds = opts.kinds && opts.kinds.length ? opts.kinds : ['user', 'group'];
+  var kind = kinds[0];
+  var multi = !!(opts.list || opts.toggle);
+  var pop = el('div', 'dpk-pop');
+  pop.id = 'dpk-pop';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Pick from the directory');
+  var head = el('div', 'dpk-head');
+  head.appendChild(el('b', 'dpk-title', opts.title || (kinds.length > 1 ? 'Pick from the directory'
+    : (kind === 'group' ? (multi ? 'Pick groups from the directory' : 'Pick a group from the directory')
+      : (multi ? 'Pick people from the directory' : 'Pick a person from the directory')))));
+  var x = iconButton('close', 'Close');
+  x.classList.add('dpk-x');
+  x.onclick = function () { dirPickClose(); input.focus(); };
+  head.appendChild(x);
+  pop.appendChild(head);
+  var row = el('div', 'dpk-ask');
+  var find = el('label', 'dpk-find');
+  find.innerHTML = iconMarkup('search', 15);
+  var q = el('input', 'dpk-q');
+  q.type = 'search';
+  q.id = 'dpk-q';
+  q.autocomplete = 'off';
+  q.spellcheck = false;
+  q.placeholder = kind === 'group' && kinds.length === 1 ? 'Part of a group’s name' : 'Part of a name, a login or a mail';
+  q.setAttribute('aria-label', 'Search the directory');
+  find.appendChild(q);
+  row.appendChild(find);
+  var seg = null;
+  if (kinds.length > 1) {
+    seg = el('div', 'dpk-seg');
+    seg.setAttribute('role', 'radiogroup');
+    kinds.forEach(function (k) {
+      var b = el('button', 'dpk-segb' + (k === kind ? ' on' : ''));
+      b.type = 'button';
+      b.dataset.kind = k;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', k === kind ? 'true' : 'false');
+      b.innerHTML = iconMarkup(k === 'group' ? 'people' : 'person', 14);
+      b.appendChild(el('span', '', k === 'group' ? 'Groups' : 'People'));
+      b.onclick = function () {
+        if (kind === k) return;
+        kind = k;
+        Array.prototype.forEach.call(seg.children, function (c) {
+          c.classList.toggle('on', c === b);
+          c.setAttribute('aria-checked', c === b ? 'true' : 'false');
+        });
+        ask();
+        q.focus();
+      };
+      seg.appendChild(b);
+    });
+    row.appendChild(seg);
+  }
+  pop.appendChild(row);
+  var list = el('div', 'dpk-list');
+  list.setAttribute('role', 'listbox');
+  if (multi) list.setAttribute('aria-multiselectable', 'true');
+  pop.appendChild(list);
+  var said = el('div', 'dpk-said', 'Type at least two letters.');
+  said.setAttribute('aria-live', 'polite');
+  pop.appendChild(said);
+  var foot = el('div', 'dpk-foot');
+  var count = el('span', 'dpk-count');
+  foot.appendChild(el('span', 'dpk-hint', multi ? 'Each one picked goes into the box; picked again, it comes out.'
+    : 'Typing the name by hand works as before.'));
+  if (multi) {
+    foot.appendChild(count);
+    var done = cmdButton('Done', 'check', 'small primary');
+    done.classList.add('dpk-done');
+    done.onclick = function () { dirPickClose(); input.focus(); };
+    foot.appendChild(done);
+  }
+  pop.appendChild(foot);
+  document.body.appendChild(pop);
+
+  var has = function (r, k) {
+    if (opts.has) return !!opts.has(r, k);
+    return dirPickItems(input.value, opts.list).some(function (line) { return dirPickSame(line, r); });
+  };
+  var paintCount = function () {
+    if (!multi) return;
+    var n = list.querySelectorAll('.dpk-it.on').length;
+    count.textContent = n ? '{0} of these in the box'.replace('{0}', n) : '';
+  };
+  var take = function (r, k, it) {
+    var v = dirPickValue(r, k, opts.format);
+    if (!v) return;
+    if (opts.toggle) {
+      opts.toggle(r, k);
+    } else if (multi) {
+      var items = dirPickItems(input.value, opts.list);
+      var was = items.some(function (line) { return dirPickSame(line, r); });
+      items = was ? items.filter(function (line) { return !dirPickSame(line, r); }) : items.concat([v]);
+      input.value = dirPickJoin(items, input, opts.list);
+      dirPickTold(input);
+    } else {
+      input.value = v;
+      dirPickTold(input);
+    }
+    if (multi) {
+      var on = has(r, k);
+      it.classList.toggle('on', on);
+      it.setAttribute('aria-selected', on ? 'true' : 'false');
+      paintCount();
+    } else {
+      dirPickClose();
+      input.focus();
+    }
+    if (opts.picked) opts.picked(r, k);
+  };
+  var gen = 0;
+  var fail = function (e) {
+    clear(list);
+    said.className = 'dpk-said bad';
+    clear(said);
+    var st = e && e.status;
+    if (st === 404) said.appendChild(el('span', '', 'No directory is set up to search - type the name by hand.'));
+    else if (st === 403) said.appendChild(el('span', '', 'You may not search the directory here - type the name by hand.'));
+    else {
+      said.appendChild(el('span', '', 'The directory could not be searched - type the name by hand.'));
+      var m = String((e && e.message) || e || '');
+      if (m) { said.appendChild(document.createTextNode(' ')); said.appendChild(el('span', 'dpk-why', m)); }
+    }
+  };
+  var draw = function (rows, more) {
+    clear(list);
+    said.className = 'dpk-said';
+    said.textContent = rows.length ? (more ? 'More are there - type more of the name.' : '') : 'Nothing found.';
+    rows.forEach(function (r) {
+      var v = dirPickValue(r, kind, opts.format);
+      var it = el('button', 'dpk-it');
+      it.type = 'button';
+      it.setAttribute('role', 'option');
+      it.dataset.v = v;
+      noI18n(it);
+      var av = el('span', 'dpk-av' + (kind === 'group' ? ' group' : ''));
+      av.innerHTML = iconMarkup(kind === 'group' ? 'people' : 'person', 15);
+      it.appendChild(av);
+      var w = el('span', 'dpk-w');
+      w.appendChild(el('b', '', r.display || r.cn || r.sam || r.who || r.dn));
+      var sub = kind === 'group' ? (r.description || '') : [r.upn || r.sam, r.mail].filter(Boolean).join(' · ');
+      if (sub) w.appendChild(el('span', 'dpk-sub', sub));
+      if (r.dn) w.appendChild(el('span', 'dpk-dn', r.dn));
+      else if (kind === 'group' && r.who) w.appendChild(el('span', 'dpk-dn', r.who));
+      it.appendChild(w);
+      if (kind !== 'group') {
+        /* the account's state: words of the page, so translated */
+        var stt = el('span', 'tag ' + (r.disabled ? 'crit' : 'ok') + ' dpk-state', r.disabled ? 'switched off' : 'active');
+        stt.removeAttribute('data-no-i18n');
+        it.appendChild(stt);
+      }
+      var ck = el('span', 'dpk-ck');
+      ck.innerHTML = iconMarkup('check', 15);
+      it.appendChild(ck);
+      if (multi) {
+        var on = has(r, kind);
+        it.classList.toggle('on', on);
+        it.setAttribute('aria-selected', on ? 'true' : 'false');
+      }
+      it.onclick = function () { take(r, kind, it); };
+      list.appendChild(it);
+    });
+    paintCount();
+    place();
+  };
+  var ask = function () {
+    var w = q.value.trim(), mine = ++gen;
+    if (w.length < 2) {
+      /* asked with nothing: says at once whether there is a directory to search at all */
+      if (mine === 1) {
+        dirPickSearch('', kind, opts).then(function () {
+          if (mine === gen) { clear(list); said.className = 'dpk-said'; said.textContent = 'Type at least two letters.'; }
+        }).catch(function (e) { if (mine === gen) fail(e); });
+        return;
+      }
+      clear(list);
+      said.className = 'dpk-said';
+      said.textContent = 'Type at least two letters.';
+      place();
+      return;
+    }
+    said.className = 'dpk-said';
+    said.textContent = 'Asking the directory…';
+    list.classList.add('busy');
+    dirPickSearch(w, kind, opts).then(function (d) {
+      if (mine !== gen) return;
+      list.classList.remove('busy');
+      draw(d.rows || [], !!d.more);
+    }).catch(function (e) {
+      if (mine !== gen) return;
+      list.classList.remove('busy');
+      fail(e);
+      place();
+    });
+  };
+  var later = debounce(ask, 300);
+  q.addEventListener('input', later);
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { var f = list.querySelector('.dpk-it'); if (f) { e.preventDefault(); f.focus(); } }
+    else if (e.key === 'Enter') { e.preventDefault(); ask(); }
+  });
+  list.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    var all = Array.prototype.slice.call(list.querySelectorAll('.dpk-it'));
+    var at = all.indexOf(document.activeElement);
+    e.preventDefault();
+    if (e.key === 'ArrowUp' && at <= 0) { q.focus(); return; }
+    var to = all[Math.max(0, Math.min(all.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))];
+    if (to) to.focus();
+  });
+  /* over the page, never inside the box's card or popup: nothing under it gets a scrollbar */
+  var place = function () {
+    if (!btn.isConnected || !btn.getClientRects().length) { dirPickClose(); return; }
+    var r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth || window.innerWidth;
+    var vh = window.innerHeight;
+    var w = Math.min(440, vw - 16);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + 'px';
+    var h = pop.offsetHeight, below = vh - r.bottom - 8, above = r.top - 8;
+    var top = h <= below || below >= above ? r.bottom + 6 : r.top - 6 - h;
+    pop.style.top = Math.max(8, Math.min(top, vh - h - 8)) + 'px';
+  };
+  var outside = function (e) {
+    if (!pop.contains(e.target) && !btn.contains(e.target)) dirPickClose();
+  };
+  var keys = function (e) {
+    if (!DIRPICK.open || !pop.contains(document.activeElement)) {
+      if (e.key === 'Escape' && DIRPICK.open) { e.preventDefault(); e.stopPropagation(); dirPickClose(); }
+      return;
+    }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); dirPickClose(); input.focus(); return; }
+    if (e.key === 'Tab') {
+      /* round inside the popover - the popup under it keeps its own round */
+      var inside = Array.prototype.filter.call(pop.querySelectorAll('button, input'),
+        function (n) { return !n.disabled && n.getClientRects().length; });
+      var at = inside.indexOf(document.activeElement);
+      e.preventDefault();
+      e.stopPropagation();
+      var to = inside[(at + (e.shiftKey ? -1 : 1) + inside.length) % inside.length];
+      if (to) to.focus();
+    }
+  };
+  DIRPICK.open = {pop: pop, btn: btn, outside: outside, keys: keys, place: place,
+                  timer: setInterval(function () { if (!btn.isConnected || !btn.getClientRects().length) dirPickClose(); }, 400)};
+  btn.setAttribute('aria-expanded', 'true');
+  btn.classList.add('on');
+  setTimeout(function () { if (DIRPICK.open && DIRPICK.open.pop === pop) document.addEventListener('mousedown', outside, true); }, 0);
+  document.addEventListener('keydown', keys, true);
+  window.addEventListener('scroll', place, true);
+  window.addEventListener('resize', place);
+  place();
+  ask();
+  setTimeout(function () { q.focus(); }, 30);
+}
+function dirPick(input, opts) {
+  opts = opts || {};
+  if (!input || input._dirPick || input.disabled || !dirPickMay(opts)) return null;
+  input._dirPick = true;
+  var kinds = opts.kinds && opts.kinds.length ? opts.kinds : ['user', 'group'];
+  var tip = kinds.length > 1 ? 'Pick from the directory: search people and groups and put the one picked here.'
+    : (kinds[0] === 'group' ? 'Pick from the directory: search the groups and put the ones picked here.'
+      : 'Pick from the directory: search people and put the one picked here.');
+  var b = iconButton('search', tip);
+  b.classList.add('dpk-btn');
+  if (opts.id) b.id = opts.id;
+  b.setAttribute('aria-label', 'Pick from the directory');
+  b.setAttribute('aria-haspopup', 'dialog');
+  b.setAttribute('aria-expanded', 'false');
+  b.onclick = function (e) {
+    e.preventDefault();
+    if (DIRPICK.open && DIRPICK.open.btn === b) { dirPickClose(); return; }
+    dirPickOpen(b, input, opts);
+  };
+  if (opts.after && opts.after.parentNode) {
+    opts.after.parentNode.insertBefore(b, opts.after.nextSibling);
+  } else {
+    var host = input.parentNode && input.parentNode.classList && input.parentNode.classList.contains('qs-wrap') ? input.parentNode : input;
+    if (!host.parentNode) return null;
+    var row = el('div', 'dpk-wrap' + (input.tagName === 'TEXTAREA' ? ' tall' : ''));
+    host.parentNode.insertBefore(row, host);
+    row.appendChild(host);
+    row.appendChild(b);
+  }
+  input._dirPickButton = b;
+  return b;
+}

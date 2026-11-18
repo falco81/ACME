@@ -1,7 +1,6 @@
 # Request profiles
 
-Settings → **Request profiles** (in *Messages and the portal*, next to *The
-enrolment pages*) holds kinds of certificates people may ask for on the
+Settings → **Request profiles** (in *Certificates*, under *Owners and teams*) holds kinds of certificates people may ask for on the
 enrolment pages with everything but the names given beforehand. The person
 picks a profile, gives its names (or sends their CSR) and what the profile
 leaves to them; the rest is as it says. Profiles are added beside the portal's

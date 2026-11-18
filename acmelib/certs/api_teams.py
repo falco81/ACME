@@ -325,15 +325,25 @@ def _dir_group(h, s):
 
 
 FROM_GROUPS_MOST = 500
+FROM_GROUPS_PICKED_MOST = 200
 
 
 def from_groups(h, b, by, may_make=True, seen=None):
     """Teams made from the directory's groups whose cn fits `filter` (PKI-*): each a team (or a
     unit) of that name, the group its member with `role`, under `parent`. dry_run: said, not
-    made. `seen` (lower names, None every team): the teams whose members may be told."""
+    made. `seen` (lower names, None every team): the teams whose members may be told.
+    `groups` (1.0.128): groups picked from the directory (their DN or cn) - beside the filter,
+    or instead of it when the filter is left empty."""
     from acmelib.certs import teampolicy as TP
     store = h.store
-    pattern = TP.group_pattern(b.get('filter'))
+    picked = b.get('groups') or []
+    if not isinstance(picked, list):
+        raise E.ApiError(400, 'the groups picked are a list of their DNs or names')
+    picked = [str(x).strip()[:500] for x in picked if str(x or '').strip()]
+    if len(picked) > FROM_GROUPS_PICKED_MOST:
+        raise E.ApiError(400, 'at most %d groups may be picked at once' % FROM_GROUPS_PICKED_MOST)
+    typed = str(b.get('filter') or '').strip()
+    pattern = TP.group_pattern(typed) if typed or not picked else ''
     role = str(b.get('role') or 'Viewer').strip()
     cat = T.role_catalog(store)
     if role.lower() not in cat and role.lower() not in T.RIGHTS:
@@ -349,9 +359,22 @@ def from_groups(h, b, by, may_make=True, seen=None):
         parent = p['name']
     dry = b.get('dry_run') in (True, 1, '1', 'true') or not may_make
     ad = _need_dir(h, b.get('directory') or None)
-    literal = max(re.split(r'[*?\[\]]+', pattern), key=len)
-    found = _dir_call(lambda: ad.find_groups(literal, limit=5000))
-    groups = [g for g in found if TP.matches_pattern(g['cn'], pattern)]
+    groups = []
+    if pattern:
+        literal = max(re.split(r'[*?\[\]]+', pattern), key=len)
+        found = _dir_call(lambda: ad.find_groups(literal, limit=5000))
+        groups = [g for g in found if TP.matches_pattern(g['cn'], pattern)]
+    have_dn = {str(g['dn']).lower() for g in groups}
+    missing = []
+    for name in picked:
+        got = group_entry(ad, name)
+        if not got:
+            missing.append(name)
+            continue
+        if str(got[0]).lower() in have_dn:
+            continue
+        have_dn.add(str(got[0]).lower())
+        groups.append({'dn': got[0], 'cn': got[1], 'description': got[2]})
     capped = len(groups) > FROM_GROUPS_MOST
     groups = sorted(groups, key=lambda g: g['cn'].lower())[:FROM_GROUPS_MOST]
     names = [t['name'] for t in T.team_rows(store)]
@@ -389,10 +412,12 @@ def from_groups(h, b, by, may_make=True, seen=None):
             one['made'] = True
         out.append(one)
     if made:
+        said = ' + '.join(x for x in (pattern, ('%d picked' % len(picked)) if picked else '') if x)
         store.add_event('certificates', '%d team(s) made from the directory groups %s by %s: %s'
-                        % (len(made), pattern, by, ', '.join(made[:30])), who=by)
+                        % (len(made), said, by, ', '.join(made[:30])), who=by)
     return {'groups': out, 'made': made, 'dry_run': dry, 'capped': capped, 'filter': pattern,
-            'role': role, 'parent': parent, 'directory': ad.name}
+            'picked': len(picked), 'missing': missing[:50], 'role': role, 'parent': parent,
+            'directory': ad.name}
 
 
 @A.api('POST', '/api/teams/from_groups', 'certadmin')
