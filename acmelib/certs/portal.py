@@ -1345,15 +1345,22 @@ def _portal_request(h):
         store.add_event('certificates', '%s asked on the portal for %s (%s) from %s - issued '
                         'without approval' % (who, name, ', '.join(names), irow['name']), who=who)
         job_id = start_issue(store, cid, 'portal:' + who, 'asked for on the portal')
-    else:
+    waits_for = None
+    if not auto:
+        # whom it waits for: its team's rule where it has one (hunt C1: "an administrator's
+        # approval" was said of a request waiting for the team's leads)
+        from acmelib.certs import teampolicy as TP
+        waits_for = TP.waits_words(store, S.cert_get(store, cid)) if owner != who else None
         store.add_event('certificates', '%s asked on the portal for %s (%s) from %s - it waits '
-                        'for an administrator\'s approval' % (who, name, ', '.join(names),
-                                                              irow['name']), 'warn', who=who)
+                        'for %s' % (who, name, ', '.join(names), irow['name'],
+                                    waits_for or 'an administrator\'s approval'), 'warn', who=who)
         if owner != who:
-            from acmelib.certs import teampolicy as TP
             TP.request_started_waiting(store, cid, owner)
-    return {'id': cid, 'name': name, 'job_id': job_id,
-            'state': 'new' if auto else WAITING, 'waits': not auto}
+    out = {'id': cid, 'name': name, 'job_id': job_id,
+           'state': 'new' if auto else WAITING, 'waits': not auto}
+    if waits_for:
+        out['waits_for'] = waits_for
+    return out
 
 
 # ---------------------------------------------------------------------------

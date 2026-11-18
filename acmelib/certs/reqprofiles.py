@@ -919,14 +919,21 @@ def request(h, s, b):
     what = '%s asked on the portal for %s (%s) from the request profile %s%s' % (
         who, name, ', '.join(names), r['name'], ' with a CSR' if csr_pem else '')
     job_id = None
+    waits_for = None
     if waits:
-        store.add_event('certificates', what + ' - it waits for approval', 'warn', who=who)
+        from acmelib.certs import teampolicy as TP
+        # whom it waits for: its team's rule where it has one (hunt C1)
+        waits_for = TP.waits_words(store, S.cert_get(store, cid)) if owner != who else None
+        store.add_event('certificates', what + ' - it waits for %s' % (
+            waits_for or 'approval'), 'warn', who=who)
         if owner != who:
-            from acmelib.certs import teampolicy as TP
             TP.request_started_waiting(store, cid, owner)
     else:
         store.add_event('certificates', what + ' - issued without approval', who=who)
         job_id = P.start_issue(store, cid, 'portal:' + who, 'asked for on the portal (%s)'
                                % r['name'])
-    return {'id': cid, 'name': name, 'job_id': job_id, 'state': P.WAITING if waits else 'new',
-            'waits': waits, 'profile': r['name']}
+    out = {'id': cid, 'name': name, 'job_id': job_id, 'state': P.WAITING if waits else 'new',
+           'waits': waits, 'profile': r['name']}
+    if waits_for:
+        out['waits_for'] = waits_for
+    return out

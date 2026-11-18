@@ -71243,6 +71243,30 @@
   "z_1649": {
    "source": "Tags group certificates and targets across teams - prod, pci, legacy… - each with its colour and what it means.",
    "text": "Štítky seskupují certifikáty a cíle napříč týmy – prod, pci, legacy… – každý se svou barvou a významem."
+  },
+  "z_1650": {
+   "source": "the team itself",
+   "text": "v týmu samotném"
+  },
+  "z_1651": {
+   "source": "the team above it",
+   "text": "v týmu nad ním"
+  },
+  "z_1652": {
+   "source": "the team or the team above it",
+   "text": "v týmu nebo v týmu nad ním"
+  },
+  "z_1653": {
+   "source": "the enrollment code's team no longer takes servers - ask for a new code",
+   "text": "tým tohoto registračního kódu už servery nepřijímá - požádejte o nový kód"
+  },
+  "z_1654": {
+   "source": "what goes without an approval would be wider than above it",
+   "text": "bez schválení by prošlo víc než nad ním"
+  },
+  "z_1655": {
+   "source": " - two different people",
+   "text": " - dva různí lidé"
   }
  },
  "patterns": {
@@ -98805,6 +98829,74 @@
   "pz_494": {
    "source": "its limits {0}",
    "text": "jeho omezení {0}"
+  },
+  "pz_495": {
+   "source": "{0} waiting to be confirmed",
+   "text": "{0} {0:čeká|čekají|čeká} na potvrzení"
+  },
+  "pz_496": {
+   "source": "a team is not called as a person is ({0}) - choose another name",
+   "text": "tým se nejmenuje jako člověk ({0}) - zvolte jiný název"
+  },
+  "pz_497": {
+   "source": "{0} is the owner of certificates or devices already - a team made here is not given them; choose another name (or ask an administrator)",
+   "text": "{0} už je vlastníkem certifikátů nebo zařízení - tým založený tady je nedostane; zvolte jiný název (nebo požádejte správce)"
+  },
+  "pz_498": {
+   "source": "{0} is a user of the directory - a team is not called as a person is; choose another name",
+   "text": "{0} je uživatel adresáře - tým se nejmenuje jako člověk; zvolte jiný název"
+  },
+  "pz_499": {
+   "source": "set the limits of the team {0}",
+   "text": "nastavit omezení týmu {0}"
+  },
+  "pz_500": {
+   "source": "you may not approve for the team {0}: its approvers are on {1}",
+   "text": "za tým {0} schvalovat nesmíte: jeho schvalovatelé jsou {1}"
+  },
+  "pz_501": {
+   "source": "an approver of the team {0} approves it first, then one of the team above it",
+   "text": "nejdřív to schválí schvalovatel týmu {0}, potom schvalovatel týmu nad ním"
+  },
+  "pz_502": {
+   "source": "the approver of the team {0} approved it - now one of the team above it approves it",
+   "text": "schvalovatel týmu {0} to schválil - teď to schválí schvalovatel týmu nad ním"
+  },
+  "pz_503": {
+   "source": "the key of {0} is taken already",
+   "text": "klíč certifikátu {0} už si někdo vzal"
+  },
+  "pz_504": {
+   "source": "approved by {0} - above it by {1}",
+   "text": "schvaluje {0} - nad ním {1}"
+  },
+  "pz_505": {
+   "source": "the team {0} was deleted",
+   "text": "tým {0} byl smazán"
+  },
+  "pz_506": {
+   "source": "the approval of the team {0}'s rule: {1}",
+   "text": "schválení podle pravidla týmu {0}: {1}"
+  },
+  "pz_507": {
+   "source": "an approver of the team above it ({0})",
+   "text": "schvalovatel týmu nad ním ({0})"
+  },
+  "pz_508": {
+   "source": "an approver of the team {0} or of {1}",
+   "text": "schvalovatel týmu {0} nebo týmu {1}"
+  },
+  "pz_509": {
+   "source": "an approver of the team {0}, then one of {1}",
+   "text": "schvalovatel týmu {0}, potom schvalovatel týmu {1}"
+  },
+  "pz_510": {
+   "source": "an approver of the team {0}",
+   "text": "schvalovatel týmu {0}"
+  },
+  "pz_511": {
+   "source": "{0} asked on the portal for {1} ({2}) from {3} - it waits for {4}",
+   "text": "{0} požádal na portálu o {1} ({2}) ze zdroje {3} - čeká na {4}"
   }
  },
  "rich": {

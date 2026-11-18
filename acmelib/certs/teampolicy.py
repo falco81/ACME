@@ -619,6 +619,31 @@ def notify_approvers(store, cid, team, needed):
     threading.Thread(target=go, name='team-approvers-mail', daemon=True).start()
 
 
+def waits_words(store, row):
+    """Who a request of a team with an approval rule waits for, in words - None for a request
+    without a team rule (it waits for an administrator's approval, as before). Hunt C1: a
+    request waiting for its team's leads was said to wait "for an administrator's approval"."""
+    rule = rule_for(store, row) if row else None
+    if not rule:
+        return None
+    team = rule['team']
+    tr = T.tree(store)
+    p = tr.parent.get(_low(team))
+    above = tr.name(p) if p else None
+    who = rule.get('approvers') or 'team'
+    if who == 'parent':
+        words = 'an approver of the team above it (%s)' % (above or 'none')
+    elif who == 'team_or_parent' and above:
+        words = 'an approver of the team %s or of %s' % (team, above)
+    elif who == 'both' and above:
+        words = 'an approver of the team %s, then one of %s' % (team, above)
+    else:
+        words = 'an approver of the team %s' % team
+    if int(rule.get('count') or 1) > 1:
+        words += ' - two different people'
+    return 'the approval of the team %s\'s rule: %s' % (team, words)
+
+
 def request_started_waiting(store, cid, owner):
     """A request of a team with an approval rule began to wait: its approvers are told."""
     row = S.cert_get(store, cid)

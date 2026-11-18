@@ -422,6 +422,35 @@ class EnrollTeamGone(unittest.TestCase):
                          'Web')
 
 
+class WaitsForWhom(unittest.TestCase):
+    """A request waiting for its team's rule says whom it waits for - not an administrator."""
+    def setUp(self):
+        B.clean()
+        STORE.db.run('DELETE FROM events')
+        T.save_team(STORE, {'name': 'Prague', 'kind': 'unit'}, 'x')
+        T.save_team(STORE, {'name': 'Web', 'parent': 'Prague', 'members': [
+            {'who': 'local:asker', 'roles': ['Requester']}],
+            'policy': {'approval': {'mode': 'always', 'approvers': 'both', 'count': 2}}}, 'x')
+
+    def test_words_name_the_rule(self):
+        got = call('asker', 'POST', 'cert_request', {'names': ['w1.example.test'],
+                                                     'issuer': 'self', 'team': 'Web'})
+        self.assertTrue(got['waits'])
+        self.assertIn('the team Web', got['waits_for'])
+        self.assertIn('then one of Prague', got['waits_for'])
+        self.assertIn('two different people', got['waits_for'])
+        words = [r['words'] for r in T.team_activity(STORE, 'Web')[0]]
+        said = [w for w in words if 'asked on the portal' in w]
+        self.assertTrue(said and 'the team Web\'s rule' in said[0], words)
+        self.assertNotIn('administrator', said[0])
+        # one's own request, no team: as before
+        own = call('asker', 'POST', 'cert_request', {'names': ['w2.example.test'],
+                                                     'issuer': 'self'})
+        self.assertNotIn('waits_for', own)
+        self.assertTrue(any('w2.example.test' in r['words'] and 'an administrator\'s approval'
+                            in r['words'] for r in STORE.events(50)[0]))
+
+
 class Statements(unittest.TestCase):
     """The certificates page of a team of hundreds: a few statements a page."""
     def test_not_per_certificate(self):

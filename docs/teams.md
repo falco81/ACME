@@ -339,3 +339,16 @@ Enterprise teams (1.0.125):
 
 In `--members` the old rights stay rights, other words are roles, `@YYYY-MM-DD` ends the
 membership.
+
+## What the roles mean for keys and the network (read before delegating)
+
+* A member who may manage the team's devices **and** its deployments (the role *Device manager*,
+  or `target.manage` with `deploy.manage`) can deploy a team certificate to a server of their own
+  and so hold its private key there - even where the team's limits say *no key downloads*
+  (`key_download: false`) and without `cert.key`. Give these two together only to people you
+  would give the keys to; limit what they may deploy to with *Target modules* (`target_kinds`).
+* A team's devices are acme's targets: acme connects to the address typed in them (SSH, HTTPS
+  APIs, webhooks). Whoever may add devices may make acme connect to an internal address. Allow
+  only the modules the team needs (`target_kinds`) and keep acme's firewall (Settings → Firewall
+  and access) and the outgoing proxy rules in mind.
+
