@@ -10,8 +10,8 @@
    api('cert-request', {...}) (/api/portal/certs, cert_download, cert_request). */
 'use strict';
 
-function drawLangPick() {
-  var host = $('langpick');
+function drawLangPick(into) {
+  var host = into || $('langpick');
   if (!host || !window.ACME_LANGS || window.ACME_LANGS.length < 2) return;
   clear(host);
   window.ACME_LANGS.forEach(function (l) {
@@ -302,6 +302,13 @@ function aboutMe() {
     }
     row('The account ends', a.expires ? when(a.expires) : '');
     row('Password set', a.pw_set ? when(a.pw_set) : '');
+    /* the language here too: on a phone the header has no room for it, and a person signed in
+       there had no way to change it but to sign out */
+    if (window.ACME_LANGS && window.ACME_LANGS.length > 1) {
+      var lp = el('span', 'langpick');
+      drawLangPick(lp);
+      row('Language', lp, false, true);
+    }
     body.appendChild(dl);
     var p = el('p', 'note small');
     if (ME.kind === 'local') {

@@ -67,6 +67,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
 WITH_ONLY = {
     'owner': ('cert_add', 'cert_edit', 'import_file', 'certs', 'target_add', 'target_edit',
               'target_agent'),
+    # (a source's, a validation's, a test's: refused by Cli._owner in words of their own)
     'team_kind': ('team_add', 'team_edit', 'teams_from_groups'),
     'members': ('team_add', 'team_edit'),
     'contact_mail': ('team_add', 'team_edit'),
@@ -3020,6 +3021,8 @@ def run(args):
     # --parent CA`, `--tag-add --description`, `--team-add --caps` did their thing without it)
     main = acting or given
     for k, goes in WITH_ONLY.items():
+        if k == 'owner' and re.search(r'^(source|validation|check)_(add|edit)$', main[0]):
+            continue
         if getattr(args, k, None) not in (None, False) and main and \
                 not any(m in goes for m in main):
             raise SystemExit('acme: --%s goes with --%s - not with --%s (nothing was done)' % (
