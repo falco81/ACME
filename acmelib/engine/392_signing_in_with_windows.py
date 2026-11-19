@@ -1200,7 +1200,9 @@ def _portal_kerberos(h):
         user, principal = krb_ticket(h, 'portal', b)
         ad, entry, _groups = krb_portal_would(h, user, principal)
     except KrbRefused as e:
-        h.failed(key)
+        # not counted when it is this server's trouble (hunt u2), as on the administration
+        if e.kind != 'unavailable':
+            h.failed(key)
         krb_refused_event(h, 'portal', e.why, principal)
         raise ApiError(e.status, e.said)
     # Somebody else signed in in this browser before (a shared machine): that one ends.
@@ -1232,7 +1234,8 @@ def _kerberos_try(h):
     try:
         user, principal = krb_ticket(h, part, b, try_only=True)
     except KrbRefused as e:
-        h.failed(key)
+        if e.kind != 'unavailable':                     # this server's trouble (hunt u2)
+            h.failed(key)
         return dict(out, ok=False, ticket=False, said=e.why)
     out.update(ticket=True, principal=principal)
     try:

@@ -153,9 +153,9 @@ class FortiManagerTarget(HttpTarget):
                     # data invalid...) said as a warning - it was an info step that read as
                     # "there already?" whatever the FortiManager said
                     if getattr(e, 'code', None) == -2:
-                        self.ctx.step('the intermediate %s is there already' % ca)
+                        self.ctx.step('the CA %s is there already' % ca)
                     else:
-                        self.ctx.step('the intermediate %s is not added: %s' % (ca, e), 'warn')
+                        self.ctx.step('the CA %s is not added: %s' % (ca, e), 'warn')
         current_gui = None
         if as_bool(self.opt(options, 'admin_gui', True), True):
             self.rpc('set', SETTING, {'admin_server_cert': name},

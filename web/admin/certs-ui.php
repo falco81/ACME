@@ -85,7 +85,9 @@ function acme_certs_tab_panels(): void
         <option value="pending-approval">waiting for approval</option>
         <option value="declined">declined</option>
         <option value="new">not issued yet</option>
+        <option value="held">added, not issued</option>
         <option value="revoked">revoked</option>
+        <option value="revoke-failed">revocation failed</option>
         <option value="disabled">switched off</option>
       </select>
       <select id="ct-issuer" title="Only the certificates from this source."><option value="">every source</option></select>

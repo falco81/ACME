@@ -8664,7 +8664,9 @@ function jobPeek(id) {
     var running = jobRunning(j);
     var buttons = [{words: 'Close', close: true}];
     /* opened from that certificate's window (1.0.88): back to it, not a second one over */
-    if (j.cert_id) buttons.unshift({words: 'The certificate', icon: 'cert', left: true, go: function () {
+    /* ...not for one deleted since (hunt Ru2: Delete with revoke - its job offered it, and it
+       opened "there is no certificate 6"); the job says its name only while it is there */
+    if (j.cert_id && j.cert_name) buttons.unshift({words: 'The certificate', icon: 'cert', left: true, go: function () {
       var under = MODAL_STACK.length ? MODAL_STACK[MODAL_STACK.length - 1].el : null;
       if (under && String(under.dataset.cert || '') === String(j.cert_id)) { closeModal(); return; }
       over(function () { certPeek(j.cert_id); });

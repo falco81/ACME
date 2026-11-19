@@ -211,6 +211,13 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
             # deployment of it - its list showed the failed renewals alone ("3" opened 2)
             where.append("(state = 'failed' OR id IN (SELECT cert_id FROM cert_deploys WHERE "
                          "state = 'failed'))")
+        elif state == 'expired':
+            # what the Overview's tile Expired counts (hunt Ru2): run out whatever its state -
+            # one whose renewal failed stays "failed" past its end, and the tile said 1, the
+            # list "has expired" 0
+            where.append("(state = 'expired' OR (not_after < ? AND state NOT IN "
+                         "('revoked', 'disabled')))")
+            args.append(time.time())
         else:
             where.append('state = ?')
             args.append(state)
@@ -3362,8 +3369,14 @@ def _deploy_save_in(store, b, by, full, made):
         # The commands run on the target around the files (1.0.19): as the script is,
         # changed by a full administrator only - a certificate administrator keeps them.
         if not full:
+            # one never set is the module's default (hunt Ru2: the page sends every option back -
+            # the interpreter "bash" of a deployment saved without it was "changed", and a
+            # certificate administrator could save nothing of it, not even unchanged)
+            cdefs = {f['key']: f.get('default') for f in
+                     ((cls.deploy_fields if cls else None) or []) if f.get('key')}
             for k in DEPLOY_COMMANDS:
-                if k in given and str(given.get(k) or '') != str(old.get(k) or ''):
+                was = old.get(k) if k in old else cdefs.get(k)
+                if k in given and str(given.get(k) or '') != str(was or ''):
                     raise E.ApiError(403, 'only a full administrator may change the commands '
                                           'a deployment runs on the target')
         opts = S.config_seal(given, old,
@@ -3459,7 +3472,10 @@ def _deploy_save_in(store, b, by, full, made):
             raise E.ApiError(403, 'only a full administrator may set what is checked after a '
                                   'deployment (it becomes a test: Certificates → Tests)')
         fields['options'] = json.dumps(opts)
-        fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
+        # "options changed" only when they did (hunt Ru2: saved as they were - or only switched
+        # on or off in its window, which sends every option back - it said "options changed")
+        if row.get('state') != 'ok' or opts != old:
+            fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
     moved_from = (row.get('cert_id'), row.get('target')) if row is not None and (
         int(row.get('cert_id') or 0) != int(cert['id']) or row.get('target') != trow['name']) else None
     served_before = None

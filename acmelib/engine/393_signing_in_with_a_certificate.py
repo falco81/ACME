@@ -2854,7 +2854,9 @@ def _portal_cert(h):
         who = f['upn_one']
         ad, entry, _groups = cl_portal_would(h, f)
     except CertRefused as e:
-        h.failed(key)
+        # not counted when it is this server's trouble (hunt u2), as on the administration
+        if e.kind != 'unavailable':
+            h.failed(key)
         cl_refused_event(h, 'portal', e.why, who)
         raise ApiError(e.status, e.said)
     if h.headers.get('X-Acme-Session'):
@@ -2896,7 +2898,8 @@ def _certlogin_try(h):
                        role='portal', display=entry.get('display') or '', groups=groups[:10],
                        second=portal_gate_needed())
     except CertRefused as e:
-        h.failed(key)
+        if e.kind != 'unavailable':                     # this server's trouble (hunt u2)
+            h.failed(key)
         out.update(ok=False, said=e.why, kind=e.kind)
         out.setdefault('cert', False)
     ident = secrets.token_hex(12)
