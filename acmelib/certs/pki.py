@@ -744,19 +744,46 @@ def csr_verify_why(csr_pem):
     try:
         # OpenSSL 3 answers 0 for a bad signature too, saying only "verify failure" on stderr
         # (hunt u3: a forged request was taken as signed) - its words decide
-        if not _req_verified(csr_pem):
+        if _req_verified(csr_pem):
+            return None
+        # ...and so does OpenSSL 3.0 - 3.4 of a SHA-1 one the crypto policy refuses (RHEL
+        # 9/10: refused in EVP_DigestVerifyInit, no words why - hunt u5: taken for forged)
+        if not _csr_is_sha1(csr_pem):
             return CSR_NOT_SIGNED
-        return None
+        with workdir() as d:
+            if _sha1_verifies(d, None):
+                return CSR_NOT_SIGNED       # SHA-1 is verified here: forged
+        quiet = True
     except PkiError as e:
         detail = str(e.detail or e).lower()
-    if not any(w in detail for w in _POLICY_WORDS) or not _csr_is_sha1(csr_pem):
-        return CSR_NOT_SIGNED
+        if not any(w in detail for w in _POLICY_WORDS) or not _csr_is_sha1(csr_pem):
+            return CSR_NOT_SIGNED
+        quiet = False
     with workdir() as d:
         try:
             conf = sha1_openssl_conf(d)
-            return None if _req_verified(csr_pem, {'OPENSSL_CONF': conf}) else CSR_NOT_SIGNED
+            if _req_verified(csr_pem, {'OPENSSL_CONF': conf}):
+                return None
+            # quietly refused again: forged - or SHA-1 still refused (FIPS), which a request
+            # of its own made here tells
+            if quiet and not _sha1_verifies(d, conf):
+                return CSR_SHA1_REFUSED
+            return CSR_NOT_SIGNED
         except (PkiError, OSError):
             return CSR_SHA1_REFUSED
+
+
+def _sha1_verifies(d, conf):
+    """Whether this openssl (given `conf`, else the system's) signs and verifies a SHA-1
+    request at all."""
+    env = {'OPENSSL_CONF': conf} if conf else None
+    try:
+        req = openssl(['req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
+                       '-nodes', '-keyout', os.path.join(d, 'sha1-test.key'), '-subj',
+                       '/CN=sha1-test', '-sha1'], env=env)
+        return _req_verified(req, env)
+    except (PkiError, OSError):
+        return False
 
 
 def csr_verify(csr_pem):

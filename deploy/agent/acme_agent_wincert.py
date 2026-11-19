@@ -1513,8 +1513,10 @@ def adcs_csr_names(A, csr):
     except (OSError, subprocess.SubprocessError) as e:
         raise A.Refused('the CSR cannot be read or its signature is not good (openssl: %s)' % e)
     said = '%s\n%s' % (got.stdout or '', got.stderr or '')
-    if got.returncode != 0 or 'verify fail' in said.lower() or \
-            not re.search(r'(?m)verify OK\s*$', got.stderr or ''):
+    # its own line, on either output (hunt u5: OpenSSL 3.2+ prints "verify OK" on the standard
+    # output - every good request was refused; -text's subject line is never one of its own)
+    if got.returncode != 0 or 'verify fail' in said.lower() or not re.search(
+            r'(?m)^(?:Certificate request self-signature )?verify OK\s*$', said):
         raise A.Refused('the CSR cannot be read or its signature is not good (openssl: %s)'
                         % ((got.stderr or '').strip()[-200:] or 'verify failure'))
     text = got.stdout

@@ -205,7 +205,9 @@ class ScepIssuer(Issuer):
     def _algos(self, caps):
         ci = self.c('cipher') or 'auto'
         if ci == 'auto':
-            ci = 'aes256' if 'AES' in caps else '3des'
+            # SCEPStandard "implies AES, POSTPKIOperation and SHA-256" (RFC 8894 3.5.2) - as
+            # for the digest and POST (Hunt R u5: a server saying only SCEPStandard got 3DES)
+            ci = 'aes256' if ('AES' in caps or 'SCEPStandard' in caps) else '3des'
         dg = self.c('digest') or 'auto'
         if dg == 'auto':
             dg = 'sha256' if ('SHA-256' in caps or 'SCEPStandard' in caps) else \

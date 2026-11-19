@@ -409,6 +409,8 @@ Enterprise teams (1.0.125):
     acme --team-activity NAME [--below] [--limit N]   what happened in the team (its Activity tab)
     acme --teams-from-groups 'PKI-*' [--member-role Requester] [--parent TEAM] [--team-kind unit] [--yes]
                                                    teams from directory groups: the preview, made with --yes
+    acme --teams-from-groups - --group 'CN=PKI-Web,OU=Groups,DC=example,DC=com' [--group PKI-Db]
+                                                   only the groups picked (by DN or name); beside a FILTER too
     acme --target-edit NAME --owner TEAM|-         a team's device (- acme's own); --target-add too
     acme --check-edit NAME --owner TEAM|-          a team's test (1.0.128); --check-add too
     acme --target-agent enroll new --owner TEAM    a team's enrollment code

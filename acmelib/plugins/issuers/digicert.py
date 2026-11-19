@@ -613,7 +613,10 @@ class DigicertIssuer(Issuer):
             return out
         for k, v in kept.items():
             v = sc.parse_json(v) if isinstance(v, (str, bytes)) else v
-            cid = k.split(':', 1)[1] if ':' in k else ''
+            # 'digicert-order:<id>:<family>' since 1.0.80 (one order a variant), before
+            # 'digicert-order:<id>' - the id is the second part either way (Hunt R u5: the
+            # family kept it from being read, so no order made since was known as acme's)
+            cid = k.split(':')[1] if ':' in k else ''
             if isinstance(v, dict) and v.get('order_id') and cid.isdigit():
                 out[str(v['order_id'])] = int(cid)
         return out

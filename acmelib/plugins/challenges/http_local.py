@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import binascii
 import os
+import time
 
 from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
@@ -72,10 +73,47 @@ class HttpLocal(HttpChallenge):
         self.check_token(token)
         self.ctx.http_token_put(token, key_authorization)
         self.ctx.step('http://%s/.well-known/acme-challenge/%s is answered by acme' % (url_host(n), token))
-        return {'token': token, 'ka': key_authorization, 'name': n}
+        return {'token': token, 'ka': key_authorization, 'name': n, 'at': time.time()}
+
+    # A cluster: how long after the token was put in the other nodes are waited for (s)
+    NODES_WAIT = 20.0
+
+    def on_every_node(self, name, handle):
+        """Hunt R u5: in a cluster the token is written into this node's database and comes to
+        the other node's copy by replication - the CA was asked at once, and where the name
+        (the VIP held by the other node, a balancer) took it there first it was told 404 and
+        the order failed. Each node is asked by its address (Host: the name) until it answers
+        the token - for NODES_WAIT at most; a node that cannot be asked from here, or answers
+        something else than "not found", is not waited for."""
+        token, ka = handle.get('token'), handle.get('ka')
+        if not token or not ka or time.time() > float(handle.get('at') or 0) + self.NODES_WAIT:
+            return True
+        try:
+            nodes = [str(a) for a in ((self.ctx.own_addresses() or {}).get('nodes') or []) if a]
+        except Exception:                               # noqa: BLE001
+            return True
+        if len(nodes) < 2:
+            return True
+        host = url_host(handle.get('name') or name)
+        for addr in nodes:
+            try:
+                status, _h, _b = self.ctx.http(
+                    'GET', self.url(addr, token), headers={'User-Agent': 'acme-http01-check',
+                                                          'Accept': '*/*', 'Host': host},
+                    timeout=5, verify=False, proxy=False)
+            except Exception as e:                      # noqa: BLE001
+                self.ctx.debug('HTTP-01: node %s not asked: %s' % (addr, e))
+                continue
+            if status == 404:
+                self.ctx.debug('HTTP-01: node %s does not answer the token yet (%s)'
+                               % (addr, status))
+                return False
+        return True
 
     def ready(self, name, handle):
         handle = handle or {}
+        if not self.on_every_node(name, handle):
+            return False
         if not self.flag('self_check'):
             return True
         ok, words = self.fetch('http://%s/.well-known/acme-challenge/%s' % (

@@ -210,7 +210,9 @@ def _form_fields(fields, cur, secret_set, base=None):
 
 def module_form(con, title, fields, cur=None, secret_set=(), words=''):
     """The fields asked for (the main ones, then - when wanted - those under
-    "More"). Returns (argv of --set, env) of what changed, or None (Esc)."""
+    "More"). Returns (argv of --set, env) of what changed, or None (Esc). `cur` given (even
+    empty - a deployment made with no options): what is set now, only changes are said."""
+    editing = cur is not None
     cur = dict(cur or {})
     main = [f for f in fields if not f.get('advanced')]
     more = [f for f in fields if f.get('advanced')]
@@ -246,8 +248,10 @@ def module_form(con, title, fields, cur=None, secret_set=(), words=''):
             if v.strip():
                 argv += ['--set', '%s=@file:%s' % (k, os.path.expanduser(v.strip()))]
             continue
-        if cur:
-            # Changed: only what differs from what is set now.
+        if editing:
+            # Changed: only what differs from what is set now (hunt R u5: a deployment with no
+            # options of its own was given every default - mode=new admin=0 ... - when its
+            # form was opened and left as it was, and so deployed again)
             if v == _text_of(f, cur.get(k, f.get('default'))):
                 continue
         elif v == '':
@@ -286,8 +290,9 @@ def family(con, fam):
             ('used by', lambda r: '' if r.get('_add') else r.get('used_by'), 7, None),
             ('last error', lambda r: r.get('last_error') or '', 50,
              lambda r: 'bad' if r.get('last_error') else 'dim')]
-    if fam == 'target':
-        # the team whose device it is (1.0.126, as the pages' Owner column)
+    if fam in ('target', 'check'):
+        # the team whose device it is (1.0.126, as the pages' Owner column); a test's team too
+        # (1.0.128 - hunt R u5: the console could neither show nor set it)
         cols.insert(4, ('owner', lambda r: r.get('owner') or '', 14, lambda r: 'dim'))
 
     def do(r):
@@ -319,9 +324,10 @@ def fam_add(con, fam):
     if got is None:
         return
     argv, env = got
-    if fam == 'target':
-        # the team whose device it is (1.0.126; asked only when there are teams)
-        owner = _team_choice(con, 'Whose device is %s' % name, '', none="acme's own - no team")
+    if fam in ('target', 'check'):
+        # the team whose device (1.0.126) or test (1.0.128) it is; asked only when there are teams
+        owner = _team_choice(con, 'Whose %s is %s' % ('device' if fam == 'target' else 'test',
+                                                      name), '', none="acme's own - no team")
         if owner is None:
             return
         if owner:
@@ -351,9 +357,9 @@ def fam_do(con, fam, r):
         opts.append(('act:' + a['key'], a.get('label') or a['key']))
     if fam == 'target' and r.get('kind') != CONNECTOR:
         opts.append(('deploys', 'Its deployments'))
-    if fam == 'target':
-        opts.append(('owner', 'Its owner: the team whose device it is (now: %s)'
-                     % (r.get('owner') or "acme's own")))
+    if fam in ('target', 'check'):
+        opts.append(('owner', 'Its owner: the team whose %s it is (now: %s)'
+                     % ('device' if fam == 'target' else 'test', r.get('owner') or "acme's own")))
     if fam == 'check':
         opts.append(('run', 'Run it now on every certificate it is attached to'))
     if any(f.get('type') == 'sshkey' for f in (_plugin(con, fam, r.get('kind')) or {}).get(
@@ -413,7 +419,7 @@ def fam_do(con, fam, r):
         owner = _team_choice(con, 'The owner of %s' % name, r.get('owner') or '',
                              none="acme's own - no team", always=True)
         if owner is not None and owner.lower() != (r.get('owner') or '').lower():
-            con.act('--target-edit', name, '--owner', owner or '-')
+            con.act('--%s-edit' % word, name, '--owner', owner or '-')
     elif what == 'run':
         run_tests(con, 'test:' + name, 'the test %s on its certificates' % name)
     elif what == 'key':
@@ -1736,10 +1742,14 @@ def team_del(con, r, teams):
         args += ['--parent', to or '-']
     devices = [x for x in con._rows(con.out('--targets'), 'rows')
                if (x.get('owner') or '').lower() == name.lower()]
-    if int(r.get('used') or 0) or devices:
-        to = _team_choice(con, 'Its %d certificate(s) and %d device(s) go to' % (
-            int(r.get('used') or 0), len(devices)), '', 'nobody (the devices: acme\'s own)',
-            skip=(name,))
+    # its tests go along with its devices (1.0.128; hunt R u5: a team owning only tests was
+    # deleted without the question - its tests became acme's own)
+    tests = [x for x in con._rows(con.out('--tests'), 'rows')
+             if (x.get('owner') or '').lower() == name.lower()]
+    if int(r.get('used') or 0) or devices or tests:
+        to = _team_choice(con, 'Its %d certificate(s), %d device(s) and %d test(s) go to' % (
+            int(r.get('used') or 0), len(devices), len(tests)), '',
+            'nobody (the devices and tests: acme\'s own)', skip=(name,))
         if to is None:
             return
         args += ['--reassign', to or '-']

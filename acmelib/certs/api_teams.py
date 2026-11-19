@@ -507,6 +507,10 @@ def add_args(p):
                    '--yes')
     g.add_argument('--member-role', metavar='ROLE', help='with --teams-from-groups: the role (or '
                    'right) the group is given [Viewer]')
+    # 1.0.128 on the pages and the API (`groups`), never on the command line (hunt R u5)
+    g.add_argument('--group', dest='group', action='append', metavar='DN|NAME',
+                   help='with --teams-from-groups: a group picked from the directory, its DN or '
+                   'its name, beside the FILTER (again for more; FILTER - : only those picked)')
 
 
 MEMBER_KEYS = ('who', 'rights', 'roles', 'until', 'note')
@@ -817,16 +821,28 @@ def _cli_from_groups(c, pattern):
     """acme --teams-from-groups FILTER [--member-role ROLE] [--parent TEAM] [--team-kind K]
     (1.0.126): the page's "Teams from directory groups" - the preview, then made with --yes."""
     a = c.args
-    b = {'filter': pattern, 'role': getattr(a, 'member_role', None) or 'Viewer',
+    picked = [g for g in (getattr(a, 'group', None) or []) if str(g).strip()]
+    if str(pattern).strip() == '-':
+        if not picked:
+            raise SystemExit('acme: --teams-from-groups - takes only the groups picked: '
+                             '--group DN|NAME (again for more)')
+        pattern = ''
+    b = {'filter': pattern, 'groups': picked,
+         'role': getattr(a, 'member_role', None) or 'Viewer',
          'parent': getattr(a, 'parent', None), 'kind': a.team_kind or 'team',
          'dry_run': not getattr(a, 'yes', False)}
     got = from_groups(_CliH(c.store), b, c.WHO)
     if c.json:
         c.out(got)
         return 0
+    if got.get('missing'):
+        # a group picked the directory does not know (hunt R u5: said by the API only)
+        sys.stderr.write('acme: the directory %s does not know: %s\n' % (
+            got['directory'], '; '.join(got['missing'])))
     if not got['groups']:
-        print('no group of the directory %s fits %s' % (got['directory'], got['filter']))
-        return 0
+        print('no group of the directory %s fits %s' % (got['directory'], got['filter'] or
+                                                        'the groups picked'))
+        return 1 if got.get('missing') else 0
     c.table([[g['cn'], g['team'], 'there already' if g['exists'] else (
         'made' if g.get('made') else 'to be made'), ', '.join(g['member_of']) or '-']
         for g in got['groups']], ['group', 'team', '', 'already a member of'])

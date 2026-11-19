@@ -494,7 +494,20 @@ class AcmeIssuer(Issuer):
                         self._num('poll_every', 5), self.ctx.cancelled)
         if o.get('status') == 'ready':
             self._say('the order is finalized with the request')
-            o, _ = cl.post_json(o.get('finalize') or order['finalize'], {'csr': ac.b64u(req.csr_der)})
+            try:
+                o, _ = cl.post_json(o.get('finalize') or order['finalize'],
+                                    {'csr': ac.b64u(req.csr_der)})
+            except PluginError as e:
+                # Finalized already (Hunt R u5): the CA took the request, its answer was lost (a
+                # 5xx of a proxy in front of it) and post() sent it again - "orderNotReady" for
+                # an order that is processing. It failed the job, and the next try ordered (and
+                # paid for, counted in the rate limit) another certificate.
+                if getattr(e, 'acme_type', '') != 'orderNotReady':
+                    raise
+                o, _ = cl.post_json(order_url, None)
+                if o.get('status') not in ('processing', 'valid'):
+                    raise e
+                self._say('the CA had the request already - the order is %s' % o.get('status'))
         if o.get('status') != 'valid':
             # Finalized, it is the CA's to give (1.0.51): no stop asked from here on - a restart
             # of the daemon would throw away a certificate issued (a paid order, a rate limit).

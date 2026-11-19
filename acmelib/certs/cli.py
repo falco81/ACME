@@ -79,6 +79,7 @@ WITH_ONLY = {
     'caps': ('role_add',),
     'below': ('team_activity',),
     'member_role': ('teams_from_groups',),
+    'group': ('teams_from_groups',),
     'parent': ('ca_sub', 'team_add', 'team_edit', 'team_del', 'teams_from_groups'),
 }
 
@@ -1605,8 +1606,9 @@ class Cli(object):
         self.kv([('used by', pub.get('used_by')), ('last ok', _when(pub.get('last_ok'))
                                                    if pub.get('last_ok') else ''),
                  ('last error', pub.get('last_error')),
-                 # the team whose device it is (1.0.126; acme's own: not said)
-                 ('owner', pub.get('owner') if fam == 'target' else ''),
+                 # the team whose device (1.0.126) or test (1.0.128, hunt R u5: --check-add
+                 # --owner was said in --json only) it is; acme's own: not said
+                 ('owner', pub.get('owner') if fam in ('target', 'check') else ''),
                  ('note', pub.get('note')),
                  ('actions', ', '.join('%s (%s)' % (a['key'], a.get('label') or '')
                                        for a in pub.get('actions') or [])),
