@@ -3474,7 +3474,7 @@ def _deploy_save_in(store, b, by, full, made):
         fields['options'] = json.dumps(opts)
         # "options changed" only when they did (hunt Ru2: saved as they were - or only switched
         # on or off in its window, which sends every option back - it said "options changed")
-        if row.get('state') != 'ok' or opts != old:
+        if opts != old or row.get('state') not in ('ok', 'changed'):
             fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
     moved_from = (row.get('cert_id'), row.get('target')) if row is not None and (
         int(row.get('cert_id') or 0) != int(cert['id']) or row.get('target') != trow['name']) else None

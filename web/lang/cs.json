@@ -100173,6 +100173,10 @@
   "pz_lasting": {
    "source": "{0}: {1} (not tried again by itself - it would fail the same; a new certificate or Deploy now tries it again)",
    "text": "{0}: {1} (samo se znovu nezkouší - selhalo by stejně; znovu to zkusí nový certifikát nebo Nasadit nyní)"
+  },
+  "pz_556": {
+   "source": "{0} is busy with another job ({1}, job {2}) - deploy it when that job is done",
+   "text": "{0} má rozběhnutou jinou úlohu ({1}, úloha {2}) – nasaďte ho, až ta úloha skončí"
   }
  },
  "rich": {

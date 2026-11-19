@@ -56,7 +56,8 @@
   function changed() {
     return load(true).then(function () {
       fillFilters();
-      if (window.CT && typeof CT.refresh === 'function') { try { CT.refresh(); } catch (e) { } }
+      var ct = window.ACME_CERTS;   /* certs.js's CT (window.CT is never set) */
+      if (ct && typeof ct.refresh === 'function') { try { ct.refresh(); } catch (e) { } }
     });
   }
 
