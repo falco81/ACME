@@ -71919,6 +71919,14 @@
   "fgapi_09": {
    "source": "as plain PEM",
    "text": "jako nešifrovaný PEM"
+  },
+  "z_1699": {
+   "source": "Module version for it",
+   "text": "Verze modulu pro něj"
+  },
+  "z_1700": {
+   "source": "The nodes take only connections that begin with the PROXY header on 443 (the header proxy_protocol): a balancer that ends TLS does not send it, and nginx refuses every request through it. Set the header back to X-Forwarded-For: Settings → Firewall and access → Behind a load balancer or WAF - or as root on each node:",
+   "text": "Uzly berou na 443 jen spojení, která začínají hlavičkou PROXY (hlavička proxy_protocol): balancer, který TLS ukončuje, ji neposílá, a nginx odmítne každý požadavek, který přes něj přijde. Vraťte hlavičku na X-Forwarded-For: Nastavení → Firewall a přístup → Za load balancerem nebo WAF – nebo jako root na každém uzlu:"
   }
  },
  "patterns": {

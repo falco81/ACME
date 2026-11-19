@@ -950,7 +950,7 @@ class FortiGateTarget(HttpTarget):
             return []
         for r in same:
             n = text(r.get('name'))
-            if not self.factory(n, r) and n.startswith('acme-') and not n.startswith(prefix):
+            if not self.factory(n, r) and n.startswith('acme-') and not ours(n, prefix):
                 raise PluginError(
                     'the FortiGate has this very certificate already as %s, an acme name of '
                     'another deployment (this one deletes only its own %s… copies) - FortiOS '
@@ -958,7 +958,7 @@ class FortiGateTarget(HttpTarget):
                     'certificate is duplicated"), so %s cannot take it. Nothing was changed: '
                     'delete %s on the FortiGate (System → Certificates) if nothing uses it, or '
                     'point what uses it at %s first' % (n, prefix, name, n, name), retry=False)
-            if self.factory(n, r) or not n.startswith(prefix):
+            if self.factory(n, r) or not ours(n, prefix):
                 raise PluginError(
                     'the FortiGate has this very certificate already as %s, which acme did not '
                     'make - FortiOS refuses a local certificate identical to another one ("This '
