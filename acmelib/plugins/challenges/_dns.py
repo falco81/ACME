@@ -957,6 +957,11 @@ com.es nom.es org.es
 com.pt com.gr com.cy
 co.hu
 eu.org
+com.vn net.vn org.vn co.id or.id web.id co.th in.th or.th com.ph net.ph org.ph
+com.pk com.bd com.sa com.eg com.ng co.ke co.tz co.ug com.gh
+com.mt com.lb com.kw com.qa com.om com.bh co.ae net.ae org.ae
+com.sv com.gt com.pa com.py com.bo com.do com.ni com.hn com.cu
+com.ro co.rs com.hr com.mk co.me com.ba co.no
 """.split())
 
 
