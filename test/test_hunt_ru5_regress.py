@@ -6,7 +6,7 @@
     error output only: OpenSSL 3.2 and later print it on the standard output - every good
     request was refused as "its signature is not good"
   - pki.csr_verify_why (hunt u3) took openssl req -verify's "verify failure" with exit 0 as a
-    forged request at once: OpenSSL 3.0 - 3.4 under RHEL 9/10's crypto policy say just that of
+    forged request at once: OpenSSL 3.0 - 3.2 under RHEL 9/10's crypto policy say just that of
     a SHA-1 request (the policy refuses the digest in EVP_DigestVerifyInit, and req answers 0
     with no words of why) - the SHA-1 request was never verified with the configuration that
     lets SHA-1 through, and was "not signed by its own key"
@@ -32,7 +32,7 @@ os.environ.update(ACME_CONFIG=os.path.join(TMP, 'config.json'), ACME_STATE=TMP, 
                   ACME_LOGDIR=TMP)
 sys.path.insert(0, ROOT)
 
-from acmelib.certs import agents, pki                               # noqa: E402
+from acmelib.certs import pki                                       # noqa: E402
 
 AGENT_DIR = os.path.join(ROOT, 'deploy', 'agent')
 REAL = shutil.which('openssl')
@@ -75,7 +75,7 @@ grep -q 'self-signature verify OK' "$err" && echo 'Certificate request self-sign
 cat "$out"; rm -f "$out" "$err"; exit $rc
 ''' % REAL, 0o755)
 
-# OpenSSL 3.0 - 3.4 on RHEL 9/10 (DEFAULT policy): a SHA-1 signature refused in
+# OpenSSL 3.0 - 3.2 on RHEL 9/10 (DEFAULT policy): a SHA-1 signature refused in
 # EVP_DigestVerifyInit - req -verify says "verify failure" and answers 0, nothing more; with
 # rh-allow-sha1-signatures = yes in the configuration given (FAKE_ALLOW=1) it is verified.
 # FAKE_SIGN=0: SHA-1 not even signed (the configuration does not help: FIPS mode).

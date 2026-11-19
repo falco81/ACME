@@ -746,7 +746,7 @@ def csr_verify_why(csr_pem):
         # (hunt u3: a forged request was taken as signed) - its words decide
         if _req_verified(csr_pem):
             return None
-        # ...and so does OpenSSL 3.0 - 3.4 of a SHA-1 one the crypto policy refuses (RHEL
+        # ...and so does OpenSSL 3.0 - 3.2 of a SHA-1 one the crypto policy refuses (RHEL
         # 9/10: refused in EVP_DigestVerifyInit, no words why - hunt u5: taken for forged)
         if not _csr_is_sha1(csr_pem):
             return CSR_NOT_SIGNED

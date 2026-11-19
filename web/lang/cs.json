@@ -72003,6 +72003,42 @@
   "z_1719": {
    "source": "revoking a certificate",
    "text": "odvolání certifikátu"
+  },
+  "z_1720": {
+   "source": "the CA had the request already - the order is %s",
+   "text": "CA už žádost měla - objednávka je %s"
+  },
+  "z_1721": {
+   "source": "with --teams-from-groups: a group picked from the directory, its DN or its name, beside the FILTER (again for more; FILTER - : only those picked)",
+   "text": "s --teams-from-groups: skupina vybraná z adresáře, její DN nebo název, vedle FILTRU (opakovaně pro další; FILTR - : jen vybrané)"
+  },
+  "z_1722": {
+   "source": "Whose test is %s",
+   "text": "Čí je test %s"
+  },
+  "z_1723": {
+   "source": "Its owner: the team whose test it is (now: %s)",
+   "text": "Vlastník: tým, jehož je test (nyní: %s)"
+  },
+  "z_1724": {
+   "source": "Its %d certificate(s), %d device(s) and %d test(s) go to",
+   "text": "Jeho certifikáty (%d), zařízení (%d) a testy (%d) přejdou na"
+  },
+  "z_1725": {
+   "source": "nobody (the devices and tests: acme's own)",
+   "text": "nikoho (zařízení a testy: vlastní acme)"
+  },
+  "z_1726": {
+   "source": "the certificate request is not signed by its own key",
+   "text": "žádost o certifikát není podepsána vlastním klíčem"
+  },
+  "z_1727": {
+   "source": "crl_days is a number of days",
+   "text": "crl_days je počet dní"
+  },
+  "z_1728": {
+   "source": "crl_days: 1 to 365 days",
+   "text": "crl_days: 1 až 365 dní"
   }
  },
  "patterns": {
@@ -100257,6 +100293,34 @@
   "pz_557": {
    "source": "names the profile does not give (the source takes the CSR as it is): {0}",
    "text": "jména, která profil nedává (zdroj vezme CSR tak, jak je): {0}"
+  },
+  "pz_558": {
+   "source": "a CA of the chain is in the trust list already: {0}",
+   "text": "CA z řetězce už v seznamu důvěryhodných je: {0}"
+  },
+  "pz_559": {
+   "source": "a CA of the chain was not added: {0}",
+   "text": "CA z řetězce nebyla přidána: {0}"
+  },
+  "pz_560": {
+   "source": "the intermediate acme-ca-{0} is not imported: {1}",
+   "text": "mezilehlý certifikát acme-ca-{0} se neimportoval: {1}"
+  },
+  "pz_561": {
+   "source": "the CA {0} is there already",
+   "text": "CA {0} už tam je"
+  },
+  "pz_562": {
+   "source": "the CA {0} is not added: {1}",
+   "text": "CA {0} se nepřidala: {1}"
+  },
+  "pz_563": {
+   "source": "the authority \"{0}\" above \"{1}\" ran out on {2}",
+   "text": "autoritě „{0}“ nad „{1}“ vypršela platnost {2}"
+  },
+  "pz_564": {
+   "source": "the authority \"{0}\" is revoked ({1}) by \"{2}\" above it - what it signed would be refused",
+   "text": "autorita „{0}“ je odvolaná ({1}) autoritou „{2}“ nad ní – co by podepsala, by bylo odmítnuto"
   }
  },
  "rich": {
