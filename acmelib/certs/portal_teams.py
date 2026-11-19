@@ -54,6 +54,7 @@ nobody (no teams, 403), the rest of the portal is as before.
 from __future__ import annotations
 
 import json
+import re
 import time
 
 from acmelib import engine as E
@@ -391,7 +392,9 @@ def do_action(me, rec):
     by = '%s (approved by %s)' % (rec.get('by') or '?', me.by)
     try:
         if act == 'key':
-            return 'approved - %s may take the key now' % rec.get('by')
+            # the person by name (hunt U4: "portal:jan may take the key now")
+            return 'approved - %s may take the key now' % re.sub(
+                r'^(local|portal):', '', str(rec.get('by') or '?'), flags=re.I)
         if act in ('revoke', 'delete'):
             row = S.cert_get(store, int(rec.get('ref') or 0))
             if not row:

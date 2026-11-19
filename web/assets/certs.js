@@ -8608,14 +8608,24 @@ function loadJobs(live) {
     JL.total = Number(first(d.total, rows.length));
     var running = rows.filter(jobRunning).length;
     $('jb-said').textContent = num(JL.total) + ' job(s)' + (running ? ' · ' + running + ' running' : '');
-    tabCount('tabn-jobs', running, false);
+    /* the tab's count of running jobs: of every job (hunt Ru4) - counted on a page filtered
+       ("went well") or further back, a job running took the "1" off the tab */
+    if (f.state === 'running') tabCount('tabn-jobs', JL.total, false);
+    else if (!(f.kind || f.ok || f.cert_id) && JL.page === 0) tabCount('tabn-jobs', running, false);
+    else capi('certs/jobs' + qs({state: 'running', per: 1})).then(function (x) {
+      tabCount('tabn-jobs', Number(first(x.total, 0)), false);
+    }).catch(function () { });
     /* paged by the daemon (1.0.48): paged again here, 100 a page showed 50 and the rest of
        the page was out of reach */
     liveFill(host, function (box) { box.appendChild(jobTable(rows, {paged: true, filtered: !!(f.kind || f.ok || f.state || f.cert_id)})); }, live);
     pager('jb-pager', JL.page, f.per, JL.total, function (p) { JL.page = p; loadJobs(); });
     explainWhatWasDrawn(host);
     clearTimeout(JL.timer);
-    if (running && TAB === 'jobs') JL.timer = setTimeout(function () { if (TAB === 'jobs' && !document.hidden) liveRun(function () { loadJobs(true); }); }, 2500);
+    /* not while the live updates are paused in the header (hunt Ru4): the list went on being
+       drawn again every 2.5 s under "paused"; live again, the next tick asks it */
+    if (running && TAB === 'jobs') JL.timer = setTimeout(function () {
+      if (TAB === 'jobs' && !document.hidden && (typeof LIVE === 'undefined' || LIVE)) liveRun(function () { loadJobs(true); });
+    }, 2500);
   }).catch(function (e) {
     if (e && e.stopped) return;
     $('jb-said').textContent = '';

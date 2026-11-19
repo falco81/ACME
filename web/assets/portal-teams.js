@@ -380,7 +380,13 @@ function start(host, me, d) {
   WS.main = main;
   drawSwitcher();
   go(WS.view, true);
-  loadInbox();
+  /* the overview drawn again once it is known what waits (hunt U4): drawn before, it said
+     "Waiting for you 0 - All is well" beside Requests 1 until the minute's refresh, and an
+     approved key to take was not offered */
+  var seq0 = WS.seq;
+  loadInbox().then(function () {
+    if (WS.view === 'home' && WS.seq === seq0 && !($('modal') && !$('modal').hidden)) go('home', true);
+  });
   window.addEventListener('hashchange', function () {
     if (WS.writing) return;
     var was = WS.team + '|' + WS.view;
@@ -781,7 +787,8 @@ var MODE_WORDS = {none: 'nothing waits - the team does it all itself', outside: 
   profile: 'as each request profile says', always: 'every request waits for an approval'};
 var APPROVER_WORDS = {team: 'the team’s lead', parent: 'the team above', team_or_parent: 'the team’s lead or the team above',
   both: 'the team’s lead, then the team above'};
-var ACTION_WORDS_P = {revoke: 'revoking', 'delete': 'deleting', key: 'downloading a key', device: 'deleting a device'};
+/* 'revoking a certificate' (hunt U4): 'revoking' alone is the state's word - "odvolává se" */
+var ACTION_WORDS_P = {revoke: 'revoking a certificate', 'delete': 'deleting', key: 'downloading a key', device: 'deleting a device'};
 function policyRows(pol) {
   pol = pol || {};
   var rows = [];
