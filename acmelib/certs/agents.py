@@ -182,6 +182,17 @@ def _openssl(args, data=None):
     return got.stdout
 
 
+def csr_verified(csr):
+    """A certificate request signed by its own key - or PluginError. openssl req -verify
+    answers 0 whether the signature is good or not (OpenSSL 3: it only says "verify
+    failure"), so its words are read (hunt u3)."""
+    got = subprocess.run(['openssl', 'req', '-noout', '-verify'], input=csr,
+                         capture_output=True, text=True, timeout=60)
+    said = '%s %s' % (got.stdout, got.stderr)
+    if got.returncode != 0 or 'verify OK' not in said or 'verify fail' in said.lower():
+        raise PluginError('the certificate request is not signed by its own key', retry=False)
+
+
 def fp_of_pem(pem):
     return hashlib.sha256(ssl.PEM_cert_to_DER_cert(str(pem).strip() + '\n')).hexdigest()
 
@@ -308,7 +319,7 @@ def sign_csr(store, csr_pem, cn, days, server=True):
     csr = str(csr_pem or '')
     if not re.match(r'\s*-----BEGIN CERTIFICATE REQUEST-----', csr) or len(csr) > 8192:
         raise PluginError('not a certificate request', retry=False)
-    _openssl(['req', '-noout', '-verify'], csr)
+    csr_verified(csr)
     # the key's own words alone (hunt R6: the request's whole text was read - a subject of
     # "NIST CURVE: P-256" let an RSA key of 1024 bits through)
     txt = _openssl(['pkey', '-pubin', '-noout', '-text_pub'],
@@ -1227,6 +1238,9 @@ def enroll_take(store, body, ip=''):
                                               'servers - ask for a new code'}
     try:
         fp = spki_fp(csr)
+        # the request signed by its own key (hunt u3): who holds a code and knows a server's
+        # name and public key could otherwise put a request of theirs in its place
+        csr_verified(csr)
     except PluginError as e:
         return 400, {'ok': False, 'said': str(e)}
     fqdn = _txt(fqdn_said, 253).strip().lower().rstrip('.')

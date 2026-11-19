@@ -110,5 +110,27 @@ class ConfirmSaysWhatWentWrong(unittest.TestCase):
         self.assertTrue((G.state(STORE, rid).get('pending') or {}).get('cert'))
 
 
+
+class CsrSignedByItsKey(B.Base):
+    def test_badly_signed_request_refused(self):
+        """A request whose signature is not its key's is refused at enrollment (hunt u3)."""
+        import re as _re
+        a = B.code_data(G.enroll_new(STORE, 'tester', title='sig')['code'])
+        csr = B.csr_new()
+        der = bytearray(base64.b64decode(''.join(
+            _re.findall(r'^[A-Za-z0-9+/=]+$', csr, _re.M))))
+        der[-3] ^= 0x01                                 # inside the signature
+        bad = ('-----BEGIN CERTIFICATE REQUEST-----\n' + '\n'.join(
+            _re.findall('.{1,64}', base64.b64encode(bytes(der)).decode())) +
+            '\n-----END CERTIFICATE REQUEST-----\n')
+        before = STORE.db.value("SELECT COUNT(*) FROM cert_targets")
+        got = G.wire(STORE, 'enroll', B.enroll_body(a, bad, 'sig.example.test'), '', '',
+                     '10.2.0.9')
+        self.assertEqual(got[0], 400, got)
+        self.assertEqual(STORE.db.value("SELECT COUNT(*) FROM cert_targets"), before)
+        got = G.wire(STORE, 'enroll', B.enroll_body(a, csr, 'sig.example.test'), '', '',
+                     '10.2.0.9')
+        self.assertEqual(got[0], 200, got)
+
 if __name__ == '__main__':
     unittest.main()

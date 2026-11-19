@@ -1965,7 +1965,8 @@ function modDelete(key, r, fromDialog) {
     modDeleteAsk(key, r, uses, done);
   }).catch(fail);
 }
-var USE_ICON = {certificate: 'shield', test: 'pulse', target: 'net', setting: 'gear', 'request profile': 'list'};
+var USE_ICON = {certificate: 'shield', test: 'pulse', target: 'net', setting: 'gear', 'request profile': 'list',
+                source: 'download', validation: 'check'};   /* another module's setting names it (hunt u3) */
 function usesList(uses) {
   var box = el('div', 'ct-uses');
   uses.forEach(function (x) {

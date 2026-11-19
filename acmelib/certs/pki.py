@@ -708,13 +708,30 @@ def sha1_openssl_conf(where):
     return path
 
 
+def _req_verified(csr_pem, env=None):
+    """openssl req -verify, its words read: True when it says the signature is good. A
+    failure to run raises PkiError as openssl() does (its policy words kept)."""
+    full_env = dict(os.environ)
+    full_env.update({k: v for k, v in (env or {}).items() if v is not None})
+    data = csr_pem.encode('utf-8') if isinstance(csr_pem, str) else csr_pem
+    p = subprocess.run([OPENSSL, 'req', '-verify', '-noout'], input=data,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, env=full_env)
+    said = (p.stdout + b' ' + p.stderr).lower()
+    if p.returncode != 0:
+        raise PkiError('openssl: %s' % _said(p.stderr), detail=p.stderr.decode('utf-8', 'replace'))
+    return b'verify ok' in said and b'verify fail' not in said
+
+
 def csr_verify_why(csr_pem):
     """None when the request is signed by the key inside it, else the words why not.
     A SHA-1 request (Windows, older devices - signed since 1.0.102) where the system's crypto
     policy refuses SHA-1 (RHEL 9/10): verified once more with a configuration of its own that
     lets SHA-1 signatures through; still refused, it is said so - not that it is forged."""
     try:
-        openssl(['req', '-verify', '-noout'], data=csr_pem)
+        # OpenSSL 3 answers 0 for a bad signature too, saying only "verify failure" on stderr
+        # (hunt u3: a forged request was taken as signed) - its words decide
+        if not _req_verified(csr_pem):
+            return CSR_NOT_SIGNED
         return None
     except PkiError as e:
         detail = str(e.detail or e).lower()
@@ -723,8 +740,7 @@ def csr_verify_why(csr_pem):
     with workdir() as d:
         try:
             conf = sha1_openssl_conf(d)
-            openssl(['req', '-verify', '-noout'], data=csr_pem, env={'OPENSSL_CONF': conf})
-            return None
+            return None if _req_verified(csr_pem, {'OPENSSL_CONF': conf}) else CSR_NOT_SIGNED
         except (PkiError, OSError):
             return CSR_SHA1_REFUSED
 

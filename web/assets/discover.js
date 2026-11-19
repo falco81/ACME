@@ -89,6 +89,9 @@
       try { c = form.read() || {}; } catch (e) { c = {}; }
       var s = sub.read();
       Object.keys(s).forEach(function (k) { c[k] = s[k]; });
+      /* the version of the module the form shows, as its Test sends it (hunt u3: the one
+         saved, or the default, was asked instead) */
+      if (arr((p._base || p).versions).length > 1) c._version = String(p.version || '');
       return c;
     }
     function ask(b) {

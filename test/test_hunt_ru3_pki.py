@@ -122,5 +122,30 @@ class OwnCa(T.Tmp, unittest.TestCase):
         self.assertIn('ran out', str(e.exception))
 
 
+
+class ForgedRequest(unittest.TestCase):
+    """OpenSSL 3's req -verify answers 0 for a bad signature too (only "verify failure" on
+    stderr): a request whose signature is not its key's was taken as signed (hunt u3)."""
+    def test_forged_csr_not_signed(self):
+        import base64
+        import re as _re
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(['openssl', 'req', '-new', '-newkey', 'ec', '-pkeyopt',
+                            'ec_paramgen_curve:P-256', '-nodes', '-keyout', d + '/k.pem',
+                            '-subj', '/CN=forged.example.test', '-out', d + '/r.csr'],
+                           check=True, capture_output=True)
+            good = open(d + '/r.csr').read()
+        der = bytearray(base64.b64decode(''.join(_re.findall(r'^[A-Za-z0-9+/=]+$', good, _re.M))))
+        der[-3] ^= 0x01
+        bad = ('-----BEGIN CERTIFICATE REQUEST-----\n' + '\n'.join(
+            _re.findall('.{1,64}', base64.b64encode(bytes(der)).decode())) +
+            '\n-----END CERTIFICATE REQUEST-----\n')
+        from acmelib.certs import pki
+        self.assertTrue(pki.csr_verify(good))
+        self.assertFalse(pki.csr_verify(bad))
+        self.assertEqual(pki.csr_verify_why(bad), pki.CSR_NOT_SIGNED)
+
 if __name__ == '__main__':
     unittest.main()
