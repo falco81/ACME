@@ -1212,6 +1212,11 @@ function pickerDialog() {
    the profile's own (teampolicy.request_waits) - the profile alone said "issued at once" where
    the team made every request wait. */
 function profWaits(p) {
+  /* ...only where the certificate becomes the team's (hunt U4): one the profile gives to the
+     person asking is theirs, out of the team's rule - "approved first" was said of it in the
+     workspace, and it was issued at once */
+  var forTeam = p.owner === 'team' || (p.owner === 'fixed' && !!(CP.ctx && CP.ctx.team) && p.owner_team === CP.ctx.team());
+  if (!forTeam) return !!p.approval;
   var tp = teamPolicy(), ta = tp && tp.approval && (typeof tp.approval === 'string' ? tp.approval : tp.approval.mode);
   if (ta === 'always') return true;
   if (ta === 'none') return false;

@@ -1091,16 +1091,20 @@ function requestCard(r, mayAct) {
 function declineReq(r) {
   var why = null;
   modal(tr('Decline') + ' ' + r.name, function (body) {
-    body.appendChild(el('p', 'note', 'The person who asked is told why, by mail.'));
+    /* told by mail only when a mail goes (hunt U4, as the certificate's own Decline since Rt7):
+       no address of theirs, or mail switched off - "told why, by mail" was said all the same */
+    body.appendChild(el('p', 'note', r.told_by_mail === false
+      ? 'The person who asked sees why here, on the portal - no mail is sent to them.'
+      : 'The person who asked is told why, by mail.'));
     why = el('textarea');
     why.rows = 3;
     body.appendChild(formField('Why', why, ''));
   }, [{words: 'No, leave it', close: true}, {words: 'Decline it', cls: 'danger', icon: 'ban', once: true, go: function (b) {
     if (!String(why.value || '').trim()) { why.focus(); toast(tr('say why it is declined'), 'bad'); return; }
     busy(b, true);
-    api('cert-approve', {id: r.id, ok: 0, why: why.value}).then(function () {
+    api('cert-approve', {id: r.id, ok: 0, why: why.value}).then(function (d) {
       closeModal();
-      ok(tr('declined - the person who asked is told'));
+      ok(tr(d && d.told === false ? 'declined - no mail is sent to the person who asked' : 'declined - the person who asked is told'));
       refresh(true);
     }).catch(oops).then(function () { busy(b, false); });
   }}], 'narrow');

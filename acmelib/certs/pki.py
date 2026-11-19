@@ -722,6 +722,20 @@ def _req_verified(csr_pem, env=None):
     return b'verify ok' in said and b'verify fail' not in said
 
 
+def crl_verified(crl_file, ca_file, inform='PEM'):
+    """Whether the CRL in crl_file is signed by the authority in ca_file. openssl crl -CAfile
+    answers 0 for a bad signature too (OpenSSL 3: it only says "verify failure" on its error
+    output, as req -verify - hunt u4), so its words decide. PkiError when openssl cannot read
+    the CRL or finds no authority of its issuer."""
+    p = subprocess.run([OPENSSL, 'crl', '-inform', inform, '-in', str(crl_file), '-CAfile',
+                        str(ca_file), '-noout'], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                       stdin=subprocess.DEVNULL, timeout=60)
+    if p.returncode != 0:
+        raise PkiError('openssl crl: %s' % _said(p.stderr), p.stderr.decode('utf-8', 'replace'))
+    said = p.stderr.decode('utf-8', 'replace')
+    return bool(re.search(r'(?m)^verify OK\s*$', said)) and 'verify fail' not in said.lower()
+
+
 def csr_verify_why(csr_pem):
     """None when the request is signed by the key inside it, else the words why not.
     A SHA-1 request (Windows, older devices - signed since 1.0.102) where the system's crypto

@@ -149,8 +149,8 @@ def _configs(store, fam, old, new):
 
 
 def _kv(store, fam, old, new):
-    for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?',
-                           ('%s%s:%s:%%' % (KV_PREFIX, fam, old),)):
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ? ESCAPE '!'",
+                           (E.like_escaped('%s%s:%s:' % (KV_PREFIX, fam, old)) + '%',)):
         if not r['k'].startswith('%s%s:%s:' % (KV_PREFIX, fam, old)):
             continue                    # LIKE's "_" and case: another one's (1.0.44)
         tail = r['k'][len('%s%s:%s:' % (KV_PREFIX, fam, old)):]
@@ -165,8 +165,11 @@ def _references(store, fam, old, new):
     elif fam == 'challenge':
         db.run('UPDATE certs SET challenge = ? WHERE challenge = ?', (new, old))
         S.over_validation_renamed(store, old, new)
-        for r in db.rows('SELECT id, challenge_map FROM certs WHERE challenge_map LIKE ?',
-                         ('%' + json.dumps(old)[1:-1] + '%',)):
+        # escaped for ESCAPE '!' (hunt u4): a name with a letter outside ASCII or a quote is
+        # é or \" in the JSON, and PostgreSQL and MariaDB took the backslash for LIKE's
+        # escape - the certificates kept the old name and lost their validation
+        for r in db.rows("SELECT id, challenge_map FROM certs WHERE challenge_map LIKE ? "
+                         "ESCAPE '!'", ('%' + E.like_escaped(json.dumps(old)[1:-1]) + '%',)):
             cmap = S.jload(r['challenge_map'], {}) or {}
             if old in cmap.values():
                 cmap = {k: (new if v == old else v) for k, v in cmap.items()}

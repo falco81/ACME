@@ -226,6 +226,13 @@ class RawSql(str):
     and CREATE SUBSCRIPTION failed with "tuple index out of range"."""
 
 
+def like_escaped(text):
+    """`text` matched as itself by LIKE ? ESCAPE '!' on every engine (hunt u4): PostgreSQL and
+    MariaDB take a backslash in a pattern for their escape - the \\u00e9 and \\" of a name kept
+    as JSON matched nothing there, and SQLite took `_` and `%` for wildcards everywhere."""
+    return ''.join('!' + c if c in '%_!' else c for c in str(text))
+
+
 def _qmarks(sql):
     """`?` as `%s`, for the two engines whose drivers want that. Nothing in
     the SQL this program writes has a `?` or a `%` inside a quoted string."""

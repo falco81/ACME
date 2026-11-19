@@ -352,6 +352,8 @@ def _inbox(h):
         w = dict(w)
         w['approvals'] = _clean_approvals(w.get('approvals'))
         w['timeline'] = _timeline(h.store, w['id'])
+        # whether the one who asked is told by mail (its Decline says so - hunt U4)
+        w['told_by_mail'] = P.told_by_mail(h.store, w['id'])
         reqs.append(w)
     acts = [_action_public(h.store, r) for r in inbox_actions(me)]
     # what they asked for that waits (or was answered): their requests and actions

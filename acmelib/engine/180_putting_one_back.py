@@ -19,6 +19,12 @@ def rb_open(path, password, work):
                 _openssl(['enc', '-d', '-aes-256-cbc', '-pbkdf2', '-iter', str(RB_ITER), '-md',
                           'sha256', '-in', path, '-out', src, '-pass', 'fd:@'],
                          secret=pw, what='opening it')
+                # A wrong password answers 0 about once in 256 tries too (its padding happens
+                # to read right) and writes noise (hunt u4: the old password was then never
+                # tried) - what comes out is a .tar.gz, or the password was not the one
+                with open(src, 'rb') as f:
+                    if f.read(2) != b'\x1f\x8b':
+                        raise ValueError('not a .tar.gz')
                 break
             except ValueError:
                 if n == len(tries) - 1:

@@ -8675,7 +8675,12 @@ function jobPeek(id) {
     if (j.cert_id && j.cert_name) buttons.unshift({words: 'The certificate', icon: 'cert', left: true, go: function () {
       var under = MODAL_STACK.length ? MODAL_STACK[MODAL_STACK.length - 1].el : null;
       if (under && String(under.dataset.cert || '') === String(j.cert_id)) { closeModal(); return; }
-      over(function () { certPeek(j.cert_id); });
+      /* back on top again (hunt Ru4): asked on - the certificate's window over it ended its
+         asking, and a running job's window said "running, 13 s so far" for good, Stop it and all */
+      over(function () { certPeek(j.cert_id); }, function () {
+        ticket = modalTicket();
+        if (!drewDone) poll(true);
+      });
     }});
     if (running && MANAGE) buttons.push({words: 'Stop it', icon: 'cancel', go: function (b) {
       busy(b, true);

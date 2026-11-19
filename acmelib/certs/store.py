@@ -645,9 +645,18 @@ def plugin_public(store, family, row, full=False):
         except Exception:                               # noqa: BLE001
             out['dual'] = False
     elif family == 'challenge':
-        out['used_by'] = int(store.db.value(
-            "SELECT COUNT(*) FROM certs WHERE challenge = ? OR challenge_map LIKE ?",
-            (row['name'], '%' + json.dumps(row['name']) + '%'), 0) or 0)
+        # the certificates that name it - counted here, not by LIKE (hunt u4): its "_" took
+        # any letter and SQLite's ignored case, and an unused dns_persist validation (dns_a
+        # beside a used dns-a) was "in use (1)" and could not be deleted
+        n = 0
+        for r in store.db.rows("SELECT challenge, challenge_map FROM certs WHERE challenge = ? "
+                               "OR challenge_map LIKE ? ESCAPE '!'",
+                               (row['name'], '%' + E.like_escaped(json.dumps(row['name'])) + '%')):
+            cmap = jload(r.get('challenge_map'), {})
+            if r.get('challenge') == row['name'] or (
+                    isinstance(cmap, dict) and row['name'] in cmap.values()):
+                n += 1
+        out['used_by'] = n
     elif family == 'check':
         # attached to certificates, and in the sets of the tests through SSH (1.0.32)
         n = int(store.db.value('SELECT COUNT(*) FROM cert_checks WHERE test = ?',
@@ -675,8 +684,10 @@ def over_validation_renamed(store, old, new):
     """A validation renamed (1.0.78): each certificate's own settings of it (profile.over.
     validation[name]) follow - they were kept under the old name, not used any more, and every
     later save of the profile refused "there is no validation <old>"."""
-    for r in store.db.rows('SELECT id, profile FROM certs WHERE profile LIKE ?',
-                           ('%' + json.dumps(old)[1:-1] + '%',)):
+    # escaped for ESCAPE '!' (hunt u4): PostgreSQL and MariaDB took the backslash of a é
+    # or \" in the JSON for LIKE's escape, and found nothing
+    for r in store.db.rows("SELECT id, profile FROM certs WHERE profile LIKE ? ESCAPE '!'",
+                           ('%' + E.like_escaped(json.dumps(old)[1:-1]) + '%',)):
         prof = jload(r.get('profile'), {}) or {}
         over = prof.get('over') if isinstance(prof, dict) else None
         vals = over.get('validation') if isinstance(over, dict) else None

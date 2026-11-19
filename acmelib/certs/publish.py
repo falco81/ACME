@@ -446,8 +446,9 @@ def check(store, ca_id):
             ca_file = pki.wfile(d, 'ca.pem', row['cert_pem'])
             crl_file = pki.wfile(d, 'crl.der', data)
             try:
-                pki.openssl(['crl', '-inform', 'DER', '-in', crl_file, '-CAfile', ca_file,
-                             '-noout'])
+                # openssl crl -CAfile answers 0 for a bad signature too (hunt u4)
+                if not pki.crl_verified(crl_file, ca_file, 'DER'):
+                    raise PkiError('openssl crl: verify failure')
                 say('ok', 'its signature is the authority\'s')
             except PkiError as e:
                 ok = False

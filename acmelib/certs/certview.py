@@ -1018,8 +1018,8 @@ def _crl_ok(crl_pem, issuer_pem):
         c = pki.wfile(d, 'crl.pem', crl_pem)
         p = pki.wfile(d, 'ca.pem', issuer_pem)
         try:
-            pki.openssl(['crl', '-in', c, '-CAfile', p, '-noout'])
-            return True
+            # openssl crl -CAfile answers 0 for a bad signature too: its words (hunt u4)
+            return pki.crl_verified(c, p)
         except PkiError:
             return False
 

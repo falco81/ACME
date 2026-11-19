@@ -1504,11 +1504,20 @@ def adcs_csr_names(A, csr):
             not re.fullmatch(r'\s*-----BEGIN (NEW )?CERTIFICATE REQUEST-----[A-Za-z0-9+/=\s]+'
                              r'-----END (NEW )?CERTIFICATE REQUEST-----\s*', csr):
         raise A.Refused('the request is not a CSR (PEM, %d KiB at most)' % (ADCS_CSR_MOST // 1024))
+    # openssl req -verify answers 0 for a bad signature too (OpenSSL 3: only "verify failure"
+    # on its error output) - its words decide, as acme's own check (hunt u3/u4)
     try:
-        text = A._openssl(['req'] + list(getattr(A, 'STDIN_IN', [])) +
-                          ['-noout', '-text', '-verify'], csr)
-    except A.Refused as e:
-        raise A.Refused('the CSR cannot be read or its signature is not good (%s)' % e)
+        got = subprocess.run([A.OPENSSL, 'req'] + list(getattr(A, 'STDIN_IN', [])) +
+                             ['-noout', '-text', '-verify'], input=csr, capture_output=True,
+                             text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise A.Refused('the CSR cannot be read or its signature is not good (openssl: %s)' % e)
+    said = '%s\n%s' % (got.stdout or '', got.stderr or '')
+    if got.returncode != 0 or 'verify fail' in said.lower() or \
+            not re.search(r'(?m)verify OK\s*$', got.stderr or ''):
+        raise A.Refused('the CSR cannot be read or its signature is not good (openssl: %s)'
+                        % ((got.stderr or '').strip()[-200:] or 'verify failure'))
+    text = got.stdout
     m = re.search(r'X509v3 Subject Alternative Name:[^\n]*\n\s*([^\n]*)', text)
     names = []
     for part in [x.strip() for x in (m.group(1) if m else '').split(',') if x.strip()]:
