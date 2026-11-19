@@ -1902,16 +1902,22 @@ _FGT_STATUS = {'http_method': 'GET', 'status': 'success', 'serial': 'FGT60F\u203
                    'model_name': 'FortiGate', 'model_number': '60F', 'hostname': 'fw01'}}
 # made-up SHA-256 fingerprints, as FortiOS writes them (upper case, colons)
 _FGT_FP = [':'.join(('%02X' % ((i * 37 + k * 11) % 256)) for i in range(32)) for k in range(5)]
+# the certificate replaced in place: any name but acme-... (the default mode's new one, not
+# there yet), or any name read with_meta (only replace in place reads it so)
+_FGT_REPLACED = (r'/api/v2/cmdb/vpn\.certificate/local/(?:(?!acme-)[^/?]+|[^/?]+\?'
+                 r'(?:[^#]*&)?with_meta=1)')
 ANSWERS['fortigate'] = [
     {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': _FGT_STATUS},
     # replace in place (1.0.128): a certificate of the FortiGate's own (not acme-...) is
     # there, holding the earlier certificate, used three times; asked again once replaced
-    # (1.0.130, the REST API): the leaf the PUT sent - over SSH no PEM (the CLI's show then)
-    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/(?!acme-)[^/?]+', 'times': 1,
+    # (1.0.130, the REST API): the leaf the PUT sent - over SSH no PEM (the CLI's show then).
+    # The one replaced may have an acme- name too (an earlier import of the default mode,
+    # chosen to be replaced): replace in place reads it with_meta, the default mode never
+    {'method': 'GET', 'url': _FGT_REPLACED, 'times': 1,
      'body': {'http_method': 'GET', 'status': 'success', 'results': [
          {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3,
           'certificate': '{EARLIER_PEM}'}]}},
-    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/(?!acme-)[^/?]+',
+    {'method': 'GET', 'url': _FGT_REPLACED,
      'body': {'http_method': 'GET', 'status': 'success', 'results': [
          {'name': '{TAIL}', 'source': 'user', 'range': 'global', 'q_ref': 3,
           'certificate': '{SENT:certificate}'}]}},

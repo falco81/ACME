@@ -2842,6 +2842,12 @@
       g.appendChild(formField('Under', f.parent));
       f.kind = segmented([['team', 'Teams', KIND_ICON.team], ['unit', 'Units', KIND_ICON.unit]], 'team');
       g.appendChild(formField('They are', f.kind));
+      /* the filter, the role, where and what changed after the preview: what the preview
+         showed is no longer what would be made - previewed again first */
+      var stale = function () { fromGroups._ok = false; };
+      g.addEventListener('input', stale);
+      g.addEventListener('change', stale);
+      f.kind.addEventListener('change', stale);     /* its 'change' does not bubble */
       body.appendChild(g);
       var prev = el('div', 'tmx-fg-prev');
       prev.id = 'tmx-fg-prev';

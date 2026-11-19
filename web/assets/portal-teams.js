@@ -2993,7 +2993,7 @@ function limitsEditor(parent, own) {
       }).catch(function () { });
     }
     row('pairs', 'Sources with their validations', box, own.pairs !== undefined, function () { return JSON.parse(JSON.stringify(map)); },
-        eff.pairs ? Object.keys(eff.pairs).map(function (k) { return k + ' → ' + (eff.pairs[k] === null ? tr('any validation') : arr(eff.pairs[k]).join(', ')); }).join('; ') : undefined);
+        eff.pairs ? Object.keys(eff.pairs).map(function (k) { return k + ' → ' + (eff.pairs[k] === null ? tr('any validation') : !arr(eff.pairs[k]).length ? tr('no validation') : arr(eff.pairs[k]).join(', ')); }).join('; ') : undefined);
   }
   var profs = (window.ACME_PORTAL_CERTS && window.ACME_PORTAL_CERTS.data() && arr(window.ACME_PORTAL_CERTS.data().profiles).map(function (p) { return p.name; })) || [];
   listRow('profiles', 'Request profiles', 'a profile’s name', profs.concat(arr(eff.profiles)));

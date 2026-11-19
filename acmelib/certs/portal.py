@@ -1094,9 +1094,14 @@ def team_limits(store, teams_, issuers):
         eff = T.effective_policy(store, name)
         if not eff:
             continue
+        # none where the free form is refused to it, or the portal's validation is not one it
+        # may use (hunt R u1: every source was offered, and each refused once asked)
+        usable = T.policy_value(eff, 'free_form') and (
+            not val or eff.get('validations') is None or
+            val.lower() in {str(x).lower() for x in eff['validations']})
         ok = [i for i in issuers
-              if (eff.get('issuers') is None or i.lower() in {str(x).lower()
-                                                              for x in eff['issuers']})
+              if usable and (eff.get('issuers') is None or i.lower() in {
+                  str(x).lower() for x in eff['issuers']})
               and T.pair_allowed(eff, i, val)]
         out[name] = {'issuers': ok, 'wildcards': bool(T.policy_value(eff, 'wildcards'))}
     return out

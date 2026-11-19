@@ -1755,7 +1755,8 @@ class Cli(object):
         self._owner(fam, body)
         if len(body) == 2 and kind == row['kind']:
             raise SystemExit('acme: nothing to change - --set KEY=VALUE, --name, --note, '
-                             '--enabled, --kind%s' % (', --owner' if fam == 'target' else ''))
+                             '--enabled, --kind%s' % (', --owner' if fam in ('target', 'check')
+                                                      else ''))
         got = self.api('POST', '/api/%s/save' % path, body=body)
         return self.done('%s %s changed' % (word, a.name or row['name']), got)
 

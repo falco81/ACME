@@ -8044,8 +8044,10 @@ function lbInNet(ip, net) {
    {level: 'good'|'warn'|'crit', why, nets} */
 function lbAdminExposure(lb, v) {
   var a = (lb.access || {}).admin;
-  var pp = !!lb.proxy_protocol;
   var trusted = (lb.trusted || []).some(function (t) { return lbInNet(v.lb, t); });
+  /* The PROXY header believed only from the balancers named (1.0.134): from any other, nginx
+     judges the balancer's own address - said to be the client's before. */
+  var pp = !!lb.proxy_protocol && trusted;
   var xff = trusted && lb.header && lb.header !== 'proxy_protocol';
   if (!a) return {level: 'warn', why: 'unknown', nets: []};
   var nets = a.from || [];
@@ -8113,10 +8115,12 @@ var LB_GUIDES = [
     if (v.tls === 'end') {
       out.push(['/etc/haproxy/haproxy.cfg - TLS ended on HAProxy',
         'frontend acme_https\n    bind {lb}:443 ssl crt /etc/haproxy/{name}.pem alpn h2,http/1.1\n    bind {lb}:80\n    mode http\n'
-        + '    http-request redirect scheme https unless { ssl_fc }\n'
-        + '    # the enrolment pages only: never /admin/, /healthz or /metrics\n'
+        + '    # /pki/ (the CRLs) stays plain HTTP: a CRL fetcher seldom follows a redirect to HTTPS\n'
+        + '    http-request redirect scheme https unless { ssl_fc } || { path_beg /pki/ }\n'
+        + '    # the enrolment pages only: never /admin/, /healthz or /metrics - nor /assets/../admin/\n'
         + '    acl acme_portal path / /index.php /favicon.ico\n    acl acme_portal path_beg /assets/ /pki/\n'
         + '    http-request deny deny_status 404 unless acme_portal\n'
+        + '    http-request deny deny_status 404 if { path_sub /. % }\n'
         + '    option forwardfor\n    timeout client 900s\n    default_backend acme_nodes\n\n'
         + 'backend acme_nodes\n    mode http\n    balance roundrobin\n    timeout server 900s\n    option httpchk\n'
         + '    http-check send meth GET uri {hc} ver HTTP/1.1 hdr Host {name}\n    http-check expect status 200\n'
@@ -8141,7 +8145,11 @@ var LB_GUIDES = [
     }
     return [['/etc/nginx/conf.d/acme-lb.conf - the enrolment pages only (never /admin/, /healthz, /metrics); open-source nginx checks passively, nginx Plus can ask /healthz (the commented lines)',
       'upstream acme_nodes {\n' + lbServers(v, function (n, i) { return '    server {a' + i + '}:443 max_fails=2 fail_timeout=10s;'; })
-      + '\n    keepalive 16;\n}\nserver {\n    listen {lb}:80;\n    server_name {name};\n    return 301 https://$host$request_uri;\n}\n'
+      + '\n    keepalive 16;\n}\nserver {\n    listen {lb}:80;\n    server_name {name};\n'
+      + '    # /pki/ (the CRLs) stays plain HTTP: a CRL fetcher seldom follows a redirect to HTTPS\n'
+      + '    location /pki/ {\n        proxy_pass https://acme_nodes;\n        proxy_set_header Host $host;\n'
+      + '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n'
+      + '    location / { return 301 https://$host$request_uri; }\n}\n'
       + 'server {\n    listen {lb}:443 ssl;\n    http2 on;\n    server_name {name};\n'
       + '    ssl_certificate     /etc/nginx/certs/{name}.pem;\n    ssl_certificate_key /etc/nginx/certs/{name}.key;\n'
       + '    client_max_body_size 4g;\n    location ~ ^/(|index\\.php|favicon\\.ico|assets/.*|pki/.*)$ {\n        proxy_pass https://acme_nodes;\n        proxy_http_version 1.1;\n'
@@ -8172,7 +8180,9 @@ var LB_GUIDES = [
       + 'create ltm pool acme_https monitor acme_healthz load-balancing-mode round-robin members add { '
       + v.nodes.map(function (n, i) { return '{a' + i + '}:443'; }).join(' ') + ' }\n'
       + 'create ltm profile http acme_http insert-xforwarded-for enabled\n'
-      + 'create ltm rule acme_portal_only {\nwhen HTTP_REQUEST {\n    switch -glob -- [HTTP::path] {\n'
+      + 'create ltm rule acme_portal_only {\nwhen HTTP_REQUEST {\n'
+      + '    if { [HTTP::path] contains "/." or [HTTP::path] contains "%" } { HTTP::respond 404; return }\n'
+      + '    switch -glob -- [HTTP::path] {\n'
       + '        "/" - "/index.php" - "/favicon.ico" - "/assets/*" - "/pki/*" { }\n        default { HTTP::respond 404 }\n    }\n}\n}\n'
       + 'create ltm virtual acme_vs destination {lb}:443 ip-protocol tcp pool acme_https profiles add { acme_http clientssl serverssl } rules { acme_portal_only } source-address-translation { type automap }'],
       ['Put your certificate for {name} into the clientssl profile.', '']];
@@ -8190,7 +8200,7 @@ var LB_GUIDES = [
       + 'add lb vserver acme_vs SSL {lb} 443 -lbMethod ROUNDROBIN -persistenceType NONE\n'
       + 'bind lb vserver acme_vs acme_https\nbind ssl vserver acme_vs -certkeyName {name}\n'
       + 'add responder action acme_404 respondwith "\\"HTTP/1.1 404 Not Found\\r\\nContent-Length: 0\\r\\n\\r\\n\\""\n'
-      + 'add responder policy acme_portal_only "!(HTTP.REQ.URL.PATH.EQ(\\"/\\") || HTTP.REQ.URL.PATH.EQ(\\"/index.php\\") || HTTP.REQ.URL.PATH.EQ(\\"/favicon.ico\\") || HTTP.REQ.URL.PATH.STARTSWITH(\\"/assets/\\") || HTTP.REQ.URL.PATH.STARTSWITH(\\"/pki/\\"))" acme_404\n'
+      + 'add responder policy acme_portal_only "!(HTTP.REQ.URL.PATH.EQ(\\"/\\") || HTTP.REQ.URL.PATH.EQ(\\"/index.php\\") || HTTP.REQ.URL.PATH.EQ(\\"/favicon.ico\\") || HTTP.REQ.URL.PATH.STARTSWITH(\\"/assets/\\") || HTTP.REQ.URL.PATH.STARTSWITH(\\"/pki/\\")) || HTTP.REQ.URL.PATH.CONTAINS(\\"/.\\") || HTTP.REQ.URL.PATH.CONTAINS(\\"%\\")" acme_404\n'
       + 'bind lb vserver acme_vs -policyName acme_portal_only -priority 100 -gotoPriorityExpression END -type REQUEST']];
   }]
 ];
@@ -8266,8 +8276,15 @@ function drawHaLb(d) {
     var v = values();
     /* The client's own address: are the nodes told the balancer's? */
     clear(trust);
-    var ok = (lb.trusted || []).some(function (t) { return t.replace(/\/(32|128)$/, '') === v.lb; });
-    if (v.tls === 'end') {
+    /* In a network named as well (1.0.134): told to replace the list with the balancer alone, a
+       list of several lost the others. */
+    var ok = (lb.trusted || []).some(function (t) { return lbInNet(v.lb, t); });
+    if (v.tls === 'end' && lb.proxy_protocol) {
+      /* Ended on the balancer while 443 takes only the PROXY protocol (1.0.134): said to be fine,
+         and nginx refused every request the balancer sent. */
+      trust.appendChild(el('div', 'note bad', 'The nodes take only connections that begin with the PROXY header on 443 (the header proxy_protocol): a balancer that ends TLS does not send it, and nginx refuses every request through it. Set the header back to X-Forwarded-For: Settings → Firewall and access → Behind a load balancer or WAF - or as root on each node:'));
+      trust.appendChild(lbBlock('acme --set web_proxy_from={lb}/' + (v.lb.indexOf(':') >= 0 ? '128' : '32') + ' --set web_proxy_header=X-Forwarded-For --set web_proxy=1', v, ''));
+    } else if (v.tls === 'end') {
       trust.appendChild(el('div', 'note ' + (ok ? 'good' : 'warn'), ok
         ? 'The nodes already take the client\'s own address from X-Forwarded-For sent by ' + v.lb + '.'
         : 'Tell the nodes the balancer\'s address, so that the allow lists, the sign-in pause and every log see the client and not the balancer: Settings → Firewall and access → Behind a load balancer or WAF (once, for every node) - or as root on each node:'));
@@ -8286,7 +8303,7 @@ function drawHaLb(d) {
     var nets = ex.nets.length ? ex.nets.join(', ') : '';
     if (ex.why === 'unknown') who.appendChild(el('span', '', 'Who may reach the administration pages is not known here (acme.conf has no ADMIN-ALLOW lines): see Settings → Firewall and access.'));
     else if (ex.why === 'any') who.appendChild(el('span', '', 'The administration pages are for everybody now: through the balancer that is the internet. Passed through, the balancer cannot see the paths - what keeps the administration from the internet is the nodes themselves: who may reach the administration pages must be your own networks only.'));
-    else if (ex.why === 'balancer') who.appendChild(el('span', '', 'The administration pages are published through the balancer: without the PROXY protocol every client reaches the nodes as the balancer ' + v.lb + ', and ' + v.lb + ' is among those who may reach the administration pages (' + nets + '). Switch the PROXY protocol on (above) - or take the balancer\'s network out of the list.'));
+    else if (ex.why === 'balancer') who.appendChild(el('span', '', 'The administration pages are published through the balancer: without the PROXY protocol every client reaches the nodes as the balancer ' + v.lb + ' - which is among those who may reach the administration pages (' + nets + '). Switch the PROXY protocol on (above) - or take the balancer\'s network out of the list.'));
     else if (ex.why === 'xff') who.appendChild(el('span', '', 'The administration pages are published through the balancer: the nodes believe X-Forwarded-For from ' + v.lb + ', but passed through, the balancer cannot write it - the client writes it himself, any address of your own networks he likes. Switch the header to proxy_protocol (above).'));
     else if (ex.why === 'noproxy') who.appendChild(el('span', '', 'Without the PROXY protocol every client reaches the nodes as the balancer ' + v.lb + ': the administration pages (' + nets + ') stay shut through it, but the enrolment pages, the sign-in pause and the logs see only the balancer too.'));
     else if (ex.why === 'proxy') who.appendChild(el('span', '', 'The balancer passes everything through, the administration pages too; the nodes let in only ' + nets + ' to them, judged by the client\'s own address from the PROXY protocol.'));

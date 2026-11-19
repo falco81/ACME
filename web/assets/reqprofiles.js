@@ -219,7 +219,9 @@
 
   function matches(p, q) {
     if (!q) return true;
-    var hay = [p.name, p.description, p.issuer, p.challenge, p.owner_team].concat(p.suffixes || [], p.teams || [], p.tags || [],
+    /* the domains as the card and the table show them too: *.example.com with wildcards */
+    var sufs = (p.suffixes || []).map(function (s) { return p.wildcards ? '*.' + s : s; });
+    var hay = [p.name, p.description, p.issuer, p.challenge, p.owner_team].concat(sufs, p.teams || [], p.tags || [],
       (p.key_types || []).map(function (k) { return KEY_WORDS[k] || k; }), RP.limits[low(p.name)] || []);
     hay = fold(hay.join(' \u0001 '));
     return fold(q).split(/\s+/).filter(Boolean).every(function (w) { return hay.indexOf(w) >= 0; });

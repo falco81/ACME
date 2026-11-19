@@ -822,18 +822,20 @@ def _test_refs_ok(me, team, cfg, row=None):
         via = str(cfg.get(key) or '').strip()
         if not via or (row is not None and via == str(had.get(key) or '').strip()):
             continue
-        # as the run finds it (runtime._jump): a connector of the targets, else one of the
-        # tests, else a server's agent
-        got = me.store.db.row("SELECT owner FROM cert_targets WHERE name = ? AND kind = "
-                              "'ssh_connector'", (via,))
-        cap = 'target.view'
-        if not got:
-            got = me.store.db.row("SELECT owner FROM cert_tests WHERE name = ? AND kind = "
-                                  "'ssh_relay'", (via,))
-            cap = 'test.view'
+        # as a test's run finds it (checks._through): a connector of the tests, else a
+        # server's agent, else a connector of the targets (hunt R u1: looked up in the order
+        # of the targets' runtime._jump - a device of the team named as acme's own connector
+        # of the tests passed here, and the test ran through acme's own)
+        got = me.store.db.row("SELECT owner FROM cert_tests WHERE name = ? AND kind = "
+                              "'ssh_relay'", (via,))
+        cap = 'test.view'
         if not got:
             got = me.store.db.row("SELECT owner FROM cert_targets WHERE name = ? AND kind IN "
                                   "('agent', 'agent_windows')", (via,))
+            cap = 'target.view'
+        if not got:
+            got = me.store.db.row("SELECT owner FROM cert_targets WHERE name = ? AND kind = "
+                                  "'ssh_connector'", (via,))
             cap = 'target.view'
         if not got or _low(got.get('owner')) not in near or cap not in me.caps(got.get('owner')):
             me.deny('the test goes through %s, which is not a connector of the team %s' % (

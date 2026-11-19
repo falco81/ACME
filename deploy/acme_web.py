@@ -700,6 +700,11 @@ def _listen_443(line):
     return m.group(1), m.group(2), m.group(3)
 
 
+def _loopback_443(addr):
+    """Whether a 443 listen line's address is the loopback (127.x.x.x, ::1)."""
+    return bool(re.match(r'^(?:127(?:\.\d{1,3}){3}|\[::1\]):443$', addr))
+
+
 def proxy_listens(block, on):
     """The 443 listen lines of an HTTPS server { } with `proxy_protocol` (on) - each marked, and
     a line of the loopback address without it next to a wildcard one, for the node's own checks
@@ -709,13 +714,17 @@ def proxy_listens(block, on):
         if depth == 1 and PROXY_LOCAL_MARK in line:
             continue                    # acme's own loopback lines: made again below when on
         got = _listen_443(line) if depth == 1 else None
-        if got and (on or PROXY_MARK in line):
+        # A loopback line of the admin's own (a hand edit) is never given it: the node's own
+        # checks come from there without a PROXY header, and with it they all failed - the VIP
+        # address's check on both nodes. Kept as it is, it stands for acme's line too.
+        want = on and not (got and _loopback_443(got[1].split()[0]))
+        if got and (want or PROXY_MARK in line):
             head, what, after = got
             after = after.replace('   ' + PROXY_MARK, '').replace(PROXY_MARK, '')
             words = what.split()
             if PROXY_MARK in line:
                 words = [w for w in words if w != 'proxy_protocol']
-            if on:
+            if want:
                 if 'proxy_protocol' not in words:
                     words.append('proxy_protocol')
                 keep = [w for w in words[1:] if w in ('ssl', 'http2')]
@@ -2244,6 +2253,13 @@ def nginx_part(r, last):
             vb = re.sub(r'\s+default_server\b', '', vb)
             # The loopback lines of the PROXY protocol (1.0.128) are this node's server's alone.
             vb = '\n'.join(x for x in vb.split('\n') if PROXY_LOCAL_MARK not in x)
+            # So is a loopback line of the admin's own (a hand edit) next to another 443 line:
+            # made the VIP address's, it is a second listen of it without the PROXY protocol
+            # beside the one with it - nginx refuses both servers.
+            lo = [x for x in vb.split('\n') if _listen_443(x) and
+                  _loopback_443(_listen_443(x)[1].split()[0])]
+            if lo and any(_listen_443(x) for x in vb.split('\n') if x not in lo):
+                vb = '\n'.join(x for x in vb.split('\n') if x not in lo)
             # Its own address as well as its name (1.0.51): a browser that
             # asks for the address itself, or sends no name at all, gets the
             # web address's certificate - not the node's. The address need

@@ -171,7 +171,7 @@ frontend acme_https
     bind :443 ssl crt /etc/haproxy/acme.example.cz.pem alpn h2,http/1.1
     bind :80
     mode http
-    http-request redirect scheme https unless { ssl_fc }
+    http-request redirect scheme https unless { ssl_fc } || { path_beg /pki/ }
     option forwardfor
     default_backend acme_nodes
 
@@ -187,7 +187,11 @@ backend acme_nodes
 ```
 
 (`verify required ca-file ...` instead of `verify none` when the nodes have
-certificates from your CA.) On both nodes: `acme --trusted-proxy 192.0.2.5/32`.
+certificates from your CA.) `/pki/` stays plain HTTP on port 80, as on the nodes: a CRL
+fetcher seldom follows a redirect to HTTPS. The guide on the page publishes the enrolment
+pages only; HAProxy, an F5 iRule and a NetScaler policy match the path as it was sent, so its
+blocks also answer 404 to a path with `/.` or `%` in it (`/assets/../admin/` is `/admin/` to
+nginx). On both nodes: `acme --trusted-proxy 192.0.2.5/32`.
 
 ### Passing TLS through (PROXY protocol)
 

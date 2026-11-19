@@ -265,6 +265,21 @@ def need_admin_cert(store, s, b, row):
             issuer = row.get('issuer') or None
         if 'challenge' not in b:
             validation = row.get('challenge') or None
+    if row is None:
+        # a new one takes what api.cert_save gives it where nothing is said - the default
+        # source, and the default validation of its source (hunt R u1: only the pairs looked at
+        # them - a source outside `issuers`, a validation outside `validations` or not paired
+        # with the source sent went through by not being sent)
+        from acmelib.certs import defaults as DF
+        iname = str(b.get('issuer') or '').strip()
+        di = DF.default_issuer(store) if 'issuer' not in b else \
+            (S.plugin_row(store, 'issuer', iname) if iname else None)
+        if di and 'issuer' not in b:
+            issuer = di['name']
+        if di and 'challenge' not in b and not b.get('challenge_map'):
+            dc = DF.default_challenge(store, di)
+            if dc:
+                validation = dc['name']
     # The validations of the names' own choices (challenge_map) too (hunt R t5): only the
     # certificate's one validation was checked - {"*.example.com": "dns-of-another-team"}
     # proved its names by a validation the team may not use.
