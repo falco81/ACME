@@ -71927,6 +71927,78 @@
   "z_1700": {
    "source": "The nodes take only connections that begin with the PROXY header on 443 (the header proxy_protocol): a balancer that ends TLS does not send it, and nginx refuses every request through it. Set the header back to X-Forwarded-For: Settings → Firewall and access → Behind a load balancer or WAF - or as root on each node:",
    "text": "Uzly berou na 443 jen spojení, která začínají hlavičkou PROXY (hlavička proxy_protocol): balancer, který TLS ukončuje, ji neposílá, a nginx odmítne každý požadavek, který přes něj přijde. Vraťte hlavičku na X-Forwarded-For: Nastavení → Firewall a přístup → Za load balancerem nebo WAF – nebo jako root na každém uzlu:"
+  },
+  "z_1701": {
+   "source": "the server enrolled with it before and its target has another owner now",
+   "text": "server se s ním již zaregistroval a jeho cíl má nyní jiného vlastníka"
+  },
+  "z_1702": {
+   "source": "this server enrolled with this code before and its target was given to another owner since - join it with a code of its owner (or a join code on its target's card)",
+   "text": "tento server se s tímto kódem již zaregistroval a jeho cíl byl mezitím předán jinému vlastníkovi – připojte ho kódem jeho vlastníka (nebo kódem pro připojení na kartě jeho cíle)"
+  },
+  "z_1703": {
+   "source": "Certificates: A certificate deployed",
+   "text": "Certifikáty: Certifikát nasazen"
+  },
+  "z_1704": {
+   "source": "Certificates: A certificate deployed (SMS)",
+   "text": "Certifikáty: Certifikát nasazen (SMS)"
+  },
+  "z_1705": {
+   "source": "Certificates: A certificate ends soon",
+   "text": "Certifikáty: Certifikát brzy vyprší"
+  },
+  "z_1706": {
+   "source": "Certificates: A certificate ends soon (SMS)",
+   "text": "Certifikáty: Certifikát brzy vyprší (SMS)"
+  },
+  "z_1707": {
+   "source": "Certificates: A certificate has expired",
+   "text": "Certifikáty: Certifikát vypršel"
+  },
+  "z_1708": {
+   "source": "Certificates: A certificate has expired (SMS)",
+   "text": "Certifikáty: Certifikát vypršel (SMS)"
+  },
+  "z_1709": {
+   "source": "Certificates: A certificate renewed",
+   "text": "Certifikáty: Certifikát obnoven"
+  },
+  "z_1710": {
+   "source": "Certificates: A certificate renewed (SMS)",
+   "text": "Certifikáty: Certifikát obnoven (SMS)"
+  },
+  "z_1711": {
+   "source": "Certificates: A test of a server failed",
+   "text": "Certifikáty: Test serveru selhal"
+  },
+  "z_1712": {
+   "source": "Certificates: A test of a server failed (SMS)",
+   "text": "Certifikáty: Test serveru selhal (SMS)"
+  },
+  "z_1713": {
+   "source": "Certificates: A test of a server works again",
+   "text": "Certifikáty: Test serveru zase funguje"
+  },
+  "z_1714": {
+   "source": "Certificates: A test of a server works again (SMS)",
+   "text": "Certifikáty: Test serveru zase funguje (SMS)"
+  },
+  "z_1715": {
+   "source": "Certificates: Deploying a certificate failed",
+   "text": "Certifikáty: Nasazení certifikátu selhalo"
+  },
+  "z_1716": {
+   "source": "Certificates: Deploying a certificate failed (SMS)",
+   "text": "Certifikáty: Nasazení certifikátu selhalo (SMS)"
+  },
+  "z_1717": {
+   "source": "Certificates: Renewing a certificate failed",
+   "text": "Certifikáty: Obnovení certifikátu selhalo"
+  },
+  "z_1718": {
+   "source": "Certificates: Renewing a certificate failed (SMS)",
+   "text": "Certifikáty: Obnovení certifikátu selhalo (SMS)"
   }
  },
  "patterns": {
