@@ -396,6 +396,18 @@ def _ca_lines(path_len, nc, ski=None, key_usage=None):
     return lines
 
 
+def _crl_days(v):
+    """How long each CRL is valid: 1 to 365 days, as an edit allows (hunt u3: creating took
+    any number - 0 or a thousand days)."""
+    try:
+        v = int(v if v not in (None, '') else 7)
+    except (TypeError, ValueError):
+        raise PkiError('crl_days is a number of days', retry=False)
+    if not 1 <= v <= 365:
+        raise PkiError('crl_days: 1 to 365 days', retry=False)
+    return v
+
+
 def _ca_config(d, md, ext_lines, san_lines, crl_days=7):
     cfg = ['[ca]', 'default_ca = d', '', '[d]',
            'database = %s' % os.path.join(d, 'index.txt'),
@@ -576,7 +588,7 @@ def ca_create(store, name, subject, key_type='ec-384', days=3650, parent_id=None
     fields = _cert_fields(cert, chain)
     fields.update({
         'name': name, 'parent_id': int(parent['id']) if parent else None, 'serial_next': 0,
-        'crl_number': 0, 'crl_pem': '', 'crl_at': None, 'crl_days': int(crl_days or 7),
+        'crl_number': 0, 'crl_pem': '', 'crl_at': None, 'crl_days': _crl_days(crl_days),
         'crl_url': crl_url, 'aia_url': aia_url, 'ocsp_url': ocsp_url,
         'days_default': DEFAULT_LEAF_DAYS, 'path_len': path_len,
         'name_constraints': json.dumps(nc), 'profile': json.dumps({}), 'external': 0,
@@ -663,7 +675,7 @@ def ca_csr(store, name, subject, key_type='ec-384', path_len=None, crl_days=7, c
         'name': name, 'parent_id': None, 'subject_dn': pki.csr_info(csr)['subject_dn'],
         'key_type': pki.key_info(key)['key_type'], 'cert_pem': '', 'chain_pem': '',
         'serial_next': 0, 'crl_number': 0, 'crl_pem': '', 'crl_at': None,
-        'crl_days': int(crl_days or 7), 'crl_url': _check_url(crl_url, 'the CRL address'),
+        'crl_days': _crl_days(crl_days), 'crl_url': _check_url(crl_url, 'the CRL address'),
         'aia_url': _check_url(aia_url, 'the AIA address'),
         'ocsp_url': _check_url(ocsp_url, 'the OCSP address'),
         'days_default': DEFAULT_LEAF_DAYS, 'path_len': path_len,

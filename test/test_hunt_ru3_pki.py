@@ -103,6 +103,17 @@ class OwnCa(T.Tmp, unittest.TestCase):
         self.assertAlmostEqual(pki.cert_info(leaf)['not_after'], time.time() + 5 * 86400,
                                delta=120)
 
+    def test_crl_days_on_create(self):
+        """crl_days on create: 1 to 365, as an edit allows."""
+        from acmelib.certs.pki import PkiError
+        for bad in (0, 366, 'x'):
+            with self.assertRaises(PkiError):
+                CA.ca_create(self.store, 'Bad%s' % bad, 'U3 Bad', key_type='ec-256',
+                             crl_days=bad)
+        cid = CA.ca_create(self.store, 'Fine', 'U3 Fine', key_type='ec-256', crl_days=30)
+        self.assertEqual(self.store.db.value('SELECT crl_days FROM cert_cas WHERE id = ?',
+                                             (cid,)), 30)
+
     def test_root_above_ran_out(self):
         self.store.db.run('UPDATE cert_cas SET not_after = ? WHERE id = ?',
                           (int(time.time()) - 10, self.root))
