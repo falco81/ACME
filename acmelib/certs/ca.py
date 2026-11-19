@@ -136,7 +136,7 @@ def _pending(row):
     return not row.get('cert_pem')
 
 
-def _usable(row, now=None):
+def _usable(row, now=None, store=None):
     now = now or _now()
     if _pending(row):
         raise PkiError('the authority "%s" waits for its certificate (install the one the '
@@ -147,6 +147,53 @@ def _usable(row, now=None):
         raise PkiError('the authority "%s" ran out on %s' % (
             row['name'], time.strftime('%Y-%m-%d', time.gmtime(float(row['not_after'])))),
             retry=False)
+    if store is not None:
+        # Revoked by the authority above it, or one above it revoked or run out - itself or
+        # one further up (hunt u3): it went on signing, and every client refused all it signed.
+        for r in [row] + _ancestors(store, row):
+            if r is not row and r.get('not_after') and float(r['not_after']) <= now:
+                raise PkiError('the authority "%s" above "%s" ran out on %s' % (
+                    r['name'], row['name'], time.strftime('%Y-%m-%d', time.gmtime(
+                        float(r['not_after'])))), retry=False)
+            if not r.get('fingerprint') or not r.get('parent_id'):
+                continue
+            hit = store.db.row('SELECT reason FROM cert_ca_issued WHERE ca_id = ? AND '
+                               'UPPER(fingerprint) = ? AND revoked IS NOT NULL',
+                               (int(r['parent_id']), str(r['fingerprint']).upper()))
+            if hit:
+                raise PkiError('the authority "%s" is revoked (%s) by "%s" above it - what it '
+                               'signed would be refused' % (
+                                   r['name'], hit.get('reason') or 'unspecified',
+                                   _parent_name(store, r)), retry=False)
+
+
+def _ancestors(store, row):
+    """The authorities of acme above `row`, nearest first (a loop of parents stops it)."""
+    out, seen, cur = [], {int(row['id'])} if row.get('id') is not None else set(), row
+    while cur.get('parent_id') not in (None, '') and int(cur['parent_id']) not in seen:
+        seen.add(int(cur['parent_id']))
+        try:
+            cur = _row(store, cur['parent_id'])
+        except PkiError:
+            break
+        out.append(cur)
+    return out
+
+
+def _parent_name(store, row):
+    try:
+        return _row(store, row['parent_id'])['name']
+    except PkiError:
+        return str(row.get('parent_id'))
+
+
+def _chain_end(store, row):
+    """The earliest end of the authority and of acme's authorities above it (hunt u3): a
+    root renewed for fewer days than its intermediates - what they signed was given dates
+    past the end of the root, a chain no client takes then."""
+    ends = [float(r['not_after']) for r in [row] + _ancestors(store, row)
+            if r.get('not_after') and not _pending(r)]
+    return int(min(ends)) if ends else None
 
 
 def _check_name(store, name, but=None):
@@ -505,7 +552,7 @@ def ca_create(store, name, subject, key_type='ec-384', days=3650, parent_id=None
     if parent_id not in (None, '', 0, '0'):
         _split_held()                   # the parent signs it (1.0.19)
         parent = _row(store, parent_id)
-        _usable(parent, now)
+        _usable(parent, now, store)
         path_len = _child_path_len(parent, path_len)
         # Inside the parent's constraints too.
         pnc = _j(parent.get('name_constraints'), [])
@@ -517,7 +564,7 @@ def ca_create(store, name, subject, key_type='ec-384', days=3650, parent_id=None
     lines = _ca_lines(path_len, nc)
     if parent:
         pkey = _key(parent)
-        end = min(now + days * 86400, int(float(parent['not_after'])))
+        end = min(now + days * 86400, _chain_end(store, parent))
         serial = _new_serial(store, parent['id'])
         cert = _openssl_ca_sign(parent['cert_pem'], pkey, csr, serial, now - BACKDATE_S, end,
                                 lines + _issuer_lines(parent), [])
@@ -877,7 +924,7 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     _split_held()
     row = _row(store, ca_id)
     now = _now()
-    _usable(row, now)
+    _usable(row, now, store)
     prof = dict(profile or {})
     if not isinstance(csr_pem, str):
         csr_pem = pki.der_to_pem(bytes(csr_pem), 'CERTIFICATE REQUEST') \
@@ -945,7 +992,7 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     days = int(days or row.get('days_default') or DEFAULT_LEAF_DAYS)
     if days < 1:
         raise PkiError('a validity of a day at least', retry=False)
-    end = min(now + days * 86400, int(float(row['not_after'])))
+    end = min(now + days * 86400, _chain_end(store, row))
     key = _key(row)
     serial = _new_serial(store, row['id'])
     cert = _openssl_ca_sign(row['cert_pem'], key, csr_pem, serial, now - BACKDATE_S, end,
@@ -1466,7 +1513,7 @@ def ca_renew(store, ca_id, days=None, path_len=KEEP, name_constraints=None, by='
         chain = []
         out['how'] = 'self'
     elif parent is not None:
-        _usable(parent, now)
+        _usable(parent, now, store)
         pl = _child_path_len(parent, pl)
         pnc = _j(parent.get('name_constraints'), [])
         if pnc and not nc:

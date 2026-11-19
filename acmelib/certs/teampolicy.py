@@ -700,15 +700,18 @@ def notify_approvers(store, cid, team, needed):
     targets = []
     for lv in needed or ['team']:
         if lv in ('team', 'team_or_parent') and k in tr.rows:
-            targets.append((tr.rows[k]['name'], 'an approver of the team %s' % tr.rows[k]['name']))
+            n = tr.rows[k]['name']
+            targets.append((n, 'an approver of the team %s' % n,
+                            {'cs': 'schvalovatel týmu %s' % n}))
         if lv in ('parent', 'team_or_parent') and tr.parent.get(k):
             p = tr.rows[tr.parent[k]]['name']
-            targets.append((p, 'an approver of the team %s (above %s)' % (p, team)))
+            targets.append((p, 'an approver of the team %s (above %s)' % (p, team),
+                            {'cs': 'schvalovatel týmu %s (nad týmem %s)' % (p, team)}))
     seen, todo = set(), []
-    for t, lvl in targets:
+    for t, lvl, lvl_in in targets:
         if t.lower() not in seen:
             seen.add(t.lower())
-            todo.append((t, lvl))
+            todo.append((t, lvl, lvl_in))
     if not todo:
         return
 
@@ -718,7 +721,7 @@ def notify_approvers(store, cid, team, needed):
             row = S.cert_get(store, cid)
             if not row:
                 return
-            for t, lvl in todo:
+            for t, lvl, lvl_in in todo:
                 store.add_event('certificates', '%s waits for %s' % (row['name'], lvl), 'info')
                 to = T.contact_mails(store, {'owner': t})
                 if not to:
@@ -727,10 +730,13 @@ def notify_approvers(store, cid, team, needed):
                     E.log('the teams would have mailed %s (%s waits): mail is switched off'
                           % (', '.join(to), row['name']))
                     continue
-                subject, body = ASK_WORDS.get(str(E.CONFIG.get('ui_lang') or 'cs'),
-                                              ASK_WORDS['en'])
+                lang = str(E.CONFIG.get('ui_lang') or 'cs')
+                subject, body = ASK_WORDS.get(lang, ASK_WORDS['en'])
                 site = str(E.CONFIG.get('portal_title') or E.CONFIG.get('site_name') or 'acme')
-                fill = {'team': team, 'what': row['name'], 'level': lvl, 'url': P.portal_url(),
+                # who is wanted in the words of the mail (hunt u3: the Czech mail said it in
+                # English - "čeká na schválení: an approver of the team Web.")
+                fill = {'team': team, 'what': row['name'], 'level': lvl_in.get(lang, lvl),
+                        'url': P.portal_url(),
                         'names': ', '.join(S.jload(row.get('names'), []) or [])}
                 from email.message import EmailMessage
                 msg = EmailMessage()

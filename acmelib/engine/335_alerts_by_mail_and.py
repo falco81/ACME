@@ -1074,8 +1074,14 @@ def alert_send(store, msg, to, kind, keys):
     if kind == 'test' and not alerts_lead(store):
         return entry
     st = _alert_state(store)
-    if not entry['ok'] and entry.get('queued') != 'waiting':
-        st['fail_at'] = entry['at']
+    # The 15 minutes after a failure are the alerts' own (hunt u3): a report or a report of the
+    # tests to other addresses that was refused held the alerts back too, and a mail to the
+    # alerts' addresses that went did not end them - alerts stayed unsent after a test went.
+    if kind in ('alert', 'test'):
+        if not entry['ok'] and entry.get('queued') != 'waiting':
+            st['fail_at'] = entry['at']
+        elif entry['ok']:
+            st.pop('fail_at', None)
     st['log'] = ([entry] + st['log'])[:50]
     store.set_meta('alerts:state', json.dumps(st))
     return entry

@@ -497,7 +497,11 @@ def info(store, row, full=False):
     seen = float(st.get('last_seen') or 0)
     joined = bool(st.get('cert_fp'))
     if not joined:
-        pill = 'joining' if st.get('code') or st.get('pending') else 'new'
+        # hunt R u3: a join code that ran out unused is no join under way (the pill said
+        # "joining" for ever beside "No agent has joined yet")
+        c0 = st.get('code') if isinstance(st.get('code'), dict) else {}
+        live = bool(c0) and (c0.get('used') or float(c0.get('until') or 0) > now)
+        pill = 'joining' if live or st.get('pending') else 'new'
     elif not (row.get('enabled') is None or int(row.get('enabled') or 0)):
         pill = 'off'
     elif st.get('refused'):
@@ -1091,6 +1095,21 @@ def _enrolled_row(store, fqdn, fp, team=None):
     return None
 
 
+def _enrolled_moved(store, fqdn, fp, eid, team=None):
+    """Whether the server (the same name, the same key) enrolled with this very code before
+    and its target belongs to another owner now (hunt R u3: moved to another team since -
+    enrolling again made a second target of the code's team for the same server). Never
+    used to join it into that target: the code's own team does not own it (its auto-confirm
+    is not the new owner's)."""
+    want = str(team or '').strip().lower()
+    for row in rows(store):
+        en = state(store, row['id']).get('enroll')
+        if isinstance(en, dict) and en.get('e') == eid and en.get('fqdn') == fqdn and \
+                en.get('key_fp') == fp and str(row.get('owner') or '').strip().lower() != want:
+            return True
+    return False
+
+
 def _enroll_name(store, host, fqdn, ip):
     from acmelib.certs import store as S
     base = str(host or '').strip().lower() or str(fqdn or '').strip().lower()
@@ -1218,6 +1237,13 @@ def enroll_take(store, body, ip=''):
     with LOCK:
         row = _enrolled_row(store, fqdn, fp, ec.get('team'))
         made = False
+        if row is None and _enrolled_moved(store, fqdn, fp, eid, ec.get('team')):
+            _enroll_refused(store, ec, ip, 'the server enrolled with it before and its target '
+                                           'has another owner now')
+            return 403, {'ok': False, 'said': 'this server enrolled with this code before and '
+                                              'its target was given to another owner since - '
+                                              'join it with a code of its owner (or a join code '
+                                              'on its target\'s card)'}
         if row is None:
             ec = enroll_get(store, eid) or ec
             if enroll_state(ec, now) == 'used':

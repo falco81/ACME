@@ -776,6 +776,10 @@ function fieldForm(fields, values, secrets, opts) {
     if (!f || !f.key) return;
     var v = Object.prototype.hasOwnProperty.call(values, f.key) ? values[f.key] : f['default'];
     var type = f.type || 'text';
+    /* a secret typed before the form was drawn again (opts.typed: another version of the module
+       picked) stays in its box - only a kept one's dots were (hunt u3: the token was emptied) */
+    var sv = opts.typed && Object.prototype.hasOwnProperty.call(opts.typed, f.key) && opts.typed[f.key] !== null && opts.typed[f.key] !== undefined
+      ? String(opts.typed[f.key]) : keptSecret(v);
     var input, get, wide = false;
     /* A type drawn by a part of its own (window.ACME_FIELD_TYPES[type] -
        sshkey.js: the SSH key card): {input, get, item?}. */
@@ -809,12 +813,12 @@ function fieldForm(fields, values, secrets, opts) {
       /* A key or lines kept secret: typed or pasted unseen (dots), read from a
          file; the one kept shown as the daemon sends it - dots and its last
          two - and sent back as it is when untouched (it keeps the one kept). */
-      input = secretPemBox(keptSecret(v), secrets[f.key] ? 'set - leave empty to keep it' : (f.placeholder || 'paste it here'));
+      input = secretPemBox(sv, secrets[f.key] ? 'set - leave empty to keep it' : (f.placeholder || 'paste it here'));
       get = function () { return input._get(); };
       wide = true;
     } else if (type === 'secret') {
       var isSet = !!secrets[f.key];
-      input = secretBox(keptSecret(v), tr(isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set')), 'mono');
+      input = secretBox(sv, tr(isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set')), 'mono');
       noI18n(input);   /* its hint in words all the same: tr() */
       get = function () { return input.value; };
     } else if (type === 'textarea' && f.ui === 'script' && window.ACME_DEPLOY_UI) {
@@ -2732,7 +2736,7 @@ function modForm(key, row, p, fromPick, keep) {
     note = textBox(autoNote && note0 === autoNote ? '' : note0, autoNote ? tr(autoNote) : '', '');
     var nf = autoNote ? formField('Note', note, 'acme made this test from a deployment and keeps it in step with it. Changed here in any way, it is a test of yours, which acme leaves as it is.') : formField('Note', note);
     if (key === 'targets') {
-      tags = tagsBox(row ? arr(row.tags) : []);
+      tags = tagsBox(keep && keep.tags !== undefined ? splitNames(keep.tags) : (row ? arr(row.tags) : []));   /* chosen ones kept over another version (hunt u3) */
       noI18n(tags);
       g.appendChild(formField('Tags', tags, 'Words to find and group targets by.'));
     } else nf.classList.add('wide');
@@ -2746,7 +2750,7 @@ function modForm(key, row, p, fromPick, keep) {
         var c2 = {};
         Object.keys(cfg).forEach(function (k) { c2[k] = cfg[k]; });
         Object.keys(now).forEach(function (k) { c2[k] = now[k]; });
-        modForm(key, row, plugVersion(p._base || p, v), fromPick, {config: c2, name: name.value, note: note.value, enabled: on._get()});
+        modForm(key, row, plugVersion(p._base || p, v), fromPick, {config: c2, name: name.value, note: note.value, enabled: on._get(), tags: tags ? tags.value : undefined});
       });
       if (vp) {
         var vf = formField('Version of the module', vp, 'Which version this one uses - an API version of the device, say. Each has its own settings; what is typed stays.');
@@ -2755,7 +2759,8 @@ function modForm(key, row, p, fromPick, keep) {
       }
       if (row && row.version_missing) body.appendChild(el('p', 'ct-bad', 'The version it kept is not there any more - the one marked here is used. Save to keep it.'));
     }
-    form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p});
+    form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p,
+                                                          typed: keep && keep.config ? keep.config : null});
     /* "Find the settings from the account" (discover.js, 1.0.29): the sign-in only,
        the rest read from the account and offered - filled in, never saved by itself. */
     if (FULL && p.discover && window.ACME_DISCOVER) {

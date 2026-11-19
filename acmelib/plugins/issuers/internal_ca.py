@@ -56,7 +56,7 @@ class InternalCaIssuer(Issuer):
         from acmelib.certs import ca as CA
         store = self._store()
         got = CA.ca_get(store, self._ca())
-        CA._usable(CA._row(store, got['id']))
+        CA._usable(CA._row(store, got['id']), store=store)
         CA._key(CA._row(store, got['id']))
         return 'the authority "%s" can sign (valid until %s)' % (
             got['name'], time.strftime('%Y-%m-%d', time.gmtime(float(got['not_after']))))

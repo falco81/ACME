@@ -2720,6 +2720,10 @@ def _renamed(store, family, old, new):
         NM._list_setting(store, 'portal_cert_issuers' if family == 'issuer'
                          else 'portal_cert_challenge', {old: new})
     NM._kv(store, family, old, new)
+    # another module's setting that names it (hunt u3: a dns-persist-01 validation's fallback,
+    # a Microsoft CA's server with acme-agent kept the old name, and failed)
+    if family in ('issuer', 'challenge', 'target'):
+        NM._configs(store, family, old, new)
     if family in ('target', 'check'):
         _via_renamed(store, family, old, new)
     if family == 'issuer':
@@ -2824,7 +2828,8 @@ def family_uses(store, family, row):
         for r in db.rows('SELECT id AS cid, name FROM certs WHERE csr_from = ? ORDER BY name',
                          (name,)):
             cert(r, 'its key is made there', False)
-    if (family == 'target' and row.get('kind') == 'ssh_connector') or \
+    agent_hop = family == 'target' and row.get('kind') in ('agent', 'agent_windows')
+    if (family == 'target' and row.get('kind') == 'ssh_connector') or agent_hop or \
             (family == 'check' and row.get('kind') == 'ssh_relay'):
         # as via_users counts them: each names its own family's connector first
         tg_own = db.row("SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = "
@@ -2836,11 +2841,37 @@ def family_uses(store, family, row):
                 continue
             if family == 'target' and table == 'cert_tests' and ts_own:
                 continue
+            # a passive acme-agent as the connector (1.0.116, runtime._jump): only when no
+            # connector of that name comes first (hunt u3: deleted while targets went through it)
+            if agent_hop and ts_own:
+                continue
             for r in db.rows('SELECT id, name, config FROM %s WHERE config LIKE ? ORDER BY name'
                              % table, ('%' + json.dumps(name) + '%',)):
                 if str((S.jload(r.get('config'), {}) or {}).get('via') or '') == name:
                     out.append({'where': where, 'name': r['name'], 'id': r['id'],
                                 'said': 'goes through it', 'free': False})
+    # another module's setting that names it (names.OPTIONS_OF: a Microsoft CA's server with
+    # acme-agent, a dns-persist-01 validation's fallback and writer) - hunt u3: deleted at once,
+    # and the source or validation failed after with a name that was not there
+    if family in ('issuer', 'challenge', 'target'):
+        from acmelib.certs import names as NM
+        for table, fam, where in (('cert_issuers', 'issuer', 'source'),
+                                  ('cert_challenges', 'challenge', 'validation'),
+                                  ('cert_targets', 'target', 'target')):
+            for r in db.rows('SELECT id, name, kind, config FROM %s WHERE config LIKE ? ORDER BY '
+                             'name' % table, ('%' + json.dumps(name) + '%',)):
+                if fam == family and r['id'] == row['id']:
+                    continue
+                cls = S.row_class(fam, r)
+                cfg = S.jload(r.get('config'), {}) or {}
+                for f in getattr(cls, 'fields', None) or []:
+                    if NM.OPTIONS_OF.get(f.get('options_from')) != family:
+                        continue
+                    v = cfg.get(f.get('key'))
+                    if v == name or (isinstance(v, list) and name in v):
+                        out.append({'where': where, 'name': r['name'], 'id': r['id'],
+                                    'said': 'uses it', 'free': False})
+                        break
     if family in ('issuer', 'challenge'):
         key = 'portal_cert_issuers' if family == 'issuer' else 'portal_cert_challenge'
         have = E.CONFIG.get(key) or ''
