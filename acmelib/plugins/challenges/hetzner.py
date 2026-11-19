@@ -90,7 +90,10 @@ class Hetzner(DnsChallenge):
     def _zone(self, fqdn):
         want = D.norm(self.c('zone', ''))
         labels = D.norm(fqdn).split('.')
-        cands = [want] if want else ['.'.join(labels[i:]) for i in range(len(labels) - 1)]
+        # the zone set only for a name in it (Hunt R u5): _acme-challenge followed by its CNAME
+        # into another zone of the project was looked for in the zone set, and refused there
+        cands = [want] if want and D.in_zone(fqdn, want) else \
+            ['.'.join(labels[i:]) for i in range(len(labels) - 1)]
         for cand in cands:
             got = self._call('GET', '/zones?name=' + urllib.parse.quote(cand)) or {}
             for z in got.get('zones') or []:

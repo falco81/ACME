@@ -90,5 +90,25 @@ class TestSaidError(unittest.TestCase):
         self.assertTrue(said_error('X', 502, None, b'').retry)
 
 
+class TestHetznerZoneSet(unittest.TestCase):
+    """The zone set is used for a name in it only: _acme-challenge followed by its CNAME into
+    another zone of the project was looked for in the zone set (and refused)."""
+
+    def test_name_outside_the_zone_set_finds_its_own(self):
+        from test_challenges import FakeCtx, Router
+        from acmelib.plugins.challenges.hetzner import Hetzner
+        api = 'https://api.hetzner.cloud/v1'
+        r = Router()
+        r.on('GET', api + '/zones?name=example.com',
+             lambda u, b, h: {'zones': [{'id': 7, 'name': 'example.com'}]})
+        r.on('GET', api + '/zones?name=other.org',
+             lambda u, b, h: {'zones': [{'id': 9, 'name': 'other.org'}]})
+        r.on('GET', api + '/zones?name=', lambda u, b, h: {'zones': []})
+        m = Hetzner({'token': 'T', 'zone': 'other.org', 'propagation': 'none'},
+                    FakeCtx(http=r))
+        self.assertEqual(m._zone('_acme-challenge.www.example.com'), ('7', 'example.com'))
+        self.assertEqual(m._zone('_acme-challenge.other.org'), ('9', 'other.org'))   # as before
+
+
 if __name__ == '__main__':
     unittest.main()
