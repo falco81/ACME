@@ -100169,6 +100169,10 @@
   "pz_fg324": {
    "source": "the FortiGate refused the intermediate CA certificate (error -324; intermediate: {0}, CN={1}) - a FortiGate with an EVAL/trial licence takes RSA keys of 512 bits at most: use an EC (ECDSA) certificate, or a FortiGate with a full licence; nothing was replaced",
    "text": "FortiGate odmítl mezilehlý certifikát CA (chyba -324; mezilehlý: {0}, CN={1}) - FortiGate s licencí EVAL/trial bere klíče RSA nejvýš 512 bitů: použijte certifikát EC (ECDSA), nebo FortiGate s plnou licencí; nic nebylo nahrazeno"
+  },
+  "pz_lasting": {
+   "source": "{0}: {1} (not tried again by itself - it would fail the same; a new certificate or Deploy now tries it again)",
+   "text": "{0}: {1} (samo se znovu nezkouší - selhalo by stejně; znovu to zkusí nový certifikát nebo Nasadit nyní)"
   }
  },
  "rich": {

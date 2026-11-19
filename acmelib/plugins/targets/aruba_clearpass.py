@@ -202,7 +202,13 @@ class ArubaClearPassTarget(HttpTarget):
                              what='adding a CA to the trust list')
                     self.ctx.step('added a CA of the chain to the trust list', 'ok')
                 except PluginError as e:
-                    self.ctx.step('a CA of the chain was not added (there already?): %s' % e)
+                    # one there already: a renewal; any other refusal a warning (it was said
+                    # as "there already?" whatever ClearPass answered)
+                    said = ('%s %s' % (e, e.detail or '')).lower()
+                    if 'already' in said or 'duplicat' in said:
+                        self.ctx.step('a CA of the chain is in the trust list already: %s' % e)
+                    else:
+                        self.ctx.step('a CA of the chain was not added: %s' % e, 'warn')
         pw = random_password(20)
         fn = 'acme-%s.p12' % secrets.token_hex(16)
         path = posixpath.join(text(self.c('stage_dir')).rstrip('/') or '/', fn)

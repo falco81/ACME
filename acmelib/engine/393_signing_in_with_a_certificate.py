@@ -2826,7 +2826,10 @@ def _auth_cert(h):
         if acc.get('role') == 'portal':
             raise CertRefused('%s: %s' % (acc['name'], PORTAL_ONLY_SAID), 'allowed')
     except CertRefused as e:
-        h.failed(key)
+        # Not counted when it is this server's trouble (hunt R u2): the directory away, a CRL
+        # or OCSP not to be had - as for a password.
+        if e.kind != 'unavailable':
+            h.failed(key)
         cl_refused_event(h, 'admin', e.why, who)
         raise ApiError(e.status, e.said)
     return sso_admin_open(h, key, acc, 'certificate',

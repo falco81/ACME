@@ -853,7 +853,6 @@ def group_matches(wanted, have, ad=None):
     its DN - never any group of that cn wherever it is. Without `ad` to ask,
     a name alone matches nothing."""
     by_dn = {dn_norm(dn) for dn, _ in have}
-    by_cn = {str(cn).lower() for _, cn in have}
     for one in wanted:
         said = str(one.get('group') if isinstance(one, dict) else one).strip()
         if not said:
@@ -861,7 +860,11 @@ def group_matches(wanted, have, ad=None):
         if '=' in said and ',' in said:
             if dn_norm(said) in by_dn:
                 return one
-        elif said.lower() in by_cn and ad is not None:
+        elif ad is not None and by_dn:
+            # Not only a name among the cn of the groups held (hunt R u2): a group named by its
+            # sAMAccountName - which group_dns takes first - is seldom called so in its cn
+            # (cn "Cert Admins", sAMAccountName "cert-admins"), and nobody got its role. The DN
+            # group_dns says it is decides, as before.
             try:
                 dns = {dn_norm(x) for x in ad.group_dns(said)}
             except LdapUnreachable:

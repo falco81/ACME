@@ -94,10 +94,13 @@ def field(key, label, type='text', **more):
 class PluginError(Exception):
     """Said to the person as it is: what failed, in words they can act on.
     `detail` is the longer story (a server's answer), kept in the job's steps."""
-    def __init__(self, words, detail=None, retry=True):
+    def __init__(self, words, detail=None, retry=True, lasting=False):
         Exception.__init__(self, words)
         self.detail = detail
         self.retry = retry          # False: trying again unchanged will not help
+        # True (1.0.134): not tried again by itself at all - the same certificate on the same
+        # device fails the same (FortiGate EVAL, -324); a new certificate or Deploy now does
+        self.lasting = lasting
 
 
 # ---------------------------------------------------------------------------

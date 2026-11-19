@@ -218,8 +218,15 @@ class MikroTikTarget(SshMixin, HttpTarget):
                 if old in used:
                     self.ctx.step('the old %s is still used: kept' % old, 'warn')
                     continue
-                self.rest('DELETE', '/certificate/%s' % by[old]['.id'], ok=range(200, 300),
-                          what='removing %s' % old)
+                # a refusal said and gone on with, as over SSH: it failed the deployment
+                # (bound already, not remembered - every renewal again) for an old one
+                # RouterOS would not remove (one an IPsec identity or a hotspot still uses)
+                try:
+                    self.rest('DELETE', '/certificate/%s' % by[old]['.id'], ok=range(200, 300),
+                              what='removing %s' % old)
+                except PluginError as e:
+                    self.ctx.step('the old %s stays: %s' % (old, e), 'warn')
+                    continue
                 self.ctx.step('removed the old %s' % old)
         self.remember(bundle, options)
         return ', '.join(did)

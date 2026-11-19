@@ -1173,9 +1173,14 @@ def start_deploy(store, ref, deploy_id, by):
             if only and running is not None and time.time() < end:
                 time.sleep(0.25)
                 continue
-            # The whole certificate: the job at work puts it in place too (1.0.18).
+            # The whole certificate: the job at work puts it in place too (1.0.18) - one that
+            # deploys (a dry run of it does not: its job was given back, nothing deployed)
             if running is not None and not only:
-                return running
+                kind = store.db.value('SELECT kind FROM cert_jobs WHERE id = ?', (running,), '')
+                if kind in ('renew', 'issue', 'deploy', 'revoke'):
+                    return running
+                raise E.ApiError(409, '%s is busy with another job (%s, job %d) - deploy it when '
+                                      'that job is done' % (row['name'], kind or '?', running))
             raise E.ApiError(409, str(e))
 
 

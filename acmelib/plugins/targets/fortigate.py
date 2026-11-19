@@ -885,7 +885,7 @@ class FortiGateTarget(HttpTarget):
             '%s, CN=%s) - a FortiGate with an EVAL/trial licence takes RSA keys of 512 bits '
             'at most: use an EC (ECDSA) certificate, or a FortiGate with a full licence; '
             'nothing was replaced' % (self.key_words(f), f.get('cn') or '?'),
-            detail=trim_answer(d) if d else None, retry=False)
+            detail=trim_answer(d) if d else None, retry=False, lasting=True)
 
     def eval_check(self, bundle, options, found=None):
         """Before anything is written: a FortiGate-VM with an EVAL licence (serial FGVMEV...)

@@ -1147,7 +1147,11 @@ def _auth_kerberos(h):
         if acc.get('role') == 'portal':
             raise KrbRefused('%s: %s' % (acc['name'], PORTAL_ONLY_SAID), 'allowed')
     except KrbRefused as e:
-        h.failed(key)
+        # Not counted when it is this server's trouble (hunt R u2): the directory away, no
+        # keytab - the page tries Windows by itself at every open, and the guard blocked the
+        # office's address for it.
+        if e.kind != 'unavailable':
+            h.failed(key)
         krb_refused_event(h, 'admin', e.why, principal)
         raise ApiError(e.status, e.said)
     return sso_admin_open(h, key, acc, 'Kerberos', {'principal': principal},

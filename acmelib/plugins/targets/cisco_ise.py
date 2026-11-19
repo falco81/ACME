@@ -120,9 +120,17 @@ class CiscoIseTarget(HttpTarget):
                         what='importing an intermediate as trusted')
                     self.ctx.step('imported the intermediate acme-ca-%s' % chain_id(pem))
                 except PluginError as e:
-                    # said, not only in the debug log (1.0.98): What happens shows it
-                    self.ctx.step('the intermediate acme-ca-%s is not imported (there '
-                                  'already?): %s' % (chain_id(pem), e))
+                    # said, not only in the debug log (1.0.98): What happens shows it; one
+                    # there already is a renewal, any other refusal a warning (it was said as
+                    # "there already?" whatever ISE answered - and the system certificate's
+                    # import then fails on a chain ISE does not trust)
+                    said = ('%s %s' % (e, e.detail or '')).lower()
+                    if 'already' in said or 'duplicat' in said:
+                        self.ctx.step('the intermediate acme-ca-%s is not imported (there '
+                                      'already?): %s' % (chain_id(pem), e))
+                    else:
+                        self.ctx.step('the intermediate acme-ca-%s is not imported: %s'
+                                      % (chain_id(pem), e), 'warn')
         key, pw = self.encrypted_key(bundle)
         body = {'name': name, 'data': text(bundle.as_format('cert-pem')),
                 'privateKeyData': key, 'password': pw,

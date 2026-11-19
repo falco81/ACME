@@ -163,6 +163,14 @@ def notify(store, key, subject, words, force=False):
             more['target'] = ', '.join(sorted({d['target'] for d in store.db.rows(
                 "SELECT target FROM cert_deploys WHERE cert_id = ? AND state = 'failed'",
                 (cert['id'],))})) or '-'
+            # when its failed deployments are tried again - the certificate's own next try is
+            # none after the renewal that deployed them ("acme tries again in -")
+            nxt = store.db.value("SELECT MIN(next_try) FROM cert_deploys WHERE cert_id = ? AND "
+                                 "state = 'failed' AND next_try IS NOT NULL", (cert['id'],))
+            if nxt and float(nxt) - time.time() > 300 * 86400:
+                more['retry'] = '-'             # a lasting failure: not by itself (1.0.134)
+            elif nxt:
+                more['retry'] = T.span(max(0.0, float(nxt) - time.time()), lang())
         return send(store, mid, key, cert_values(store, cert, **more), force,
                     mail_to=recipients(store, cert))
     except Exception as e:                              # noqa: BLE001

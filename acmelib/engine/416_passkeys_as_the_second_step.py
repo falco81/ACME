@@ -400,8 +400,17 @@ def pk_password_again(h, acc, password):
     if not password:
         raise ApiError(400, 'type your password to add a passkey')
     if acc.get('source') == 'directory':
-        got = admin_from_directory(h, acc['name'], password) if CONFIG.get(
-            'admin_directory') else None
+        try:
+            got = admin_from_directory(h, acc['name'], password) if CONFIG.get(
+                'admin_directory') else None
+        except ApiError as e:
+            # A wrong directory password is refused there with 401/403 (hunt R u2): it went out
+            # uncounted - as many guesses as anybody liked - and as a 401 the page took it for
+            # the sign-in gone. Counted and said here as a wrong one; the directory away (503)
+            # or its cap (429) as they are.
+            if e.status in (429, 503):
+                raise
+            got = None
         ok = bool(got) and str(got.get('name') or '').lower() == str(acc['name']).lower()
     else:
         ok = bool(acc.get('pw')) and password_ok(password, acc['pw'])

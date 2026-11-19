@@ -4242,6 +4242,7 @@ function detailsSection(c, back) {
     h.appendChild(pen);
   }
   show();
+  sec._show = function () { if (!sec._body.querySelector('#ct-d-save')) show(); };
   return sec;
 }
 /* Saved with new names, key, source, validation or profile: renewed now, or
@@ -4437,7 +4438,9 @@ function certBody(body, c, versions, deploys, jobs, back) {
   rs._body.appendChild(kvTable([
     ['Source', c.issuer ? data('span', '', c.issuer) : (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
     ['Validation', c.challenge ? c.challenge + (Object.keys(cmap).length ? ' · ' + Object.keys(cmap).length + ' name(s) otherwise' : '') : '–'],
-    ['Renews', autoCan(c) ? autoRenew(c, false, function () { if (window.CT && CT.refresh) CT.refresh(); }) : renewsWords(c)],
+    /* the list and Details follow (hunt Ru2: window.CT is never set - the list kept "auto" and
+       Details "only when asked" after the switch here) */
+    ['Renews', autoCan(c) ? autoRenew(c, false, function () { CT.refresh(); if (details && details._show) details._show(); }) : renewsWords(c)],
     ['Key on renewal', c.csr_from ? data('span', '', tr('key made by') + ' ' + c.csr_from) : (truthy(c.reuse_key) ? 'kept' : 'a new one each time')],
     ['Last renewed', c.last_ok ? stamp(c.last_ok) : 'never'],
     ['Next look', c.next_try ? stamp(c.next_try) : '–'],
@@ -4455,7 +4458,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
   }
   grid.appendChild(rs);
   /* Details first: what is changed at once, without a new certificate. */
-  grid.insertBefore(detailsSection(c, back), grid.firstChild);
+  var details = detailsSection(c, back);
+  grid.insertBefore(details, grid.firstChild);
   /* the chain */
   var chain = rowsOf(c.chain || c.chain_info || c.chain_certs);
   var chainPems = String(c.chain_pem || '').split('-----BEGIN CERTIFICATE-----').length - 1;

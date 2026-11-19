@@ -165,10 +165,15 @@ def deploy_one(store, job, cert, dep, force=False):
                    'only the certificate is needed' % (cert['name'], trow['name'], why))
         if isinstance(e, base.PluginError) and e.detail:
             step(str(e.detail)[:4000], 'debug')
-        fails = _failed(store, dep, why)
+        lasting = bool(getattr(e, 'lasting', False))
+        fails = _failed(store, dep, why, lasting)
         store.db.update('cert_targets', trow['id'], {'last_error': why[:2000]})
-        step('%s: %s (tried again in %s)' % (trow['name'], why,
-                                             E.human_span(S.backoff(fails))), 'bad')
+        if lasting:
+            step('%s: %s (not tried again by itself - it would fail the same; a new '
+                 'certificate or Deploy now tries it again)' % (trow['name'], why), 'bad')
+        else:
+            step('%s: %s (tried again in %s)' % (trow['name'], why,
+                                                 E.human_span(S.backoff(fails))), 'bad')
         # the device keeps refusing the certificate for the key it made: a new issue (once)
         try:
             devicekey.deploy_failed(store, job, cert, dep, fails)
@@ -272,11 +277,14 @@ def _tell(store, mid, key, cert, trow, **more):
         E.log('telling about the deployment of %s: %s' % (cert.get('name'), e), 'warn')
 
 
-def _failed(store, dep, why):
+LASTING_S = 10 * 365 * 86400   # a lasting failure: not before the next certificate
+
+
+def _failed(store, dep, why, lasting=False):
     fails = int(dep.get('fails') or 0) + 1
     store.db.update('cert_deploys', dep['id'], {
         'state': 'failed', 'last_error': str(why)[:2000], 'fails': fails,
-        'next_try': time.time() + S.backoff(fails)})
+        'next_try': time.time() + (LASTING_S if lasting else S.backoff(fails))})
     return fails
 
 
@@ -371,8 +379,9 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (dep['id'],)) or dep
             # counted on from its failures before this run (1.0.93): put in place it had 0,
             # and every try waited five minutes - redeployed and restarted for ever
-            _failed(store, dict(cur, fails=dep.get('fails') or 0), why)
-            job.step('%s: %s' % (dep['target'], why), 'bad')
+            fails = _failed(store, dict(cur, fails=dep.get('fails') or 0), why)
+            job.step('%s: %s (tried again in %s)' % (dep['target'], why,
+                                                     E.human_span(S.backoff(fails))), 'bad')
             good -= 1
             bad.append('%s: %s' % (dep['target'], why))
             # said as a failed deployment is (1.0.78): its event, its notice
@@ -381,8 +390,10 @@ def run_deploys(store, job, cert_id, only=None, force=False):
                 with E.event_with(**_fields(store, cert, trow, 'deploy', 'failed')):
                     store.add_event('certificates', 'deploying %s to %s failed: %s' % (
                         cert['name'], dep['target'], why), 'bad')
+                # its own wait (not the certificate's next try: "tries again in -")
                 _tell(store, 'cert_deploy_failed', 'deploy-one:%s' % dep['id'], cert, trow,
-                      error=why[:500])
+                      error=why[:500], retry=_notices().T.span(S.backoff(fails),
+                                                              _notices().lang()))
             except Exception as e:                      # noqa: BLE001
                 job.step('the failure could not be told: %s' % e, 'warn')
     for dep in rows:

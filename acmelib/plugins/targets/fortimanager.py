@@ -97,9 +97,11 @@ class FortiManagerTarget(HttpTarget):
         if code == 0 or (missing_ok and code in NOT_THERE):
             return code, res.get('data')
         msg = text(status.get('message') if isinstance(status, dict) else '') or 'no answer'
-        raise PluginError('%s: FortiManager said %s (%s)' % (what or url, msg, code),
+        err = PluginError('%s: FortiManager said %s (%s)' % (what or url, msg, code),
                           detail=text(d)[:4000],
                           retry=code not in (-11, -6, -3, -2, -10, -20, -22))
+        err.code = code
+        raise err
 
     def test(self):
         code, d = self.rpc('get', SETTING, what='signing in')
@@ -147,7 +149,13 @@ class FortiManagerTarget(HttpTarget):
                     self.rpc('add', CA, {'name': ca, 'ca': pem}, what='adding the CA %s' % ca)
                     self.ctx.step('added the intermediate %s' % ca)
                 except PluginError as e:
-                    self.ctx.step('the CA %s is not added (there already?): %s' % (ca, e))
+                    # -2 "Object already exists": a renewal; any other refusal (no permission,
+                    # data invalid...) said as a warning - it was an info step that read as
+                    # "there already?" whatever the FortiManager said
+                    if getattr(e, 'code', None) == -2:
+                        self.ctx.step('the intermediate %s is there already' % ca)
+                    else:
+                        self.ctx.step('the intermediate %s is not added: %s' % (ca, e), 'warn')
         current_gui = None
         if as_bool(self.opt(options, 'admin_gui', True), True):
             self.rpc('set', SETTING, {'admin_server_cert': name},

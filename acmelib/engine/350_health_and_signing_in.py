@@ -862,7 +862,11 @@ def _login(h):
         try:
             ok = admin_from_directory(h, name, password)
         except ApiError as e:
-            h.failed(key)
+            # The directory away (503) is this server's trouble, not a wrong password (hunt R
+            # u2, as login_guard_tries says): counted, an office signing in rightly during an
+            # outage was locked out and its address blocked for half an hour.
+            if e.status != 503:
+                h.failed(key)
             h.store.add_event('sign-ins', '%s could not sign in from %s: %s'
                               % (name, h.client_ip(), e), 'warn')
             raise
