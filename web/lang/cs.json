@@ -71999,6 +71999,10 @@
   "z_1718": {
    "source": "Certificates: Renewing a certificate failed (SMS)",
    "text": "Certifikáty: Obnovení certifikátu selhalo (SMS)"
+  },
+  "z_1719": {
+   "source": "revoking a certificate",
+   "text": "odvolání certifikátu"
   }
  },
  "patterns": {
@@ -100249,6 +100253,10 @@
   "pz_556": {
    "source": "{0} is busy with another job ({1}, job {2}) - deploy it when that job is done",
    "text": "{0} má rozběhnutou jinou úlohu ({1}, úloha {2}) – nasaďte ho, až ta úloha skončí"
+  },
+  "pz_557": {
+   "source": "names the profile does not give (the source takes the CSR as it is): {0}",
+   "text": "jména, která profil nedává (zdroj vezme CSR tak, jak je): {0}"
   }
  },
  "rich": {
