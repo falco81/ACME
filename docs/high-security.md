@@ -78,7 +78,7 @@ versions before 1.0.40 leave those rows alone. With `db_guard` **on**, a node:
 | an account (`accounts`: name, role, password, source, switched off, DN) | cannot sign in |
 | the directory administrators sign in against, and the portal's (1.0.101: every way of signing in to the portal - password, Windows, a certificate, the balancer - and its recheck) | not asked |
 | a setting that reaches root, or who may sign in (firewall ports, proxy, updates, restarts, logs, the HTTP-01 challenge here, SNMP, mail and SMS, the administrators' groups and second step, high security, the balancers; since 1.0.101 the portal's: `portal`, `portal_directory`, `portal_who`, `portal_groups`, `portal_enrolers`, `portal_local`, `portal_local_code`, `portal_code`, `portal_admins_all`, `portal_cert`, `portal_cert_keys`, `portal_cert_auto`, `portal_cert_issuers`, `portal_cert_suffixes`, `portal_cert_challenge`, `portal_cert_max`, `portal_session_min`, `portal_tries`, `portal_wait_min`, `code_digits`, `code_tries`, `code_ttl_s` - beside `portal_sso*`, `portal_krb*`, `portal_certlogin*`, `portal_password_off`) | its last good value stays (else config.json and the default) |
-| a row of `meta` that root acts on (`web:vip`, `web:tls:*`, `web:access`, `fw:conf`, `ntp:conf`, `net:*`, `power:plan`, `host:sshkeys:want:*`, `host:sshd:conf`, `host:osup:plan`, `hatls:*`, `readdress:*`, `console:want:*`, `upgrade:plan`, `ask:want:*`, `adm2fa:*` ...) | read as not there - nothing is done |
+| a row of `meta` that root acts on (`web:vip`, `web:tls:*`, `web:access`, `fw:conf`, `ntp:conf`, `net:*`, `power:plan`, `host:sshkeys:want:*`, `host:sshd:conf`, `host:osup:plan`, `hatls:*`, `readdress:*`, `console:want:*`, `upgrade:plan`, `ask:want:*`, `adm2fa:*`, since 1.0.135 `dbagent:addr:*` - a node's new address the other node's acme-db-agent lets into the database and through its firewall ...) | read as not there - nothing is done |
 | another node's heartbeat | its address not let through the firewall, not into nginx's lists, not taken for the VIP's or chrony's peer |
 
 **The portal under the guard (1.0.101).** Until 1.0.100 only the administration's sign-ins
@@ -97,6 +97,14 @@ wrote it last (`ran`, which 1.0.100 and older do not keep); finding the file wri
 older version after its portal settings were taken under the guard, 1.0.101 and newer take
 them again - signed once more as they are, when every node runs 1.0.101 - instead of refusing
 them as written past acme (the last good value used, the security light on).
+
+**The addresses for the database agent (1.0.135).** With the database on its own servers
+(acme-db-agent), a node whose address changes tells the other node in `dbagent:addr:NODE`,
+and that node's agent lets the address into the database and through the server's firewall,
+as root. Until 1.0.134 that row was not signed: anybody able to write the database could have
+had another address let in. It is signed now; the rows already there are signed once as they
+are when every node runs 1.0.135 (taken as before until then), and again after going back to
+an older version and up again - as the portal's settings above.
 
 Each node remembers, in its own file (`/var/lib/acme/guard.json`, not in the
 database), the newest signature it has seen of each row: a row taken from an

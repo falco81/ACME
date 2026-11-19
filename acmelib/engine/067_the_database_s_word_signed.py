@@ -46,7 +46,11 @@ DBGUARD_META_PREFIXES = (
     'oscerts:want:',      # the system's trusted roots (1.0.59): root writes them
     # modules uploaded on the page Modules (1.0.95): their code is run by every node's daemon,
     # which holds the key - one written past acme was a way to all of it
-    'module-file:', 'module-default:')
+    'module-file:', 'module-default:',
+    # A node's new address for the database server's agent (1.0.135): the other node's
+    # acme-db-agent lets it into the database and through the firewall as root - one written
+    # past acme let anybody's address in.
+    'dbagent:addr:')
 # Settings whose word reaches root, or who may sign in to these pages.
 DBGUARD_SETTINGS = frozenset((
     'acme', 'acme_challenge', 'acme_for', 'acme_node_name', 'pki_publish', 'snmp', 'snmp_from', 'snmp_port', 'net_confirm_min', 'fw_confirm_min',
@@ -125,6 +129,10 @@ DBGUARD_ADOPT3_MARK = 'dbguard:adopted:1.0.101'
 # they are, on a node whose cluster all runs 1.0.102.
 DBGUARD_ADOPT4 = {'s': ('metrics_token', 'snmp_auth_pass', 'snmp_priv_pass')}
 DBGUARD_ADOPT4_MARK = 'dbguard:adopted:1.0.102'
+# Taken under the guard by 1.0.135: the addresses a node tells the other node's database agent
+# (dbagent:addr:NODE) - signed once as they are, on a node whose cluster all runs 1.0.135.
+DBGUARD_ADOPT5_PREFIXES = {'m': ('dbagent:addr:',)}
+DBGUARD_ADOPT5_MARK = 'dbguard:adopted:1.0.135'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'adopted': None, 'dirty': 0.0,
            'refused': {}, 'nodes': {},
@@ -236,6 +244,12 @@ def _dbguard_load():
                 DBGUARD['adopted'].pop(DBGUARD_ADOPT4_MARK, None)
                 DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
                 DBGUARD['readopt4'] = ran or 'an older version'
+            # ...and those of 1.0.135 so (the addresses for the database agent).
+            if DBGUARD['adopted'].get(DBGUARD_ADOPT5_MARK) and \
+                    _ver_tuple(ran or '0') < _ver_tuple(DBGUARD_ADOPT5_MARK.rsplit(':', 1)[1]):
+                DBGUARD['adopted'].pop(DBGUARD_ADOPT5_MARK, None)
+                DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+                DBGUARD['readopt5'] = ran or 'an older version'
 
 
 def dbguard_flush(force=False):
@@ -596,6 +610,10 @@ def dbguard_resign(store, why=''):
             _dbguard_load()
             with DBGUARD['lock']:
                 _dbguard_adopted_map().setdefault(DBGUARD_ADOPT4_MARK, time.time())
+        if cluster_runs_at_least(store, '1.0.135'):
+            _dbguard_load()
+            with DBGUARD['lock']:
+                _dbguard_adopted_map().setdefault(DBGUARD_ADOPT5_MARK, time.time())
     except Exception:                                   # noqa: BLE001
         pass
     if why:
@@ -611,6 +629,9 @@ def dbguard_adopted_ok(kind, ident):
     """Whether a row this version took under the guard is checked yet: only once this node
     has signed it as it was (dbguard_adopt) - until then it is as unguarded as before."""
     ident = str(ident)
+    if ident.startswith(DBGUARD_ADOPT5_PREFIXES.get(kind) or ()):
+        _dbguard_load()
+        return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT5_MARK))
     if ident.split('@', 1)[0] in (DBGUARD_ADOPT4.get(kind) or ()):
         _dbguard_load()
         return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT4_MARK))
@@ -722,6 +743,30 @@ def _dbguard_adopt4(store):
     return n
 
 
+def _dbguard_adopt5(store):
+    """The rows 1.0.135 took under the guard (dbagent:addr:NODE), signed once as they are."""
+    if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT5_MARK):
+        return 0
+    if not cluster_runs_at_least(store, '1.0.135'):
+        return 0
+    db, n = store.db, 0
+    for r in _dbguard_head_rows(db, 'dbagent:addr:'):
+        if str(r['k']).startswith(DBGUARD_ADOPT5_PREFIXES['m']):
+            n += bool(dbguard_sign(db, 'm', r['k'], r['v']))
+    with DBGUARD['lock']:
+        _dbguard_adopted_map()[DBGUARD_ADOPT5_MARK] = time.time()
+        DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+    dbguard_flush(force=True)
+    back = DBGUARD.pop('readopt5', None)
+    if back:
+        log('the guard against writes signs the addresses for the database agent again, %d '
+            'row(s), as they are: acme %s ran here since they were signed' % (n, back))
+    elif n:
+        log('the guard against writes now signs the addresses for the database agent, %d '
+            'row(s), as they were (upgrade)' % n)
+    return n
+
+
 def dbguard_adopt(store):
     """Rows taken under the guard by this version (1.0.44), signed once as they are now - and
     from then on checked. Not before every node runs this version: a 1.0.43 node saving them
@@ -731,7 +776,8 @@ def dbguard_adopt(store):
     if not dbguard_on() or not dbguard_key():
         return 0
     _dbguard_load()
-    n2 = _dbguard_adopt2(store) + _dbguard_adopt3(store) + _dbguard_adopt4(store)
+    n2 = _dbguard_adopt2(store) + _dbguard_adopt3(store) + _dbguard_adopt4(store) + \
+        _dbguard_adopt5(store)
     if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK):
         return n2
     if not cluster_runs_at_least(store, '1.0.44'):

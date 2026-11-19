@@ -6,7 +6,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.135 - not released
 
-(nothing yet)
+- **The addresses a node tells the other node's database agent are under the guard against writes (security).** With `db_guard` on, a `dbagent:addr:NODE` row written into the database past acme is no longer acted on: acme-db-agent let its address into the database (`pg_hba.conf`, MariaDB's account) and through the server's firewall as root, so anybody able to write the database could have had another address let in. The rows already there are signed once as they are when every node of the cluster runs 1.0.135 (until then they are taken as before), and again after going back to an older version and up again. With `db_guard` off nothing changes.
 
 ## 1.0.134 - 2026-11-19
 

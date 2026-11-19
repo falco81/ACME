@@ -100321,6 +100321,14 @@
   "pz_564": {
    "source": "the authority \"{0}\" is revoked ({1}) by \"{2}\" above it - what it signed would be refused",
    "text": "autorita „{0}“ je odvolaná ({1}) autoritou „{2}“ nad ní – co by podepsala, by bylo odmítnuto"
+  },
+  "pz_dbaddr1": {
+   "source": "the guard against writes signs the addresses for the database agent again, {0} row(s), as they are: acme {1} ran here since they were signed",
+   "text": "ochrana proti zápisům znovu podepisuje adresy pro agenta databáze, řádků: {0}, tak jak jsou: od jejich podepsání zde běželo acme {1}"
+  },
+  "pz_dbaddr2": {
+   "source": "the guard against writes now signs the addresses for the database agent, {0} row(s), as they were (upgrade)",
+   "text": "ochrana proti zápisům nyní podepisuje i adresy pro agenta databáze, řádků: {0}, tak jak byly (upgrade)"
   }
  },
  "rich": {

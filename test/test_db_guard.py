@@ -841,5 +841,87 @@ class TestSudoKeys(unittest.TestCase):
         self.assertEqual(got['keys'], [])
 
 
+class TestDbAgentAddresses(unittest.TestCase):
+    """dbagent:addr:NODE under the guard (1.0.135): the other node's acme-db-agent lets the
+    address in as root (pg_hba, its firewall) - one written past acme is not acted on."""
+
+    def setUp(self):
+        guard(False)
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'dbagent:addr:%'")
+        self.calls = []
+        self.saved = {}
+        self.g = E.db_agent_peer_moved.__globals__      # the engine's own namespace
+        for name in ('db_agent', 'db_agent_here', 'db_agent_call', 'db_agent_fw', 'db_agent_put'):
+            self.saved[name] = self.g[name]
+        self.peer = {'peer_node': '10.0.0.2', 'engine': 'postgres', 'db_admin': 'x'}
+        self.g['db_agent'] = lambda: dict(self.peer)
+        self.g['db_agent_here'] = lambda: True
+        self.g['db_agent_call'] = lambda what, args=None, **k: self.calls.append((what, args)) or {}
+        self.g['db_agent_fw'] = lambda peers, **k: self.calls.append(('fw', peers)) or {}
+        self.g['db_agent_put'] = lambda d: self.peer.update(d)
+        self.ha = E.CONFIG.get('ha_mode')
+        E.CONFIG['ha_mode'] = 'replicated'
+
+    def tearDown(self):
+        for name, f in self.saved.items():
+            self.g[name] = f
+        E.CONFIG['ha_mode'] = self.ha
+        guard(False)
+
+    def test_kept(self):
+        self.assertTrue(E.dbguard_meta_kept('dbagent:addr:node2'))
+
+    def test_guard_off_as_before(self):
+        forged_meta('dbagent:addr:node2', json.dumps({'address': '10.0.0.9', 'old': '10.0.0.2'}))
+        self.assertEqual(E.db_agent_peer_moved(STORE), '10.0.0.9')
+        self.assertIn(('fw', ['10.0.0.9']), self.calls)
+
+    def test_signed_one_acted_on(self):
+        STORE.set_meta('dbagent:addr:node2', json.dumps({'address': '10.0.0.7', 'old': '10.0.0.2'}))
+        guard(True)
+        E.dbguard_adopt(STORE)
+        self.assertTrue(E.dbguard_adopted_ok('m', 'dbagent:addr:node2'))
+        self.assertEqual(E.db_agent_peer_moved(STORE), '10.0.0.7')
+
+    def test_written_past_acme_not_acted_on(self):
+        guard(True)
+        E.dbguard_adopt(STORE)
+        forged_meta('dbagent:addr:node2', json.dumps({'address': '10.6.6.6', 'old': '10.0.0.2'}))
+        self.assertIsNone(E.db_agent_peer_moved(STORE))
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.peer['peer_node'], '10.0.0.2')
+
+    def test_existing_rows_taken_as_they_are_on_upgrade(self):
+        # written by 1.0.134 (unsigned), the guard on: not checked before the adoption, signed
+        # by it - acted on, not refused
+        forged_meta('dbagent:addr:node2', json.dumps({'address': '10.0.0.8', 'old': '10.0.0.2'}))
+        guard(True)
+        E._dbguard_load()
+        E.DBGUARD['adopted'].pop(E.DBGUARD_ADOPT5_MARK, None)
+        self.assertFalse(E.dbguard_adopted_ok('m', 'dbagent:addr:node2'))
+        E.dbguard_adopt(STORE)
+        self.assertTrue(E.DBGUARD['adopted'].get(E.DBGUARD_ADOPT5_MARK))
+        self.assertEqual(E.db_agent_peer_moved(STORE), '10.0.0.8')
+
+    def test_taken_again_after_going_back(self):
+        guard(True)
+        E.dbguard_adopt(STORE)
+        E.DBGUARD['dirty'] = time.time()
+        E.dbguard_flush(force=True)
+        with open(E.DBGUARD_FILE) as f:
+            got = json.load(f)
+        self.assertTrue(got['adopted'].get(E.DBGUARD_ADOPT5_MARK))
+        # 1.0.134 ran here and wrote the row unsigned
+        forged_meta('dbagent:addr:node2', json.dumps({'address': '10.0.0.5', 'old': '10.0.0.2'}))
+        got['ran'] = '1.0.134'
+        with open(E.DBGUARD_FILE, 'w') as f:
+            json.dump(got, f)
+        E.DBGUARD['seen'] = None
+        E._dbguard_load()
+        self.assertFalse(E.dbguard_adopted_ok('m', 'dbagent:addr:node2'))
+        E.dbguard_adopt(STORE)
+        self.assertEqual(E.db_agent_peer_moved(STORE), '10.0.0.5')
+
+
 if __name__ == '__main__':
     unittest.main()

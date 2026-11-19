@@ -1085,7 +1085,10 @@ def db_agent_peer_moved(store):
     if not a or not db_agent_here() or CONFIG.get('ha_mode') != 'replicated':
         return None
     me = node_name()
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'dbagent:addr:%'"):
+    # Only those acme wrote (1.0.135): with db_guard on, one written past acme is not acted on
+    # - the agent lets the address in as root.
+    rows = store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'dbagent:addr:%'")
+    for r in dbguard_rows(store.db, [dict(x) for x in rows]):
         if str(r['k']) == 'dbagent:addr:' + me:
             continue
         try:

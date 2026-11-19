@@ -456,6 +456,8 @@ network is switched, its agent lets the new address into the database (`pg_allow
 the network changed - when the agent cannot. The other node is told (`dbagent:addr:NODE` in
 the replicated database): its agent lets the new address into its server too, and its
 `peer_node` follows. The old address's lines stay (the network may still go back).
+With `db_guard` on (1.0.135) that row is signed: one written into the database past acme is
+not acted on (see [High security](high-security.md)).
 
 ## Watching
 
