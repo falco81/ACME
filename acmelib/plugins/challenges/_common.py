@@ -240,11 +240,15 @@ def said_error(who, status, parsed, got):
     said = _said(parsed) or (got[:300].decode('utf-8', 'replace') if isinstance(got, bytes)
                               else str(got or '')[:300])
     words = '%s said %s: %s' % (who, status, said.strip() or 'nothing more')
-    if status in (401, 403):
-        words += ' - the credentials are wrong or may not do this'
-    elif status == 429 or (status in (400, 403) and _slow(said)):
+    # Hunt R u5: a 403 "rate limit exceeded" was said as wrong credentials (the 403 of the
+    # slow-down case below never reached), and a 400/403 slow-down said "acme tries again"
+    # while the error was marked as one that trying again does not help
+    slow = status == 429 or (status in (400, 403) and _slow(said))
+    if slow:
         words += ' - it asks acme to slow down; acme tries again later by itself'
-    return PluginError(words, detail=said, retry=status >= 500 or status == 429)
+    elif status in (401, 403):
+        words += ' - the credentials are wrong or may not do this'
+    return PluginError(words, detail=said, retry=status >= 500 or slow)
 
 
 def _slow(text):

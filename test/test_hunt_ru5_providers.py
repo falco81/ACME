@@ -66,5 +66,29 @@ class TestScepAlgorithms(unittest.TestCase):
         self.assertEqual(s._algos({'SCEPStandard'}), ('3des', 'sha256'))   # set by hand: kept
 
 
+class TestSaidError(unittest.TestCase):
+    """A provider's "rate limit" refusal: a 403 one was said as wrong credentials, and a 400
+    or 403 one said "acme tries again" while marked as not worth trying again."""
+
+    def test_slow_down_said_and_marked(self):
+        from acmelib.plugins.challenges._common import said_error
+        e = said_error('X', 403, {'message': 'Rate limit exceeded'}, b'')
+        self.assertIn('slow down', str(e))
+        self.assertNotIn('credentials', str(e))
+        self.assertTrue(e.retry)
+        e = said_error('X', 400, {'message': 'Throttling: rate exceeded'}, b'')
+        self.assertIn('slow down', str(e))
+        self.assertTrue(e.retry)
+        e = said_error('X', 429, None, b'')
+        self.assertTrue(e.retry)
+        # as before: a plain 403 and 400, a 401
+        e = said_error('X', 403, {'message': 'Forbidden'}, b'')
+        self.assertIn('credentials are wrong', str(e))
+        self.assertFalse(e.retry)
+        self.assertFalse(said_error('X', 400, {'message': 'bad name'}, b'').retry)
+        self.assertIn('credentials', str(said_error('X', 401, None, b'')))
+        self.assertTrue(said_error('X', 502, None, b'').retry)
+
+
 if __name__ == '__main__':
     unittest.main()
