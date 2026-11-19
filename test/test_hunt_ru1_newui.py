@@ -2,7 +2,7 @@
 """Hunt R u1 (the UI of 1.0.128): Teams from directory groups, Request profiles' search.
 
     python3 test/test_hunt_ru1_newui.py
-    HUNT_OLD=1 python3 test/test_hunt_ru1_newui.py   # the pages as in git HEAD: must fail
+    HUNT_OLD=REV python3 test/test_hunt_ru1_newui.py  # teams.js, reqprofiles.js of REV: fails
 
 - Teams from directory groups: a preview, then the filter changed (or the role, where, what
   they are) and "Make the teams" pressed - the teams of the new filter were made without
@@ -41,6 +41,7 @@ const [base, pass] = process.argv.slice(2);
   const browser = await chromium.launch();
   try {
     const ctx = await browser.newContext({viewport: {width: 1400, height: 900}});
+    await ctx.addCookies([{name: 'acme_lang', value: 'en', url: base}]);
     const page = await ctx.newPage();
     page.on('pageerror', e => out.errors.push(String(e.message || e)));
     await page.goto(base + '/admin/index.php');
@@ -154,7 +155,7 @@ class NewUI(unittest.TestCase):
         shutil.copytree(os.path.join(ROOT, 'web'), web)
         if os.environ.get('HUNT_OLD'):
             for rel in ('web/assets/teams.js', 'web/assets/reqprofiles.js'):
-                old = subprocess.run(['git', 'show', 'HEAD:' + rel], cwd=ROOT, capture_output=True)
+                old = subprocess.run(['git', 'show', os.environ['HUNT_OLD'] + ':' + rel], cwd=ROOT, capture_output=True)
                 with open(os.path.join(self.tmp, rel), 'wb') as f:
                     f.write(old.stdout)
         api_php = os.path.join(web, 'acme-api.php')
