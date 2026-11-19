@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.135 - not released
+
+(nothing yet)
+
 ## 1.0.134 - 2026-11-19
 
 - What happens (FortiGate): a dry run of "Replace an existing certificate in place" for a certificate whose name starts with acme- (an earlier import of the default mode, the case of the 1.0.128 report) said "there is no local certificate" while the real run replaces it; the canned FortiGate now answers the certificate read for replacing whatever its name, the default mode's new name is still not there.
