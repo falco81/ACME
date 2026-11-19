@@ -231,6 +231,10 @@ def _confirm(h, s):
     if G.mode_of(row) == 'passive':
         try:
             out['agent'] = G.look(h.store, row, A.who(s))
+            # hunt R u3: look says what went wrong in its answer (it raises nothing) - the
+            # pages said "the agent is confirmed" while its certificate never reached it
+            if out['agent'].get('said'):
+                out['said'] = out['agent']['said']
         except PluginError as e:
             out['said'] = str(e)
     return out

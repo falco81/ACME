@@ -69,7 +69,9 @@
     modal('Find the settings from the account', function (body) {
       body.appendChild(el('p', 'note', 'Give only what signing in to the account takes. acme asks its API and only reads - nothing is ordered, changed or saved - then offers what it found: what you tick is filled into the form, and Save keeps it. A value the form has already is never replaced unless you tick it.'));
       body.appendChild(el('h4', 'ct-formh', 'Sign-in'));
-      sub = fieldForm(asked, now, o.secrets || {}, {family: p.family || o.family, row: o.row, plug: p, none: false});
+      /* a secret typed in the form shown here too (typed: hunt u3 - its box came up empty,
+         and "Find out" asked for it again) */
+      sub = fieldForm(asked, now, o.secrets || {}, {family: p.family || o.family, row: o.row, plug: p, none: false, typed: now});
       body.appendChild(sub.node);
       said = saidLine('', '');
       body.appendChild(said);
