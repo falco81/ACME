@@ -987,6 +987,16 @@ class FortiGateTarget(HttpTarget):
         deleted, PUT, read back. -> what was done."""
         self.ctx.step('it is replaced over the REST API (PUT cmdb vpn.certificate/local/%s) - '
                       'the token is enough, no SSH' % name)
+        # FortiOS before 7.6 and a certificate of a VDOM's range: through the global range in
+        # the management VDOM, else the CLI - decided before anything is written (1.0.136: the
+        # CA certificates too were imported before a stop)
+        ver = self.fos_version(vdom) or (0, 0, 0)
+        straight = self.range_of(row) == 'vdom' and text(vdom).strip() and \
+            tuple(ver[:2]) < (7, 6)
+        if straight:
+            mgmt = self.mgmt_vdom()
+            if mgmt is None or vdom != mgmt:
+                raise NeedsCli(vdom, mgmt)
         if self.range_of(row) == 'global' and text(vdom).strip() and self.multi_vdom() and \
                 self.mgmt_vdom() and vdom != self.mgmt_vdom():
             self.ctx.step('%s is of the global range: it is written in the management VDOM (%s) '
@@ -1008,11 +1018,7 @@ class FortiGateTarget(HttpTarget):
             self.drop_copy(n, vdom, name)
         # 6. the PUT - or, FortiOS before 7.6 and a certificate of the VDOM's range, straight
         # through the global range (management VDOM) or the CLI (elsewhere): no trial PUT
-        ver = self.fos_version(vdom) or (0, 0, 0)
-        if self.range_of(row) == 'vdom' and text(vdom).strip() and tuple(ver[:2]) < (7, 6):
-            mgmt = self.mgmt_vdom()
-            if mgmt is None or vdom != mgmt:
-                raise NeedsCli(vdom, mgmt)
+        if straight:
             switched = self.api_put(bundle, vdom, name, options, row, switch=True)
         else:
             switched = self.api_put(bundle, vdom, name, options, row)

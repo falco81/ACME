@@ -994,8 +994,8 @@ class ApiReplaceTest(Base):
         self.assertIn('a certificate of the range of VDOM Naj, over the REST API', words)
         self.assertIn('nothing was changed. Fill in the target\'s SSH sign-in', words)
         self.assertTrue(e.exception.lasting)
-        # nothing written at all - not even the trial PUT (B4)
-        self.assertFalse(self.fg.find('PUT', r'/local/web-cert$'))
+        # nothing written at all - not even the trial PUT (B4), nor a CA certificate (round 3)
+        self.assertFalse(self.fg.writes())
         self.assertNotEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
         # the management VDOM not readable (a token of vpngrp) and not typed: stopped too,
         # never guessed; typed: taken
