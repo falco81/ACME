@@ -77,6 +77,14 @@ class Bundle(FakeBundle):
         if fmt == 'key-pem-enc':
             return openssl('pkcs8', '-topk8', '-v2', 'aes-256-cbc', '-passout',
                            'pass:%s' % password, data=self.key_pem.encode())
+        # the other shapes as the real Bundle makes them (1.0.136)
+        from acmelib.certs import pki
+        if fmt == 'key-pem-enc-compat':
+            return pki.key_encrypt(self.key_pem, password, iterations=2048).encode()
+        if fmt == 'key-traditional-enc':
+            return pki.key_traditional_encrypt(self.key_pem, password).encode()
+        if fmt == 'key-traditional':
+            return pki.key_traditional(self.key_pem).encode()
         return FakeBundle.as_format(self, fmt, password, alias)
 
 
@@ -804,13 +812,79 @@ class ApiReplaceTest(Base):
         self.assertEqual(len(self.fg.writes()), n)
 
     def test_wrong_key_or_password(self):
-        e, ctx, b = self.fails(WrongPasswordBundle())
+        e, ctx, b = self.fails(WrongPasswordBundle(), opts={'replace_key': 'pkcs8-enc'})
         self.assertIn('FortiOS refused to replace web-cert in place: it did not take the private '
                       'key ("Invalid private key, password may be required") - web-cert is '
                       'untouched (FortiOS changes nothing when it refuses)', str(e))
         self.assertFalse(e.retry)
         self.assertIn('-651', e.detail)
         self.unchanged_target()
+
+    def test_wrong_password_next_format_taken(self):
+        """Key format automatic (1.0.136): a key FortiOS does not take - the next format;
+        every refusal changes nothing (F10)."""
+        t, ctx = make(self.fg)
+        b = WrongPasswordBundle()
+        t.deploy(b, dict(REPLACE))
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        puts = self.fg.find('PUT', r'/local/web-cert$')
+        self.assertEqual(len(puts), 2)
+        warn = [w for lv, w in ctx.steps if lv == 'warn']
+        self.assertIn('FortiOS did not take the key encrypted with a one-time password '
+                      '(nothing was changed) - the next format', warn)
+        self.assertIn('this FortiGate takes the key encrypted with a one-time password (PKCS#8, '
+                      'PBKDF2 2048) - "Key format" may be set to it', said(ctx))
+
+    def test_every_key_format_chosen(self):
+        """Each "Key format" sends its own shape, alone."""
+        heads = {'pkcs8-enc': '-----BEGIN ENCRYPTED PRIVATE KEY-----',
+                 'pkcs8-enc-compat': '-----BEGIN ENCRYPTED PRIVATE KEY-----',
+                 'traditional-enc': 'Proc-Type: 4,ENCRYPTED',
+                 'pkcs8': '-----BEGIN PRIVATE KEY-----',
+                 'traditional': '-----BEGIN EC PRIVATE KEY-----'}
+        for f, head in heads.items():
+            self.tearDown()
+            self.setUp()
+            t, ctx = make(self.fg)
+            b = Bundle()
+            t.deploy(b, dict(REPLACE, replace_key=f))
+            puts = self.fg.find('PUT', r'/local/web-cert$')
+            self.assertEqual(len(puts), 1, f)
+            body = puts[0]['body']
+            self.assertIn(head, body['private-key'], f)
+            self.assertEqual('password' in body, '-enc' in f, f)
+            self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+
+    def test_missing_name_created(self):
+        """A name typed by hand that the FortiGate does not have (1.0.136, "When it is not
+        there": create, the default): imported under that name; the next deployment replaces
+        it in place."""
+        t, ctx = make(self.fg)
+        b = Bundle()
+        got = t.deploy(b, dict(REPLACE, replace_name='manualy.example'))
+        self.assertIn('created manualy.example', got)
+        imp = self.fg.find('POST', r'/local/import')
+        self.assertEqual(len(imp), 1)
+        self.assertEqual(imp[0]['body']['certname'], 'manualy.example')
+        self.assertEqual(der(self.fg.local['manualy.example']['certificate']), der(b.cert_pem))
+        self.assertFalse(self.fg.find('PUT', r'/vpn\.certificate/local/'))
+        self.assertTrue(any('there is no local certificate manualy.example on the FortiGate '
+                            '(VDOM root) - it is created under this name' in w
+                            for w in said(ctx)))
+        self.no_secrets(ctx, b)
+        # ...and the next one (another certificate there now): in place, nothing imported
+        self.fg.local['manualy.example']['certificate'] = PEMS['other']
+        t, ctx = make(self.fg)
+        t.deploy(b, dict(REPLACE, replace_name='manualy.example', force=True))
+        self.assertEqual(len(self.fg.find('PUT', r'/local/manualy\.example$')), 1)
+        self.assertEqual(len(self.fg.find('POST', r'/local/import')), 1)
+        self.assertEqual(der(self.fg.local['manualy.example']['certificate']), der(b.cert_pem))
+
+    def test_missing_name_too_long(self):
+        e, ctx, b = self.fails(opts={'replace_name': 'x' * 36})
+        self.assertIn('FortiOS takes names of 35 characters at most - nothing was changed',
+                      str(e))
+        self.assertFalse(self.fg.writes())
 
     def test_key_of_another_certificate(self):
         e, ctx, b = self.fails(OtherKeyBundle())
@@ -906,7 +980,7 @@ class ApiReplaceTest(Base):
         self.assertIs(e.exception.retry, False)
 
     def test_not_found_and_factory_refused(self):
-        e, ctx, b = self.fails(opts={'replace_name': 'web-certt'})
+        e, ctx, b = self.fails(opts={'replace_name': 'web-certt', 'replace_missing': 'stop'})
         self.assertIn('there is no local certificate web-certt on the FortiGate (VDOM root)',
                       str(e))
         for n in ('Fortinet_SSL', 'mine'):
@@ -1175,7 +1249,8 @@ class SshReplaceTest(Base):
         self.assertFalse(self.fg.find('POST', r'/local/import'), 'nothing imported anew')
         self.assertFalse([n for n in self.fg.local if n.startswith('acme-')])
         runs = ctx.cli.runs()
-        self.assertEqual(runs[0], 'get system status\n')
+        self.assertTrue(runs[0].startswith('get system status\n'))
+        self.assertFalse(runs[0].replace('get system status\n', '').strip())
         edits = [r for r in runs if 'config vpn certificate local' in r]
         self.assertEqual(len(edits), 2, 'first ended with abort, then saved')
         first, saved = edits
@@ -1270,19 +1345,45 @@ class SshReplaceTest(Base):
         cli.refuse_encrypted = True
         t, ctx, b, got = self.deploy(cli=cli)
         edits = [r for r in cli.runs() if 'config vpn certificate local' in r]
-        self.assertEqual(len(edits), 3)
+        # the three encrypted shapes (1.0.136: PKCS#8, PKCS#8 PBKDF2 2048, traditional), then
+        # the plain one checked and saved
+        self.assertEqual(len(edits), 5)
         self.assertIn('ENCRYPTED PRIVATE KEY', edits[0])
-        self.assertTrue(edits[0].endswith('abort\n'))
-        for r in edits[1:]:
+        self.assertIn('ENCRYPTED PRIVATE KEY', edits[1])
+        self.assertIn('Proc-Type: 4,ENCRYPTED', edits[2])
+        for r in edits[:3]:
+            self.assertTrue(r.endswith('abort\n'))
+        for r in edits[3:]:
             self.assertNotIn('set password', r)
             self.assertIn('set private-key "-----BEGIN PRIVATE KEY-----\n', r)
-        self.assertTrue(edits[1].endswith('abort\n') and edits[2].endswith('next\nend\n'))
+        self.assertTrue(edits[3].endswith('abort\n') and edits[4].endswith('next\nend\n'))
         self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
         warn = [w for lv, w in ctx.steps if lv == 'warn']
         self.assertTrue([w for w in warn if w.startswith(
-            'FortiOS did not take the encrypted key (Input is not a valid/matched private '
-            'key.')], warn)
+            'FortiOS did not take the key encrypted with a one-time password (Input is not a '
+            'valid/matched private key.')], warn)
         self.no_secrets(ctx, b)
+
+    def test_status_after_the_prompt_and_paged(self):
+        """A FortiGate 40F, 7.4.13 (the report of 2026-11-19): with no terminal the answer
+        follows the prompt on its line, an admin of a profile has the prompt "$", and the
+        console pages ("--More--") - still read as FortiOS's."""
+        cli = FakeCli(self.fg)
+        orig = cli.shell
+
+        def shell(cmd, inp):
+            rc, out, err = orig(cmd, inp)
+            if inp.startswith('get system status'):
+                body = (STATUS % 'disable').replace('Operation Mode: NAT\n',
+                                                    'Operation Mode: NAT\n --More-- \r'
+                                                    '          \r')
+                out = 'FW-Table-PeS $ ' + body + 'FW-Table-PeS $ '
+            return rc, out, err
+        cli.ssh.answers = [(r'^\n', lambda c, i: shell(c, i))]
+        t, ctx, b, got = self.deploy(cli=cli)
+        self.check_replaced(b, ctx)
+        self.assertIn('signed in over SSH as acme-admin: FortiOS 7.4.13 on fw1, VDOMs off - '
+                      'the certificate is replaced in the FortiOS CLI', said(ctx))
 
     def test_cli_error_aborts_nothing_saved(self):
         cli = FakeCli(self.fg)
@@ -1335,8 +1436,8 @@ class SshReplaceTest(Base):
             return st, out
         self.fg.answer = answer
         t, ctx, b, got = self.deploy()
-        self.assertTrue([r for r in ctx.cli.runs() if r == 'show vpn certificate local '
-                         '"web-cert"\n'])
+        self.assertTrue([r for r in ctx.cli.runs() if r.startswith(
+            'show vpn certificate local "web-cert"\n') and not r.split('\n', 1)[1].strip()])
         self.assertTrue([w for w in said(ctx) if w.startswith('checked: web-cert holds')])
 
     def test_global_scope_with_vdoms(self):
@@ -1407,7 +1508,7 @@ class SshReplaceTest(Base):
         t, ctx = make(self.fg)
         said_ = t.test()
         self.assertIn('; over SSH as acme-admin: FortiOS 7.4.13 on fw1, VDOMs off', said_)
-        self.assertEqual(ctx.cli.runs(), ['get system status\n'])
+        self.assertEqual([r.strip() for r in ctx.cli.runs()], ['get system status'])
         t, ctx = make(self.fg, ssh=False)
         self.assertNotIn('SSH', t.test())
         self.assertFalse(ctx.cli.runs())
@@ -1415,7 +1516,7 @@ class SshReplaceTest(Base):
     def test_missing_name_fails_early(self):
         t, ctx = make(self.fg)
         with self.assertRaises(PluginError) as e:
-            t.deploy(Bundle(), dict(SSHR, replace_name='web-certt'))
+            t.deploy(Bundle(), dict(SSHR, replace_name='web-certt', replace_missing='stop'))
         self.assertIn('there is no local certificate web-certt on the FortiGate (VDOM root)',
                       str(e.exception))
         self.assertIn('nothing was changed', str(e.exception))

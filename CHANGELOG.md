@@ -6,7 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.136 - not released
 
-(nothing yet)
+- **FortiGate, replace in place: a name the FortiGate does not have is created under that name.** A name typed by hand (or chosen earlier and since deleted) stopped every deployment with "there is no local certificate … on the FortiGate". The new option *When it is not there* (replace mode) creates it by default - the certificate imported under exactly that name with its intermediates - and every deployment after it replaces it in place; *stop* keeps the old behaviour.
+- **FortiGate, replace in place: the key format is chosen, or tried in turn.** A FortiGate-40F on FortiOS 7.4.13 refused the replacement with "Input is not a valid/matched certificate" although the key belonged to the certificate. The new option *Key format* (advanced) is *automatic* by default: the key goes as PKCS#8 encrypted with a one-time password first, and when FortiOS says the key is not right the next format is tried - PKCS#8 encrypted with PBKDF2 2048, traditional (PKCS#1 / SEC1) encrypted, PKCS#8, traditional. Every refusal changes nothing on the FortiGate; the job says which format was taken. Over SSH the same formats are tried, each first ended with `abort`.
+- **FortiGate over SSH: "get system status was not answered as FortiOS answers it" on a real FortiGate.** With no terminal FortiOS writes its answer right after the prompt on the same line, an administrator of a profile has the prompt `$`, and a console set to page stops at `--More--`; the answer was not recognized and the SSH test and every SSH deployment failed. The answer is now read through all of it, the pager is gone through, and a certificate read back with `show` survives a page break inside its PEM.
 
 ## 1.0.135 - 2026-11-19
 

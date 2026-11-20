@@ -72039,6 +72039,70 @@
   "z_1728": {
    "source": "crl_days: 1 to 365 days",
    "text": "crl_days: 1 až 365 dní"
+  },
+  "zfg136_01": {
+   "source": "create it under this name (imported as a new one)",
+   "text": "vytvořit ho pod tímto jménem (naimportuje se jako nový)"
+  },
+  "zfg136_02": {
+   "source": "stop - nothing is changed",
+   "text": "zastavit – nic se nezmění"
+  },
+  "zfg136_03": {
+   "source": "a name typed by hand that the FortiGate does not have yet: created by the first deployment, replaced in place by every one after it",
+   "text": "ručně zadané jméno, které FortiGate ještě nemá: první nasazení ho vytvoří, každé další ho nahradí na místě"
+  },
+  "zfg136_04": {
+   "source": "automatic - each in turn until FortiOS takes one",
+   "text": "automaticky – jeden po druhém, dokud FortiOS některý nepřijme"
+  },
+  "zfg136_05": {
+   "source": "PKCS#8, encrypted (AES-256, PBKDF2 600000)",
+   "text": "PKCS#8, zašifrovaný (AES-256, PBKDF2 600000)"
+  },
+  "zfg136_06": {
+   "source": "PKCS#8, encrypted (AES-256, PBKDF2 2048)",
+   "text": "PKCS#8, zašifrovaný (AES-256, PBKDF2 2048)"
+  },
+  "zfg136_07": {
+   "source": "traditional (PKCS#1 / SEC1), encrypted (AES-256)",
+   "text": "tradiční (PKCS#1 / SEC1), zašifrovaný (AES-256)"
+  },
+  "zfg136_08": {
+   "source": "PKCS#8, not encrypted",
+   "text": "PKCS#8, nešifrovaný"
+  },
+  "zfg136_09": {
+   "source": "traditional (PKCS#1 / SEC1), not encrypted",
+   "text": "tradiční (PKCS#1 / SEC1), nešifrovaný"
+  },
+  "zfg136_10": {
+   "source": "how the private key goes to FortiOS when a certificate is replaced in place; a refused one changes nothing",
+   "text": "v jakém tvaru jde soukromý klíč do FortiOS při nahrazení certifikátu na místě; odmítnutý nic nezmění"
+  },
+  "zfg136_11": {
+   "source": "encrypted with a one-time password (PKCS#8, PBKDF2 2048)",
+   "text": "zašifrovaný jednorázovým heslem (PKCS#8, PBKDF2 2048)"
+  },
+  "zfg136_12": {
+   "source": "encrypted with a one-time password (traditional, PKCS#1 / SEC1)",
+   "text": "zašifrovaný jednorázovým heslem (tradiční, PKCS#1 / SEC1)"
+  },
+  "zfg136_13": {
+   "source": "as plain PEM (traditional, PKCS#1 / SEC1)",
+   "text": "jako nešifrovaný PEM (tradiční, PKCS#1 / SEC1)"
+  },
+  "zfg136_14": {
+   "source": "the key encrypted with a one-time password (PKCS#8, PBKDF2 2048)",
+   "text": "klíč zašifrovaný jednorázovým heslem (PKCS#8, PBKDF2 2048)"
+  },
+  "zfg136_15": {
+   "source": "the key encrypted with a one-time password (traditional, PKCS#1 / SEC1)",
+   "text": "klíč zašifrovaný jednorázovým heslem (tradiční, PKCS#1 / SEC1)"
+  },
+  "zfg136_16": {
+   "source": "the key as plain PEM (traditional, PKCS#1 / SEC1)",
+   "text": "klíč jako nešifrovaný PEM (tradiční, PKCS#1 / SEC1)"
   }
  },
  "patterns": {
@@ -100329,6 +100393,46 @@
   "pz_dbaddr2": {
    "source": "the guard against writes now signs the addresses for the database agent, {0} row(s), as they were (upgrade)",
    "text": "ochrana proti zápisům nyní podepisuje i adresy pro agenta databáze, řádků: {0}, tak jak byly (upgrade)"
+  },
+  "pzfg136_01": {
+   "source": "there is no local certificate {0} on the FortiGate (VDOM {1}) - it is created under this name (\"When it is not there\": create); the deployments after this one replace it in place",
+   "text": "lokální certifikát {0} na FortiGate (VDOM {1}) není – vytvoří se pod tímto jménem („Když na zařízení není“: vytvořit); další nasazení ho nahradí na místě"
+  },
+  "pzfg136_02": {
+   "source": "there is no local certificate {0} on the FortiGate - it is created under this name (\"When it is not there\": create); the deployments after this one replace it in place",
+   "text": "lokální certifikát {0} na FortiGate není – vytvoří se pod tímto jménem („Když na zařízení není“: vytvořit); další nasazení ho nahradí na místě"
+  },
+  "pzfg136_03": {
+   "source": "created {0} - the new certificate imported under this name",
+   "text": "vytvořen {0} – nový certifikát naimportován pod tímto jménem"
+  },
+  "pzfg136_04": {
+   "source": "created {0}",
+   "text": "vytvořen {0}"
+  },
+  "pzfg136_05": {
+   "source": "{0} cannot be created: FortiOS takes names of 35 characters at most - nothing was changed",
+   "text": "{0} nelze vytvořit: FortiOS přijímá jména nejvýše 35 znaků – nic se nezměnilo"
+  },
+  "pzfg136_06": {
+   "source": "the key cannot be made in the format chosen (\"Key format\": {0})",
+   "text": "klíč nelze vytvořit ve zvoleném formátu („Formát klíče“: {0})"
+  },
+  "pzfg136_07": {
+   "source": "FortiOS did not take the key {0} (nothing was changed) - the next format",
+   "text": "FortiOS nepřijal klíč {0} (nic se nezměnilo) – zkouší se další formát"
+  },
+  "pzfg136_08": {
+   "source": "this FortiGate takes the key {0} - \"Key format\" may be set to it",
+   "text": "tento FortiGate přijímá klíč {0} – „Formát klíče“ lze na něj nastavit"
+  },
+  "pzfg136_09": {
+   "source": "FortiOS did not take the key {0} ({1}) - the next format",
+   "text": "FortiOS nepřijal klíč {0} ({1}) – zkouší se další formát"
+  },
+  "pzfg136_10": {
+   "source": "FortiOS refused to replace {0} in place: {1}; the key was given in {2} formats - {3} is untouched (FortiOS changes nothing when it refuses)",
+   "text": "FortiOS odmítl nahradit {0} na místě: {1}; klíč byl poslán v {2} formátech – {3} zůstal beze změny (FortiOS při odmítnutí nic nemění)"
   }
  },
  "rich": {

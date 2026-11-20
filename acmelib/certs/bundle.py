@@ -235,6 +235,16 @@ class CertBundle(Bundle):
             if not password:
                 raise PkiError('an encrypted key needs a password')
             return pki.key_encrypt(self._need_key(fmt), password).encode('ascii')
+        # Two shapes more of an encrypted key (1.0.136), not offered as files: what a network
+        # device reads when it is given a one-time password (FortiOS's replace in place)
+        if fmt == 'key-pem-enc-compat':
+            if not password:
+                raise PkiError('an encrypted key needs a password')
+            return pki.key_encrypt(self._need_key(fmt), password, iterations=2048).encode('ascii')
+        if fmt == 'key-traditional-enc':
+            if not password:
+                raise PkiError('an encrypted key needs a password')
+            return pki.key_traditional_encrypt(self._need_key(fmt), password).encode('ascii')
         if fmt == 'chain-pem':
             return self.chain_pem.encode('ascii')
         if fmt == 'fullchain-pem':

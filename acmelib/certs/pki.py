@@ -913,13 +913,15 @@ def key_plain(key, password=None):
 KEY_ENC_ITER = 600000
 
 
-def key_encrypt(key_pem, password, cipher='aes-256-cbc'):
+def key_encrypt(key_pem, password, cipher='aes-256-cbc', iterations=None):
     """The key as encrypted PKCS#8 PEM (PBES2, PBKDF2-HMAC-SHA256, KEY_ENC_ITER rounds) - by
-    openssl pkcs8, which takes the count (pkey does not; OpenSSL 1.0.2 and later)."""
+    openssl pkcs8, which takes the count (pkey does not; OpenSSL 1.0.2 and later).
+    `iterations`: another count (1.0.136: 2048, OpenSSL's own default, for a device that sets
+    a one-time password - a network device's own library may not take 600000)."""
     if not password:
         raise PkiError('a password is needed to encrypt a key')
     out = openssl(['pkcs8', '-topk8', '-v2', cipher, '-v2prf', 'hmacWithSHA256',
-                   '-iter', str(KEY_ENC_ITER), '-passout', 'env:' + PASS_ENV_OUT],
+                   '-iter', str(int(iterations or KEY_ENC_ITER)), '-passout', 'env:' + PASS_ENV_OUT],
                   data=key_plain(key_pem), env={PASS_ENV_OUT: password})
     return out.decode('ascii')
 
@@ -941,6 +943,21 @@ def key_traditional(key_pem):
     if alg in ('1.3.101.112', '1.3.101.113'):
         return plain
     out = openssl(['pkey', '-traditional'], data=plain)
+    return out.decode('ascii')
+
+
+def key_traditional_encrypt(key_pem, password):
+    """The key in its own type's format (PKCS#1 / SEC1), encrypted the old PEM way
+    (Proc-Type: 4,ENCRYPTED, DEK-Info: AES-256-CBC) - 1.0.136, for devices that read that one.
+    Ed25519 / Ed448 have none: their PKCS#8, encrypted."""
+    if not password:
+        raise PkiError('a password is needed to encrypt a key')
+    plain = key_plain(key_pem)
+    trad = key_traditional(plain)
+    if 'BEGIN PRIVATE KEY' in trad:
+        return key_encrypt(plain, password, iterations=2048)
+    out = openssl(['pkey', '-traditional', '-aes256', '-passout', 'env:' + PASS_ENV_OUT],
+                  data=plain, env={PASS_ENV_OUT: password})
     return out.decode('ascii')
 
 
