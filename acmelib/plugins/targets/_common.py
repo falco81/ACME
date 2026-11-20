@@ -862,7 +862,10 @@ class Base(Target):
                             default_port=self.default_verify_port)
 
     def keep(self, options):
-        return as_int((options or {}).get('keep', self.deploy_default('keep', 2)), 2)
+        # a "keep" left empty (the page sends null for an emptied number) is the field's own
+        # default, as opt() reads it - not 2 (Plesk's -1 "keep all" deleted the older ones)
+        default = self.deploy_default('keep', 2)
+        return as_int(self.opt(options, 'keep', default), as_int(default, 2))
 
     def deploy_default(self, key, default=None):
         for f in self.deploy_fields:

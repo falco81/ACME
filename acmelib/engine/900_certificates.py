@@ -164,7 +164,8 @@ SAYS.update({
     'certs_checks_after_deploy': 'After a certificate is put on a target, the tests of that '
                                  'deployment connect to the server as a client would (HTTPS, '
                                  'SMTP, RDP…) and look whether it serves the new certificate. '
-                                 'A failed test makes the deployment a warning, not a failure.',
+                                 'A failed test fails the deployment on its target (tried '
+                                 'again later, said in the alerts).',
     'certs_checks_auto': 'Every test is run again on its own, on the node that leads - a '
                          'server that went back to an old certificate, or serves another '
                          'one, is found without anybody looking.',

@@ -94,11 +94,19 @@ def _no_chain(store, issuer):
     return bool(row and row.get('kind') == 'selfsigned')
 
 
-def _bundle(cert, b, cls, store=None):
+def _bundle(cert, b, cls, store=None, opts=None, strict=False):
     if cert and cert.get('cert_pem'):
         whole = S.bundle_of(cert)
-        return deployer.pick_variant(whole, {}, cls) if not getattr(cls, 'dual', False) \
-            else whole
+        if getattr(cls, 'dual', False):
+            return whole
+        # the one of a dual certificate the deployment's "variant" says, as deploy_one()
+        # hands it over (the preview and the test took the RSA one whatever it said)
+        try:
+            return deployer.pick_variant(whole, opts or {}, cls)
+        except base.PluginError:
+            if strict:
+                raise
+            return deployer.pick_variant(whole, {}, cls)
     names = A._list(b.get('names'), 'names') if b.get('names') else []
     if cert:
         names = S.jload(cert.get('names'), []) or names
@@ -123,7 +131,7 @@ def _deploys_preview(h, s):
     ctx.target_name = trow['name']
     if dep:
         ctx.deploy_id = dep['id']
-    bundle = _bundle(cert, b, cls, h.store)
+    bundle = _bundle(cert, b, cls, h.store, opts)
     if hasattr(cls, 'agent_key_of') and isinstance(bundle, SampleBundle) and trow['name'] == str(
             (cert or {}).get('csr_from') or ('' if cert else b.get('csr_from')) or ''):
         # a certificate whose key the agent makes (1.0.116), not issued yet - the new
@@ -188,7 +196,8 @@ def _deploys_dry_run(h, s):
             job.step('testing the deployment of %s to %s (%s): nothing is put in place'
                      % (cert['name'], trow['name'], trow['kind']))
             t = cls(S.plugin_config('target', trow), ctx)
-            said = t.dry_run(_bundle(cert, b, cls), opts, run_script=bool(run_script))
+            said = t.dry_run(_bundle(cert, b, cls, opts=opts, strict=True), opts,
+                             run_script=bool(run_script))
             job.step(str(said or 'the test passed'), 'ok')
             return True, str(said or 'the test passed')
         finally:
