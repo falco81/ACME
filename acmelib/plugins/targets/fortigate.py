@@ -917,11 +917,14 @@ class FortiGateTarget(HttpTarget):
         """VDOMs on: more than one VDOM listed; else what system global says, when it is
         real; else None (unknown)."""
         v = self.all_vdoms()
-        if v is not None and v:
-            return len(v) > 1
+        if v and (len(v) > 1 or v[0] != 'root'):
+            # a VDOM but root: VDOMs are on (a token of one VDOM lists only its own)
+            return True
         mode = text(self.sys_global_real().get('vdom-mode')).strip()
         if mode:
             return mode != 'no-vdom'
+        if v:
+            return False
         return None
 
     def mgmt_vdom(self):
@@ -929,9 +932,26 @@ class FortiGateTarget(HttpTarget):
         is real; None when it is not known (never guessed: the way through the global range
         in another VDOM empties the certificate)."""
         typed = text(self.c('mgmt_vdom')).strip()
+        real = text(self.sys_global_real().get('management-vdom')).strip()
+        if typed and real and typed != real:
+            # what the FortiGate says wins: a wrong one typed would take the global range
+            # in a VDOM that is not the management one (it empties the certificate there)
+            if not getattr(self, '_mgmt_said', False):
+                self._mgmt_said = True
+                self.ctx.step('the target\'s "Management VDOM" says %s, the FortiGate says %s '
+                              '- %s is taken' % (typed, real, real), 'warn')
+            return real
         if typed:
+            vd = self.all_vdoms()
+            if vd and typed not in vd:
+                if not getattr(self, '_mgmt_said', False):
+                    self._mgmt_said = True
+                    self.ctx.step('the target\'s "Management VDOM" %s is not a VDOM of this '
+                                  'FortiGate (%s) - the management VDOM is not known'
+                                  % (typed, ', '.join(vd)), 'warn')
+                return None
             return typed
-        return text(self.sys_global_real().get('management-vdom')).strip() or None
+        return real or None
 
     def delete_local(self, n, vdom, rng):
         """A local certificate deleted - one of the global range on a FortiGate with VDOMs in
@@ -1006,6 +1026,9 @@ class FortiGateTarget(HttpTarget):
         found = self.certs_on_device(vdom, self.avail_scope(vdom, row))
         old_fp = old.get('fp') or next((fp for fp, rows in found['local'].items()
                                         if name in [r['name'] for r in rows]), '')
+        # the key checked against the certificate before anything is written (a CA imported
+        # or acme's copy deleted and then a stop on a key that is not the certificate's)
+        forms = None if old_fp and old_fp == new_fp else self.key_forms(bundle, options)
         # 3. the intermediates missing: as CA certificates, before the PUT
         self.eval_check(bundle, options, found)
         self.cas_before(bundle, options, found)
@@ -1019,22 +1042,22 @@ class FortiGateTarget(HttpTarget):
         # 6. the PUT - or, FortiOS before 7.6 and a certificate of the VDOM's range, straight
         # through the global range (management VDOM) or the CLI (elsewhere): no trial PUT
         if straight:
-            switched = self.api_put(bundle, vdom, name, options, row, switch=True)
+            switched = self.api_put(bundle, vdom, name, options, row, switch=True, forms=forms)
         else:
-            switched = self.api_put(bundle, vdom, name, options, row)
+            switched = self.api_put(bundle, vdom, name, options, row, forms=forms)
         # 7. read back
         self.api_check(name, vdom, new_fp, row.get('q_ref'), found, bundle, row, switched)
         self.ctx.step('%s replaced in place - its name and every use of it kept' % name, 'ok')
         return ['%s replaced in place' % name]
 
-    def api_put(self, bundle, vdom, name, options=None, row=None, switch=False):
+    def api_put(self, bundle, vdom, name, options=None, row=None, switch=False, forms=None):
         """PUT cmdb vpn.certificate/local/<name>: the leaf (FortiOS keeps the leaf only), the
         key PKCS#8 encrypted with a one-time password. Refused: said by its cli_error -
         FortiOS changes nothing then (revision_changed false)."""
         leaf = pem_blocks(text(bundle.as_format('cert-pem')))
         if not leaf:
             raise PluginError('the certificate has no PEM to send', retry=False)
-        forms = self.key_forms(bundle, options)
+        forms = forms or self.key_forms(bundle, options)
         if switch:
             form, pw, key = forms[0]
             return self.range_switch(name, vdom, form, pw, key, leaf[0], None, bundle=bundle)
@@ -1234,6 +1257,8 @@ class FortiGateTarget(HttpTarget):
             return []
         found = self.certs_on_device(vdom, self.avail_scope(vdom, row), warn=True)
         drop = self.duplicates(name, vdom, new_fp, prefix, found)
+        # the key checked before anything is written (a copy deleted, then a stop)
+        kf = self.key_forms(bundle, options, cli=True)
         with self.fgt_ssh() as s:
             status = self.cli_status(s)
             self.ctx.step('signed in over SSH as %s: %s - the certificate is replaced in the '
@@ -1241,7 +1266,7 @@ class FortiGateTarget(HttpTarget):
             scope, where = self.scope_of(row, self.vdoms_on(status, s), vdom)
             for n in drop:
                 self.drop_copy(n, vdom, name)
-            self.cli_replace(s, bundle, name, scope, where, vdom, row, options)
+            self.cli_replace(s, bundle, name, scope, where, vdom, row, options, kf=kf)
             self.check_in_place(s, name, scope, where, vdom, new_fp)
         self.ctx.step('%s replaced in place - its name and every use of it kept' % name, 'ok')
         self.import_cas(bundle, options)
@@ -1563,13 +1588,13 @@ class FortiGateTarget(HttpTarget):
         body += ['next', 'end'] if commit else ['abort']
         return '\n'.join(self.in_scope(scope, where, body)) + '\n'
 
-    def cli_replace(self, s, bundle, name, scope, where, vdom, row, options=None):
+    def cli_replace(self, s, bundle, name, scope, where, vdom, row, options=None, kf=None):
         """The certificate and key of `name` replaced in the CLI: the lines first ended with
         abort - FortiOS checks each, nothing is saved -, the key encrypted with a one-time
         password (as FortiOS keeps it), as plain PEM when that is refused; then, taken, the
         same lines saved. Refused: said, the old certificate read back to say it is as it was."""
         cert = text(bundle.as_format('cert-pem')).strip()
-        kf = self.key_forms(bundle, options, cli=True)
+        kf = kf or self.key_forms(bundle, options, cli=True)
         forms = [(p, k.strip()) for _f, p, k in kf]
         words = [self.KEY_WORDS[f] for f, _p, _k in kf]
         hide = [p for p, _k in forms if p]
