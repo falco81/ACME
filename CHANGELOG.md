@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.136 - not released
+## 1.0.136 - 2026-11-20
 
 - **FortiGate, replace in place: a name the FortiGate does not have is created under that name.** A name typed by hand (or chosen earlier and since deleted) stopped every deployment with "there is no local certificate … on the FortiGate". The new option *When it is not there* (replace mode) creates it by default - the certificate imported under exactly that name with its intermediates - and every deployment after it replaces it in place; *stop* keeps the old behaviour.
 - **FortiGate, replace in place: the key format is chosen, or tried in turn.** A FortiGate-40F on FortiOS 7.4.13 refused the replacement with "Input is not a valid/matched certificate" although the key belonged to the certificate. The new option *Key format* (advanced) is *automatic* by default: the key goes as PKCS#8 encrypted with a one-time password first, and when FortiOS says the key is not right the next format is tried - PKCS#8 encrypted with PBKDF2 2048, traditional (PKCS#1 / SEC1) encrypted, PKCS#8, traditional. Every refusal changes nothing on the FortiGate; the job says which format was taken. Over SSH the same formats are tried, each first ended with `abort`.
