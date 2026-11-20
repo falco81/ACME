@@ -232,7 +232,7 @@ V GUI totéž: *System → Administrators → Create New → REST API Admin* (pr
 | Ověřovat certifikát zařízení | zapnuto; vypnuto jen dokud má FortiGate vlastní `Fortinet_GUI_Server` |
 | Certifikát administrace / SSL VPN (nasazení) | zaškrtněte, co má certifikát používat |
 | Inspekční profily SSL/SSH, Virtuální IP (nasazení) | jedno jméno na řádek, např. `inbound-replace`, `vip-www` |
-| Uživatel SSH (nahrazení přes SSH), jeho klíč nebo heslo SSH | jen když *Způsob nahrazení* je SSH: správce s `vpngrp` čtení i zápis (rozsah global: `scope global`); jinak prázdné - nahrazení přes REST API stačí token |
+| Uživatel SSH (nahrazení přes SSH), jeho klíč nebo heslo SSH | když se nahrazuje přes SSH (i samo, ve VDOM jiné než management): správce s profilem `vpngrp` čtení i zápis, `netgrp read`, `cli-get` a `cli-config` (rozsah global: `scope global`); jinak prázdné - nahrazení přes REST API stačí token |
 | Kolik předchozích verzí ponechat (pokročilé) | kolik starších certifikátů acme ponechat (používaný se nikdy nesmaže) |
 
 Administrace přejde na nový certifikát hned: se zapnutým *Ověřovat certifikát zařízení* se další požadavky acme ověřují proti němu (certifikát veřejné CA projde; u soukromé CA nastavte *CA certifikát*). Skupiny, které profil neuvádí, mají výchozí `none`.

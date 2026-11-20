@@ -214,7 +214,7 @@ In the GUI the same is *System → Administrators → Create New → REST API Ad
 | Check the device's certificate | on; off only while the FortiGate still has its self-signed `Fortinet_GUI_Server` |
 | Admin GUI / SSL VPN certificate (deploy) | tick what should use the certificate |
 | SSL/SSH inspection profiles, Virtual IPs (deploy) | one name a line, e.g. `inbound-replace`, `vip-www` |
-| SSH user (replace over SSH), its key or SSH password | only when *How to replace* is SSH: an admin of a profile with `vpngrp` read-write, `netgrp read`, `cli-get` and `cli-config` (global range: `scope global`); empty otherwise - replace over the REST API needs the token only |
+| SSH user (replace over SSH), its key or SSH password | when it is replaced over SSH (also by itself, in a VDOM other than the management one): an admin of a profile with `vpngrp` read-write, `netgrp read`, `cli-get` and `cli-config` (global range: `scope global`); empty otherwise - replace over the REST API needs the token only |
 | Previous versions to keep (advanced) | older acme certificates to keep (one still referenced is never deleted) |
 
 The admin GUI switches to the new certificate at once: with *Check the device's certificate* on, acme's next requests are checked against it (a certificate of a public CA passes; for a private CA set *CA certificate*). The groups not listed in the profile default to `none`.
