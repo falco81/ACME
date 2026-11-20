@@ -72115,6 +72115,18 @@
   "zfg136b_03": {
    "source": "the key encrypted with a one-time password (PKCS#8, PBKDF2 600000)",
    "text": "klíč zašifrovaný jednorázovým heslem (PKCS#8, PBKDF2 600000)"
+  },
+  "zfg136d_01": {
+   "source": "Management VDOM",
+   "text": "Management VDOM"
+  },
+  "zfg136d_02": {
+   "source": "with VDOMs: the management VDOM (System → Settings), when the token's profile cannot read it (sysgrp read); empty: read from the FortiGate",
+   "text": "s VDOM: management VDOM (System → Settings), když ji profil tokenu nepřečte (sysgrp read); prázdné: přečte se z FortiGate"
+  },
+  "zfg136d_03": {
+   "source": "?, not known - see \"Management VDOM\"",
+   "text": "?, neznámá – viz „Management VDOM“"
   }
  },
  "patterns": {
@@ -100505,6 +100517,18 @@
   "pzfg136c_09": {
    "source": "deleted what was left of {0} in VDOM {1}",
    "text": "smazán zbytek {0} ve VDOM {1}"
+  },
+  "pzfg136d_01": {
+   "source": "{0} is a certificate of the range of VDOM {1} and the management VDOM is not known (the token's profile cannot read system global): FortiOS 7.4 lets the REST API replace it only through the global range, in the management VDOM - elsewhere that empties it. Type the target's \"Management VDOM\" (or give its token sysgrp read) - nothing was changed. Fill in the target's SSH sign-in (an administrator who may change VPN certificates in that VDOM) and acme replaces it in the FortiOS CLI",
+   "text": "{0} je certifikát s rozsahem VDOM {1} a management VDOM není známá (profil tokenu nepřečte system global): FortiOS 7.4 ho přes REST API dovolí nahradit jen přes globální rozsah v management VDOM – jinde ho to vyprázdní. Vyplňte u cíle „Management VDOM“ (nebo dejte tokenu sysgrp read) – nic se nezměnilo. Vyplňte u cíle přihlášení SSH (administrátor, který smí v té VDOM měnit certifikáty VPN) a acme ho nahradí v CLI FortiOS"
+  },
+  "pzfg136d_02": {
+   "source": "{0} is a certificate of the range of VDOM {1} and the management VDOM is not known (the token's profile cannot read system global): FortiOS 7.4 lets the REST API replace it only through the global range, in the management VDOM - elsewhere that empties it. Type the target's \"Management VDOM\" (or give its token sysgrp read) - nothing was changed; it is replaced in the FortiOS CLI over the target's SSH sign-in",
+   "text": "{0} je certifikát s rozsahem VDOM {1} a management VDOM není známá (profil tokenu nepřečte system global): FortiOS 7.4 ho přes REST API dovolí nahradit jen přes globální rozsah v management VDOM – jinde ho to vyprázdní. Vyplňte u cíle „Management VDOM“ (nebo dejte tokenu sysgrp read) – nic se nezměnilo; nahradí se v CLI FortiOS přes přihlášení SSH cíle"
+  },
+  "pzfg136d_03": {
+   "source": "{0} is of the range of VDOM {1}, the management VDOM: FortiOS before 7.6 refuses every new certificate of a VDOM's range (and a refused one may still change the key it keeps) - it is put in through the global range and back to the VDOM's",
+   "text": "{0} má rozsah VDOM {1}, management VDOM: FortiOS před 7.6 odmítne každý nový certifikát s rozsahem VDOM (a odmítnutý může přesto změnit uložený klíč) – vloží se přes globální rozsah a vrátí se zpět do VDOM"
   }
  },
  "rich": {

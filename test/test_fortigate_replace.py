@@ -171,6 +171,7 @@ class FakeFortiGate(object):
         self.fos7413 = False
         self.range_back_error = False   # PUT {"range": "vdom"} refused
         self.mgmt_vdom = 'root'         # cmdb system global management-vdom
+        self.global_defaults = False    # system global read with its defaults (no sysgrp)
         self.put_error = None           # (error, [lines]): every PUT refused so
         self.put_uses = None            # q_ref after a PUT
         self.ca_error = None            # a CA import refused with this error
@@ -403,10 +404,14 @@ class FakeFortiGate(object):
             return 200, dict(ok, results=[{'name': 'CA_Cert_%d' % (i + 1), 'ca': c}
                                           for i, c in enumerate(self.cas)])
         if path == '/api/v2/cmdb/system/global' and m == 'GET' and self.vdom_mode:
-            return 200, dict(ok, results={'vdom-mode': self.vdom_mode,
+            if self.global_defaults:        # vpngrp only (measured on 7.4.13)
+                return 200, dict(ok, results={'vdom-mode': 'no-vdom', 'hostname': '',
+                                              'management-vdom': 'root'})
+            return 200, dict(ok, results={'vdom-mode': self.vdom_mode, 'hostname': 'fw1',
                                           'management-vdom': self.mgmt_vdom})
         if path == '/api/v2/cmdb/system/vdom' and m == 'GET' and self.vdom_mode:
-            return 200, dict(ok, results=[{'name': 'root'}, {'name': 'Naj'}])
+            names = ['root', 'Naj'] if self.vdom_mode != 'no-vdom' else ['root']
+            return 200, dict(ok, results=[{'name': n} for n in names])
         if m == 'PUT':
             self.puts.setdefault(path, []).append(body)
             if path == '/api/v2/cmdb/system/global' and (body or {}).get('admin-server-cert'):
@@ -830,6 +835,7 @@ class ApiReplaceTest(Base):
         self.assertEqual([c['method'] for c in self.fg.calls
                           if 'monitor/system/status' not in c['path']
                           and 'cmdb/system/global' not in c['path']
+                          and 'cmdb/system/vdom' not in c['path']
                           and 'cmdb/vpn.certificate/local?' not in c['path'] + '?'
                           and not c['path'].endswith('/cmdb/vpn.certificate/local')],
                          ['GET', 'GET', 'PUT', 'GET', 'GET'])
@@ -936,7 +942,24 @@ class ApiReplaceTest(Base):
         """FortiOS 7.4.13 with VDOMs: a certificate of the VDOM's range is refused by every
         PUT ("not a valid/matched" alone) - replaced through the global range and back; the
         other key formats are not tried (the format is not why)."""
+        # 7.6 (unmeasured with VDOMs): the plain PUT first, refused - then the switch
         self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
+        self.fg.version = 'v7.6.8'
+        self.fg.local['web-cert']['range'] = 'vdom'
+        t, ctx = make(self.fg)
+        b = Bundle()
+        got = t.deploy(b, dict(REPLACE))
+        self.assertEqual(got, 'web-cert replaced in place')
+        puts = [c['body'] for c in self.fg.find('PUT', r'/local/web-cert$')]
+        self.assertEqual(len(puts), 3)
+        self.assertNotIn('range', puts[0])
+        # 7.4: no trial PUT (a refused one may still change the key kept - B4 of 2026-11-20)
+        self.tearDown()
+        self.setUp()
+        self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
+        self.fg.version = 'v7.4.13'
         self.fg.local['web-cert']['range'] = 'vdom'
         t, ctx = make(self.fg)
         b = Bundle()
@@ -946,8 +969,8 @@ class ApiReplaceTest(Base):
         self.assertEqual(der(row['certificate']), der(b.cert_pem))
         self.assertEqual(row['range'], 'vdom')
         puts = [c['body'] for c in self.fg.find('PUT', r'/local/web-cert$')]
-        self.assertEqual(len(puts), 3)
-        self.assertNotIn('range', puts[0])
+        self.assertEqual(len(puts), 2)
+        puts = [None] + puts
         self.assertEqual(puts[1]['range'], 'global')
         self.assertEqual(sorted(puts[1]), ['certificate', 'password', 'private-key', 'range'])
         self.assertEqual(puts[2], {'range': 'vdom'})
@@ -961,6 +984,7 @@ class ApiReplaceTest(Base):
         SSH it stops (nothing changed), with the target's SSH sign-in it goes to the CLI."""
         self.fg.fos7413 = True
         self.fg.vdom_mode = 'multi-vdom'
+        self.fg.version = 'v7.4.13'
         self.fg.local['web-cert']['range'] = 'vdom'
         t, ctx = make(self.fg, ssh=False, vdom='Naj')
         b = Bundle()
@@ -970,10 +994,27 @@ class ApiReplaceTest(Base):
         self.assertIn('a certificate of the range of VDOM Naj, over the REST API', words)
         self.assertIn('nothing was changed. Fill in the target\'s SSH sign-in', words)
         self.assertTrue(e.exception.lasting)
-        puts = [c['body'] for c in self.fg.find('PUT', r'/local/web-cert$')]
-        self.assertEqual(len(puts), 1)
-        self.assertNotIn('range', puts[0])
+        # nothing written at all - not even the trial PUT (B4)
+        self.assertFalse(self.fg.find('PUT', r'/local/web-cert$'))
         self.assertNotEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        # the management VDOM not readable (a token of vpngrp) and not typed: stopped too,
+        # never guessed; typed: taken
+        self.tearDown()
+        self.setUp()
+        self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
+        self.fg.global_defaults = True
+        self.fg.version = 'v7.4.13'
+        self.fg.local['web-cert']['range'] = 'vdom'
+        t, ctx = make(self.fg, ssh=False)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(b, dict(REPLACE))
+        self.assertIn('the management VDOM is not known', str(e.exception))
+        self.assertFalse(self.fg.find('PUT', r'/local/web-cert$'))
+        t, ctx = make(self.fg, ssh=False, mgmt_vdom='root')
+        t.deploy(b, dict(REPLACE))
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        self.assertEqual(self.fg.local['web-cert']['range'], 'vdom')
         # with SSH: the CLI
         self.tearDown()
         self.setUp()
@@ -993,6 +1034,7 @@ class ApiReplaceTest(Base):
         """An emptied certificate after the first PUT (as in VDOM Naj): said, the range not
         touched again."""
         self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
         self.fg.local['web-cert']['range'] = 'vdom'
         orig = self.fg.put
 
@@ -1023,6 +1065,7 @@ class ApiReplaceTest(Base):
 
     def test_fos_7413_range_not_set_back(self):
         self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
         self.fg.range_back_error = True
         self.fg.local['web-cert']['range'] = 'vdom'
         t, ctx = make(self.fg)
@@ -1152,6 +1195,7 @@ class ApiReplaceTest(Base):
     def test_global_and_vdom(self):
         """A certificate of the VDOM's range: available-certificates asked with scope vdom;
         one of the global range: scope global."""
+        self.fg.vdom_mode = 'multi-vdom'
         t, ctx = make(self.fg)
         b = Bundle()
         t.deploy(b, dict(REPLACE, replace_name='other'))
@@ -1419,8 +1463,10 @@ class SshReplaceTest(Base):
                 'global': 'config global\nconfig vpn certificate local\nedit "web-cert"\n'}[scope]
         for r in edits:
             self.assertTrue(r.startswith(head), r[:80])
-            self.assertRegex(r, r'\nset password "[^"\n]+"\nset private-key "-----BEGIN '
-                                r'ENCRYPTED PRIVATE KEY-----\n')
+            # 1.0.136 (measured on 7.4.13): an existing certificate refuses "set password" -
+            # the plain key first, no password
+            self.assertNotIn('set password', r)
+            self.assertIn('\nset private-key "-----BEGIN PRIVATE KEY-----\n', r)
             self.assertIn('\nset certificate "-----BEGIN CERTIFICATE-----\n', r)
             self.assertEqual(r.count('BEGIN CERTIFICATE'), 1, 'the leaf only')
         self.assertTrue(first.endswith('-----END CERTIFICATE-----"\nabort\n' +
@@ -1502,28 +1548,46 @@ class SshReplaceTest(Base):
         self.assertFalse([c for c in self.fg.calls if c['method'] != 'GET'])
 
     def test_encrypted_key_refused_plain_tried(self):
+        """1.0.136: the plain key first in the CLI (an existing certificate refuses "set
+        password" - measured on 7.4.13); an encrypted one only when "Key format" says so, and
+        refused it is said."""
         cli = FakeCli(self.fg)
         cli.refuse_encrypted = True
         t, ctx, b, got = self.deploy(cli=cli)
         edits = [r for r in cli.runs() if 'config vpn certificate local' in r]
-        # the three encrypted shapes (1.0.136: PKCS#8, PKCS#8 PBKDF2 2048, traditional), then
-        # the plain one checked and saved
-        self.assertEqual(len(edits), 5)
-        self.assertIn('ENCRYPTED PRIVATE KEY', edits[0])
-        self.assertIn('ENCRYPTED PRIVATE KEY', edits[1])
-        self.assertIn('Proc-Type: 4,ENCRYPTED', edits[2])
-        for r in edits[:3]:
-            self.assertTrue(r.endswith('abort\n'))
-        for r in edits[3:]:
+        self.assertEqual(len(edits), 2)
+        for r in edits:
             self.assertNotIn('set password', r)
             self.assertIn('set private-key "-----BEGIN PRIVATE KEY-----\n', r)
-        self.assertTrue(edits[3].endswith('abort\n') and edits[4].endswith('next\nend\n'))
+        self.assertTrue(edits[0].endswith('abort\n') and edits[1].endswith('next\nend\n'))
         self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
-        warn = [w for lv, w in ctx.steps if lv == 'warn']
-        self.assertTrue([w for w in warn if w.startswith(
-            'FortiOS did not take the key encrypted with a one-time password (Input is not a '
-            'valid/matched private key.')], warn)
+        self.assertFalse([w for lv, w in ctx.steps if lv == 'warn'])
         self.no_secrets(ctx, b)
+        # chosen encrypted: refused, nothing saved
+        self.tearDown()
+        self.setUp()
+        cli = FakeCli(self.fg)
+        cli.refuse_encrypted = True
+        t, ctx = make(self.fg, cli=cli)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(Bundle(), dict(SSHR, replace_key='pkcs8-enc'))
+        self.assertIn('Input is not a valid/matched private key.', str(e.exception))
+
+    def test_cli_status_without_the_vdom_line(self):
+        """An administrator of a profile gets no "Virtual domain configuration:" line and a
+        token of vpngrp reads system global's defaults (B1, B2 of 2026-11-20): the VDOMs from
+        cmdb system vdom - config vdom / edit used."""
+        cli = FakeCli(self.fg, vdoms=True)
+        orig = cli.shell
+
+        def shell(cmd, inp):
+            rc, out, err = orig(cmd, inp)
+            return rc, out.replace('Virtual domain configuration: multiple\n', ''), err
+        cli.ssh.answers = [(r'^\n', lambda c, i: shell(c, i))]
+        self.fg.vdom_mode = 'multi-vdom'
+        self.fg.global_defaults = True
+        t, ctx, b, got = self.deploy(cli=cli)
+        self.check_replaced(b, ctx, 'global')
 
     def test_status_after_the_prompt_and_paged(self):
         """A FortiGate 40F, 7.4.13 (the report of 2026-11-19): with no terminal the answer

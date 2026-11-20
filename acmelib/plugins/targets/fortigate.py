@@ -255,6 +255,11 @@ class FortiGateTarget(HttpTarget):
               help='System → Administrators → REST API Admin'),
         field('vdom', 'VDOM', 'text', default='root',
               help='empty on a FortiGate without VDOMs'),
+        # 1.0.136: a token of vpngrp only reads system global with its defaults (measured on
+        # 7.4.13) - the management VDOM is then typed here, or the token reads sysgrp too
+        field('mgmt_vdom', 'Management VDOM', 'text', advanced=True, pattern=SEG_PATTERN,
+              help='with VDOMs: the management VDOM (System → Settings), when the token\'s '
+                   'profile cannot read it (sysgrp read); empty: read from the FortiGate'),
     ] + tls_fields() + fgt_ssh_fields()
     deploy_fields = [
         # Replace in place (1.0.128): the certificate the FortiGate has already - its name,
@@ -741,10 +746,19 @@ class FortiGateTarget(HttpTarget):
                 did = self.api_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
             except NeedsCli as e:
                 v, mgmt = e.args
-                words = ('FortiOS refuses to replace %s, a certificate of the range of VDOM %s, '
-                         'over the REST API (FortiOS 7.4: every PUT of another certificate '
-                         'refused; through the global range only in the management VDOM, %s - '
-                         'elsewhere it empties the certificate)' % (name, v, mgmt))
+                if mgmt:
+                    words = ('FortiOS refuses to replace %s, a certificate of the range of VDOM '
+                             '%s, over the REST API (FortiOS 7.4: every PUT of another '
+                             'certificate refused; through the global range only in the '
+                             'management VDOM, %s - elsewhere it empties the certificate)'
+                             % (name, v, mgmt))
+                else:
+                    words = ('%s is a certificate of the range of VDOM %s and the management '
+                             'VDOM is not known (the token\'s profile cannot read system '
+                             'global): FortiOS 7.4 lets the REST API replace it only through '
+                             'the global range, in the management VDOM - elsewhere that empties '
+                             'it. Type the target\'s "Management VDOM" (or give its token '
+                             'sysgrp read)' % (name, v))
                 if not self.ssh_ready():
                     raise PluginError(words + ' - nothing was changed. Fill in the target\'s '
                                       'SSH sign-in (an administrator who may change VPN '
@@ -789,6 +803,7 @@ class FortiGateTarget(HttpTarget):
             if scope != 'vdom':
                 where = mgmt            # the global table lives in the management VDOM
             elif vdom != mgmt:
+                mgmt = mgmt or '?, not known - see "Management VDOM"'
                 self.ctx.step('%s is made in the range of VDOM %s, which is not the management '
                               'VDOM (%s): FortiOS 7.4 lets the REST API put no other '
                               'certificate into it later - the next deployments need the '
@@ -819,11 +834,17 @@ class FortiGateTarget(HttpTarget):
                  'pkcs8': 'as plain PEM',
                  'traditional': 'as plain PEM (traditional, PKCS#1 / SEC1)'}
 
-    def key_forms(self, bundle, options):
+    CLI_KEY_FORMS = ('pkcs8', 'traditional', 'pkcs8-enc-compat', 'pkcs8-enc', 'traditional-enc')
+
+    def key_forms(self, bundle, options, cli=False):
         """[(form, password, key PEM)] to try, in turn: the one chosen ("Key format"), or with
-        "automatic" every one - those that cannot be made here left out."""
+        "automatic" every one - those that cannot be made here left out. In the CLI the plain
+        key first (1.0.136, measured on 7.4.13: an existing certificate refuses "set password"
+        - "Certificate '<name>' has password.", -14; the SSH channel is encrypted and FortiOS
+        keeps the key encrypted with its own)."""
         want = text((options or {}).get('replace_key') or 'auto').strip().lower()
-        names = self.KEY_FORMS if want not in self.KEY_FORMS else (want,)
+        order = self.CLI_KEY_FORMS if cli else self.KEY_FORMS
+        names = order if want not in self.KEY_FORMS else (want,)
         out, bad = [], []
         for f in names:
             try:
@@ -872,22 +893,45 @@ class FortiGateTarget(HttpTarget):
                 self.ctx.debug('cmdb system global cannot be read: %s' % e)
         return self._sysg
 
-    def multi_vdom(self):
-        mode = text(self.sys_global().get('vdom-mode')).strip()
-        return bool(mode) and mode != 'no-vdom'
-
-    def mgmt_vdom(self):
-        """The management VDOM ('root' when it cannot be read)."""
-        return text(self.sys_global().get('management-vdom')).strip() or 'root'
+    def sys_global_real(self):
+        """system global as it is - {} when the token reads only its defaults (measured on
+        7.4.13: with vpngrp alone vdom-mode no-vdom, an empty hostname, management-vdom root,
+        whatever the FortiGate has)."""
+        g = self.sys_global()
+        return g if text(g.get('hostname')).strip() else {}
 
     def all_vdoms(self):
-        try:
-            st, d = self.fos('GET', '/api/v2/cmdb/system/vdom', what='listing the VDOMs')
-            return [text(r.get('name')) for r in (d.get('results') or [])
-                    if isinstance(r, dict) and text(r.get('name')).strip()] if st == 200 else []
-        except PluginError as e:
-            self.ctx.debug('the VDOMs cannot be listed: %s' % e)
-            return []
+        """The VDOMs (cmdb system vdom - vpngrp reads it); None when it cannot be read."""
+        if getattr(self, '_vdoms', 0) == 0:
+            self._vdoms = None
+            try:
+                st, d = self.fos('GET', '/api/v2/cmdb/system/vdom', what='listing the VDOMs')
+                if st == 200 and isinstance(d.get('results'), list):
+                    self._vdoms = [text(r.get('name')) for r in d['results']
+                                   if isinstance(r, dict) and text(r.get('name')).strip()]
+            except PluginError as e:
+                self.ctx.debug('the VDOMs cannot be listed: %s' % e)
+        return self._vdoms
+
+    def multi_vdom(self):
+        """VDOMs on: more than one VDOM listed; else what system global says, when it is
+        real; else None (unknown)."""
+        v = self.all_vdoms()
+        if v is not None and v:
+            return len(v) > 1
+        mode = text(self.sys_global_real().get('vdom-mode')).strip()
+        if mode:
+            return mode != 'no-vdom'
+        return None
+
+    def mgmt_vdom(self):
+        """The management VDOM: the target's "Management VDOM", else system global's when it
+        is real; None when it is not known (never guessed: the way through the global range
+        in another VDOM empties the certificate)."""
+        typed = text(self.c('mgmt_vdom')).strip()
+        if typed:
+            return typed
+        return text(self.sys_global_real().get('management-vdom')).strip() or None
 
     def delete_local(self, n, vdom, rng):
         """A local certificate deleted - one of the global range on a FortiGate with VDOMs in
@@ -896,12 +940,12 @@ class FortiGateTarget(HttpTarget):
         path = LOCAL + '/%s' % urllib.parse.quote(n, safe='')
         if rng != 'global' or not self.multi_vdom():
             return self.fos('DELETE', path, vdom=vdom, what='deleting %s' % n)
-        mgmt = self.mgmt_vdom()
-        st, d = self.fos('DELETE', path, vdom=mgmt, what='deleting %s' % n)
+        first = self.mgmt_vdom() or vdom
+        st, d = self.fos('DELETE', path, vdom=first, what='deleting %s' % n)
         if not self.fos_ok(st, d):
             return st, d
-        for v in self.all_vdoms():
-            if v == mgmt:
+        for v in self.all_vdoms() or []:
+            if v == first:
                 continue
             try:
                 st2, d2 = self.fos('GET', path, vdom=v, what='looking for %s in %s' % (n, v))
@@ -944,7 +988,7 @@ class FortiGateTarget(HttpTarget):
         self.ctx.step('it is replaced over the REST API (PUT cmdb vpn.certificate/local/%s) - '
                       'the token is enough, no SSH' % name)
         if self.range_of(row) == 'global' and text(vdom).strip() and self.multi_vdom() and \
-                vdom != self.mgmt_vdom():
+                self.mgmt_vdom() and vdom != self.mgmt_vdom():
             self.ctx.step('%s is of the global range: it is written in the management VDOM (%s) '
                           '- in VDOM %s it is that one\'s image' % (name, self.mgmt_vdom(), vdom))
             vdom = self.mgmt_vdom()
@@ -962,14 +1006,22 @@ class FortiGateTarget(HttpTarget):
         # 5. a copy of the new one under another name: FortiOS would refuse it as a duplicate
         for n in self.duplicates(name, vdom, new_fp, prefix, found):
             self.drop_copy(n, vdom, name)
-        # 6. the PUT
-        switched = self.api_put(bundle, vdom, name, options, row)
+        # 6. the PUT - or, FortiOS before 7.6 and a certificate of the VDOM's range, straight
+        # through the global range (management VDOM) or the CLI (elsewhere): no trial PUT
+        ver = self.fos_version(vdom) or (0, 0, 0)
+        if self.range_of(row) == 'vdom' and text(vdom).strip() and tuple(ver[:2]) < (7, 6):
+            mgmt = self.mgmt_vdom()
+            if mgmt is None or vdom != mgmt:
+                raise NeedsCli(vdom, mgmt)
+            switched = self.api_put(bundle, vdom, name, options, row, switch=True)
+        else:
+            switched = self.api_put(bundle, vdom, name, options, row)
         # 7. read back
         self.api_check(name, vdom, new_fp, row.get('q_ref'), found, bundle, row, switched)
         self.ctx.step('%s replaced in place - its name and every use of it kept' % name, 'ok')
         return ['%s replaced in place' % name]
 
-    def api_put(self, bundle, vdom, name, options=None, row=None):
+    def api_put(self, bundle, vdom, name, options=None, row=None, switch=False):
         """PUT cmdb vpn.certificate/local/<name>: the leaf (FortiOS keeps the leaf only), the
         key PKCS#8 encrypted with a one-time password. Refused: said by its cli_error -
         FortiOS changes nothing then (revision_changed false)."""
@@ -977,6 +1029,9 @@ class FortiGateTarget(HttpTarget):
         if not leaf:
             raise PluginError('the certificate has no PEM to send', retry=False)
         forms = self.key_forms(bundle, options)
+        if switch:
+            form, pw, key = forms[0]
+            return self.range_switch(name, vdom, form, pw, key, leaf[0], None, bundle=bundle)
         tried = []
         for i, (form, pw, key) in enumerate(forms):
             body = {}
@@ -1008,7 +1063,7 @@ class FortiGateTarget(HttpTarget):
                 # global range is an image of the management VDOM's - the certificate emptied,
                 # the range not set back, -145 "The field private-key is empty!")
                 mgmt = self.mgmt_vdom()
-                if vdom != mgmt:
+                if mgmt is None or vdom != mgmt:
                     raise NeedsCli(vdom, mgmt)
                 return self.range_switch(name, vdom, form, pw, key, leaf[0], d,
                                          bundle=bundle)
@@ -1027,10 +1082,16 @@ class FortiGateTarget(HttpTarget):
         the global range - PUT {key, certificate, range global}, then PUT {range vdom}. FortiOS
         checks nothing on that way (the pair is checked here before, the copies looked for,
         the fingerprint read after); everything bound to the name keeps it. -> True."""
-        self.ctx.step('FortiOS refused it as "not a valid/matched certificate" although the '
-                      'key is the certificate\'s (checked here) - FortiOS 7.4 refuses every '
-                      'new certificate of a VDOM\'s range this way; it is put in through the '
-                      'global range and back to the VDOM\'s (VDOM %s)' % vdom, 'warn')
+        if refused is None:
+            self.ctx.step('%s is of the range of VDOM %s, the management VDOM: FortiOS before '
+                          '7.6 refuses every new certificate of a VDOM\'s range (and a refused '
+                          'one may still change the key it keeps) - it is put in through the '
+                          'global range and back to the VDOM\'s' % (name, vdom))
+        else:
+            self.ctx.step('FortiOS refused it as "not a valid/matched certificate" although the '
+                          'key is the certificate\'s (checked here) - FortiOS 7.4 refuses every '
+                          'new certificate of a VDOM\'s range this way; it is put in through the '
+                          'global range and back to the VDOM\'s (VDOM %s)' % vdom, 'warn')
         path = LOCAL + '/%s' % urllib.parse.quote(name, safe='')
         body = {}
         if pw:
@@ -1171,7 +1232,7 @@ class FortiGateTarget(HttpTarget):
             status = self.cli_status(s)
             self.ctx.step('signed in over SSH as %s: %s - the certificate is replaced in the '
                           'FortiOS CLI' % (self.ssh_user(), status['words']), 'ok')
-            scope, where = self.scope_of(row, self.vdoms_on(status), vdom)
+            scope, where = self.scope_of(row, self.vdoms_on(status, s), vdom)
             for n in drop:
                 self.drop_copy(n, vdom, name)
             self.cli_replace(s, bundle, name, scope, where, vdom, row, options)
@@ -1437,9 +1498,21 @@ class FortiGateTarget(HttpTarget):
             words += ', VDOMs %s' % ('on (%s)' % vd.group(1) if vdoms else 'off')
         return {'version': v.group(1) if v else '', 'vdoms': vdoms, 'words': words}
 
-    def vdoms_on(self, status):
+    def vdoms_on(self, status, s=None):
         if status.get('vdoms') is not None:
             return status['vdoms']
+        # 1.0.136: an administrator of a profile gets no "Virtual domain configuration:" line,
+        # and a token of vpngrp reads system global's defaults - the list of VDOMs first, then
+        # the CLI: "config vdom" taken (VDOMs on) or refused (off)
+        on = self.multi_vdom()
+        if on is not None:
+            return on
+        if s is not None:
+            out = self.cli(s, 'config vdom\nend\n')
+            if re.search(r'unknown action|parse error|command fail', out, re.I):
+                return False
+            if re.search(r'\(vdom\)', out):
+                return True
         try:
             st, d = self.api('GET', '/api/v2/cmdb/system/global', what='reading the VDOM mode')
             r = (d or {}).get('results') if isinstance(d, dict) else None
@@ -1490,7 +1563,7 @@ class FortiGateTarget(HttpTarget):
         password (as FortiOS keeps it), as plain PEM when that is refused; then, taken, the
         same lines saved. Refused: said, the old certificate read back to say it is as it was."""
         cert = text(bundle.as_format('cert-pem')).strip()
-        kf = self.key_forms(bundle, options)
+        kf = self.key_forms(bundle, options, cli=True)
         forms = [(p, k.strip()) for _f, p, k in kf]
         words = [self.KEY_WORDS[f] for f, _p, _k in kf]
         hide = [p for p, _k in forms if p]
