@@ -73,8 +73,8 @@ mode (that copy would be a duplicate). FortiOS never renames a local certificate
 1.0.136, from a FortiGate-40F on 7.4.13 (real hardware): a name the FortiGate does not have is
 created under that name (replace_missing: create, the default; stop - as until 1.0.135); the
 key goes in the format chosen (replace_key), "auto" trying each in turn while FortiOS says the
-key is not right (each refusal changes nothing: PKCS#8 encrypted, PKCS#8 encrypted with PBKDF2
-2048, traditional encrypted, PKCS#8, traditional); the CLI's answer is read with the prompt
+key is not right (PKCS#8 encrypted with PBKDF2 2048, PKCS#8 encrypted, traditional encrypted,
+PKCS#8, traditional; in the CLI the plain ones first); the CLI's answer is read with the prompt
 before it on its line, the prompt "$" and the console's pager ("--More--").
 """
 from __future__ import annotations

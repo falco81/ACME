@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.137 - not released
 
+- **FortiGate guides: the order of the key formats as it is.** The guides (and the 1.0.136 notes) said the *automatic* key format tries PKCS#8 encrypted with a one-time password first and PBKDF2 2048 second, and that a refusal changes nothing. acme tries PKCS#8 encrypted with PBKDF2 2048 first, then PBKDF2 600000, traditional encrypted, PKCS#8 and traditional; over SSH the plain key goes first. On FortiOS 7.4 a refused PUT may still change the key kept, which is why a certificate of a VDOM's range gets no trial PUT there. Only the text changed.
+
 ## 1.0.136 - 2026-11-20
 
 - **FortiGate, replace in place: a name the FortiGate does not have is created under that name.** A name typed by hand (or chosen earlier and since deleted) stopped every deployment with "there is no local certificate … on the FortiGate". The new option *When it is not there* (replace mode) creates it by default - the certificate imported under exactly that name with its intermediates - and every deployment after it replaces it in place; *stop* keeps the old behaviour.
