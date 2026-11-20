@@ -72127,6 +72127,22 @@
   "zfg136d_03": {
    "source": "?, not known - see \"Management VDOM\"",
    "text": "?, neznámá – viz „Management VDOM“"
+  },
+  "z_1729": {
+   "source": "the target's \"Management VDOM\" says %s, the FortiGate says %s - %s is taken",
+   "text": "„Management VDOM“ cíle říká %s, FortiGate říká %s – použije se %s"
+  },
+  "z_1730": {
+   "source": "the target's \"Management VDOM\" %s is not a VDOM of this FortiGate (%s) - the management VDOM is not known",
+   "text": "„Management VDOM“ cíle %s není VDOM tohoto FortiGate (%s) – management VDOM není známa"
+  },
+  "z_1731": {
+   "source": "After a certificate is put on a target, the tests of that deployment connect to the server as a client would (HTTPS, SMTP, RDP…) and look whether it serves the new certificate. A failed test fails the deployment on its target (tried again later, said in the alerts).",
+   "text": "Po nasazení certifikátu na cíl se testy toho nasazení připojí k serveru jako klient (HTTPS, SMTP, RDP…) a podívají se, jestli posílá nový certifikát. Neúspěšný test nasazení na jeho cíli selže (zkusí se znovu později, ozve se v upozorněních)."
+  },
+  "z_1732": {
+   "source": "the certificate has no PEM to send",
+   "text": "certifikát nemá PEM k odeslání"
   }
  },
  "patterns": {
@@ -100529,6 +100545,30 @@
   "pzfg136d_03": {
    "source": "{0} is of the range of VDOM {1}, the management VDOM: FortiOS before 7.6 refuses every new certificate of a VDOM's range (and a refused one may still change the key it keeps) - it is put in through the global range and back to the VDOM's",
    "text": "{0} má rozsah VDOM {1}, management VDOM: FortiOS před 7.6 odmítne každý nový certifikát s rozsahem VDOM (a odmítnutý může přesto změnit uložený klíč) – vloží se přes globální rozsah a vrátí se zpět do VDOM"
+  },
+  "pz_565": {
+   "source": "the target's \"Management VDOM\" says {0}, the FortiGate says {1} - {2} is taken",
+   "text": "„Management VDOM“ cíle je {0}, FortiGate říká {1} – použije se {2}"
+  },
+  "pz_566": {
+   "source": "the target's \"Management VDOM\" {0} is not a VDOM of this FortiGate ({1}) - the management VDOM is not known",
+   "text": "„Management VDOM“ cíle {0} není VDOM tohoto FortiGate ({1}) – management VDOM není známá"
+  },
+  "pz_567": {
+   "source": "this FortiGate runs FortiOS {0} - the module version \"{1}\" is for {2}; choose the version \"{3}\" of the target",
+   "text": "na tomto FortiGate běží FortiOS {0} – verze modulu „{1}“ je pro {2}; zvolte verzi cíle „{3}“"
+  },
+  "pz_568": {
+   "source": "the FortiOS version cannot be read - the shapes of {0} are used",
+   "text": "verzi FortiOS nelze přečíst – použijí se tvary pro {0}"
+  },
+  "pz_569": {
+   "source": "FortiOS {0} is newer than the documents this module version was checked against ({1})",
+   "text": "FortiOS {0} je novější než dokumentace, podle které byla tato verze modulu ověřena ({1})"
+  },
+  "pz_570": {
+   "source": "the new key and certificate given to the CLI for {0} (the key {1}{2}), ended with abort - FortiOS checks the lines, nothing is saved yet",
+   "text": "nový klíč a certifikát předány CLI pro {0} (klíč {1}{2}), ukončeno příkazem abort – FortiOS řádky zkontroluje, zatím se nic neuloží"
   }
  },
  "rich": {

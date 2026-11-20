@@ -217,9 +217,21 @@ def net_job_undo_told(daemon, job, by):
     ha_peer - and this node's ha_address - moved back to the address the node
     still has. Left, the cluster pointed at an address that never came."""
     w = job.get('want') or {}
+    store = daemon.store
+    # The database server's agent told the new address (step 1b, 1.0.137): told the old one
+    # again - else the other node's agent lets in, and layout B points keepalived, the
+    # firewall and chrony at, an address this node never took.
+    if job.get('agent_told') and w.get('old_ip') and w.get('new_ip'):
+        try:
+            db_agent_node_moved(store, w['new_ip'], w['old_ip'])
+            _job_put(store, job, 'the database server told the address %s again '
+                     '(acme-db-agent)' % w['old_ip'], job.get('pct'))
+        except Exception as e:                          # noqa: BLE001
+            _job_put(store, job, 'the database server could not be told the address %s again '
+                     '(%s)' % (w['old_ip'], e), job.get('pct'), ok=False)
+        job['agent_told'] = False
     if not job.get('told') or not w.get('ip_changed') or not w.get('old_ip'):
         return
-    store = daemon.store
     try:
         got = ha_readdress(store, mine=w['old_ip'], by='%s (put back)' % by, daemon=daemon)
         _job_put(store, job, 'the other node told the address again: %s' % (
@@ -278,6 +290,7 @@ def net_job_run(daemon, ask):
         # whose agent lets it in too. Without an agent nothing of it runs.
         if w.get('ip_changed') and w.get('new_ip') and db_agent_here():
             said = db_agent_node_moved(store, w.get('old_ip') or '', w['new_ip'])
+            job['agent_told'] = bool(w.get('old_ip'))
             _job_put(store, job, 'the database server lets %s in (acme-db-agent): %s' % (
                 w['new_ip'], '; '.join(said) or 'it did already'), 9)
         # 2. Out of the way first (1.0.56), before the other node is told: told,

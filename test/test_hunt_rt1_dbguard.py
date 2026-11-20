@@ -93,5 +93,31 @@ class TestLoadRowsMalformed(unittest.TestCase):
             STORE.db.run("DELETE FROM meta WHERE k LIKE 'load:db:zz%'")
 
 
+
+class TestNetJobAgentToldBack(unittest.TestCase):
+    """A network job that stops after step 1b told the database server's agent the new address:
+    the row (and layout B's node_address) told the old one again, as ha_readdress is."""
+
+    def test_told_back(self):
+        f = E.net_job_undo_told
+        calls, puts = [], []
+        g = f.__globals__
+        old = g['db_agent_node_moved'], g['_job_put']
+        g['db_agent_node_moved'] = lambda store, a, b, say=None: calls.append((a, b)) or []
+        g['_job_put'] = lambda store, job, text, pct, **kw: puts.append(text)
+        try:
+            job = {'want': {'ip_changed': True, 'old_ip': '10.0.0.1', 'new_ip': '10.0.0.9'},
+                   'agent_told': True}
+            f(type('D', (), {'store': STORE})(), job, 'test')
+            self.assertEqual(calls, [('10.0.0.9', '10.0.0.1')])
+            self.assertFalse(job['agent_told'])
+            f(type('D', (), {'store': STORE})(), job, 'test')        # only once
+            self.assertEqual(len(calls), 1)
+            calls.clear()
+            f(type('D', (), {'store': STORE})(), {'want': job['want']}, 'test')   # never told
+            self.assertEqual(calls, [])
+        finally:
+            g['db_agent_node_moved'], g['_job_put'] = old
+
 if __name__ == '__main__':
     unittest.main()
