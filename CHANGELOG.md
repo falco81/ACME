@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.138 - not released
+
 ## 1.0.137 - 2026-11-20
 
 - **FortiGate guides: the order of the key formats as it is.** The guides (and the 1.0.136 notes) said the *automatic* key format tries PKCS#8 encrypted with a one-time password first and PBKDF2 2048 second, and that a refusal changes nothing. acme tries PKCS#8 encrypted with PBKDF2 2048 first, then PBKDF2 600000, traditional encrypted, PKCS#8 and traditional; over SSH the plain key goes first. On FortiOS 7.4 a refused PUT may still change the key kept, which is why a certificate of a VDOM's range gets no trial PUT there. Only the text changed.
