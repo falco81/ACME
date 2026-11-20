@@ -164,6 +164,12 @@ class FakeFortiGate(object):
         self.hidden = set()             # names available-certificates does not say (a VDOM)
         self.dup_first = False          # "duplicated" the first line of cli_error (7.4.13)
         self.put_ignore = False         # a PUT said success, nothing kept
+        self.refuse_key_forms = []      # a private-key with one of these in it: refused
+        # FortiOS 7.4.13 with VDOMs (the measurements of 2026-11-20): a PUT of another
+        # certificate into one of the VDOM's range -651 "not a valid/matched" whatever the key;
+        # one of the global range taken unchecked; "range" switched by a PUT of its own
+        self.fos7413 = False
+        self.range_back_error = False   # PUT {"range": "vdom"} refused
         self.put_error = None           # (error, [lines]): every PUT refused so
         self.put_uses = None            # q_ref after a PUT
         self.ca_error = None            # a CA import refused with this error
@@ -253,7 +259,33 @@ class FakeFortiGate(object):
         body = body or {}
         if self.put_error:
             return self.err(500, self.put_error[0], list(self.put_error[1]), mkey=name)
+        if self.fos7413 and set(body) == {'range'}:
+            if self.range_back_error:
+                return self.err(500, -651, ['Input is not a valid/matched certificate.',
+                                            'Command fail. Return code -651'], mkey=name)
+            self.local[name]['range'] = body['range']
+            return 200, dict({'http_method': 'PUT', 'revision_changed': True, 'mkey': name,
+                              'status': 'success', 'http_status': 200}, **self.TAIL)
+        if any(f in text_of(body.get('private-key')) for f in self.refuse_key_forms):
+            return self.err(500, -651, ['Invalid private key, password may be required',
+                                        'Command fail. Return code -651'], mkey=name)
         pem = text_of(body.get('certificate'))
+        if self.fos7413:
+            row = self.local[name]
+            rng = body.get('range') or row['range']
+            same = row['certificate'].startswith('-----') and pem.strip() and \
+                der(row['certificate']) == der(pem)
+            if row['range'] == 'vdom' and rng == 'vdom' and not same:
+                return self.err(500, -651, [
+                    'current vf=root:0', 'Input is not a valid/matched certificate.',
+                    'node_check_object fail! for certificate -----BEGIN CERTIFICATE-----',
+                    "value parse error before '-----BEGIN CERTIFICATE-----",
+                    'Command fail. Return code -651'], mkey=name)
+            # the global range: nothing checked (U1, J3)
+            row.update(certificate=pem.strip() + '\n', range=rng,
+                       **{'private-key': '', 'password': 'ENC new'})
+            return 200, dict({'http_method': 'PUT', 'revision_changed': True, 'mkey': name,
+                              'status': 'success', 'http_status': 200}, **self.TAIL)
         blocks = re.findall(r'-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----', pem,
                             re.S)
         echo = (['node_check_object fail! for certificate -----BEGIN CERTIFICATE-----'] +
@@ -745,10 +777,13 @@ class ApiReplaceTest(Base):
         L = 'cmdb/vpn.certificate/local/web-cert'
         want = [('GET', L, (('vdom', 'root'), ('with_meta', '1'))),
                 ('GET', 'monitor/system/available-certificates',
-                 (('scope', 'global'), ('vdom', 'root'), ('with_ca', '1'))),
+                 (('scope', 'vdom'), ('vdom', 'root'), ('with_ca', '1'))),
                 ('POST', 'monitor/vpn-certificate/ca/import', ()),
                 ('PUT', L, (('vdom', 'root'),)),
-                ('GET', L, (('vdom', 'root'), ('with_meta', '1')))]
+                ('GET', L, (('vdom', 'root'), ('with_meta', '1'))),
+                # 1.0.136: read again for the new one's key size (scope=vdom with a VDOM)
+                ('GET', 'monitor/system/available-certificates',
+                 (('scope', 'vdom'), ('vdom', 'root'), ('with_ca', '1')))]
         for ver, fos in (('', 'v7.6.8'), ('6.0', 'v6.4.15'), ('7.0', 'v7.2.10'),
                          ('7.4.2', 'v7.4.13'), ('7.4.2', 'v8.0.0')):
             self.tearDown()
@@ -789,7 +824,7 @@ class ApiReplaceTest(Base):
                           if 'monitor/system/status' not in c['path']
                           and 'cmdb/vpn.certificate/local?' not in c['path'] + '?'
                           and not c['path'].endswith('/cmdb/vpn.certificate/local')],
-                         ['GET', 'GET', 'PUT', 'GET'])
+                         ['GET', 'GET', 'PUT', 'GET', 'GET'])
         self.assertIn('the intermediate CA certificate is on the FortiGate already', said(ctx))
 
     def test_already_in_place(self):
@@ -812,28 +847,31 @@ class ApiReplaceTest(Base):
         self.assertEqual(len(self.fg.writes()), n)
 
     def test_wrong_key_or_password(self):
+        """A key that does not open with its password (1.0.136): checked here, never sent -
+        FortiOS 7.4.13 stores such a pair unchecked on a certificate of the global range."""
         e, ctx, b = self.fails(WrongPasswordBundle(), opts={'replace_key': 'pkcs8-enc'})
-        self.assertIn('FortiOS refused to replace web-cert in place: it did not take the private '
-                      'key ("Invalid private key, password may be required") - web-cert is '
-                      'untouched (FortiOS changes nothing when it refuses)', str(e))
+        self.assertIn('the private key is not the certificate\'s (or does not open with its '
+                      'password) - checked here, nothing was sent to the FortiGate', str(e))
         self.assertFalse(e.retry)
-        self.assertIn('-651', e.detail)
+        self.assertTrue(e.lasting)
+        self.assertFalse(self.fg.find('PUT', r'.'))
         self.unchanged_target()
 
     def test_wrong_password_next_format_taken(self):
         """Key format automatic (1.0.136): a key FortiOS does not take - the next format;
         every refusal changes nothing (F10)."""
         t, ctx = make(self.fg)
-        b = WrongPasswordBundle()
+        b = Bundle()
+        self.fg.refuse_key_forms = ['ENCRYPTED PRIVATE KEY']
         t.deploy(b, dict(REPLACE))
         self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
         puts = self.fg.find('PUT', r'/local/web-cert$')
-        self.assertEqual(len(puts), 2)
+        self.assertEqual(len(puts), 3)
         warn = [w for lv, w in ctx.steps if lv == 'warn']
         self.assertIn('FortiOS did not take the key encrypted with a one-time password '
                       '(nothing was changed) - the next format', warn)
-        self.assertIn('this FortiGate takes the key encrypted with a one-time password (PKCS#8, '
-                      'PBKDF2 2048) - "Key format" may be set to it', said(ctx))
+        self.assertIn('this FortiGate takes the key encrypted with a one-time password '
+                      '(traditional, PKCS#1 / SEC1) - "Key format" may be set to it', said(ctx))
 
     def test_every_key_format_chosen(self):
         """Each "Key format" sends its own shape, alone."""
@@ -886,10 +924,55 @@ class ApiReplaceTest(Base):
                       str(e))
         self.assertFalse(self.fg.writes())
 
+    def test_fos_7413_vdom_range_switched(self):
+        """FortiOS 7.4.13 with VDOMs: a certificate of the VDOM's range is refused by every
+        PUT ("not a valid/matched" alone) - replaced through the global range and back; the
+        other key formats are not tried (the format is not why)."""
+        self.fg.fos7413 = True
+        self.fg.local['web-cert']['range'] = 'vdom'
+        t, ctx = make(self.fg)
+        b = Bundle()
+        got = t.deploy(b, dict(REPLACE))
+        self.assertEqual(got, 'web-cert replaced in place')
+        row = self.fg.local['web-cert']
+        self.assertEqual(der(row['certificate']), der(b.cert_pem))
+        self.assertEqual(row['range'], 'vdom')
+        puts = [c['body'] for c in self.fg.find('PUT', r'/local/web-cert$')]
+        self.assertEqual(len(puts), 3)
+        self.assertNotIn('range', puts[0])
+        self.assertEqual(puts[1]['range'], 'global')
+        self.assertEqual(sorted(puts[1]), ['certificate', 'password', 'private-key', 'range'])
+        self.assertEqual(puts[2], {'range': 'vdom'})
+        self.assertIn("web-cert is of the VDOM's range again", said(ctx))
+        self.assertTrue([w for w in said(ctx) if w.startswith('checked: web-cert holds')])
+        self.no_secrets(ctx, b)
+
+    def test_fos_7413_range_not_set_back(self):
+        self.fg.fos7413 = True
+        self.fg.range_back_error = True
+        self.fg.local['web-cert']['range'] = 'vdom'
+        t, ctx = make(self.fg)
+        b = Bundle()
+        t.deploy(b, dict(REPLACE))
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        self.assertEqual(self.fg.local['web-cert']['range'], 'global')
+        warn = [w for lv, w in ctx.steps if lv == 'warn']
+        self.assertTrue([w for w in warn if w.startswith(
+            'the range of web-cert could not be set back to the VDOM')], warn)
+
+    def test_fos_7413_global_range_unchecked_pair_checked_here(self):
+        """The global range takes a pair that does not match (U1): acme checks it before -
+        nothing sent."""
+        self.fg.fos7413 = True
+        e, ctx, b = self.fails(OtherKeyBundle())
+        self.assertIn('checked here, nothing was sent to the FortiGate', str(e))
+        self.assertFalse(self.fg.find('PUT', r'.'))
+
     def test_key_of_another_certificate(self):
         e, ctx, b = self.fails(OtherKeyBundle())
-        self.assertIn('FortiOS refused to replace web-cert in place: the key does not belong to '
-                      'the certificate ("Input is not a valid/matched certificate")', str(e))
+        self.assertIn('the private key is not the certificate\'s (or does not open with its '
+                      'password) - checked here, nothing was sent to the FortiGate', str(e))
+        self.assertFalse(self.fg.find('PUT', r'.'))
         self.unchanged_target()
 
     def test_other_refusal_said_with_its_lines(self):
@@ -922,8 +1005,10 @@ class ApiReplaceTest(Base):
     def test_verify_failed(self):
         self.fg.put_ignore = True
         e, ctx, b = self.fails()
-        self.assertIn('FortiOS took the new certificate for web-cert, yet reading it back gives '
-                      'another one (SHA-256 ', str(e))
+        self.assertIn('FortiOS answered that it took the new certificate for web-cert, yet '
+                      'web-cert still holds another one (SHA-256 ', str(e))
+        self.assertIn('FortiOS dropped the write without saying so', str(e))
+        self.assertTrue(e.lasting)
         self.assertFalse(e.retry)
         self.assertFalse([w for w in said(ctx) if 'replaced in place' in w])
 
@@ -1006,7 +1091,9 @@ class ApiReplaceTest(Base):
         t, ctx = make(self.fg)
         t.deploy(b, dict(REPLACE))
         av = self.fg.find('GET', r'available-certificates')[-1]['query']
-        self.assertEqual(av['scope'], 'global')
+        # 1.0.136: scope=vdom whenever there is a VDOM (7.4.13: scope global leaves the VDOM's
+        # certificates out) - global only on a target without one
+        self.assertEqual(av['scope'], 'vdom')
 
     def test_no_ssh_sign_in_needed(self):
         t, ctx = make(self.fg, ssh=False)
@@ -1782,7 +1869,8 @@ class DryRunTest(unittest.TestCase):
                 ('GET', base + 'monitor/system/available-certificates'),
                 ('POST', base + 'monitor/vpn-certificate/ca/import'),
                 ('PUT', base + 'cmdb/vpn.certificate/local/web-cert'),
-                ('GET', base + 'cmdb/vpn.certificate/local/web-cert')])
+                ('GET', base + 'cmdb/vpn.certificate/local/web-cert'),
+                ('GET', base + 'monitor/system/available-certificates')])
             self.assertNotIn(('POST', base + 'monitor/vpn-certificate/local/import'), http)
             self.assertFalse([h for h in http if h[0] == 'DELETE' and 'web-cert' in h[1]])
             self.assertFalse([e for e in evs if e['kind'].startswith('ssh')])

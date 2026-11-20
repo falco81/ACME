@@ -276,7 +276,9 @@ class RefusedTest(unittest.TestCase):
             ('GET', '/api/v2/monitor/system/available-certificates'),
             ('POST', '/api/v2/monitor/vpn-certificate/ca/import'),
             ('PUT', '/api/v2/cmdb/vpn.certificate/local/web-cert'),
-            ('GET', '/api/v2/cmdb/vpn.certificate/local/web-cert')])
+            ('GET', '/api/v2/cmdb/vpn.certificate/local/web-cert'),
+            # 1.0.136: read again - the new one's fingerprint and key size
+            ('GET', '/api/v2/monitor/system/available-certificates')])
         for ver, calls in seen.items():
             self.assertEqual(calls, first, ver)
 

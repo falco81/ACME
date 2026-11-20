@@ -287,8 +287,8 @@ class FortiGateTarget(HttpTarget):
         field('replace_key', 'Key format', 'select', default='auto', advanced=True,
               show_if={'mode': ['replace']},
               options=[['auto', 'automatic - each in turn until FortiOS takes one'],
-                       ['pkcs8-enc', 'PKCS#8, encrypted (AES-256, PBKDF2 600000)'],
                        ['pkcs8-enc-compat', 'PKCS#8, encrypted (AES-256, PBKDF2 2048)'],
+                       ['pkcs8-enc', 'PKCS#8, encrypted (AES-256, PBKDF2 600000)'],
                        ['traditional-enc', 'traditional (PKCS#1 / SEC1), encrypted (AES-256)'],
                        ['pkcs8', 'PKCS#8, not encrypted'],
                        ['traditional', 'traditional (PKCS#1 / SEC1), not encrypted']],
@@ -750,7 +750,8 @@ class FortiGateTarget(HttpTarget):
                       % (name, (' (VDOM %s)' % vdom) if vdom else ''))
         new_fp = norm_fp(fp_of(bundle))
         try:
-            found = self.certs_on_device(vdom, scope, warn=True)
+            found = self.certs_on_device(vdom, self.avail_scope(vdom, {'range': scope}),
+                                         warn=True)
         except PluginError as e:
             self.ctx.debug('the certificates on the FortiGate cannot be read: %s' % e)
             found = {'local': {}, 'ca': {}, 'via': ''}
@@ -766,9 +767,9 @@ class FortiGateTarget(HttpTarget):
         return ['created %s' % name]
 
     # -- the key given to FortiOS (1.0.136): each shape in turn, a refusal changes nothing --
-    KEY_FORMS = ('pkcs8-enc', 'pkcs8-enc-compat', 'traditional-enc', 'pkcs8', 'traditional')
-    KEY_WORDS = {'pkcs8-enc': 'encrypted with a one-time password',
-                 'pkcs8-enc-compat': 'encrypted with a one-time password (PKCS#8, PBKDF2 2048)',
+    KEY_FORMS = ('pkcs8-enc-compat', 'pkcs8-enc', 'traditional-enc', 'pkcs8', 'traditional')
+    KEY_WORDS = {'pkcs8-enc-compat': 'encrypted with a one-time password',
+                 'pkcs8-enc': 'encrypted with a one-time password (PKCS#8, PBKDF2 600000)',
                  'traditional-enc': 'encrypted with a one-time password (traditional, PKCS#1 '
                                     '/ SEC1)',
                  'pkcs8': 'as plain PEM',
@@ -779,7 +780,7 @@ class FortiGateTarget(HttpTarget):
         "automatic" every one - those that cannot be made here left out."""
         want = text((options or {}).get('replace_key') or 'auto').strip().lower()
         names = self.KEY_FORMS if want not in self.KEY_FORMS else (want,)
-        out = []
+        out, bad = [], []
         for f in names:
             try:
                 if '-enc' in f:
@@ -797,11 +798,39 @@ class FortiGateTarget(HttpTarget):
             key = key.replace('\r\n', '\n').strip() + '\n'
             if any(k == key for _f, _p, k in out):
                 continue                                # the same text (Ed25519: one shape)
+            if not self.pair_ok(bundle, key, pw):
+                bad.append(f)
+                self.ctx.debug('the key made as %s does not open with its password or is not '
+                               'the certificate\'s - not sent' % f)
+                continue
             out.append((f, pw, key))
+        if not out and bad:
+            raise PluginError('the private key is not the certificate\'s (or does not open with '
+                              'its password) - checked here, nothing was sent to the FortiGate',
+                              retry=False, lasting=True)
         if not out:
             raise PluginError('the key cannot be made in the format chosen ("Key format": %s)'
                               % want, retry=False)
         return out
+
+    @staticmethod
+    def pair_ok(bundle, key, pw):
+        """The key opens with `pw` and its public key is the certificate's (1.0.136) - what
+        FortiOS 7.4.13 does not check on a certificate of the global range."""
+        try:
+            from acmelib.certs import pki
+            return pki.key_matches(text(bundle.as_format('cert-pem')), key, pw or None)
+        except Exception:                               # noqa: BLE001
+            return False
+
+    @staticmethod
+    def avail_scope(vdom, row=None):
+        """The scope available-certificates is asked in (1.0.136, measured on 7.4.13 with
+        VDOMs): scope=vdom gives the global certificates and those of the VDOM's range, scope
+        global the global ones only - a copy in the VDOM missed. Without a VDOM: the range."""
+        if text(vdom).strip():
+            return 'vdom'
+        return 'vdom' if text((row or {}).get('range')).strip().lower() == 'vdom' else 'global'
 
     @staticmethod
     def range_of(row):
@@ -814,7 +843,7 @@ class FortiGateTarget(HttpTarget):
         self.ctx.step('it is replaced over the REST API (PUT cmdb vpn.certificate/local/%s) - '
                       'the token is enough, no SSH' % name)
         # 2. the fingerprints of every local and CA certificate, at once
-        found = self.certs_on_device(vdom, self.range_of(row))
+        found = self.certs_on_device(vdom, self.avail_scope(vdom, row))
         old_fp = old.get('fp') or next((fp for fp, rows in found['local'].items()
                                         if name in [r['name'] for r in rows]), '')
         # 3. the intermediates missing: as CA certificates, before the PUT
@@ -828,13 +857,13 @@ class FortiGateTarget(HttpTarget):
         for n in self.duplicates(name, vdom, new_fp, prefix, found):
             self.drop_copy(n, vdom, name)
         # 6. the PUT
-        self.api_put(bundle, vdom, name, options)
+        switched = self.api_put(bundle, vdom, name, options, row)
         # 7. read back
-        self.api_check(name, vdom, new_fp, row.get('q_ref'), found)
+        self.api_check(name, vdom, new_fp, row.get('q_ref'), found, bundle, row, switched)
         self.ctx.step('%s replaced in place - its name and every use of it kept' % name, 'ok')
         return ['%s replaced in place' % name]
 
-    def api_put(self, bundle, vdom, name, options=None):
+    def api_put(self, bundle, vdom, name, options=None, row=None):
         """PUT cmdb vpn.certificate/local/<name>: the leaf (FortiOS keeps the leaf only), the
         key PKCS#8 encrypted with a one-time password. Refused: said by its cli_error -
         FortiOS changes nothing then (revision_changed false)."""
@@ -859,9 +888,17 @@ class FortiGateTarget(HttpTarget):
                 if tried:
                     self.ctx.step('this FortiGate takes the key %s - "Key format" may be set '
                                   'to it' % self.KEY_WORDS[form])
-                return
+                return False
             tried.append(form)
             said = '\n'.join(self.fos_lines(d))
+            # A certificate of a VDOM's range (1.0.136): FortiOS 7.4.13 refuses every PUT of
+            # another certificate with "not a valid/matched" alone, whatever the key - it is
+            # put in through the global range and back (measured, K5/K6, W3/W4)
+            if (self.range_of(row) == 'vdom' and text(vdom).strip() and
+                    'not a valid/matched certificate' in said and
+                    'This local certificate is duplicated' not in said and
+                    'Invalid private key' not in said and 'password' not in said):
+                return self.range_switch(name, vdom, form, pw, key, leaf[0], d)
             key_said = ('This local certificate is duplicated' not in said and
                         ('not a valid/matched certificate' in said or
                          'Invalid private key' in said or 'password may be required' in said))
@@ -871,6 +908,38 @@ class FortiGateTarget(HttpTarget):
                 continue
             break
         self.put_refused(name, st, d, tried)
+
+    def range_switch(self, name, vdom, form, pw, key, leaf, refused):
+        """FortiOS 7.4.13 with VDOMs: the certificate of the VDOM's range replaced through
+        the global range - PUT {key, certificate, range global}, then PUT {range vdom}. FortiOS
+        checks nothing on that way (the pair is checked here before, the copies looked for,
+        the fingerprint read after); everything bound to the name keeps it. -> True."""
+        self.ctx.step('FortiOS refused it as "not a valid/matched certificate" although the '
+                      'key is the certificate\'s (checked here) - FortiOS 7.4 refuses every '
+                      'new certificate of a VDOM\'s range this way; it is put in through the '
+                      'global range and back to the VDOM\'s (VDOM %s)' % vdom, 'warn')
+        path = LOCAL + '/%s' % urllib.parse.quote(name, safe='')
+        body = {}
+        if pw:
+            body['password'] = pw
+        body.update({'private-key': key, 'certificate': leaf, 'range': 'global'})
+        st, d = self.fos('PUT', path, body, vdom=vdom,
+                         what='replacing %s through the global range' % name)
+        if not self.fos_ok(st, d):
+            self.put_refused(name, st, d, [form])
+        self.ctx.step('the new certificate and key put into %s, its range global for a moment'
+                      % name)
+        st, d = self.fos('PUT', path, {'range': 'vdom'}, vdom=vdom,
+                         what='setting the range of %s back to the VDOM' % name)
+        if self.fos_ok(st, d):
+            self.ctx.step('%s is of the VDOM\'s range again' % name, 'ok')
+            return True
+        self.ctx.step('the range of %s could not be set back to the VDOM (%s) - the new '
+                      'certificate is in place, yet of the global range: every VDOM sees it. '
+                      'Not tried again by itself; set it on the FortiGate (config vdom, edit %s, '
+                      'config vpn certificate local, edit "%s", set range vdom) if it must be '
+                      'the VDOM\'s only' % (name, self.fos_said(st, d), vdom, name), 'warn')
+        return 'global'
 
     def put_refused(self, name, st, d, tried=()):
         lines_ = self.fos_lines(d)
@@ -893,31 +962,55 @@ class FortiGateTarget(HttpTarget):
                           '(FortiOS changes nothing when it refuses)' % (name, why, name),
                           detail=trim_answer(d), retry=False)
 
-    def api_check(self, name, vdom, new_fp, uses_before, found):
-        """The certificate read back: its fingerprint must be the new one; its count of uses
-        the same as before (else a warning)."""
+    def api_check(self, name, vdom, new_fp, uses_before, found, bundle=None, row=None,
+                  switched=False):
+        """The certificate read back: its fingerprint must be the new one (available-
+        certificates first, 1.0.136 - the GET of one certificate of the global range gives no
+        PEM in a VDOM on 7.4.13), its key of the size of the new one; its count of uses the
+        same as before (else a warning)."""
         try:
             after = self.local_row(name, vdom)
         except PluginError as e:
             self.ctx.debug('%s cannot be read back: %s' % (name, e))
             after = {}
         got = self.pem_facts(after.get('certificate')).get('fp') or ''
-        if not got and found.get('via') == 'monitor':
+        avail = None
+        if found.get('via') == 'monitor':
             try:
-                again = self.certs_on_device(vdom, self.range_of(after or {}), quiet=True)
-                got = next((fp for fp, rows in again['local'].items()
-                            if name in [r['name'] for r in rows]), '')
+                again = self.certs_on_device(vdom, self.avail_scope(vdom, after or row),
+                                             quiet=True)
+                for fp, rows in again['local'].items():
+                    for r in rows:
+                        if r.get('name') == name:
+                            avail = dict(r, fp=fp)
             except PluginError as e:
                 self.ctx.debug('the fingerprints cannot be read again: %s' % e)
+        if not got and avail:
+            got = avail['fp']
         if not got:
             raise PluginError('FortiOS took the new certificate for %s, yet it cannot be read '
                               'back to check it - look at it on the FortiGate' % name,
                               retry=False)
         if got != new_fp:
-            raise PluginError('FortiOS took the new certificate for %s, yet reading it back '
-                              'gives another one (SHA-256 %s…, expected %s…) - look at it on '
-                              'the FortiGate' % (name, got[:16].upper(), new_fp[:16].upper()),
-                              retry=False)
+            # 200 and the old certificate still there (measured on 7.4.13: a copy of it in the
+            # VDOM, the write dropped without a word) - its key may have been written all the
+            # same
+            raise PluginError('FortiOS answered that it took the new certificate for %s, yet '
+                              '%s still holds another one (SHA-256 %s…, expected %s…) - '
+                              'FortiOS dropped the write without saying so (a copy of this '
+                              'certificate under another name?); its key may have been '
+                              'written: check %s on the FortiGate before anything uses it '
+                              'again' % (name, name, got[:16].upper(), new_fp[:16].upper(),
+                                          name), retry=False, lasting=True)
+        if avail and avail.get('fp') == new_fp and bundle is not None:
+            want = self.pem_facts(text(bundle.as_format('cert-pem'))).get('bits')
+            has = text(avail.get('key_size')).strip()
+            if want and has.isdigit() and int(has) != int(want):
+                raise PluginError('FortiOS holds the new certificate in %s, yet its key reads '
+                                  'as %s bits, not %s - the key may not have been taken: '
+                                  'check %s on the FortiGate (Key format may be set to '
+                                  'another one)' % (name, has, want, name), retry=False,
+                                  lasting=True)
         self.ctx.step('checked: %s holds the new certificate now (SHA-256 %s…)'
                       % (name, new_fp[:16]), 'ok')
         u0, u1 = text(uses_before).strip(), text(after.get('q_ref')).strip()
@@ -932,7 +1025,7 @@ class FortiGateTarget(HttpTarget):
             # duplicate of itself)
             self.ctx.step('%s holds this certificate already - it is in place' % name, 'ok')
             return []
-        found = self.certs_on_device(vdom, self.range_of(row), warn=True)
+        found = self.certs_on_device(vdom, self.avail_scope(vdom, row), warn=True)
         drop = self.duplicates(name, vdom, new_fp, prefix, found)
         with self.fgt_ssh() as s:
             status = self.cli_status(s)

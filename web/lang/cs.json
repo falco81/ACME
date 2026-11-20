@@ -72103,6 +72103,18 @@
   "zfg136_16": {
    "source": "the key as plain PEM (traditional, PKCS#1 / SEC1)",
    "text": "klíč jako nešifrovaný PEM (tradiční, PKCS#1 / SEC1)"
+  },
+  "zfg136b_01": {
+   "source": "the private key is not the certificate's (or does not open with its password) - checked here, nothing was sent to the FortiGate",
+   "text": "soukromý klíč nepatří k certifikátu (nebo ho nejde otevřít jeho heslem) – ověřeno zde, na FortiGate se nic neposlalo"
+  },
+  "zfg136b_02": {
+   "source": "encrypted with a one-time password (PKCS#8, PBKDF2 600000)",
+   "text": "zašifrovaný jednorázovým heslem (PKCS#8, PBKDF2 600000)"
+  },
+  "zfg136b_03": {
+   "source": "the key encrypted with a one-time password (PKCS#8, PBKDF2 600000)",
+   "text": "klíč zašifrovaný jednorázovým heslem (PKCS#8, PBKDF2 600000)"
   }
  },
  "patterns": {
@@ -100433,6 +100445,30 @@
   "pzfg136_10": {
    "source": "FortiOS refused to replace {0} in place: {1}; the key was given in {2} formats - {3} is untouched (FortiOS changes nothing when it refuses)",
    "text": "FortiOS odmítl nahradit {0} na místě: {1}; klíč byl poslán v {2} formátech – {3} zůstal beze změny (FortiOS při odmítnutí nic nemění)"
+  },
+  "pzfg136b_01": {
+   "source": "FortiOS refused it as \"not a valid/matched certificate\" although the key is the certificate's (checked here) - FortiOS 7.4 refuses every new certificate of a VDOM's range this way; it is put in through the global range and back to the VDOM's (VDOM {0})",
+   "text": "FortiOS ho odmítl jako „not a valid/matched certificate“, přestože klíč k certifikátu patří (ověřeno zde) – FortiOS 7.4 takto odmítá každý nový certifikát s rozsahem VDOM; vloží se přes globální rozsah a vrátí se zpět do VDOM (VDOM {0})"
+  },
+  "pzfg136b_02": {
+   "source": "the new certificate and key put into {0}, its range global for a moment",
+   "text": "nový certifikát a klíč vloženy do {0}, jeho rozsah je na okamžik globální"
+  },
+  "pzfg136b_03": {
+   "source": "{0} is of the VDOM's range again",
+   "text": "{0} má opět rozsah VDOM"
+  },
+  "pzfg136b_04": {
+   "source": "the range of {0} could not be set back to the VDOM ({1}) - the new certificate is in place, yet of the global range: every VDOM sees it. Not tried again by itself; set it on the FortiGate (config vdom, edit {2}, config vpn certificate local, edit \"{3}\", set range vdom) if it must be the VDOM's only",
+   "text": "rozsah {0} nešlo vrátit na VDOM ({1}) – nový certifikát je na místě, ale s globálním rozsahem: vidí ho každá VDOM. Samo se to znovu nezkusí; pokud má patřit jen VDOM, nastavte to na FortiGate (config vdom, edit {2}, config vpn certificate local, edit \"{3}\", set range vdom)"
+  },
+  "pzfg136b_05": {
+   "source": "FortiOS answered that it took the new certificate for {0}, yet {1} still holds another one (SHA-256 {2}…, expected {3}…) - FortiOS dropped the write without saying so (a copy of this certificate under another name?); its key may have been written: check {4} on the FortiGate before anything uses it again",
+   "text": "FortiOS odpověděl, že nový certifikát pro {0} přijal, ale {1} stále drží jiný (SHA-256 {2}…, očekáván {3}…) – FortiOS zápis tiše zahodil (kopie tohoto certifikátu pod jiným jménem?); jeho klíč se mohl přepsat: zkontrolujte {4} na FortiGate, než ho znovu něco použije"
+  },
+  "pzfg136b_06": {
+   "source": "FortiOS holds the new certificate in {0}, yet its key reads as {1} bits, not {2} - the key may not have been taken: check {3} on the FortiGate (Key format may be set to another one)",
+   "text": "FortiOS drží nový certifikát v {0}, ale jeho klíč se čte jako {1} bitů, ne {2} – klíč možná nebyl přijat: zkontrolujte {3} na FortiGate (Formát klíče lze nastavit na jiný)"
   }
  },
  "rich": {
