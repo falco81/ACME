@@ -2900,6 +2900,12 @@ function targetPeek(r) {
           var v = cfg[f.key];
           if (f.type === 'secret' || f.secret) { pairs.push([f.label || f.key, secretShownTag(sset[f.key], v)]); return; }
           if (v === undefined || v === null || v === '') return;
+          /* a choice in its words, in the page's language (hunt t1: "SSH: sign in with"
+             said "password" - the value kept, never translated) */
+          if (f.type === 'select') {
+            var pr = optionPairs(f).filter(function (x) { return x[0] === String(v); })[0];
+            if (pr) { pairs.push([f.label || f.key, String(pr[1])]); return; }
+          }
           if (f.type === 'bool') v = truthy(v) ? 'yes' : 'no';
           else if (Array.isArray(v)) v = v.join('\n');
           else if (f.type === 'pem') v = String(v).slice(0, 64) + '…';

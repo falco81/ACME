@@ -580,6 +580,9 @@ def dbguard_resign(store, why=''):
     # before it is read left the marks of the rows taken under the guard unread - lost, and
     # those rows not checked.
     _dbguard_load()
+    # Whether the accounts below are signed with their contact and second step too (as
+    # dbguard_adopt does) - only then is 1.0.44's adoption done by this signing as well.
+    wide = not account_signed_early()
     for r in db.rows('SELECT k, v FROM meta'):
         if dbguard_meta_signed(r['k']):
             n += bool(dbguard_sign(db, 'm', r['k'], r['v']))
@@ -601,6 +604,21 @@ def dbguard_resign(store, why=''):
         DBGUARD['dirty'] = time.time()
     # The portal's settings were signed just now with the rest (1.0.101): checked from here on,
     # not an hour later - once no node of 1.0.100 would save them unsigned.
+    # ...and so were the rows of 1.0.44 (the backups' targets and settings) and of 1.0.95 (the
+    # uploaded modules): a guard switched on where it had never been on (no mark of them yet)
+    # left them unchecked until the hourly adoption - which then signed whatever had been
+    # written there meanwhile as acme's word (hunt t1).
+    try:
+        if wide and cluster_runs_at_least(store, '1.0.44'):
+            _dbguard_load()
+            with DBGUARD['lock']:
+                _dbguard_adopted_map().setdefault(DBGUARD_ADOPT_MARK, time.time())
+        if cluster_runs_at_least(store, '1.0.95'):
+            _dbguard_load()
+            with DBGUARD['lock']:
+                _dbguard_adopted_map().setdefault(DBGUARD_ADOPT2_MARK, time.time())
+    except Exception:                                   # noqa: BLE001
+        pass
     try:
         if cluster_runs_at_least(store, '1.0.101'):
             _dbguard_load()

@@ -2692,6 +2692,14 @@ def _family_fill(store, family, table, row, name, kind, cls, given, fields, secr
                 if f.get('required') and field_shown(f, cfg) and \
                         cfg.get(f['key']) in (None, '') and f.get('default') in (None, ''):
                     raise ValueError('%s: fill in \u201c%s\u201d' % (name, f.get('label') or f['key']))
+            for f in cls.fields or []:
+                # a field of the module's own form with a pattern= (hunt t1: FortiGate's
+                # "Management VDOM" took a line break or ".." - only a deployment's options
+                # were checked); a value kept as it was is not asked again, as there
+                k = f.get('key')
+                if k and f.get('pattern') and f.get('type') not in ('secret', 'pem') and \
+                        field_shown(f, cfg) and cfg.get(k) != old_cfg.get(k):
+                    _option_field_check(f, cfg.get(k), f.get('label') or k)
         if len(json.dumps(cfg)) > 200000:
             raise ValueError('those settings are too big')
         if family == 'target' and cfg.get('script_body'):

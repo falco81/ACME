@@ -1093,6 +1093,8 @@ def db_agent_peer_moved(store):
             continue
         try:
             v = json.loads(r['v'] or '{}')
+            if not isinstance(v, dict):
+                continue                # not one acme wrote: the rows after it still read
             new = str(plain_ip(str(v.get('address') or ''), 'address'))
         except (ValueError, TypeError):
             continue
@@ -1261,10 +1263,12 @@ def db_agent_load_rows(store):
             continue
         try:
             v = json.loads(r['v'] or '{}')
-        except ValueError:
+            if not isinstance(v, dict):
+                continue
+            age = time.time() - float(v.get('at') or 0)
+        except (ValueError, TypeError):
             continue
-        age = time.time() - float(v.get('at') or 0)
-        if not isinstance(v, dict) or age > 3600:
+        if age > 3600:
             continue
         v.update(kind='db', node=n, age=round(age, 1))
         out.append(v)
