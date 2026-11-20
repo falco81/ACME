@@ -273,6 +273,9 @@ class RefusedTest(unittest.TestCase):
         first = seen['']
         self.assertEqual([c[:2] for c in first], [
             ('GET', '/api/v2/cmdb/vpn.certificate/local/web-cert'),
+            # 1.0.136: the VDOM mode and the management VDOM (a certificate of the global
+            # range is written there on a FortiGate with VDOMs)
+            ('GET', '/api/v2/cmdb/system/global'),
             ('GET', '/api/v2/monitor/system/available-certificates'),
             ('POST', '/api/v2/monitor/vpn-certificate/ca/import'),
             ('PUT', '/api/v2/cmdb/vpn.certificate/local/web-cert'),

@@ -100469,6 +100469,42 @@
   "pzfg136b_06": {
    "source": "FortiOS holds the new certificate in {0}, yet its key reads as {1} bits, not {2} - the key may not have been taken: check {3} on the FortiGate (Key format may be set to another one)",
    "text": "FortiOS drží nový certifikát v {0}, ale jeho klíč se čte jako {1} bitů, ne {2} – klíč možná nebyl přijat: zkontrolujte {3} na FortiGate (Formát klíče lze nastavit na jiný)"
+  },
+  "pzfg136c_01": {
+   "source": "FortiOS refuses to replace {0}, a certificate of the range of VDOM {1}, over the REST API (FortiOS 7.4: every PUT of another certificate refused; through the global range only in the management VDOM, {2} - elsewhere it empties the certificate) - nothing was changed. Fill in the target's SSH sign-in (an administrator who may change VPN certificates in that VDOM) and acme replaces it in the FortiOS CLI",
+   "text": "FortiOS přes REST API neumožňuje nahradit {0}, certifikát s rozsahem VDOM {1} (FortiOS 7.4: každý PUT jiného certifikátu odmítne; přes globální rozsah jen v management VDOM {2} – jinde certifikát vyprázdní) – nic se nezměnilo. Vyplňte u cíle přihlášení SSH (administrátor, který smí v té VDOM měnit certifikáty VPN) a acme ho nahradí v CLI FortiOS"
+  },
+  "pzfg136c_02": {
+   "source": "FortiOS refuses to replace {0}, a certificate of the range of VDOM {1}, over the REST API (FortiOS 7.4: every PUT of another certificate refused; through the global range only in the management VDOM, {2} - elsewhere it empties the certificate) - nothing was changed; it is replaced in the FortiOS CLI over the target's SSH sign-in",
+   "text": "FortiOS přes REST API neumožňuje nahradit {0}, certifikát s rozsahem VDOM {1} (FortiOS 7.4: každý PUT jiného certifikátu odmítne; přes globální rozsah jen v management VDOM {2} – jinde certifikát vyprázdní) – nic se nezměnilo; nahradí se v CLI FortiOS přes přihlášení SSH cíle"
+  },
+  "pzfg136c_03": {
+   "source": "{0} has no certificate now - FortiOS emptied it when its range was set to global (VDOM {1}); it is broken: put a certificate into it on the FortiGate (the CLI, config vdom, edit {2}, config vpn certificate local, edit \"{3}\") - acme does not try again by itself",
+   "text": "{0} teď nemá žádný certifikát – FortiOS ho při přepnutí rozsahu na globální vyprázdnil (VDOM {1}); je rozbitý: vložte do něj certifikát na FortiGate (CLI, config vdom, edit {2}, config vpn certificate local, edit \"{3}\") – acme to samo znovu nezkusí"
+  },
+  "pzfg136c_04": {
+   "source": "FortiOS answered that it took the new certificate for {0} through the global range, yet {1} holds another one (SHA-256 {2}…) and is of the global range now - check it on the FortiGate; acme does not try again by itself",
+   "text": "FortiOS odpověděl, že nový certifikát pro {0} přes globální rozsah přijal, ale {1} drží jiný (SHA-256 {2}…) a má teď globální rozsah – zkontrolujte ho na FortiGate; acme to samo znovu nezkusí"
+  },
+  "pzfg136c_05": {
+   "source": "{0} has no certificate now (no fingerprint, no key) - FortiOS answered that it took the new one, yet the entry is empty: it is broken - put a certificate into it on the FortiGate; acme does not try again by itself",
+   "text": "{0} teď nemá žádný certifikát (žádný otisk, žádný klíč) – FortiOS odpověděl, že nový přijal, ale záznam je prázdný: je rozbitý – vložte do něj certifikát na FortiGate; acme to samo znovu nezkusí"
+  },
+  "pzfg136c_06": {
+   "source": "{0} is of the global range: it is written in the management VDOM ({1}) - in VDOM {2} it is that one's image",
+   "text": "{0} má globální rozsah: zapíše se v management VDOM ({1}) – ve VDOM {2} je jen jeho obrazem"
+  },
+  "pzfg136c_07": {
+   "source": "{0} is made in the range of VDOM {1}, which is not the management VDOM ({2}): FortiOS 7.4 lets the REST API put no other certificate into it later - the next deployments need the target's SSH sign-in (or \"Import into\": global)",
+   "text": "{0} se vytváří s rozsahem VDOM {1}, která není management VDOM ({2}): FortiOS 7.4 do něj později přes REST API jiný certifikát vložit nedovolí – další nasazení budou potřebovat přihlášení SSH cíle (nebo „Import into“: global)"
+  },
+  "pzfg136c_08": {
+   "source": "FortiOS answered that it imported {0}, yet there is no local certificate of that name - look on the FortiGate for one of a similar name",
+   "text": "FortiOS odpověděl, že {0} naimportoval, ale lokální certifikát s tímto jménem neexistuje – hledejte na FortiGate certifikát s podobným jménem"
+  },
+  "pzfg136c_09": {
+   "source": "deleted what was left of {0} in VDOM {1}",
+   "text": "smazán zbytek {0} ve VDOM {1}"
   }
  },
  "rich": {

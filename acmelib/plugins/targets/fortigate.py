@@ -96,6 +96,11 @@ AVAIL = '/api/v2/monitor/system/available-certificates'
 CA_IMPORT = '/api/v2/monitor/vpn-certificate/ca/import'
 
 
+class NeedsCli(Exception):
+    """Replace in place that the REST API cannot do on this FortiGate (1.0.136: a certificate
+    of a VDOM's range in a VDOM that is not the management VDOM, FortiOS 7.4)."""
+
+
 def b64(data):
     return base64.b64encode(data if isinstance(data, bytes) else data.encode()).decode()
 
@@ -648,6 +653,9 @@ class FortiGateTarget(HttpTarget):
     def fos(self, method, p, body=None, what=None, vdom=None, **q):
         """A REST call whose answer is read whatever its status (FortiOS says 500 with its
         error number): (status, the answer as a dict)."""
+        if 'global_' in q:
+            q.pop('global_')
+            q['global'] = 1
         st, hd, d = self.req(method, self.path(p, vdom, **q), body, ok=range(100, 600),
                              what=what)
         return st, (d if isinstance(d, dict) else {})
@@ -729,7 +737,22 @@ class FortiGateTarget(HttpTarget):
         if via == 'ssh':
             did = self.ssh_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
         else:
-            did = self.api_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
+            try:
+                did = self.api_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
+            except NeedsCli as e:
+                v, mgmt = e.args
+                words = ('FortiOS refuses to replace %s, a certificate of the range of VDOM %s, '
+                         'over the REST API (FortiOS 7.4: every PUT of another certificate '
+                         'refused; through the global range only in the management VDOM, %s - '
+                         'elsewhere it empties the certificate)' % (name, v, mgmt))
+                if not self.ssh_ready():
+                    raise PluginError(words + ' - nothing was changed. Fill in the target\'s '
+                                      'SSH sign-in (an administrator who may change VPN '
+                                      'certificates in that VDOM) and acme replaces it in the '
+                                      'FortiOS CLI', retry=False, lasting=True)
+                self.ctx.step(words + ' - nothing was changed; it is replaced in the FortiOS '
+                              'CLI over the target\'s SSH sign-in', 'warn')
+                did = self.ssh_replace(bundle, options, vdom, name, row, old, new_fp, prefix)
         self.point_at(name, prefix, vdom, options, did)
         self.cleanup(prefix, name, vdom, self.keep(options))
         self.remember(bundle, options)
@@ -760,8 +783,29 @@ class FortiGateTarget(HttpTarget):
         pw = random_password()
         body = {'type': 'pkcs12', 'certname': name, 'password': pw, 'scope': scope,
                 'file_content': b64(bundle.as_format('p12-legacy', password=pw, alias=name))}
+        where = vdom if scope == 'vdom' else None
+        if text(vdom).strip() and self.multi_vdom():
+            mgmt = self.mgmt_vdom()
+            if scope != 'vdom':
+                where = mgmt            # the global table lives in the management VDOM
+            elif vdom != mgmt:
+                self.ctx.step('%s is made in the range of VDOM %s, which is not the management '
+                              'VDOM (%s): FortiOS 7.4 lets the REST API put no other '
+                              'certificate into it later - the next deployments need the '
+                              'target\'s SSH sign-in (or "Import into": global)'
+                              % (name, vdom, mgmt), 'warn')
         self.api('POST', '/api/v2/monitor/vpn-certificate/local/import', body,
-                 vdom=vdom if scope == 'vdom' else None, what='importing %s' % name)
+                 vdom=where, what='importing %s' % name)
+        # read back: FortiOS cuts a longer name without a word (measured on 7.4.13)
+        try:
+            made = self.local_row(name, vdom if scope == 'vdom' else (where or vdom))
+        except PluginError as e:
+            made = None
+            self.ctx.debug('%s cannot be read back: %s' % (name, e))
+        if made == {}:
+            raise PluginError('FortiOS answered that it imported %s, yet there is no local '
+                              'certificate of that name - look on the FortiGate for one of a '
+                              'similar name' % name, retry=False, lasting=True)
         self.ctx.step('created %s - the new certificate imported under this name' % name, 'ok')
         self.import_cas(bundle, options)
         return ['created %s' % name]
@@ -813,6 +857,63 @@ class FortiGateTarget(HttpTarget):
                               % want, retry=False)
         return out
 
+    def sys_global(self):
+        """cmdb system global ({} unread), once per deployment."""
+        if getattr(self, '_sysg', None) is None:
+            self._sysg = {}
+            try:
+                st, d = self.fos('GET', '/api/v2/cmdb/system/global', global_=None,
+                                 what='reading the VDOM mode and the management VDOM')
+                r = d.get('results') if st == 200 else None
+                r = r[0] if isinstance(r, list) and r else r
+                if isinstance(r, dict):
+                    self._sysg = r
+            except PluginError as e:
+                self.ctx.debug('cmdb system global cannot be read: %s' % e)
+        return self._sysg
+
+    def multi_vdom(self):
+        mode = text(self.sys_global().get('vdom-mode')).strip()
+        return bool(mode) and mode != 'no-vdom'
+
+    def mgmt_vdom(self):
+        """The management VDOM ('root' when it cannot be read)."""
+        return text(self.sys_global().get('management-vdom')).strip() or 'root'
+
+    def all_vdoms(self):
+        try:
+            st, d = self.fos('GET', '/api/v2/cmdb/system/vdom', what='listing the VDOMs')
+            return [text(r.get('name')) for r in (d.get('results') or [])
+                    if isinstance(r, dict) and text(r.get('name')).strip()] if st == 200 else []
+        except PluginError as e:
+            self.ctx.debug('the VDOMs cannot be listed: %s' % e)
+            return []
+
+    def delete_local(self, n, vdom, rng):
+        """A local certificate deleted - one of the global range on a FortiGate with VDOMs in
+        the management VDOM and then wherever it is left (measured on 7.4.13: deleted in one
+        VDOM it stays in the others as an empty entry). -> (status, answer) of the first."""
+        path = LOCAL + '/%s' % urllib.parse.quote(n, safe='')
+        if rng != 'global' or not self.multi_vdom():
+            return self.fos('DELETE', path, vdom=vdom, what='deleting %s' % n)
+        mgmt = self.mgmt_vdom()
+        st, d = self.fos('DELETE', path, vdom=mgmt, what='deleting %s' % n)
+        if not self.fos_ok(st, d):
+            return st, d
+        for v in self.all_vdoms():
+            if v == mgmt:
+                continue
+            try:
+                st2, d2 = self.fos('GET', path, vdom=v, what='looking for %s in %s' % (n, v))
+                if st2 != 200 or not (d2.get('results') or []):
+                    continue
+                st2, d2 = self.fos('DELETE', path, vdom=v, what='deleting %s in %s' % (n, v))
+                if self.fos_ok(st2, d2):
+                    self.ctx.step('deleted what was left of %s in VDOM %s' % (n, v))
+            except PluginError as e:
+                self.ctx.debug('%s in %s: %s' % (n, v, e))
+        return st, d
+
     @staticmethod
     def pair_ok(bundle, key, pw):
         """The key opens with `pw` and its public key is the certificate's (1.0.136) - what
@@ -842,6 +943,11 @@ class FortiGateTarget(HttpTarget):
         deleted, PUT, read back. -> what was done."""
         self.ctx.step('it is replaced over the REST API (PUT cmdb vpn.certificate/local/%s) - '
                       'the token is enough, no SSH' % name)
+        if self.range_of(row) == 'global' and text(vdom).strip() and self.multi_vdom() and \
+                vdom != self.mgmt_vdom():
+            self.ctx.step('%s is of the global range: it is written in the management VDOM (%s) '
+                          '- in VDOM %s it is that one\'s image' % (name, self.mgmt_vdom(), vdom))
+            vdom = self.mgmt_vdom()
         # 2. the fingerprints of every local and CA certificate, at once
         found = self.certs_on_device(vdom, self.avail_scope(vdom, row))
         old_fp = old.get('fp') or next((fp for fp, rows in found['local'].items()
@@ -898,7 +1004,14 @@ class FortiGateTarget(HttpTarget):
                     'not a valid/matched certificate' in said and
                     'This local certificate is duplicated' not in said and
                     'Invalid private key' not in said and 'password' not in said):
-                return self.range_switch(name, vdom, form, pw, key, leaf[0], d)
+                # ...in the management VDOM only (measured on 7.4.13: in another VDOM the
+                # global range is an image of the management VDOM's - the certificate emptied,
+                # the range not set back, -145 "The field private-key is empty!")
+                mgmt = self.mgmt_vdom()
+                if vdom != mgmt:
+                    raise NeedsCli(vdom, mgmt)
+                return self.range_switch(name, vdom, form, pw, key, leaf[0], d,
+                                         bundle=bundle)
             key_said = ('This local certificate is duplicated' not in said and
                         ('not a valid/matched certificate' in said or
                          'Invalid private key' in said or 'password may be required' in said))
@@ -909,7 +1022,7 @@ class FortiGateTarget(HttpTarget):
             break
         self.put_refused(name, st, d, tried)
 
-    def range_switch(self, name, vdom, form, pw, key, leaf, refused):
+    def range_switch(self, name, vdom, form, pw, key, leaf, refused, bundle=None):
         """FortiOS 7.4.13 with VDOMs: the certificate of the VDOM's range replaced through
         the global range - PUT {key, certificate, range global}, then PUT {range vdom}. FortiOS
         checks nothing on that way (the pair is checked here before, the copies looked for,
@@ -929,6 +1042,28 @@ class FortiGateTarget(HttpTarget):
             self.put_refused(name, st, d, [form])
         self.ctx.step('the new certificate and key put into %s, its range global for a moment'
                       % name)
+        # read between the two: FortiOS checks nothing on this way - an emptied certificate
+        # or the old one still there stops here, before the range is touched again
+        new_fp = norm_fp(fp_of(bundle)) if bundle is not None else ''
+        try:
+            now = self.certs_on_device(vdom, 'vdom', quiet=True)
+        except PluginError as e:
+            now = {}
+            self.ctx.debug('the fingerprints cannot be read: %s' % e)
+        if name in (now.get('empty') or {}):
+            raise PluginError('%s has no certificate now - FortiOS emptied it when its range '
+                              'was set to global (VDOM %s); it is broken: put a certificate '
+                              'into it on the FortiGate (the CLI, config vdom, edit %s, config '
+                              'vpn certificate local, edit "%s") - acme does not try again by '
+                              'itself' % (name, vdom, vdom, name), retry=False, lasting=True)
+        got = next((fp for fp, rows in (now.get('local') or {}).items()
+                    if name in [r.get('name') for r in rows]), '')
+        if new_fp and got and got != new_fp:
+            raise PluginError('FortiOS answered that it took the new certificate for %s through '
+                              'the global range, yet %s holds another one (SHA-256 %s…) and is '
+                              'of the global range now - check it on the FortiGate; acme does '
+                              'not try again by itself' % (name, name, got[:16].upper()),
+                              retry=False, lasting=True)
         st, d = self.fos('PUT', path, {'range': 'vdom'}, vdom=vdom,
                          what='setting the range of %s back to the VDOM' % name)
         if self.fos_ok(st, d):
@@ -974,7 +1109,7 @@ class FortiGateTarget(HttpTarget):
             self.ctx.debug('%s cannot be read back: %s' % (name, e))
             after = {}
         got = self.pem_facts(after.get('certificate')).get('fp') or ''
-        avail = None
+        avail, again = None, {}
         if found.get('via') == 'monitor':
             try:
                 again = self.certs_on_device(vdom, self.avail_scope(vdom, after or row),
@@ -987,6 +1122,11 @@ class FortiGateTarget(HttpTarget):
                 self.ctx.debug('the fingerprints cannot be read again: %s' % e)
         if not got and avail:
             got = avail['fp']
+        if not got and name in (again.get('empty') or {}):
+            raise PluginError('%s has no certificate now (no fingerprint, no key) - FortiOS '
+                              'answered that it took the new one, yet the entry is empty: it is '
+                              'broken - put a certificate into it on the FortiGate; acme does '
+                              'not try again by itself' % name, retry=False, lasting=True)
         if not got:
             raise PluginError('FortiOS took the new certificate for %s, yet it cannot be read '
                               'back to check it - look at it on the FortiGate' % name,
@@ -1058,9 +1198,15 @@ class FortiGateTarget(HttpTarget):
         rows = d.get('results') if st == 200 else None
         if isinstance(rows, list) and rows and all(isinstance(r, dict) and 'fingerprint' in r
                                                    for r in rows):
+            empty = {}
             for r in rows:
                 fp = norm_fp(r.get('fingerprint'))
-                if not fp or not text(r.get('name')).strip():
+                if not text(r.get('name')).strip():
+                    continue
+                if not fp:
+                    if text(r.get('q_name')).strip() in ('local', '') and \
+                            text(r.get('type')).startswith('local'):
+                        empty[text(r.get('name'))] = r
                     continue
                 qn = text(r.get('q_name')).strip() or (
                     'local' if text(r.get('type')).startswith('local') else 'ca')
@@ -1072,7 +1218,7 @@ class FortiGateTarget(HttpTarget):
                               '(monitor/system/available-certificates): %d local, %d CA'
                               % (sum(len(v) for v in local.values()),
                                  sum(len(v) for v in ca.values())))
-            return {'local': local, 'ca': ca, 'via': 'monitor'}
+            return {'local': local, 'ca': ca, 'via': 'monitor', 'empty': empty}
         try:
             st, d = self.api('GET', LOCAL, vdom=vdom, format='name',
                              what='listing the local certificates')
@@ -1202,8 +1348,10 @@ class FortiGateTarget(HttpTarget):
                     'uses it, or point what uses it at %s first' % (n, name, n, name),
                     retry=False)
         drop = []
+        self._copy_range = {}
         for r in same:
             n = text(r.get('name'))
+            self._copy_range[n] = text(r.get('range')).strip().lower()
             self.ctx.step('%s is this very certificate already - a copy acme imported earlier; '
                           'it is deleted first (FortiOS refuses two identical local '
                           'certificates)' % n)
@@ -1213,8 +1361,7 @@ class FortiGateTarget(HttpTarget):
     def drop_copy(self, n, vdom, name=''):
         """acme's copy of the new certificate deleted - FortiOS refuses one in use (-23, "It's
         currently being used": cmdb q_ref leaves the admin GUI out, so the DELETE decides)."""
-        st, d = self.fos('DELETE', LOCAL + '/%s' % urllib.parse.quote(n, safe=''), vdom=vdom,
-                         what='deleting %s' % n)
+        st, d = self.delete_local(n, vdom, getattr(self, '_copy_range', {}).get(n, ''))
         if self.fos_ok(st, d):
             self.ctx.step('deleted %s, the unused copy of this certificate' % n, 'ok')
             return

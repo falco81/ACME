@@ -170,6 +170,7 @@ class FakeFortiGate(object):
         # one of the global range taken unchecked; "range" switched by a PUT of its own
         self.fos7413 = False
         self.range_back_error = False   # PUT {"range": "vdom"} refused
+        self.mgmt_vdom = 'root'         # cmdb system global management-vdom
         self.put_error = None           # (error, [lines]): every PUT refused so
         self.put_uses = None            # q_ref after a PUT
         self.ca_error = None            # a CA import refused with this error
@@ -243,7 +244,10 @@ class FakeFortiGate(object):
             out.append({'name': r['name'], 'source': r['source'], 'range': r['range'],
                         'type': 'local-cer', 'q_path': 'certificate', 'q_name': 'local',
                         'q_ref': self.uses(r['name']), 'key_type': 'ECDSA', 'key_size': 256,
-                        'status': 'valid', 'fingerprint': fp_colon(r['certificate']),
+                        'status': 'valid',
+                        # an emptied entry (7.4.13, another VDOM through the global range):
+                        # no fingerprint, key size 0
+                        'fingerprint': fp_colon(r['certificate']) if r['certificate'] else '',
                         'subject': subj, 'issuer': iss, 'valid_to_raw': end,
                         'has_valid_cert_key': False})
         if q.get('with_ca') == '1':
@@ -399,7 +403,10 @@ class FakeFortiGate(object):
             return 200, dict(ok, results=[{'name': 'CA_Cert_%d' % (i + 1), 'ca': c}
                                           for i, c in enumerate(self.cas)])
         if path == '/api/v2/cmdb/system/global' and m == 'GET' and self.vdom_mode:
-            return 200, dict(ok, results={'vdom-mode': self.vdom_mode})
+            return 200, dict(ok, results={'vdom-mode': self.vdom_mode,
+                                          'management-vdom': self.mgmt_vdom})
+        if path == '/api/v2/cmdb/system/vdom' and m == 'GET' and self.vdom_mode:
+            return 200, dict(ok, results=[{'name': 'root'}, {'name': 'Naj'}])
         if m == 'PUT':
             self.puts.setdefault(path, []).append(body)
             if path == '/api/v2/cmdb/system/global' and (body or {}).get('admin-server-cert'):
@@ -822,6 +829,7 @@ class ApiReplaceTest(Base):
         t, ctx, b, got = self.deploy(force=True)
         self.assertEqual([c['method'] for c in self.fg.calls
                           if 'monitor/system/status' not in c['path']
+                          and 'cmdb/system/global' not in c['path']
                           and 'cmdb/vpn.certificate/local?' not in c['path'] + '?'
                           and not c['path'].endswith('/cmdb/vpn.certificate/local')],
                          ['GET', 'GET', 'PUT', 'GET', 'GET'])
@@ -946,6 +954,72 @@ class ApiReplaceTest(Base):
         self.assertIn("web-cert is of the VDOM's range again", said(ctx))
         self.assertTrue([w for w in said(ctx) if w.startswith('checked: web-cert holds')])
         self.no_secrets(ctx, b)
+
+    def test_fos_7413_other_vdom_not_the_management_one(self):
+        """Measured on 7.4.13 (VDOM Naj): through the global range a certificate of another
+        VDOM than the management one is emptied - acme never takes that way there: without
+        SSH it stops (nothing changed), with the target's SSH sign-in it goes to the CLI."""
+        self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
+        self.fg.local['web-cert']['range'] = 'vdom'
+        t, ctx = make(self.fg, ssh=False, vdom='Naj')
+        b = Bundle()
+        with self.assertRaises(PluginError) as e:
+            t.deploy(b, dict(REPLACE))
+        words = str(e.exception)
+        self.assertIn('a certificate of the range of VDOM Naj, over the REST API', words)
+        self.assertIn('nothing was changed. Fill in the target\'s SSH sign-in', words)
+        self.assertTrue(e.exception.lasting)
+        puts = [c['body'] for c in self.fg.find('PUT', r'/local/web-cert$')]
+        self.assertEqual(len(puts), 1)
+        self.assertNotIn('range', puts[0])
+        self.assertNotEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        # with SSH: the CLI
+        self.tearDown()
+        self.setUp()
+        self.fg.fos7413 = True
+        self.fg.vdom_mode = 'multi-vdom'
+        self.fg.local['web-cert']['range'] = 'vdom'
+        cli = FakeCli(self.fg, vdoms=True)
+        t, ctx = make(self.fg, cli=cli, vdom='Naj')
+        t.deploy(b, dict(REPLACE))
+        self.assertEqual(der(self.fg.local['web-cert']['certificate']), der(b.cert_pem))
+        self.assertFalse([p for p in self.fg.find('PUT', r'/local/web-cert$')
+                          if 'range' in (p['body'] or {})])
+        self.assertTrue([w for w in said(ctx) if 'it is replaced in the FortiOS CLI over the '
+                         'target\'s SSH sign-in' in w])
+
+    def test_fos_7413_emptied_by_the_switch_stops(self):
+        """An emptied certificate after the first PUT (as in VDOM Naj): said, the range not
+        touched again."""
+        self.fg.fos7413 = True
+        self.fg.local['web-cert']['range'] = 'vdom'
+        orig = self.fg.put
+
+        def put(name, body):
+            st, out = orig(name, body)
+            if (body or {}).get('range') == 'global':
+                self.fg.local[name]['certificate'] = ''
+            return st, out
+        self.fg.put = put
+        e, ctx, b = self.fails()
+        self.assertIn('web-cert has no certificate now - FortiOS emptied it', str(e))
+        self.assertTrue(e.lasting)
+        self.assertFalse([p for p in self.fg.find('PUT', r'/local/web-cert$')
+                          if p['body'] == {'range': 'vdom'}])
+
+    def test_missing_name_cut_by_fortios(self):
+        """FortiOS cuts a name without a word (7.4.13): read back, said."""
+        orig = self.fg.answer
+
+        def answer(m, path, q, body):
+            if path.endswith('/local/import') and m == 'POST':
+                body = dict(body, certname=body['certname'][:-1])
+            return orig(m, path, q, body)
+        self.fg.answer = answer
+        e, ctx, b = self.fails(opts={'replace_name': 'cut-me-please'})
+        self.assertIn('FortiOS answered that it imported cut-me-please, yet there is no local '
+                      'certificate of that name', str(e))
 
     def test_fos_7413_range_not_set_back(self):
         self.fg.fos7413 = True
