@@ -279,10 +279,8 @@ const { chromium } = require('playwright');
     const writes = async () => r.$$eval('#tmg-g-review-edit, #tmg-g-jit-edit, #tmg-g-sod-edit, #tmg-g-notify-edit, #tmg-g-notify-try, #tmg-csv, #tmg-tpl-from, .tmg-tpl-make, .tmg-mview, #tmg-g-review-start, .tmg-va-admin',
       (x) => x.map((y) => y.id || y.className));
     out.roWrites = await writes();
-    await view(r, 'templates');
-    await r.waitForTimeout(800);
-    out.roWrites = out.roWrites.concat(await writes());
-    await shot(r, 'readonly-templates-1400-en');
+    // templates may hold members: not shown to anybody but a full administrator (1.0.138)
+    out.roTemplatesHidden = !(await r.$('.tmx-vbtn[data-view="templates"]'));
     await r.context().close();
   } catch (e) {
     out.error = String((e && e.stack) || e);

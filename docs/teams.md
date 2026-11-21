@@ -613,7 +613,7 @@ for what is changed from then on).
 
 ### Templates and bulk import (T6)
 
-Settings → Owners and teams → **Templates** (full administrator to change):
+Settings → Owners and teams → **Templates** (seen and changed by a full administrator only - a template may name members):
 
 - **Save a team as a template**: its kind, description, limits (with the request profiles they
   name), contact addresses and governance (reviews, temporary roles, separation of duties, channels)

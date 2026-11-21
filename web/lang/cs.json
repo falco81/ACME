@@ -75907,6 +75907,14 @@
   "z_2673": {
    "source": "no agent of the canary group can be updated now - the rest is not updated without its canary ring (choose another group, or none)",
    "text": "žádného agenta kanárkové skupiny teď nelze aktualizovat - zbytek se bez kanárkového kruhu neaktualizuje (zvolte jinou skupinu, nebo žádnou)"
+  },
+  "z_2674": {
+   "source": "they are no longer a full administrator",
+   "text": "už není hlavním správcem"
+  },
+  "z_2675": {
+   "source": "not a certificate you may see",
+   "text": "certifikát, který nesmíte vidět"
   }
  },
  "patterns": {
@@ -105357,6 +105365,10 @@
   "pz_826": {
    "source": "acme {0} signs with acme's current command key only, and these agents still pin an earlier one ({1}) - they would refuse every job: let them move to the current key first (Target agents → Keys and their age)",
    "text": "acme {0} podepisuje jen současným klíčem pro příkazy a tito agenti mají připnutý dřívější ({1}) – odmítli by každou úlohu: nejdřív je převeďte na současný klíč (Agenti cílů → Klíče a jejich stáří)"
+  },
+  "pz_827": {
+   "source": "{0} holds more on the team {1} than you do ({2}) - another manager of the team takes them out",
+   "text": "{0} má v týmu {1} víc než vy ({2}) - odebere ho jiný správce týmu"
   }
  },
  "rich": {

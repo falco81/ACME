@@ -87,7 +87,13 @@ def _whocan(h, s):
     got = TA.who_can(h.store, h.arg('cap'), team=h.arg('team') or None,
                      cert=h.arg('cert') or None)
     if got.get('team'):
-        _need_seen(h, s, got['team'])
+        try:
+            _need_seen(h, s, got['team'])
+        except E.ApiError:
+            if h.arg('cert'):
+                # not the owner's name of a certificate one cannot see (1.0.138)
+                raise E.ApiError(403, 'not a certificate you may see') from None
+            raise
     elif _seen(h, s) is not None:
         raise E.ApiError(403, 'a certificate without a team is seen only by those who see every '
                               'certificate')
@@ -251,7 +257,7 @@ def _health(h, s):
 
 
 # ---- templates and bulk import ----------------------------------------------------------------
-@A.api('GET', '/api/teams/templates')
+@A.api('GET', '/api/teams/templates', 'fulladmin')   # members may be in them
 def _templates(h, s):
     return {'templates': G.templates(h.store), 'columns': list(G.CSV_COLS)}
 

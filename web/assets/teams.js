@@ -506,6 +506,7 @@
     seg.setAttribute('role', 'tablist');
     VIEWS.forEach(function (v) {
       if ((v[0] === 'access' || v[0] === 'whomay') && !checks()) return;
+      if (v[0] === 'templates' && !fullAdmin()) return;     /* members may be in them (1.0.138) */
       var b = el('button', 'tmx-vbtn' + (UI.view === v[0] ? ' on' : ''));
       b.type = 'button';
       b.dataset.view = v[0];

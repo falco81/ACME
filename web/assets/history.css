@@ -96,6 +96,7 @@
   box-shadow:0 1px 0 rgba(0,0,0,.15)}
 .hs-top{display:flex;align-items:center;gap:10px}
 .hs-top-w{flex:1 1 auto;min-width:0}
+.hs-top > .tmx-chip{flex:0 0 auto}   /* "now" whole on a phone, not "n…" */
 .hs-line1{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:13.5px;color:var(--tx)}
 .hs-actc{font-size:11px;padding:1px 8px}
 .hs-meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px;color:var(--tx-mut);font-size:12px;margin-top:2px}

@@ -640,6 +640,7 @@ class Pages(TAU.Pages):
         self.assertIn('read-only', seen['viewAsRefused'], seen)
         self.assertFalse(seen['bannerAfterStop'], seen)
         self.assertEqual(seen['roWrites'], [], seen)
+        self.assertTrue(seen.get('roTemplatesHidden'), 'templates are for full administrators')
         for w, over in seen['overflow'].items():
             self.assertEqual(over, [], (w, over))
         self.assertEqual(seen.get('english', []), [], seen.get('english'))
