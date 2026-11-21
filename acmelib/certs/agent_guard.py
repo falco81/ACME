@@ -1210,6 +1210,8 @@ def served_of_deploy(store, dep, kind=None):
                             (dep.get('target'),))
         if not trow or trow.get('kind') not in _G().AGENT_KINDS:
             return None
+        if opts(store, trow['id'])['health'] != 'on':
+            return None                     # not asked for this agent (off by default)
         r = _obj(store, M_SERVED % int(trow['id'])).get(str(dep.get('id')))
         if not isinstance(r, dict) or r.get('state') in (None, 'none'):
             return None
@@ -1279,7 +1281,7 @@ def alerts(store, row, st):
                     'words': 'the agent of target %s pins a command key acme does not have (%s…) '
                              '- acme\'s jobs are refused once its overlap ends' % (
                                  row['name'], unknown_cmd_key(store, st)[:16])})
-    for did, r in _obj(store, M_SERVED % int(tid)).items():
+    for did, r in (_obj(store, M_SERVED % int(tid)) if o['health'] == 'on' else {}).items():
         if isinstance(r, dict) and r.get('state') == 'old':
             p = next((x for x in r.get('places') or [] if x.get('state') == 'old'), {})
             out.append({'key': 'agent-served:%s' % did, 'level': 'warn',

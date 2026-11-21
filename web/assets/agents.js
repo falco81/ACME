@@ -2918,13 +2918,20 @@ function guardBox(row, a, reload) {
   /* B6 ---------------------------------------------------------------------------------- */
   function servedFeat(g, sv) {
     var c = gFeat('served', 'pulse', 'What the service serves', 'After a deployment and every six hours, the agent tells which certificate the service on the server itself serves - a forgotten reload is seen.',
-      !!sv.on, gSwitch(sv.switch !== 'off', 'What the service serves', function (v, sw) { save({health: v ? 'auto' : 'off'}, sw); }));
+      !!sv.on, gSwitch(sv.switch === 'on', 'What the service serves', function (v, sw) { save({health: v ? 'on' : 'off'}, sw); }));
     var st = el('div', 'ag-gd-st');
-    if (!sv.probe_local) st.appendChild(sysPill('dim', 'pulse', 'not allowed by its policy'));
-    else if (sv.switch === 'off') st.appendChild(sysPill('dim', 'pulse', 'off'));
+    if (sv.switch !== 'on') st.appendChild(sysPill('dim', 'pulse', 'off'));
+    else if (!sv.probe_local) st.appendChild(sysPill('warn', 'pulse', 'not allowed by its policy'));
     else if (sv.old) st.appendChild(sysPill('warn', 'flag', sv.old === 1 ? '1 still serves the old one' : sv.old + ' still serve the old one'));
     else st.appendChild(sysPill(arr(sv.items).length ? 'ok' : 'dim', 'pulse', arr(sv.items).length ? 'as deployed' : 'nothing asked yet'));
     c.appendChild(st);
+    if (sv.switch !== 'on') {
+      c.appendChild(el('p', 'note small', sv.probe_local
+        ? 'Switched on, acme asks the agent after each deployment and every six hours - its policy allows tests from there already.'
+        : 'Switched on, it needs the server’s policy to allow tests from there - no permission is taken. Root adds:'));
+      if (!sv.probe_local) c.appendChild(cmdBox(gLine(win, 'acme-agent allow probe local'), 'small'));
+      return c;
+    }
     if (!sv.probe_local) {
       c.appendChild(el('p', 'note small', 'Only where the server’s policy already allows tests from there - no permission is taken. To have it, root adds:'));
       c.appendChild(cmdBox(gLine(win, 'acme-agent allow probe local'), 'small'));
