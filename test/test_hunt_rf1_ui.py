@@ -191,6 +191,9 @@ class Czech(unittest.TestCase):
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="ROOT/web/assets/acme.css"><link rel="stylesheet" href="ROOT/web/assets/ctxmenu.css">
+<!-- the menu as its opening animation has it while it is placed (scaled; on the pages the
+     animation is under way then): placed by its laid-out size it still fits the window -->
+<style>.cxm{animation:none;transform:scale(.9)}</style>
 </head><body><main class="ctl-main"><div style="height:700px"></div>
 <table id="t1"><thead><tr><th>Name</th><th>State</th></tr></thead><tbody></tbody></table>
 <table id="t2"><thead><tr><th>Name</th><th>State</th></tr></thead>

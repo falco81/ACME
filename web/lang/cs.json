@@ -75915,6 +75915,50 @@
   "z_2675": {
    "source": "not a certificate you may see",
    "text": "certifikát, který nesmíte vidět"
+  },
+  "z_2676": {
+   "source": "a full administrator - every capability on every team, whatever is set",
+   "text": "plný správce – každé oprávnění v každém týmu, ať je nastaveno cokoli"
+  },
+  "z_2677": {
+   "source": "a certificate administrator, with \"Certificate administrators manage every certificate\" on",
+   "text": "správce certifikátů se zapnutým „Správci certifikátů spravují každý certifikát“"
+  },
+  "z_2678": {
+   "source": "a read-only account, with \"Read-only accounts see every certificate\" on",
+   "text": "účet jen pro čtení se zapnutým „Účty jen pro čtení vidí každý certifikát“"
+  },
+  "z_2679": {
+   "source": "teams set",
+   "text": "Teams nastaven"
+  },
+  "z_2680": {
+   "source": "slack set",
+   "text": "Slack nastaven"
+  },
+  "z_2681": {
+   "source": "teams taken away",
+   "text": "Teams odebrán"
+  },
+  "z_2682": {
+   "source": "slack taken away",
+   "text": "Slack odebrán"
+  },
+  "z_2683": {
+   "source": "teams set, slack set",
+   "text": "Teams nastaven, Slack nastaven"
+  },
+  "z_2684": {
+   "source": "teams set, slack taken away",
+   "text": "Teams nastaven, Slack odebrán"
+  },
+  "z_2685": {
+   "source": "teams taken away, slack set",
+   "text": "Teams odebrán, Slack nastaven"
+  },
+  "z_2686": {
+   "source": "teams taken away, slack taken away",
+   "text": "Teams odebrán, Slack odebrán"
   }
  },
  "patterns": {
@@ -105369,6 +105413,426 @@
   "pz_827": {
    "source": "{0} holds more on the team {1} than you do ({2}) - another manager of the team takes them out",
    "text": "{0} má v týmu {1} víc než vy ({2}) - odebere ho jiný správce týmu"
+  },
+  "pz_828": {
+   "source": "target {0} made as a copy of {1} - with its credentials ({2}) by {3}",
+   "text": "cíl {0} vytvořil {3} jako kopii {1} – s jeho přístupovými údaji ({2})"
+  },
+  "pz_829": {
+   "source": "source {0} made as a copy of {1} - with its credentials ({2}) by {3}",
+   "text": "zdroj {0} vytvořil {3} jako kopii {1} – s jeho přístupovými údaji ({2})"
+  },
+  "pz_830": {
+   "source": "validation {0} made as a copy of {1} - with its credentials ({2}) by {3}",
+   "text": "validaci {0} vytvořil {3} jako kopii {1} – s jejími přístupovými údaji ({2})"
+  },
+  "pz_831": {
+   "source": "test {0} made as a copy of {1} - with its credentials ({2}) by {3}",
+   "text": "test {0} vytvořil {3} jako kopii {1} – s jeho přístupovými údaji ({2})"
+  },
+  "pz_832": {
+   "source": "the fleet template {0} was saved by {1} (version {2}, {3} line(s)) - documentation only: acme never sends a policy",
+   "text": "šablonu flotily {0} uložil {1} (verze {2}, {3} {3:řádek|řádky|řádků}) – jen dokumentace: acme politiku nikdy neposílá"
+  },
+  "pz_833": {
+   "source": "the fleet template {0} was deleted by {1}",
+   "text": "šablonu flotily {0} smazal {1}"
+  },
+  "pz_834": {
+   "source": "the agents' group {0} was made by {1} ({2} member(s))",
+   "text": "skupinu agentů {0} vytvořil {1} ({2} {2:člen|členové|členů})"
+  },
+  "pz_835": {
+   "source": "the agents' group {0} was changed by {1} ({2} member(s))",
+   "text": "skupinu agentů {0} změnil {1} ({2} {2:člen|členové|členů})"
+  },
+  "pz_836": {
+   "source": "the agents' group {0} was deleted by {1}",
+   "text": "skupinu agentů {0} smazal {1}"
+  },
+  "pz_837": {
+   "source": "the fleet template of {0} agent(s) was set to {1} by {2}",
+   "text": "{2} nastavil {0} {0:agentovi|agentům|agentům} šablonu flotily {1}"
+  },
+  "pz_838": {
+   "source": "the fleet template of {0} agent(s) was taken away by {1}",
+   "text": "{1} odebral {0} {0:agentovi|agentům|agentům} šablonu flotily"
+  },
+  "pz_839": {
+   "source": "the agents' update rollout to {0} is done: {1} agent(s), {2} failed",
+   "text": "zavádění aktualizace agentů na {0} skončilo: {1} {1:agent|agenti|agentů}, {2} selhalo"
+  },
+  "pz_840": {
+   "source": "an update rollout of the agents to {0} was started by {1}: {2} in the canary ring, {3} after {4} minute(s)",
+   "text": "{1} spustil zavádění aktualizace agentů na {0}: {2} ve vlně canary, {3} po {4} {4:minutě|minutách|minutách}"
+  },
+  "pz_841": {
+   "source": "the agents' update rollout to {0} is held: the canary ring is not healthy ({1})",
+   "text": "zavádění aktualizace agentů na {0} je pozastavené: vlna canary není v pořádku ({1})"
+  },
+  "pz_842": {
+   "source": "the agents' update rollout to {0} was stopped by {1}",
+   "text": "zavádění aktualizace agentů na {0} zastavil {1}"
+  },
+  "pz_843": {
+   "source": "the agents' update rollout to {0} goes on with the rest, by {1}",
+   "text": "zavádění aktualizace agentů na {0} pokračuje se zbytkem – {1}"
+  },
+  "pz_844": {
+   "source": "the certificate found on {0} ({1}) was taken over by {2}: certificate {3}, its deployment there",
+   "text": "certifikát nalezený na {0} ({1}) převzal {2}: certifikát {3} a jeho nasazení tam"
+  },
+  "pz_845": {
+   "source": "{0} item(s) deleted from the trash for good by {1}",
+   "text": "{1} natrvalo smazal z koše {0} {0:položku|položky|položek}"
+  },
+  "pz_846": {
+   "source": "the team {0}: access reviews set by {1}: {2}",
+   "text": "tým {0}: revize přístupů nastavil {1}: {2}"
+  },
+  "pz_847": {
+   "source": "the team {0}: access reviews switched off by {1}",
+   "text": "tým {0}: revize přístupů vypnul {1}"
+  },
+  "pz_848": {
+   "source": "the team {0}: just-in-time elevation set by {1}: {2}",
+   "text": "tým {0}: dočasné role nastavil {1}: {2}"
+  },
+  "pz_849": {
+   "source": "the team {0}: just-in-time elevation switched off by {1}",
+   "text": "tým {0}: dočasné role vypnul {1}"
+  },
+  "pz_850": {
+   "source": "the team {0}: separation of duties set by {1}: {2}",
+   "text": "tým {0}: oddělení povinností nastavil {1}: {2}"
+  },
+  "pz_851": {
+   "source": "the team {0}: separation of duties switched off by {1}",
+   "text": "tým {0}: oddělení povinností vypnul {1}"
+  },
+  "pz_852": {
+   "source": "the team {0}: notification channels set by {1}: {2}",
+   "text": "tým {0}: kanály upozornění nastavil {1}: {2}"
+  },
+  "pz_853": {
+   "source": "the team {0}: notification channels switched off by {1}",
+   "text": "tým {0}: kanály upozornění vypnul {1}"
+  },
+  "pz_854": {
+   "source": "{0} asks for the role {1} on the team {2} for {3} hour(s): {4}",
+   "text": "{0} žádá o roli {1} v týmu {2} na {3} {3:hodinu|hodiny|hodin}: {4}"
+  },
+  "pz_855": {
+   "source": "{0} was refused: deciding the request of {1} for {2} on the team {3} ({4})",
+   "text": "{0} byl(a) odmítnut(a): rozhodnutí o žádosti {1} o {2} v týmu {3} ({4})"
+  },
+  "pz_856": {
+   "source": "{0} gave {1} the role {2} on the team {3} until {4} ({5} h, asked: {6})",
+   "text": "{0} dal(a) {1} roli {2} v týmu {3} do {4} ({5} h, žádost: {6})"
+  },
+  "pz_857": {
+   "source": "{0} gave {1} the role {2} on the team {3} until {4} ({5} h, asked: {6}) - {7}",
+   "text": "{0} dal(a) {1} roli {2} v týmu {3} do {4} ({5} h, žádost: {6}) – {7}"
+  },
+  "pz_858": {
+   "source": "{0} declined the request of {1} for the role {2} on the team {3}: {4}",
+   "text": "{0} zamítl(a) žádost {1} o roli {2} v týmu {3}: {4}"
+  },
+  "pz_859": {
+   "source": "{0} took back the request for the role {1} of {2} on the team {3}",
+   "text": "{0} stáhl(a) žádost {2} o roli {1} v týmu {3}"
+  },
+  "pz_860": {
+   "source": "{0} ended the role {1} of {2} on the team {3}",
+   "text": "{0} ukončil(a) roli {1} uživatele {2} v týmu {3}"
+  },
+  "pz_861": {
+   "source": "the temporary role {0} of {1} on the team {2} ended by itself",
+   "text": "dočasná role {0} uživatele {1} v týmu {2} sama skončila"
+  },
+  "pz_862": {
+   "source": "the request of {0} for the role {1} on the team {2} ended: nobody answered it in a week",
+   "text": "žádost {0} o roli {1} v týmu {2} skončila: za týden na ni nikdo neodpověděl"
+  },
+  "pz_863": {
+   "source": "an access review of the team {0} was opened by {1}: {2} member(s) to confirm by {3}",
+   "text": "{1} otevřel(a) revizi přístupů týmu {0}: {2} {2:člena|členy|členů} potvrdit do {3}"
+  },
+  "pz_864": {
+   "source": "{0} confirmed {1} in the access review of the team {2}",
+   "text": "{0} potvrdil(a) {1} v revizi přístupů týmu {2}"
+  },
+  "pz_865": {
+   "source": "{0} confirmed {1} in the access review of the team {2} - the review is done",
+   "text": "{0} potvrdil(a) {1} v revizi přístupů týmu {2} – revize je hotová"
+  },
+  "pz_866": {
+   "source": "{0} took out {1} in the access review of the team {2}",
+   "text": "{0} vyřadil(a) {1} v revizi přístupů týmu {2}"
+  },
+  "pz_867": {
+   "source": "{0} took out {1} in the access review of the team {2} - the review is done",
+   "text": "{0} vyřadil(a) {1} v revizi přístupů týmu {2} – revize je hotová"
+  },
+  "pz_868": {
+   "source": "the access review of the team {0} ended unanswered: {1} membership(s) expired ({2})",
+   "text": "revize přístupů týmu {0} skončila bez odpovědi: {1} {1:členství vypršelo|členství vypršela|členství vypršelo} ({2})"
+  },
+  "pz_869": {
+   "source": "the access review of the team {0} is overdue: {1} member(s) not confirmed ({2})",
+   "text": "revize přístupů týmu {0} je po termínu: {1} {1:člen nepotvrzen|členové nepotvrzeni|členů nepotvrzeno} ({2})"
+  },
+  "pz_870": {
+   "source": "the team template {0} changed by {1}",
+   "text": "šablonu týmu {0} změnil {1}"
+  },
+  "pz_871": {
+   "source": "the team template {0} added by {1}",
+   "text": "šablonu týmu {0} přidal {1}"
+  },
+  "pz_872": {
+   "source": "the team template {0} changed by {1} (from the team {2})",
+   "text": "šablonu týmu {0} změnil {1} (z týmu {2})"
+  },
+  "pz_873": {
+   "source": "the team template {0} added by {1} (from the team {2})",
+   "text": "šablonu týmu {0} přidal {1} (z týmu {2})"
+  },
+  "pz_874": {
+   "source": "the team template {0} deleted by {1}",
+   "text": "šablonu týmu {0} smazal {1}"
+  },
+  "pz_875": {
+   "source": "the team {0} made from the template {1} by {2}",
+   "text": "tým {0} vytvořil {2} ze šablony {1}"
+  },
+  "pz_876": {
+   "source": "{0} team(s) imported from CSV by {1}: {2}",
+   "text": "{1} naimportoval z CSV {0} {0:tým|týmy|týmů}: {2}"
+  },
+  "pz_877": {
+   "source": "the team {0}: its webhooks changed by {1} ({2})",
+   "text": "tým {0}: jeho webhooky změnil {1} ({2})"
+  },
+  "pz_878": {
+   "source": "the notification channels of the team {0} were tried",
+   "text": "kanály upozornění týmu {0} byly vyzkoušeny"
+  },
+  "pz_879": {
+   "source": "{0}, viewing the pages as {1} (read-only), was refused: {2}",
+   "text": "{0} byl(a) odmítnut(a) při zobrazení stránek jako {1} (jen pro čtení): {2}"
+  },
+  "pz_880": {
+   "source": "{0} views the administration as {1} ({2}, read-only)",
+   "text": "{0} zobrazuje administraci jako {1} ({2}, jen pro čtení)"
+  },
+  "pz_881": {
+   "source": "{0} views the administration as {1} ({2}, read-only) - member of {3}",
+   "text": "{0} zobrazuje administraci jako {1} ({2}, jen pro čtení) – člen: {3}"
+  },
+  "pz_882": {
+   "source": "{0} stopped viewing the administration as {1}",
+   "text": "{0} přestal(a) zobrazovat administraci jako {1}"
+  },
+  "pz_883": {
+   "source": "{0} stopped viewing the administration as {1} ({2})",
+   "text": "{0} přestal(a) zobrazovat administraci jako {1} ({2})"
+  },
+  "pz_884": {
+   "source": "{0} views the portal as {1} (read-only)",
+   "text": "{0} zobrazuje portál jako {1} (jen pro čtení)"
+  },
+  "pz_885": {
+   "source": "{0} views the portal as {1} (read-only) - member of {2}",
+   "text": "{0} zobrazuje portál jako {1} (jen pro čtení) – člen: {2}"
+  },
+  "pz_886": {
+   "source": "the role {0} added by {1}: {2}",
+   "text": "roli {0} přidal {1}: {2}"
+  },
+  "pz_887": {
+   "source": "the role {0} changed by {1}: {2}",
+   "text": "roli {0} změnil {1}: {2}"
+  },
+  "pz_888": {
+   "source": "the role {0} deleted by {1}",
+   "text": "roli {0} smazal {1}"
+  },
+  "pz_889": {
+   "source": "the certificate {0}: the version of {1} restored by {2}",
+   "text": "certifikát {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_890": {
+   "source": "the certificate {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše certifikát {0}"
+  },
+  "pz_891": {
+   "source": "the certificate {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše certifikát {0} i s {2}"
+  },
+  "pz_892": {
+   "source": "the target {0}: the version of {1} restored by {2}",
+   "text": "cíl {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_893": {
+   "source": "the target {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše cíl {0}"
+  },
+  "pz_894": {
+   "source": "the target {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše cíl {0} i s {2}"
+  },
+  "pz_895": {
+   "source": "the source {0}: the version of {1} restored by {2}",
+   "text": "zdroj {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_896": {
+   "source": "the source {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše zdroj {0}"
+  },
+  "pz_897": {
+   "source": "the source {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše zdroj {0} i s {2}"
+  },
+  "pz_898": {
+   "source": "the validation {0}: the version of {1} restored by {2}",
+   "text": "validace {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_899": {
+   "source": "the validation {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše validaci {0}"
+  },
+  "pz_900": {
+   "source": "the validation {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše validaci {0} i s {2}"
+  },
+  "pz_901": {
+   "source": "the test {0}: the version of {1} restored by {2}",
+   "text": "test {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_902": {
+   "source": "the test {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše test {0}"
+  },
+  "pz_903": {
+   "source": "the test {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše test {0} i s {2}"
+  },
+  "pz_904": {
+   "source": "the deployment {0}: the version of {1} restored by {2}",
+   "text": "nasazení {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_905": {
+   "source": "the deployment {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše nasazení {0}"
+  },
+  "pz_906": {
+   "source": "the deployment {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše nasazení {0} i s {2}"
+  },
+  "pz_907": {
+   "source": "the test of a certificate {0}: the version of {1} restored by {2}",
+   "text": "test certifikátu {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_908": {
+   "source": "the test of a certificate {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše test certifikátu {0}"
+  },
+  "pz_909": {
+   "source": "the test of a certificate {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše test certifikátu {0} i s {2}"
+  },
+  "pz_910": {
+   "source": "the request profile {0}: the version of {1} restored by {2}",
+   "text": "profil žádosti {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_911": {
+   "source": "the request profile {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše profil žádosti {0}"
+  },
+  "pz_912": {
+   "source": "the request profile {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše profil žádosti {0} i s {2}"
+  },
+  "pz_913": {
+   "source": "the owner {0}: the version of {1} restored by {2}",
+   "text": "vlastník {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_914": {
+   "source": "the owner {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše vlastníka {0}"
+  },
+  "pz_915": {
+   "source": "the owner {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše vlastníka {0} i s {2}"
+  },
+  "pz_916": {
+   "source": "the role {0}: the version of {1} restored by {2}",
+   "text": "role {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_917": {
+   "source": "the role {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše roli {0}"
+  },
+  "pz_918": {
+   "source": "the role {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše roli {0} i s {2}"
+  },
+  "pz_919": {
+   "source": "the tag {0}: the version of {1} restored by {2}",
+   "text": "štítek {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_920": {
+   "source": "the tag {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše štítek {0}"
+  },
+  "pz_921": {
+   "source": "the tag {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše štítek {0} i s {2}"
+  },
+  "pz_922": {
+   "source": "the DNS set {0}: the version of {1} restored by {2}",
+   "text": "sada DNS {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_923": {
+   "source": "the DNS set {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše sadu DNS {0}"
+  },
+  "pz_924": {
+   "source": "the DNS set {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše sadu DNS {0} i s {2}"
+  },
+  "pz_925": {
+   "source": "the use of a DNS set {0}: the version of {1} restored by {2}",
+   "text": "použití sady DNS {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_926": {
+   "source": "the use of a DNS set {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše použití sady DNS {0}"
+  },
+  "pz_927": {
+   "source": "the use of a DNS set {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše použití sady DNS {0} i s {2}"
+  },
+  "pz_928": {
+   "source": "the DNS record {0}: the version of {1} restored by {2}",
+   "text": "záznam DNS {0}: {2} obnovil(a) verzi z {1}"
+  },
+  "pz_929": {
+   "source": "the DNS record {0} restored from the trash by {1}",
+   "text": "{1} obnovil(a) z koše záznam DNS {0}"
+  },
+  "pz_930": {
+   "source": "the DNS record {0} restored from the trash by {1} with {2}",
+   "text": "{1} obnovil(a) z koše záznam DNS {0} i s {2}"
+  },
+  "pz_931": {
+   "source": "the team {0}, the team {1}",
+   "text": "tým {0}, tým {1}"
+  },
+  "pz_932": {
+   "source": "the team {0}, the team {1}, the team {2}",
+   "text": "tým {0}, tým {1}, tým {2}"
   }
  },
  "rich": {
