@@ -1034,6 +1034,7 @@ function rowMenu(w, x, y, opts) {
   menu.push('-');
   menu = menu.concat(copyItems(w, list));
   var clip = clipItems(w, list);
+  if (!isManage()) clip = clip.filter(function (a) { return !a.off; });
   if (clip.length) { menu.push('-'); menu = menu.concat(clip); }
   if (!inSel) {
     var f = filterItems(w);
@@ -1063,7 +1064,8 @@ function areaMenu(a, x, y, opts) {
   ic.innerHTML = iconMarkup((t && t.icon) || 'list', 16);
   card.appendChild(ic);
   var tw = el('div', 'cxm-head-w');
-  tw.appendChild(el('b', '', (t && t.plural) || 'List'));
+  var pl = (t && t.plural) || 'List';
+  tw.appendChild(el('b', '', pl.charAt(0).toUpperCase() + pl.slice(1)));
   tw.appendChild(el('span', 'cxm-head-t', 'The list'));
   card.appendChild(tw);
   if (t && t.add) menu.push({label: t.addWords || 'Add a new one…', icon: 'add', off: t.mayAdd && !t.mayAdd(c) ? (t.addRefused || 'Only a full administrator may do that') : '', go: function () { return t.add(c); }});
