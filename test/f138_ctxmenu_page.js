@@ -235,7 +235,7 @@ function inPage() {
       run.teamMenu = await page.$$eval('.cxm', n => n.length);
       await check('team');
       await item(page, 'Clone…');
-      await page.waitForSelector('#modal-body .cxc input', {timeout: 15000});
+      await page.waitForSelector('#modal-body.cxc input', {timeout: 15000});
       await page.waitForTimeout(300);
       run.teamClone = await page.$eval('#modal-body input', i => i.value);
       await check('teamclone');
@@ -278,6 +278,8 @@ function inPage() {
     await ctx.close();
   } catch (e) {
     out.error = String(e && e.stack || e);
+    try { for (const c of browser.contexts()) for (const pg of c.pages()) await shot(pg, 'failed'); } catch (x) { }
+    out.at = out.runs.length;
   }
   await browser.close();
   console.log(JSON.stringify(out));

@@ -87,9 +87,20 @@ def _restore(h, s):
 @A.api('GET', '/api/reqprofiles/compliance')
 def _compliance(h, s):
     try:
-        return RM.report(h.store, h.arg('at') or None)
+        got = RM.report(h.store, h.arg('at') or None)
     except ValueError as e:
         raise E.ApiError(400, str(e))
+    if not _sees_all(s):
+        # an account that sees only some certificates (its teams): the profiles, not theirs
+        got['certs'] = []
+        got['cert_count'] = {'ok': 0, 'bad': 0, 'ends': 0}
+        got['certs_hidden'] = True
+    return got
+
+
+def _sees_all(s):
+    from acmelib.certs import teams as T
+    return T.unscoped(s, 'view')
 
 
 @A.api('POST', '/api/reqprofiles/rules', 'fulladmin')
@@ -101,13 +112,16 @@ def _rules(h, s):
 @A.api('POST', '/api/reqprofiles/dryrun')
 def _dryrun(h, s):
     try:
-        return RM.dryrun(h.store, h.body())
+        return RM.dryrun(h.store, h.body(), owners=_sees_all(s))
     except ValueError as e:
         raise E.ApiError(400, str(e))
 
 
 @A.api('GET', '/api/reqprofiles/impact')
 def _impact(h, s):
+    if not _sees_all(s):
+        raise E.ApiError(403, 'only an account that sees every certificate sees what ending a '
+                              'profile moves')
     return RM.impact(h.store, h.arg('name'), h.arg('successor') or None)
 
 

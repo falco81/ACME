@@ -381,6 +381,10 @@ def save_profile(store, b, by, why='', keep_ends=True):
         # The profiles based on this one, as they will be (1.0.138): one that would no longer
         # fit together refuses the change of its base, in its words.
         sim = [dict(r, **row) if r['id'] == old['id'] else r for r in raw]
+        if old['name'] != name:
+            # renamed too: the profiles based on it as they will be (RM.renamed below)
+            sim = [dict(r, config=json.dumps(dict(own_of(r), base=name)))
+                   if _low(own_of(r).get('base')) == _low(old['name']) else r for r in sim]
         for r in resolve(sim):
             if r['id'] == old['id'] or not any(_low(x) == _low(name) for x in
                                                chain_of(store, r['name'], sim)[1:]):

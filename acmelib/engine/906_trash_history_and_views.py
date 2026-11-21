@@ -10,17 +10,17 @@ from __future__ import annotations
 
 _HT_SCHEMA = [
     # Every change of a setting of an object (a target, a deployment, a team...): who, when,
-    # from where, through which route, its settings before and after - a secret as it was
-    # kept, sealed (only "changed" is ever shown).
+    # from where, through which route, its settings before (was_v) and after (now_v) - a secret
+    # as it was kept, sealed (only "changed" is ever shown). No column is a word MariaDB keeps.
     ('obj_history', '''CREATE TABLE IF NOT EXISTS obj_history (
         id {ID}, ts {N}, otable {K}, otype {K}, oid {I}, oname {K}, action {K}, who {K},
-        ip {K}, via {K}, note {T}, owner {K}, before {B}, after {B}, fields {T},
+        ip {K}, via {K}, note {T}, owner {K}, was_v {B}, now_v {B}, fields {T},
         batch {K})'''),
-    # What was deleted, kept for history_trash_days: the row as it was (its secrets sealed as
-    # they were; a certificate without its key and certificates), what went with it under it.
+    # What was deleted, kept for history_trash_days: the row as it was (row_v: its secrets sealed
+    # as they were; a certificate without its key and certificates), what went with it under it.
     ('obj_trash', '''CREATE TABLE IF NOT EXISTS obj_trash (
         id {ID}, ts {N}, otable {K}, otype {K}, oid {I}, oname {K}, owner {K}, who {K},
-        ip {K}, via {K}, parent {I}, batch {K}, row {B}, meta {B}, detail {T},
+        ip {K}, via {K}, parent {I}, batch {K}, row_v {B}, meta {B}, detail {T},
         expires {N})'''),
     # A table's filters, sort and columns under a name: one person's, a team's or everybody's.
     ('saved_views', '''CREATE TABLE IF NOT EXISTS saved_views (

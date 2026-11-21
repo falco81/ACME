@@ -647,7 +647,8 @@
         clear(f.imp);
         if (!succ && !p.ends) { f.imp.appendChild(el('p', 'muted', 'Choose its successor to see what moves.')); return; }
         f.imp.appendChild(el('p', 'muted', 'Asking…'));
-        apiGet('reqprofiles/impact&name=' + q(name) + (succ ? '&successor=' + q(succ) : '')).then(function (d) { drawImpact(f.imp, d); }).catch(oops);
+        apiGet('reqprofiles/impact&name=' + q(name) + (succ ? '&successor=' + q(succ) : '')).then(function (d) { drawImpact(f.imp, d); })
+          .catch(function (e) { clear(f.imp); f.imp.appendChild(el('p', 'muted', String(e.message || e))); });
       };
       impact(p.name, p.ends ? '' : '');
     }, p.ends ? [{words: 'Close', close: true}].concat(full() ? [{words: 'Offer it again', cls: 'primary', icon: 'undo', go: function (b) {

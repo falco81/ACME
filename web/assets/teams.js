@@ -3436,7 +3436,7 @@
               b.appendChild(el('span', 'tmg-dot ' + kind + (lim ? ' l' : '')));
               b.setAttribute('aria-label', r.name + ': ' + c.id);
               var words = !vias.length ? tr(r.why || '') : vias.map(function (v) {
-                return (v.roles || []).concat(v.rights || []).join(', ') + ' - ' + (v.inherited ? tr('inherited from') + ' ' + v.team : tr('on') + ' ' + v.team);
+                return (v.roles || []).concat(v.rights || []).join(', ') + ' - ' + (v.inherited ? tr('inherited from') + ' ' + v.team : tr('in the team') + ' ' + v.team);
               }).join(' · ');
               if (lim) words += ' · ' + lim;
               explain(b, c.id + ': ' + words);
@@ -3500,7 +3500,7 @@
           line.appendChild(ih);
         } else {
           var on = el('span', 'tmx-chip here');
-          on.appendChild(el('span', '', 'on'));
+          on.appendChild(el('span', '', 'in the team'));
           on.appendChild(document.createTextNode(' '));
           on.appendChild(data('b', '', v.team));
           line.appendChild(on);
@@ -3531,7 +3531,8 @@
     if (d.groups_count) tags.appendChild(chip('{0} groups'.replace('{0}', num(d.groups_count)), 'dim', 'people'));
     head.appendChild(tags);
     var acts = el('div', 'tmg-va');
-    viewAsButtons(who.kind === 'local' ? who.name : (who.upn || who.sam || who.name), acts);
+    var meName = low((typeof ME === 'object' && ME && ME.name) || '');
+    if (low(String(who.name || '').replace(/^local:/i, '')) !== meName) viewAsButtons(who.kind === 'local' ? who.name : (who.upn || who.sam || who.name), acts);
     if (acts.firstChild) head.appendChild(acts);
     box.appendChild(head);
     if (d.account && (d.account.role === 'fulladmin' || ((d.account.role === 'certadmin' || d.account.role === 'tokenadmin') && (d.settings || {}).certadmin_all))) {
@@ -3557,7 +3558,7 @@
       var title = el('span', '');
       title.appendChild(data('b', '', c.id));
       title.appendChild(document.createTextNode(' '));
-      title.appendChild(el('span', '', 'on'));
+      title.appendChild(el('span', '', 'in the team'));
       title.appendChild(document.createTextNode(' '));
       title.appendChild(data('b', '', r.name));
       why.show(title, vias, lim);
@@ -3605,7 +3606,7 @@
     t.appendChild(document.createTextNode(' '));
     t.appendChild(data('b', 'mono', d.cap));
     t.appendChild(document.createTextNode(' '));
-    t.appendChild(el('span', '', 'on'));
+    t.appendChild(el('span', '', d.cert ? 'on the certificate' : 'in the team'));
     t.appendChild(document.createTextNode(' '));
     t.appendChild(data('b', '', d.cert ? d.cert : (d.team || '?')));
     if (d.cert && d.team) { t.appendChild(document.createTextNode(' (')); t.appendChild(data('span', '', d.team)); t.appendChild(document.createTextNode(')')); }
@@ -3888,7 +3889,7 @@
     var line = el('div', 'tmg-erow-l');
     line.appendChild(el('span', 'muted small', 'asks for'));
     line.appendChild(roleChip(r.role));
-    line.appendChild(el('span', 'muted small', 'on'));
+    line.appendChild(el('span', 'muted small', 'in the team'));
     line.appendChild(dataChip(r.team, 'dim', 'people'));
     line.appendChild(chip('{0} h'.replace('{0}', num(Math.round(r.hours || 0))), 'dim', 'clock'));
     hw.appendChild(line);

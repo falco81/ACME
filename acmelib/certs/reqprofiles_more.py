@@ -453,8 +453,8 @@ def lint_cert(store, row, cfg, public, today, rl):
         except (TypeError, ValueError, KeyError, OverflowError):
             issued = today
         if days > limit_on(issued) + 1:
-            out.append(_f('cabf_days', 'bad', 'valid for %d days - longer than the %d days a public '
-                          'certificate issued on %s may be' % (days, limit_on(issued),
+            out.append(_f('cabf_days', 'bad', 'valid for %d days - longer than the %d days a '
+                          'public certificate issued on %s may be' % (days, limit_on(issued),
                                                                issued.isoformat())))
         try:
             due = datetime.datetime.utcfromtimestamp(
@@ -557,7 +557,7 @@ class _Quiet(object):
         return None
 
 
-def dryrun(store, b):
+def dryrun(store, b, owners=True):
     """POST /api/reqprofiles/dryrun {profile, names[] | csr | csr_b64, key_type, subject{},
     team, who}: what would be issued - nothing is asked of a CA, nothing is kept."""
     from acmelib.certs import compat
@@ -643,7 +643,8 @@ def dryrun(store, b):
     if held:
         waits = True
         why.append('its names are held by certificates of another owner: %s' % ', '.join(
-            sorted(o or 'nobody' for o in held)))
+            sorted(o or 'nobody' for o in held)) if owners else
+            'its names are held by certificates of another owner')
     team_words = None
     if owner and T.team_get(store, owner):
         q = _Quiet(store)

@@ -877,3 +877,5 @@ button.tmx-tick.on{border:0}
   .tmg-rl .tmx-chip{font-size:10.5px;padding:0 6px}
   .tmg-rl-n{max-width:100%}
 }
+.tmx-note > .tmx-ic{flex:none}
+.tmg-jit > .tmg-erow,.tmg-card .tmx-mlist > .tmg-erow{align-self:stretch}

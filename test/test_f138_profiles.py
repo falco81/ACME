@@ -32,7 +32,6 @@ import test_req_profiles as TRP  # noqa: E402  (its store, FakeH, setup, helpers
 
 from acmelib import engine as E  # noqa: E402
 from acmelib.certs import reqprofiles as R, reqprofiles_more as RM, store as S  # noqa: E402
-from acmelib.certs import renewer, jobs  # noqa: E402,F401
 
 STORE = TRP.STORE
 call, status, portal, portal_status = TRP.call, TRP.status, TRP.portal, TRP.portal_status
@@ -342,6 +341,15 @@ class Ending(unittest.TestCase):
                          400)
         self.assertEqual(status(call, 'POST', '/api/reqprofiles/ends',
                                 {'name': 'Web 2026', 'successor': 'Web servers'}), 400)
+        # an account that sees only its teams' certificates does not see them
+        E.CONFIG['certs_certadmin_all'] = 0
+        try:
+            self.assertEqual(status(call, 'GET', '/api/reqprofiles/impact',
+                                    args={'name': 'Web servers'}, role='certadmin'), 403)
+            rep = call('GET', '/api/reqprofiles/compliance', role='certadmin')
+            self.assertEqual((rep['certs'], rep['certs_hidden']), ([], True))
+        finally:
+            E.CONFIG['certs_certadmin_all'] = 1
         imp = call('GET', '/api/reqprofiles/impact', args={'name': 'Web servers'}, role='readonly')
         self.assertEqual((imp['successor'], imp['moves'], imp['stays']), ('Web 2026', 1, 0))
         fields = {c['field'] for c in imp['certs'][0]['changes']}

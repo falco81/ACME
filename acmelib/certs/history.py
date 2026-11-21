@@ -110,21 +110,22 @@ def _low(v):
     return str(v or '').strip().lower()
 
 
-def _days(key, default):
+def _days(v, default):
     try:
-        v = int(E.CONFIG.get(key, default) if E.CONFIG.get(key, default) not in (None, '')
-                else default)
+        v = int(v if v not in (None, '') else default)
     except (TypeError, ValueError):
         v = default
     return max(0, min(3650, v))
 
 
 def trash_days():
-    return _days('history_trash_days', 30)
+    """Settings → Trash and history: how long what was deleted is kept (0: no trash)."""
+    return _days(E.CONFIG.get('history_trash_days', 30), 30)
 
 
 def keep_days():
-    return _days('history_keep_days', 365)
+    """...and the history of changes (0: none written)."""
+    return _days(E.CONFIG.get('history_keep_days', 365), 365)
 
 
 # ---------------------------------------------------------------------------
@@ -422,9 +423,9 @@ def flush(ctx):
                      'oname': _name_of(store, table, row), 'action': action,
                      'who': ctx.who, 'ip': ctx.ip, 'via': ctx.via, 'note': ctx.note[:500],
                      'owner': _owner_of(store, table, row, ctx.seen),
-                     'before': json.dumps(snapshot(table, before), default=str)
+                     'was_v': json.dumps(snapshot(table, before), default=str)
                      if before is not None else None,
-                     'after': json.dumps(snapshot(table, now), default=str)
+                     'now_v': json.dumps(snapshot(table, now), default=str)
                      if now is not None else None,
                      'fields': ','.join(changed_fields(table, before, now))[:2000]
                      if before is not None and now is not None else '',
@@ -478,7 +479,7 @@ def _to_trash(ctx, db, gone, batch, t, days):
             else _child_name(gone, table, row, store),
             'owner': _owner_of(store, table, row, gone), 'who': ctx.who, 'ip': ctx.ip,
             'via': ctx.via, 'parent': parent, 'batch': batch,
-            'row': json.dumps(trash_row(table, row), default=str),
+            'row_v': json.dumps(trash_row(table, row), default=str),
             'meta': json.dumps(info.get('meta')) if info.get('meta') else None,
             'detail': _detail(table, row)[:500], 'expires': t + days * 86400})
 
@@ -718,7 +719,7 @@ def _snap(v):
 
 
 def entry_public(store, s, r):
-    before, after = _snap(r.get('before')), _snap(r.get('after'))
+    before, after = _snap(r.get('was_v')), _snap(r.get('now_v'))
     return {'id': r['id'], 'ts': r.get('ts'), 'type': r.get('otype'), 'oid': r.get('oid'),
             'name': r.get('oname') or '', 'action': r.get('action') or '',
             'who': r.get('who') or '', 'ip': r.get('ip') or '', 'via': r.get('via') or '',
@@ -1014,14 +1015,14 @@ def restore_version(store, h, s, entry_id, secrets=False):
     table, otype = r['otable'], r['otype']
     if not may_see(store, s, otype, r.get('owner')):
         raise E.ApiError(403, 'you may not see the history of that %s' % WORDS.get(otype, otype))
-    if r.get('action') == 'delete' or not r.get('after'):
+    if r.get('action') == 'delete' or not r.get('now_v'):
         raise ValueError('that was a deletion - what was deleted is in the trash')
     if not may_restore_version(store, s, otype, r.get('owner')):
         raise E.ApiError(403, 'you may not change that %s' % WORDS.get(otype, otype))
     current = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (int(r['oid']),))
     if not current:
         raise ValueError('it is not here any more - restore it from the trash first')
-    want = _snap(r['after']) or {}
+    want = _snap(r['now_v']) or {}
     row = dict(current)
     row.update(want)
     if table == 'certs':
@@ -1048,7 +1049,7 @@ def preview_version(store, s, entry_id):
     if not may_see(store, s, r['otype'], r.get('owner')):
         raise E.ApiError(403, 'you may not see that')
     current = store.db.row('SELECT * FROM %s WHERE id = ?' % r['otable'], (int(r['oid']),))
-    want = _snap(r.get('after'))
+    want = _snap(r.get('now_v'))
     if not current or want is None:
         return {'changes': [], 'exists': bool(current)}
     target = dict(current)
@@ -1111,7 +1112,7 @@ def _trash_get(store, ident):
 
 
 def _row_of(r):
-    got = _snap(r.get('row')) or {}
+    got = _snap(r.get('row_v')) or {}
     return got
 
 

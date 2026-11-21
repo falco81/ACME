@@ -3378,7 +3378,7 @@ function elevCard(r, mode, after) {
   var l2 = el('div', 'pwg-e-l2');
   l2.appendChild(el('span', 'muted', 'asks for'));
   l2.appendChild(chip(r.role, 'info', null, true));
-  l2.appendChild(el('span', 'muted', 'on'));
+  l2.appendChild(el('span', 'muted', 'in the team'));
   l2.appendChild(teamChip(r.team, 'small'));
   l2.appendChild(chip(Math.round(r.hours || 0) + ' h', 'dim', 'clock', true));
   w.appendChild(l2);
@@ -3583,7 +3583,7 @@ function whoMatrix(d) {
           var dotEl = el('span', 'pwg-dot ' + kind);
           dotEl.setAttribute('tabindex', '0');
           dotEl.setAttribute('role', 'img');
-          var words = vias.map(function (v) { return arr(v.roles).concat(arr(v.rights)).join(', ') + ' - ' + (v.inherited ? tr('inherited from') + ' ' : tr('on') + ' ') + v.team + (v.jit ? ' (' + tr('temporary') + ')' : ''); }).join(' · ');
+          var words = vias.map(function (v) { return arr(v.roles).concat(arr(v.rights)).join(', ') + ' - ' + (v.inherited ? tr('inherited from') + ' ' : tr('in the team') + ' ') + v.team + (v.jit ? ' (' + tr('temporary') + ')' : ''); }).join(' · ');
           dotEl.setAttribute('aria-label', c.id + ': ' + words);
           explain(dotEl, c.id + ': ' + words);
           td.appendChild(dotEl);

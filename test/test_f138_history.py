@@ -22,6 +22,7 @@ docs/history-and-trash.md).
   diff and Restore this version, the saved views' dropdown by the certificates - no error of the
   page, nothing wider than the window.
 """
+import contextlib
 import json
 import os
 import re
@@ -64,8 +65,14 @@ class History(unittest.TestCase):
     def tearDownClass(cls):
         TCC.CertsCore.tearDownClass.__func__(cls)
 
+    @contextlib.contextmanager
     def db(self):
-        return sqlite3.connect(os.path.join(self.tmp, 'state', 'acme.db'))
+        c = sqlite3.connect(os.path.join(self.tmp, 'state', 'acme.db'), timeout=30)
+        try:
+            with c:
+                yield c
+        finally:
+            c.close()
 
     def target(self, name, pw='s3cret', **over):
         body = {'name': name, 'kind': 'fake', 'config': {'dir': self.outdir, 'password': pw,
@@ -177,7 +184,7 @@ class History(unittest.TestCase):
         self.assertNotIn('sealed:', json.dumps(pre))
         # sealed in the trash as it was
         with self.db() as c:
-            raw = c.execute('SELECT row FROM obj_trash WHERE id = ?', (it['id'],)).fetchone()[0]
+            raw = c.execute('SELECT row_v FROM obj_trash WHERE id = ?', (it['id'],)).fetchone()[0]
         self.assertIn('sealed:', raw)
         self.assertNotIn('s3cret', raw)
         # a name taken since: explained, a new one offered
@@ -254,7 +261,7 @@ class History(unittest.TestCase):
         it = [i for i in tr['items'] if i['name'] == 'trash-cert'][0]
         self.assertEqual([c['type'] for c in it['children']], ['deploy'])
         with self.db() as c:
-            raw = c.execute('SELECT row FROM obj_trash WHERE id = ?', (it['id'],)).fetchone()[0]
+            raw = c.execute('SELECT row_v FROM obj_trash WHERE id = ?', (it['id'],)).fetchone()[0]
         self.assertNotIn('key_sealed', raw)
         self.assertNotIn('BEGIN', raw)
         pre = self.ok('POST', '/api/trash/preview', {'id': it['id']})
@@ -270,6 +277,29 @@ class History(unittest.TestCase):
         self.assertIsNotNone(dep)
         self.assertIn('sealed:', dep[0])
         self.assertEqual(did['with'], ['trash-cert → trash-dep'])
+        # its history followed it, its key and PEMs never in it
+        got = self.hist('cert', did['id'])
+        self.assertEqual(got['entries'][0]['action'], 'restore')
+        self.assertIn('create', [e['action'] for e in got['entries']])
+        with self.db() as c:
+            for (v,) in c.execute("SELECT COALESCE(was_v, '') || COALESCE(now_v, '') FROM "
+                                  "obj_history WHERE otable = 'certs'"):
+                self.assertNotIn('BEGIN', v)
+                self.assertNotIn('key_sealed', v)
+        # a deployment's history: its PFX password only as changed
+        with self.db() as c:
+            dep_id = c.execute('SELECT id FROM cert_deploys WHERE cert_id = ?',
+                               (did['id'],)).fetchone()[0]
+        self.ok('POST', '/api/deploys/save', {'id': dep_id, 'cert_id': did['id'],
+                                              'target': 'trash-dep',
+                                              'options': {'file': 'y.pem', 'pfx_password': 'n3wpfx'}})
+        got = self.hist('deploy', dep_id)
+        ch = {c['sub']: c for c in got['entries'][0]['changes']}
+        self.assertEqual(ch['file']['after'], 'y.pem')
+        self.assertEqual(ch['file']['label'], 'File')
+        self.assertTrue(ch['pfx_password']['secret'])
+        self.assertNotIn('n3wpfx', json.dumps(got))
+        self.assertNotIn('pfxpw', json.dumps(got))
 
     def test_07_deploy_needs_its_target(self):
         tid = self.target('need-t')
@@ -315,7 +345,7 @@ class History(unittest.TestCase):
             self.ok('POST', '/api/settings', {'settings': {'history_trash_days': 30}})
         # what ran out is forgotten
         with self.db() as c:
-            c.execute("INSERT INTO obj_trash (ts, otable, otype, oid, oname, row, expires) VALUES "
+            c.execute("INSERT INTO obj_trash (ts, otable, otype, oid, oname, row_v, expires) VALUES "
                       "(1, 'cert_tags', 'tag', 999, 'old-one', '{}', 2)")
         tr = self.ok('GET', '/api/trash')
         self.assertFalse([i for i in tr['items'] if i['name'] == 'old-one'])
