@@ -398,17 +398,22 @@ function scopeOf(t) {
   }
   return null;
 }
+/** The line a list says it is empty with ("No job yet"): never a row of it. */
+function placeholderRow(row) {
+  return row.tagName === 'TR' && (row.classList.contains('empty-row') || !!row.querySelector('td[colspan]') && row.cells.length === 1);
+}
 function genericRow(t) {
   var row = t.closest('tr');
   if (!row) return null;
   var table = row.closest('table');
   if (!table || !row.parentNode || row.parentNode.tagName !== 'TBODY') return null;
-  if (row.classList.contains('empty-row') || row.querySelector('td[colspan]') && row.cells.length === 1) return null;
+  if (placeholderRow(row)) return null;
   return row;
 }
 /** Everything the menu needs about where it was opened: the row, its object, the cell. */
 function where(t) {
   var got = scopeOf(t);
+  if (got && placeholderRow(got.row)) got = null;
   var row = got ? got.row : genericRow(t);
   if (!row) return null;
   var w = {row: row, scope: got && got.scope, box: got && got.box, table: row.closest('table'), target: t};
