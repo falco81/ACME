@@ -113,6 +113,7 @@ function itemNode(it, menu, depth) {
   if (it === '-') { var s = el('div', 'cxm-sep'); s.setAttribute('role', 'separator'); return s; }
   if (it.head !== undefined) {
     var h = el('div', 'cxm-h');
+    h.setAttribute('role', 'presentation');
     h.appendChild(el('span', '', it.head));
     if (it.count !== undefined) h.appendChild(data('span', 'cxm-h-n', String(it.count)));
     return h;
@@ -440,7 +441,8 @@ function areaOf(t) {
    The right button, the keyboard, a long press
    ========================================================================== */
 document.addEventListener('contextmenu', function (e) {
-  if (Date.now() - KB_AT < 600) { e.preventDefault(); return; }
+  /* the browser's own event after a menu opened from the keyboard (button 0): swallowed once */
+  if (Date.now() - KB_AT < 600 && e.button !== 2) { KB_AT = 0; e.preventDefault(); return; }
   if (e.defaultPrevented || e.shiftKey) return;              /* Shift: the browser's own, always */
   var t = e.target;
   if (!t || !t.closest || t.closest('.cxm, .cxp')) return;
@@ -796,6 +798,7 @@ CX.copy = copy;
    ========================================================================== */
 function headCard(w, n) {
   var card = el('div', 'cxm-head');
+  card.setAttribute('role', 'presentation');
   var t = w.type;
   var ic = el('span', 'cxm-head-ic');
   ic.innerHTML = iconMarkup(n > 1 ? 'list' : (t && t.icon) || 'list', 16);
@@ -960,10 +963,25 @@ CX.copyObjects = function (t, objs, c) {
     }));
   });
 };
+/* The History of an object (history.js: window.acmeHistory), where the page has it. */
+var HISTORY_OF = {cert: 'cert', target: 'target', source: 'source', validation: 'validation', test: 'test',
+                  deployment: 'deploy', reqprofile: 'profile', team: 'team', role: 'role', tag: 'tag', dnsset: 'dnsset'};
+CX.historyRef = function (type, o) {
+  var h = window.acmeHistory, kind = HISTORY_OF[type];
+  if (!h || typeof h.open !== 'function' || !kind || (Array.isArray(h.types) && h.types.indexOf(kind) < 0) || !o) return null;
+  var num = ['cert', 'target', 'source', 'validation', 'test', 'deploy'].indexOf(kind) >= 0 && o.id;
+  return {kind: kind, id: num ? o.id : {name: o.name}};
+};
+/** More items of other parts of the page: fn(type name, object, ctx) -> items (added after
+    the object's own actions). */
+var MORE = [];
+CX.addItems = function (fn) { if (typeof fn === 'function') MORE.push(fn); };
 function goItems(w) {
   var t = w.type;
   if (!t) return [];
   var out = [];
+  var hr = CX.historyRef(t.name, w.obj);
+  if (hr && !portal()) out.push({label: 'History…', icon: 'history', note: 'every change, and a version put back', go: function () { window.acmeHistory.open(hr.kind, hr.id); }});
   if (t.events && !portal() && document.getElementById('ev-q')) {
     out.push({label: 'Show in Events', icon: 'history', go: function () { CX.showEvents(t.events(w.obj)); }});
   }
@@ -1024,6 +1042,7 @@ function rowMenu(w, x, y, opts) {
       return labels[l] || (t && t.skipButtons && t.skipButtons.test(label));
     });
     acts = own.concat(buttons);
+    MORE.forEach(function (fn) { try { acts = acts.concat(fn(t ? t.name : '', w.obj, c) || []); } catch (e) { } });
   }
   /* somebody who may only look is not shown what they may not do; an administrator is - greyed,
      with why (their teams, or a full administrator's) */
@@ -1060,6 +1079,7 @@ function areaMenu(a, x, y, opts) {
   var c = {box: a.box, scope: s, type: t, full: isFull(), manage: isManage(), portal: portal()};
   var menu = [];
   var card = el('div', 'cxm-head');
+  card.setAttribute('role', 'presentation');
   var ic = el('span', 'cxm-head-ic');
   ic.innerHTML = iconMarkup((t && t.icon) || 'list', 16);
   card.appendChild(ic);
@@ -1307,6 +1327,7 @@ function dock() {
     DOCK = el('div', 'cxm-dock');
     DOCK.setAttribute('role', 'region');
     DOCK.setAttribute('aria-label', tr('Selection and the acme clipboard'));
+    DOCK.setAttribute('aria-live', 'polite');
     document.body.appendChild(DOCK);
   }
   clear(DOCK);

@@ -7,6 +7,9 @@ Renewals, deployments, tests and a module's actions run here and now, and
 their steps are printed as they come. `--json` answers JSON instead of tables
 (every option below). `--no-color` turns colour off.
 
+The pages copy the command that makes an object - the right button on its row, *Copy ▸ As a
+CLI command* ([context-menu.md](context-menu.md)) - with every secret as `KEY=-`.
+
 `acme --help` lists every option, including the engine's own; the certificate
 manager's are in the groups **CERTIFICATES**, **CERTIFICATES: SOURCES,
 VALIDATIONS AND TARGETS**, **CERTIFICATES: DEPLOYMENTS**, **CERTIFICATES:

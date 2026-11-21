@@ -62,6 +62,9 @@ function staticItems() {
   var ACTS = [['ct-add', 'certs'], ['ct-import', 'certs'], ['ct-onlineimport', 'certs'], ['ct-self', 'certs'], ['ct-csr', 'certs'],
               ['ct-tests', 'certs'], ['ct-view', 'certs'], ['src-add', 'sources'], ['val-add', 'validation'], ['tg-add', 'targets'],
               ['ts-add', 'tests'], ['ca-root', 'cas'], ['ca-inter', 'cas'], ['ca-import', 'cas'], ['ca-sign', 'cas'], ['log-read', 'events']];
+  if (window.acmeTrash && typeof window.acmeTrash.open === 'function' && document.querySelector('#ctl-nav [data-pane]')) {
+    out.push({kind: 'action', key: 'act:trash', label: 'Open the trash', sub: '', icon: 'trash', go: function () { window.acmeTrash.open(); }});
+  }
   ACTS.forEach(function (a) {
     var b = document.getElementById(a[0]);
     if (!b || b.hidden || b.disabled) return;
@@ -142,6 +145,7 @@ function goPane(name, then) {
 }
 
 /* ---- verbs: "renew web" - an action on the objects found ---------------------------------- */
+var TYPE_OF = {cert: 'cert', target: 'target', agent: 'target', source: 'source', validation: 'validation', test: 'test', team: 'team', profile: 'reqprofile'};
 var VERBS = [
   {words: ['renew', 'obnov', 'obnovit'], label: 'Renew', icon: 'refresh', kinds: ['cert'], may: function (o) { return manage() && !!o.issuer; },
    go: function (it) { var h = H(); if (h) h.certRenew(it.obj, null); }},
@@ -162,6 +166,9 @@ var VERBS = [
      var t = window.ACME_CTX && window.ACME_CTX.types[{cert: 'cert', target: 'target', agent: 'target', source: 'source', validation: 'validation', test: 'test', team: 'team', profile: 'reqprofile'}[it.kind]];
      if (t && t.clone) Promise.resolve(t.clone(it.obj, {})).catch(oops);
    }},
+  {words: ['history', 'historie', 'changes', 'zmeny'], label: 'History', icon: 'history', kinds: ['cert', 'target', 'agent', 'source', 'validation', 'test', 'team', 'profile'],
+   may: function (o, it) { return !!(window.ACME_CTX && window.ACME_CTX.historyRef(TYPE_OF[it.kind], o)); },
+   go: function (it) { var r = window.ACME_CTX.historyRef(TYPE_OF[it.kind], it.obj); if (r) window.acmeHistory.open(r.kind, r.id); }},
   {words: ['open', 'otevri', 'otevrit', 'show', 'ukaz'], label: 'Open', icon: 'eye', kinds: null, may: function () { return true; }, go: function (it) { it.go(); }}
 ];
 function verbOf(q) {
@@ -273,7 +280,7 @@ function open(initial) {
   hint(['↑', '↓'], 'to move');
   hint(['Enter'], 'to open or do');
   hint(['Esc'], 'to close');
-  var tip = el('span', 'cxp-tip', 'Type a verb first: renew, deploy, test, edit, clone');
+  var tip = el('span', 'cxp-tip', 'Type a verb first: renew, deploy, test, edit, clone, history');
   foot.appendChild(tip);
   box.appendChild(foot);
   veil.appendChild(box);
@@ -394,7 +401,7 @@ function draw() {
     var e = el('div', 'cxp-none');
     e.appendChild(iconTile('action', 20));
     e.appendChild(el('b', '', ST.objs ? 'Nothing found' : 'Looking…'));
-    if (ST.objs) e.appendChild(el('span', 'muted small', 'Try fewer letters, or a verb first: renew, deploy, test, edit, clone.'));
+    if (ST.objs) e.appendChild(el('span', 'muted small', 'Try fewer letters, or a verb first: renew, deploy, test, edit, clone, history.'));
     ST.list.appendChild(e);
   }
   ST.at = Math.min(ST.at, Math.max(0, n - 1));

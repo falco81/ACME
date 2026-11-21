@@ -201,7 +201,7 @@ function inPage() {
       await item(page, 'Copy to the acme clipboard');
       await page.waitForTimeout(300);
       run.clip = await page.evaluate(() => JSON.parse(localStorage.getItem('acme.ctx.clip') || 'null'));
-      await rclick(page, page.locator('#tab-targets h2'));
+      await rclick(page, page.locator('#tab-targets .card > p.note').first());
       run.area = await page.$$eval('.cxm', n => n.length);
       await check('area');
       await shot(page, `area-${tag}`);

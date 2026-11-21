@@ -8,7 +8,7 @@ command and an API call of an object, and the command palette (1.0.138, docs/con
 
 - The source: the new files loaded on every page that has tables (the administration; the
   portal the menu without the palette), cols.js untouched, the registrations of the pages other
-  parts draw kept in ctxmenu-registry.js; nothing is asked of the daemon at load.
+  parts draw kept in ctxmenu-registry.js; the browser's storage only behind try.
 - The route (a real daemon as test/test_certs_core.py's): a target cloned "with the same
   credentials" signs in as the original (the fake module answers only to its password) while
   the secret never comes back; a secret typed in wins; the copy is a new one only, of the same
@@ -337,7 +337,9 @@ class Pages(unittest.TestCase):
         tg[tg.index('--target-add') + 1] = 'from-page'
         self.cli_ok(*tg, stdin='s3cret\n')
         t = self.target('from-page')
-        self.assertEqual(t['config']['names'], ['a', 'b'])
+        orig = self.target('fake1')
+        for k in ('dir', 'names', 'mode', 'port', 'flag'):
+            self.assertEqual(t['config'].get(k), orig['config'].get(k), k)
         self.assertTrue(self.ok('POST', '/api/targets/test', {'id': t['id']})['ok'])
 
 
