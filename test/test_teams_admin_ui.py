@@ -323,7 +323,10 @@ class Pages(unittest.TestCase):
 class Source(unittest.TestCase):
     def test_relay_knows_the_new_routes(self):
         page = read('web/admin/index.php')
-        self.assertRegex(page, r'teams\|tags\|reqprofiles\|agents\|roles\|dir\)')
+        m = re.search(r"preg_match\('#\^\(([a-z|]+)\)", page)
+        self.assertTrue(m, 'the relay of the API routes')
+        for road in ('teams', 'tags', 'reqprofiles', 'agents', 'roles', 'dir'):
+            self.assertIn(road, m.group(1).split('|'))
 
     def test_exports_kept(self):
         js = read('web/assets/teams.js')

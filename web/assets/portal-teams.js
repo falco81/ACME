@@ -3365,6 +3365,10 @@ function viewAccess(main) {
     main.appendChild(c3);
   }
 }
+/* The built-in roles' names are acme's words (translated); a role of one's own is data. */
+var PWG_BUILTIN_ROLES = {'viewer': 1, 'requester': 1, 'renewer': 1, 'deployer': 1,
+  'device manager': 1, 'certificate manager': 1, 'approver': 1, 'team manager': 1, 'team owner': 1};
+function roleIsOwn(name) { return !PWG_BUILTIN_ROLES[String(name || '').toLowerCase()]; }
 function elevCard(r, mode, after) {
   var c = el('article', 'pwg-e');
   c.dataset.id = r.id;
@@ -3377,7 +3381,7 @@ function elevCard(r, mode, after) {
   w.appendChild(l1);
   var l2 = el('div', 'pwg-e-l2');
   l2.appendChild(el('span', 'muted', 'asks for'));
-  l2.appendChild(chip(r.role, 'info', null, true));
+  l2.appendChild(chip(r.role, 'info', null, roleIsOwn(r.role)));
   l2.appendChild(el('span', 'muted', 'in the team'));
   l2.appendChild(teamChip(r.team, 'small'));
   l2.appendChild(chip(Math.round(r.hours || 0) + ' h', 'dim', 'clock', true));
@@ -3479,7 +3483,7 @@ function askRole(may, after) {
         var b = el('button', 'pw-pill' + (st.role === r ? ' on' : ''));
         b.type = 'button';
         b.setAttribute('aria-pressed', st.role === r ? 'true' : 'false');
-        b.appendChild(data('span', '', r));
+        b.appendChild((roleIsOwn(r) ? data : el)('span', '', r));
         b.onclick = function () { st.role = r; paint(); };
         roles.appendChild(b);
       });

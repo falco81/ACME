@@ -72143,6 +72143,3766 @@
   "z_1732": {
    "source": "the certificate has no PEM to send",
    "text": "certifikát nemá PEM k odeslání"
+  },
+  "z_1733": {
+   "source": "A full administrator switches it",
+   "text": "Přepíná ho plný administrátor"
+  },
+  "z_1734": {
+   "source": "A new network, its policy changed or widened, drift from its design or template, its clock, silence, an older version.",
+   "text": "Nová síť, změněná nebo rozšířená politika, odchylka od návrhu či šablony, hodiny, mlčení, starší verze."
+  },
+  "z_1735": {
+   "source": "A reload was forgotten? The agent saw it on the server itself.",
+   "text": "Zapomenutý reload? Agent to viděl přímo na serveru."
+  },
+  "z_1736": {
+   "source": "After a deployment and every six hours, the agent tells which certificate the service on the server itself serves - a forgotten reload is seen.",
+   "text": "Po nasazení a každých šest hodin agent řekne, který certifikát služba přímo na serveru servíruje – zapomenutý reload je vidět."
+  },
+  "z_1737": {
+   "source": "Anomaly alerts",
+   "text": "Upozornění na anomálie"
+  },
+  "z_1738": {
+   "source": "Audit chain",
+   "text": "Řetěz auditu"
+  },
+  "z_1739": {
+   "source": "Audit timeline",
+   "text": "Časová osa auditu"
+  },
+  "z_1740": {
+   "source": "Both keys",
+   "text": "Oba klíče"
+  },
+  "z_1741": {
+   "source": "Both keys are kept in acme’s database (sealed) as the command key is - in every backup, on every node. A backup made before the change can no longer command the agent once the overlap ends.",
+   "text": "Oba klíče jsou v databázi acme (zapečetěné) stejně jako command key – v každé záloze, na každém uzlu. Záloha z doby před výměnou už po skončení přechodného období agenta neřídí."
+  },
+  "z_1742": {
+   "source": "Change acme’s command key",
+   "text": "Vyměnit command key acme"
+  },
+  "z_1743": {
+   "source": "Change acme’s command key…",
+   "text": "Vyměnit command key acme…"
+  },
+  "z_1744": {
+   "source": "Change every",
+   "text": "Měnit každých"
+  },
+  "z_1745": {
+   "source": "Command key",
+   "text": "Command key"
+  },
+  "z_1746": {
+   "source": "Deployed, but the service serves another certificate",
+   "text": "Nasazeno, ale služba servíruje jiný certifikát"
+  },
+  "z_1747": {
+   "source": "Deployed, but the service still serves the certificate before - reload it.",
+   "text": "Nasazeno, ale služba stále servíruje předchozí certifikát – proveďte reload."
+  },
+  "z_1748": {
+   "source": "Deployed, but the service still serves the old certificate",
+   "text": "Nasazeno, ale služba stále servíruje starý certifikát"
+  },
+  "z_1749": {
+   "source": "Each of these is chosen for this agent alone and is off until it is switched on - the agent and acme then talk as before.",
+   "text": "Každá z těchto funkcí se volí jen pro tohoto agenta a je vypnutá, dokud ji nezapnete – agent a acme spolu do té doby mluví jako dosud."
+  },
+  "z_1750": {
+   "source": "Earlier command keys",
+   "text": "Dřívější command keys"
+  },
+  "z_1751": {
+   "source": "Every job the agent takes, does or refuses, each entry holding the hash of the one before - compared with what acme sent.",
+   "text": "Každá úloha, kterou agent přijme, provede nebo odmítne; každý záznam nese hash předchozího – porovnáno s tím, co acme poslalo."
+  },
+  "z_1752": {
+   "source": "Every key is kept in acme’s database, sealed - in every backup and on every node. An earlier command key stays while an agent pins it, then it is retired.",
+   "text": "Každý klíč je v databázi acme, zapečetěný – v každé záloze a na každém uzlu. Dřívější command key zůstává, dokud ho některý agent drží, pak je vyřazen."
+  },
+  "z_1753": {
+   "source": "I have looked at it…",
+   "text": "Prověřil jsem to…"
+  },
+  "z_1754": {
+   "source": "Its key for secrets",
+   "text": "Jeho klíč pro tajemství"
+  },
+  "z_1755": {
+   "source": "Its networks",
+   "text": "Jeho sítě"
+  },
+  "z_1756": {
+   "source": "Its usual since",
+   "text": "Obvyklý stav od"
+  },
+  "z_1757": {
+   "source": "Its template",
+   "text": "Jeho šablona"
+  },
+  "z_1758": {
+   "source": "Key for secrets",
+   "text": "Klíč pro tajemství"
+  },
+  "z_1759": {
+   "source": "Key rotation",
+   "text": "Rotace klíčů"
+  },
+  "z_1760": {
+   "source": "Keys and their age",
+   "text": "Klíče a jejich stáří"
+  },
+  "z_1761": {
+   "source": "No entry read yet - acme reads the chain after a deployment and every half hour while it grows (or: Verify now).",
+   "text": "Zatím nepřečten žádný záznam – acme čte řetěz po nasazení a každou půlhodinu, dokud roste (nebo: Ověřit teď)."
+  },
+  "z_1762": {
+   "source": "Not agreeing",
+   "text": "Nesouhlasí"
+  },
+  "z_1763": {
+   "source": "Nothing of that kind.",
+   "text": "Nic takového."
+  },
+  "z_1764": {
+   "source": "Only where the server’s policy already allows tests from there - no permission is taken. To have it, root adds:",
+   "text": "Jen tam, kde politika serveru už testy odtamtud dovoluje – žádné oprávnění se nebere. Chcete-li to, root přidá:"
+  },
+  "z_1765": {
+   "source": "Put it away",
+   "text": "Odložit"
+  },
+  "z_1766": {
+   "source": "Rotate now",
+   "text": "Vyměnit teď"
+  },
+  "z_1767": {
+   "source": "Rotate now…",
+   "text": "Vyměnit teď…"
+  },
+  "z_1768": {
+   "source": "Schedule",
+   "text": "Plán"
+  },
+  "z_1769": {
+   "source": "Switched on, acme asks the server to keep the chain (the policy’s line below - root decides) and raises an alert for an entry of a job acme never sent, a gap or a chain written anew.",
+   "text": "Po zapnutí acme žádá server o vedení řetězu (řádek politiky níže – rozhoduje root) a upozorní na záznam úlohy, kterou acme neposlalo, na mezeru nebo na přepsaný řetěz."
+  },
+  "z_1770": {
+   "source": "Switched on, what the agent is now is taken as its usual; what changes from it is an event and an alert until a full administrator has looked at it.",
+   "text": "Po zapnutí se současný stav agenta bere jako obvyklý; co se od něj změní, je událost a upozornění, dokud to plný administrátor neprověří."
+  },
+  "z_1771": {
+   "source": "Take it as its usual",
+   "text": "Brát jako obvyklé"
+  },
+  "z_1772": {
+   "source": "Take it as its usual…",
+   "text": "Brát jako obvyklé…"
+  },
+  "z_1773": {
+   "source": "The agent authority",
+   "text": "Autorita agentů"
+  },
+  "z_1774": {
+   "source": "The agent saw it on the server itself.",
+   "text": "Agent to viděl přímo na serveru."
+  },
+  "z_1775": {
+   "source": "The key before taken until",
+   "text": "Předchozí klíč platí do"
+  },
+  "z_1776": {
+   "source": "The server’s policy has no line “audit chain”: root adds it on the server (acme never changes the policy).",
+   "text": "Politika serveru nemá řádek „audit chain“: root ho přidá na serveru (acme politiku nikdy nemění)."
+  },
+  "z_1777": {
+   "source": "This agent is too old to change keys over the channel - update it (1.0.138 or later).",
+   "text": "Tento agent je příliš starý na výměnu klíčů kanálem – aktualizujte ho (1.0.138 nebo novější)."
+  },
+  "z_1778": {
+   "source": "This agent is too old to keep the chain - update it (1.0.138 or later).",
+   "text": "Tento agent je příliš starý na vedení řetězu – aktualizujte ho (1.0.138 nebo novější)."
+  },
+  "z_1779": {
+   "source": "Verify now",
+   "text": "Ověřit teď"
+  },
+  "z_1780": {
+   "source": "Watching this agent",
+   "text": "Dohled nad agentem"
+  },
+  "z_1781": {
+   "source": "What did not agree",
+   "text": "Co nesouhlasilo"
+  },
+  "z_1782": {
+   "source": "What did not agree in the chain is put away and its alert ends. What the chain holds now is what acme compares from here.",
+   "text": "Co v řetězu nesouhlasilo, se odloží a upozornění skončí. Od teď acme porovnává od současného stavu řetězu."
+  },
+  "z_1783": {
+   "source": "What the service serves",
+   "text": "Co služba servíruje"
+  },
+  "z_1784": {
+   "source": "What was seen is put away and its alerts end; the agent’s policy and network as they are now are its usual from here.",
+   "text": "Zjištěné se odloží a upozornění skončí; politika a síť agenta tak, jak jsou teď, jsou od nynějška jeho obvyklým stavem."
+  },
+  "z_1785": {
+   "source": "a command key acme does not have",
+   "text": "command key, který acme nemá"
+  },
+  "z_1786": {
+   "source": "acme announces its new command key in a job signed by the one the agent pins, proven by the new key itself; the agent takes both for the overlap, then the new one only. The agent’s key for secrets is made anew on the server and acme seals to it from then on.",
+   "text": "acme oznámí svůj nový command key v úloze podepsané klíčem, který agent drží, a doložené samotným novým klíčem; agent po přechodné období přijímá oba, pak jen nový. Klíč agenta pro tajemství se vytvoří na serveru znovu a acme od té doby pečetí jemu."
+  },
+  "z_1787": {
+   "source": "acme’s command key",
+   "text": "Command key acme"
+  },
+  "z_1788": {
+   "source": "acme’s job",
+   "text": "úloha acme"
+  },
+  "z_1789": {
+   "source": "acme’s jobs",
+   "text": "Úlohy acme"
+  },
+  "z_1790": {
+   "source": "acme’s own certificate",
+   "text": "Vlastní certifikát acme"
+  },
+  "z_1791": {
+   "source": "an earlier one",
+   "text": "dřívější"
+  },
+  "z_1792": {
+   "source": "as deployed",
+   "text": "jak je nasazeno"
+  },
+  "z_1793": {
+   "source": "audit chain does not agree",
+   "text": "řetěz auditu nesouhlasí"
+  },
+  "z_1794": {
+   "source": "audit chain verified",
+   "text": "řetěz auditu ověřen"
+  },
+  "z_1795": {
+   "source": "before acme compared",
+   "text": "před porovnáváním"
+  },
+  "z_1796": {
+   "source": "being read",
+   "text": "čte se"
+  },
+  "z_1797": {
+   "source": "chain does not agree",
+   "text": "řetěz nesouhlasí"
+  },
+  "z_1798": {
+   "source": "changed by hand only",
+   "text": "mění se jen ručně"
+  },
+  "z_1799": {
+   "source": "does not agree",
+   "text": "nesouhlasí"
+  },
+  "z_1800": {
+   "source": "does not answer",
+   "text": "neodpovídá"
+  },
+  "z_1801": {
+   "source": "due to be changed",
+   "text": "k výměně"
+  },
+  "z_1802": {
+   "source": "its usual from now",
+   "text": "od teď obvyklé"
+  },
+  "z_1803": {
+   "source": "kept until looked at",
+   "text": "drží se do prověření"
+  },
+  "z_1804": {
+   "source": "keys due to be changed",
+   "text": "klíče k výměně"
+  },
+  "z_1805": {
+   "source": "made again 60 days before its end",
+   "text": "vytváří se znovu 60 dní před koncem"
+  },
+  "z_1806": {
+   "source": "no audit chain on the server",
+   "text": "server nevede řetěz auditu"
+  },
+  "z_1807": {
+   "source": "none still pinned",
+   "text": "žádný se už nedrží"
+  },
+  "z_1808": {
+   "source": "not allowed by its policy",
+   "text": "jeho politika to nedovoluje"
+  },
+  "z_1809": {
+   "source": "not sent by acme",
+   "text": "neposláno acme"
+  },
+  "z_1810": {
+   "source": "nothing to ask",
+   "text": "není na co se ptát"
+  },
+  "z_1811": {
+   "source": "nothing unusual",
+   "text": "nic neobvyklého"
+  },
+  "z_1812": {
+   "source": "on schedule",
+   "text": "podle plánu"
+  },
+  "z_1813": {
+   "source": "on the server",
+   "text": "na serveru"
+  },
+  "z_1814": {
+   "source": "put away",
+   "text": "odloženo"
+  },
+  "z_1815": {
+   "source": "serves an old certificate",
+   "text": "servíruje starý certifikát"
+  },
+  "z_1816": {
+   "source": "serves another certificate",
+   "text": "servíruje jiný certifikát"
+  },
+  "z_1817": {
+   "source": "serves the deployed certificate",
+   "text": "servíruje nasazený certifikát"
+  },
+  "z_1818": {
+   "source": "still serves the old certificate",
+   "text": "stále servíruje starý certifikát"
+  },
+  "z_1819": {
+   "source": "the agent is too old",
+   "text": "agent je příliš starý"
+  },
+  "z_1820": {
+   "source": "the chain is read and checked",
+   "text": "řetěz je přečten a zkontrolován"
+  },
+  "z_1821": {
+   "source": "the keys are changed",
+   "text": "klíče jsou vyměněny"
+  },
+  "z_1822": {
+   "source": "the server keeps no chain",
+   "text": "server nevede řetěz"
+  },
+  "z_1823": {
+   "source": "unknown command key",
+   "text": "neznámý command key"
+  },
+  "z_1824": {
+   "source": "waiting for its first answer",
+   "text": "čeká na první odpověď"
+  },
+  "z_1825": {
+   "source": "the agent was asked",
+   "text": "agent byl dotázán"
+  },
+  "z_1826": {
+   "source": "less than a day",
+   "text": "méně než den"
+  },
+  "z_1827": {
+   "source": "1 anomaly",
+   "text": "1 anomálie"
+  },
+  "z_1828": {
+   "source": "1 watching",
+   "text": "1 dohled"
+  },
+  "z_1829": {
+   "source": "1 agent",
+   "text": "1 agent"
+  },
+  "z_1830": {
+   "source": "1 earlier key still pinned",
+   "text": "1 dřívější klíč se stále drží"
+  },
+  "z_1831": {
+   "source": "1 still serves the old one",
+   "text": "1 stále servíruje starý"
+  },
+  "z_1832": {
+   "source": "verified",
+   "text": "ověřeno"
+  },
+  "z_1833": {
+   "source": "differs",
+   "text": "liší se"
+  },
+  "z_1834": {
+   "source": "matches",
+   "text": "shoduje se"
+  },
+  "z_1835": {
+   "source": "no place of this deployment is on the server itself (a preset with a port) - nothing asked",
+   "text": "žádné místo tohoto nasazení není přímo na serveru (předvolba s portem) – nic se nezjišťovalo"
+  },
+  "z_1836": {
+   "source": "the agent is too old to change keys (update it to 1.0.138 or later)",
+   "text": "agent je příliš starý na výměnu klíčů (aktualizujte ho na 1.0.138 nebo novější)"
+  },
+  "z_1837": {
+   "source": "acme's command key was made less than an hour ago - this agent takes it already",
+   "text": "command key acme vznikl před méně než hodinou – tento agent ho už přijímá"
+  },
+  "z_1838": {
+   "source": "acme does not compare the audit chain of this agent (switch it on)",
+   "text": "acme neporovnává řetěz auditu tohoto agenta (zapněte to)"
+  },
+  "z_1839": {
+   "source": "what the services serve is asked only where the agent's policy allows \"allow probe local\" (and it is not switched off on the card)",
+   "text": "na to, co služby servírují, se acme ptá jen tam, kde politika agenta dovoluje „allow probe local“ (a na kartě to není vypnuto)"
+  },
+  "z_1840": {
+   "source": "the last line of the chain is no entry",
+   "text": "poslední řádek řetězu není záznam"
+  },
+  "z_1841": {
+   "source": "the agent made no new key",
+   "text": "agent nevytvořil nový klíč"
+  },
+  "z_1842": {
+   "source": "the agent refused the new command key",
+   "text": "agent odmítl nový command key"
+  },
+  "z_1843": {
+   "source": "Switched on, acme asks the agent after each deployment and every six hours - its policy allows tests from there already.",
+   "text": "Po zapnutí se acme ptá agenta po každém nasazení a každých šest hodin – jeho politika testy odtamtud už dovoluje."
+  },
+  "z_1844": {
+   "source": "Switched on, it needs the server’s policy to allow tests from there - no permission is taken. Root adds:",
+   "text": "Po zapnutí potřebuje, aby politika serveru testy odtamtud dovolovala – žádné oprávnění se nebere. Root přidá:"
+  },
+  "z_1845": {
+   "source": "health is on or off",
+   "text": "health je on, nebo off"
+  },
+  "z_1846": {
+   "source": "Agent fleet",
+   "text": "Flotila agentů"
+  },
+  "z_1847": {
+   "source": "Every target agent at a glance: groups with their health, the policy templates they follow and how far each drifted, the versions and updates in rings, and the certificates found on the servers that acme does not manage yet.",
+   "text": "Všichni agenti cílů na jeden pohled: skupiny a jejich zdraví, šablony politik, kterými se řídí, a jak se od nich který odchýlil, verze a aktualizace po vlnách a certifikáty nalezené na serverech, které acme zatím nespravuje."
+  },
+  "z_1848": {
+   "source": "Every server with acme-agent at once: groups and their health, the policy templates they should follow and how far each drifted, the versions and updates in rings - and the certificates found on the servers that acme does not manage yet.",
+   "text": "Všechny servery s acme-agentem najednou: skupiny a jejich zdraví, šablony politik, kterými se mají řídit, a jak se od nich který odchýlil, verze a aktualizace po vlnách – a certifikáty nalezené na serverech, které acme zatím nespravuje."
+  },
+  "z_1849": {
+   "source": "Not managed",
+   "text": "Nespravované"
+  },
+  "z_1850": {
+   "source": "agents",
+   "text": "agentů"
+  },
+  "z_1851": {
+   "source": "healthy",
+   "text": "v pořádku"
+  },
+  "z_1852": {
+   "source": "in trouble",
+   "text": "v potížích"
+  },
+  "z_1853": {
+   "source": "not joined yet",
+   "text": "zatím nepřipojeno"
+  },
+  "z_1854": {
+   "source": "The fleet at a glance",
+   "text": "Flotila na jeden pohled"
+  },
+  "z_1855": {
+   "source": "groups",
+   "text": "skupiny"
+  },
+  "z_1856": {
+   "source": "follow a template",
+   "text": "se řídí šablonou"
+  },
+  "z_1857": {
+   "source": "drifted from it",
+   "text": "se od ní odchýlilo"
+  },
+  "z_1858": {
+   "source": "a newer agent offered",
+   "text": "nabízen novější agent"
+  },
+  "z_1859": {
+   "source": "certificates not managed",
+   "text": "nespravované certifikáty"
+  },
+  "z_1860": {
+   "source": "Kubernetes",
+   "text": "Kubernetes"
+  },
+  "z_1861": {
+   "source": "acme offers",
+   "text": "acme nabízí"
+  },
+  "z_1862": {
+   "source": "newest",
+   "text": "nejnovější"
+  },
+  "z_1863": {
+   "source": "more under Updates",
+   "text": "další v Aktualizacích"
+  },
+  "z_1864": {
+   "source": "No agent has said its version yet.",
+   "text": "Žádný agent zatím neřekl svou verzi."
+  },
+  "z_1865": {
+   "source": "The rollout is held",
+   "text": "Zavádění je pozastaveno"
+  },
+  "z_1866": {
+   "source": "An update rollout is under way",
+   "text": "Probíhá zavádění aktualizace"
+  },
+  "z_1867": {
+   "source": "Asking for the fleet…",
+   "text": "Ptám se na flotilu…"
+  },
+  "z_1868": {
+   "source": "The fleet could not be asked",
+   "text": "Na flotilu se nepodařilo zeptat"
+  },
+  "z_1869": {
+   "source": "No target agent yet",
+   "text": "Zatím žádný agent cíle"
+  },
+  "z_1870": {
+   "source": "A target “Server with acme-agent” joins the fleet once it has an agent - see Settings → Target agents.",
+   "text": "Cíl „Server s acme-agentem“ se přidá do flotily, jakmile má agenta – viz Nastavení → Agenti cílů."
+  },
+  "z_1871": {
+   "source": "A group takes actions on all its agents at once and can name the template its agents follow. The canary group is updated first.",
+   "text": "Skupina provádí akce na všech svých agentech najednou a může určit šablonu, kterou se její agenti řídí. Skupina canary se aktualizuje jako první."
+  },
+  "z_1872": {
+   "source": "New group",
+   "text": "Nová skupina"
+  },
+  "z_1873": {
+   "source": "In no group",
+   "text": "V žádné skupině"
+  },
+  "z_1874": {
+   "source": "No group yet",
+   "text": "Zatím žádná skupina"
+  },
+  "z_1875": {
+   "source": "Put the agents of one kind together - web servers, mail, the canary ring - and act on all of them at once.",
+   "text": "Dejte dohromady agenty jednoho druhu – webové servery, poštu, vlnu canary – a pracujte se všemi najednou."
+  },
+  "z_1876": {
+   "source": "canary",
+   "text": "canary"
+  },
+  "z_1877": {
+   "source": "The canary ring: an update rollout updates these agents first, waits, and goes on with the rest only when they are healthy.",
+   "text": "Vlna canary: zavádění aktualizace aktualizuje tyto agenty jako první, počká a se zbytkem pokračuje, jen když jsou v pořádku."
+  },
+  "z_1878": {
+   "source": "Edit the group",
+   "text": "Upravit skupinu"
+  },
+  "z_1879": {
+   "source": "No member yet.",
+   "text": "Zatím žádný člen."
+  },
+  "z_1880": {
+   "source": "all match",
+   "text": "vše odpovídá"
+  },
+  "z_1881": {
+   "source": "each its own template",
+   "text": "každý svou šablonu"
+  },
+  "z_1882": {
+   "source": "no template",
+   "text": "bez šablony"
+  },
+  "z_1883": {
+   "source": "no version said",
+   "text": "verze neřečena"
+  },
+  "z_1884": {
+   "source": "Ask now",
+   "text": "Zeptat se teď"
+  },
+  "z_1885": {
+   "source": "Compare",
+   "text": "Porovnat"
+  },
+  "z_1886": {
+   "source": "Each agent’s policy against the template it should follow: the lines missing on the server and those it has besides.",
+   "text": "Politika každého agenta proti šabloně, kterou se má řídit: řádky, které na serveru chybějí, a ty, které má navíc."
+  },
+  "z_1887": {
+   "source": "Template…",
+   "text": "Šablona…"
+  },
+  "z_1888": {
+   "source": "Its agents follow the template",
+   "text": "Její agenti se řídí šablonou"
+  },
+  "z_1889": {
+   "source": "What these servers are",
+   "text": "Co jsou tyto servery zač"
+  },
+  "z_1890": {
+   "source": "The canary ring: updated first in an update rollout",
+   "text": "Vlna canary: při zavádění aktualizace jako první"
+  },
+  "z_1891": {
+   "source": "a name, a host, a version…",
+   "text": "jméno, hostitel, verze…"
+  },
+  "z_1892": {
+   "source": "No agent of that name.",
+   "text": "Žádný agent toho jména."
+  },
+  "z_1893": {
+   "source": "Delete group",
+   "text": "Smazat skupinu"
+  },
+  "z_1894": {
+   "source": "the group is deleted",
+   "text": "skupina je smazána"
+  },
+  "z_1895": {
+   "source": "Make the group",
+   "text": "Vytvořit skupinu"
+  },
+  "z_1896": {
+   "source": "a group needs a name",
+   "text": "skupina potřebuje jméno"
+  },
+  "z_1897": {
+   "source": "the group is saved",
+   "text": "skupina je uložena"
+  },
+  "z_1898": {
+   "source": "- none -",
+   "text": "– žádná –"
+  },
+  "z_1899": {
+   "source": "a name, a host, a group, a version…",
+   "text": "jméno, hostitel, skupina, verze…"
+  },
+  "z_1900": {
+   "source": "Find an agent",
+   "text": "Najít agenta"
+  },
+  "z_1901": {
+   "source": "Choose every agent shown",
+   "text": "Vybrat všechny zobrazené agenty"
+  },
+  "z_1902": {
+   "source": "drifted",
+   "text": "odchýlené"
+  },
+  "z_1903": {
+   "source": "to update",
+   "text": "k aktualizaci"
+  },
+  "z_1904": {
+   "source": "No agent fits.",
+   "text": "Žádný agent neodpovídá."
+  },
+  "z_1905": {
+   "source": "Compare with the template",
+   "text": "Porovnat se šablonou"
+  },
+  "z_1906": {
+   "source": "Add to a group…",
+   "text": "Přidat do skupiny…"
+  },
+  "z_1907": {
+   "source": "Choose none",
+   "text": "Zrušit výběr"
+  },
+  "z_1908": {
+   "source": "Choose",
+   "text": "Vybrat"
+  },
+  "z_1909": {
+   "source": "newer offered",
+   "text": "nabízen novější"
+  },
+  "z_1910": {
+   "source": "Its policy lets acme update it (allow self-update).",
+   "text": "Jeho politika dovoluje acme jej aktualizovat (allow self-update)."
+  },
+  "z_1911": {
+   "source": "Its policy has no allow self-update: it is updated by hand on the server.",
+   "text": "Jeho politika nemá allow self-update: aktualizuje se ručně na serveru."
+  },
+  "z_1912": {
+   "source": "other platform",
+   "text": "jiná platforma"
+  },
+  "z_1913": {
+   "source": "missing on the server",
+   "text": "na serveru chybí"
+  },
+  "z_1914": {
+   "source": "besides it",
+   "text": "navíc"
+  },
+  "z_1915": {
+   "source": "its certificate ends soon",
+   "text": "jeho certifikát brzy končí"
+  },
+  "z_1916": {
+   "source": "its server needs a look",
+   "text": "jeho server potřebuje pozornost"
+  },
+  "z_1917": {
+   "source": "drifted from its template",
+   "text": "odchýlil se od své šablony"
+  },
+  "z_1918": {
+   "source": "the agents are asked now",
+   "text": "agenti jsou dotázáni"
+  },
+  "z_1919": {
+   "source": "the agents are being updated",
+   "text": "agenti se aktualizují"
+  },
+  "z_1920": {
+   "source": "every one of them runs the newest agent",
+   "text": "všichni už mají nejnovějšího agenta"
+  },
+  "z_1921": {
+   "source": "Update the agents",
+   "text": "Aktualizovat agenty"
+  },
+  "z_1922": {
+   "source": "Only those whose policy allows it are updated; each checks the package’s signature itself.",
+   "text": "Aktualizují se jen ti, jejichž politika to dovoluje; každý si podpis balíčku ověří sám."
+  },
+  "z_1923": {
+   "source": "Each of these agents should follow this template - before the template of its groups. It is documentation, as a design is: acme never sends a policy; the drift says where a server differs.",
+   "text": "Každý z těchto agentů se má řídit touto šablonou – přednostně před šablonou svých skupin. Je to dokumentace, stejně jako návrh: acme politiku nikdy neposílá; odchylka ukáže, kde se server liší."
+  },
+  "z_1924": {
+   "source": "the template is set",
+   "text": "šablona je nastavena"
+  },
+  "z_1925": {
+   "source": "the template is taken away",
+   "text": "šablona je odebrána"
+  },
+  "z_1926": {
+   "source": "Add to a group",
+   "text": "Přidat do skupiny"
+  },
+  "z_1927": {
+   "source": "added to the group",
+   "text": "přidáno do skupiny"
+  },
+  "z_1928": {
+   "source": "Compared with the template",
+   "text": "Porovnání se šablonou"
+  },
+  "z_1929": {
+   "source": "Comparing…",
+   "text": "Porovnávám…"
+  },
+  "z_1930": {
+   "source": "Follow no template",
+   "text": "Neřídí se žádnou šablonou"
+  },
+  "z_1931": {
+   "source": "The agent has not said its policy yet - Ask now.",
+   "text": "Agent zatím neřekl svou politiku – Zeptat se teď."
+  },
+  "z_1932": {
+   "source": "The template is for another platform than the agent runs on.",
+   "text": "Šablona je pro jinou platformu, než na které agent běží."
+  },
+  "z_1933": {
+   "source": "on the server besides the template",
+   "text": "na serveru navíc oproti šabloně"
+  },
+  "z_1934": {
+   "source": "Copy the lines to make it match",
+   "text": "Kopírovat řádky pro sjednocení"
+  },
+  "z_1935": {
+   "source": "The template’s policy file - save it on the server and apply it in an elevated prompt: acme-agent policy apply FILE.",
+   "text": "Soubor politiky ze šablony – uložte jej na serveru a použijte v příkazovém řádku se zvýšenými právy: acme-agent policy apply SOUBOR."
+  },
+  "z_1936": {
+   "source": "One block to paste into a root shell on the server: acme-agent policy apply checks it and writes it in place of the policy there.",
+   "text": "Jeden blok k vložení do shellu roota na serveru: acme-agent policy apply jej zkontroluje a zapíše místo tamní politiky."
+  },
+  "z_1937": {
+   "source": "A template is a whole policy for one kind of server. The policy builder adds one with a click; Save as a fleet template there keeps your own. acme never sends a policy: root writes it on the server.",
+   "text": "Šablona je celá politika pro jeden druh serveru. Návrhář politiky ji přidá jedním kliknutím; Uložit jako šablonu flotily tam uchová vaši vlastní. acme politiku nikdy neposílá: na serveru ji zapíše root."
+  },
+  "z_1938": {
+   "source": "built-in",
+   "text": "vestavěná"
+  },
+  "z_1939": {
+   "source": "Open in the builder…",
+   "text": "Otevřít v návrháři…"
+  },
+  "z_1940": {
+   "source": "Delete the template",
+   "text": "Smazat šablonu"
+  },
+  "z_1941": {
+   "source": "The agents and groups that follow it then follow none.",
+   "text": "Agenti a skupiny, které se jí řídí, pak nebudou mít žádnou."
+  },
+  "z_1942": {
+   "source": "the template is deleted",
+   "text": "šablona je smazána"
+  },
+  "z_1943": {
+   "source": "the builder needs an agent of that platform",
+   "text": "návrhář potřebuje agenta této platformy"
+  },
+  "z_1944": {
+   "source": "The builder checks the policy as the agent of a server checks it: choose the agent it is designed with (its policy is compared, nothing is sent).",
+   "text": "Návrhář kontroluje politiku tak, jak ji kontroluje agent serveru: vyberte agenta, se kterým se navrhuje (porovná se jeho politika, nic se neposílá)."
+  },
+  "z_1945": {
+   "source": "Versions of the agents",
+   "text": "Verze agentů"
+  },
+  "z_1946": {
+   "source": "This acme has no signed package of the agent (a source tree): agents are updated by hand, or by a release of acme.",
+   "text": "Toto acme nemá podepsaný balíček agenta (strom zdrojů): agenti se aktualizují ručně nebo vydáním acme."
+  },
+  "z_1947": {
+   "source": "An update in rings",
+   "text": "Aktualizace po vlnách"
+  },
+  "z_1948": {
+   "source": "Canary ring",
+   "text": "Vlna canary"
+  },
+  "z_1949": {
+   "source": "Wait",
+   "text": "Čekání"
+  },
+  "z_1950": {
+   "source": "The canary ring is being updated.",
+   "text": "Vlna canary se aktualizuje."
+  },
+  "z_1951": {
+   "source": "The canary ring is updated: the rest follows after the wait, when it is healthy.",
+   "text": "Vlna canary je aktualizována: zbytek následuje po čekání, pokud je v pořádku."
+  },
+  "z_1952": {
+   "source": "Held: the canary ring is not healthy.",
+   "text": "Pozastaveno: vlna canary není v pořádku."
+  },
+  "z_1953": {
+   "source": "The rest of the agents is being updated.",
+   "text": "Zbytek agentů se aktualizuje."
+  },
+  "z_1954": {
+   "source": "The rollout is done.",
+   "text": "Zavádění je hotovo."
+  },
+  "z_1955": {
+   "source": "The rollout was stopped.",
+   "text": "Zavádění bylo zastaveno."
+  },
+  "z_1956": {
+   "source": "The rest at",
+   "text": "Zbytek v"
+  },
+  "z_1957": {
+   "source": "Not updated",
+   "text": "Neaktualizují se"
+  },
+  "z_1958": {
+   "source": "Go on anyway",
+   "text": "Přesto pokračovat"
+  },
+  "z_1959": {
+   "source": "Go on now",
+   "text": "Pokračovat hned"
+  },
+  "z_1960": {
+   "source": "Stop the rollout? The agents updated stay updated; no other is updated.",
+   "text": "Zastavit zavádění? Aktualizovaní agenti zůstanou aktualizovaní; žádný další se neaktualizuje."
+  },
+  "z_1961": {
+   "source": "Start another",
+   "text": "Spustit další"
+  },
+  "z_1962": {
+   "source": "The canary ring is updated first; the rest follows after the wait - and only when every canary agent answers with the new version. Only agents whose policy says allow self-update are updated, each checking the signature itself.",
+   "text": "Vlna canary se aktualizuje jako první; zbytek následuje po čekání – a jen když každý agent z vlny canary odpovídá s novou verzí. Aktualizují se jen agenti, jejichž politika říká allow self-update, a každý si podpis ověří sám."
+  },
+  "z_1963": {
+   "source": "5 % of the agents (at least one)",
+   "text": "5 % agentů (aspoň jeden)"
+  },
+  "z_1964": {
+   "source": "Then wait (minutes)",
+   "text": "Pak počkat (minuty)"
+  },
+  "z_1965": {
+   "source": "Go on only when the canary ring is healthy",
+   "text": "Pokračovat, jen když je vlna canary v pořádku"
+  },
+  "z_1966": {
+   "source": "Asking who would be updated…",
+   "text": "Zjišťuji, kdo by se aktualizoval…"
+  },
+  "z_1967": {
+   "source": "Then the rest",
+   "text": "Pak zbytek"
+  },
+  "z_1968": {
+   "source": "Start the rollout",
+   "text": "Spustit zavádění"
+  },
+  "z_1969": {
+   "source": "no agent can be updated now",
+   "text": "teď nelze aktualizovat žádného agenta"
+  },
+  "z_1970": {
+   "source": "the rollout is started",
+   "text": "zavádění je spuštěno"
+  },
+  "z_1971": {
+   "source": "A full administrator starts a rollout.",
+   "text": "Zavádění spouští plný správce."
+  },
+  "z_1972": {
+   "source": "What the last discovery on each server found that acme does not manage, the most urgent first. Take over makes the certificate in acme with the same names and a deployment to the same place through the agent - with a preview first.",
+   "text": "Co poslední průzkum na každém serveru našel a acme to nespravuje, nejnaléhavější první. Převzít vytvoří v acme certifikát se stejnými jmény a nasazení na stejné místo přes agenta – nejdřív s náhledem."
+  },
+  "z_1973": {
+   "source": "Nothing found that acme does not manage",
+   "text": "Nenalezeno nic, co by acme nespravovalo"
+  },
+  "z_1974": {
+   "source": "Discovery runs on a server whose policy says allow discover - from the agent’s card, Found on this server.",
+   "text": "Průzkum běží na serveru, jehož politika říká allow discover – z karty agenta, Nalezeno na tomto serveru."
+  },
+  "z_1975": {
+   "source": "ends this week",
+   "text": "končí tento týden"
+  },
+  "z_1976": {
+   "source": "ends within 30 days",
+   "text": "končí do 30 dnů"
+  },
+  "z_1977": {
+   "source": "ends within 60 days",
+   "text": "končí do 60 dnů"
+  },
+  "z_1978": {
+   "source": "fine for now",
+   "text": "zatím v pořádku"
+  },
+  "z_1979": {
+   "source": "no end known",
+   "text": "konec neznámý"
+  },
+  "z_1980": {
+   "source": "Take over…",
+   "text": "Převzít…"
+  },
+  "z_1981": {
+   "source": "make its deployment by hand",
+   "text": "nasazení vytvořte ručně"
+  },
+  "z_1982": {
+   "source": "a file of no service",
+   "text": "soubor žádné služby"
+  },
+  "z_1983": {
+   "source": "acme takes over a certificate a service found uses: it knows where to put the new one. This one is not one it can place by itself - Import… or a deployment by hand, from the agent’s card.",
+   "text": "acme převezme certifikát, který používá nalezená služba: ví, kam dát nový. Tento sám umístit neumí – Importovat… nebo nasazení ručně, z karty agenta."
+  },
+  "z_1984": {
+   "source": "Take over",
+   "text": "Převzít"
+  },
+  "z_1985": {
+   "source": "Working out what happens…",
+   "text": "Zjišťuji, co se stane…"
+  },
+  "z_1986": {
+   "source": "Found on the server",
+   "text": "Nalezeno na serveru"
+  },
+  "z_1987": {
+   "source": "The certificate in acme",
+   "text": "Certifikát v acme"
+  },
+  "z_1988": {
+   "source": "Its names (one a line)",
+   "text": "Jeho jména (jedno na řádek)"
+  },
+  "z_1989": {
+   "source": "Issued from",
+   "text": "Vydává"
+  },
+  "z_1990": {
+   "source": "Issue and deploy it now",
+   "text": "Vydat a nasadit teď"
+  },
+  "z_1991": {
+   "source": "Issue and deploy it now - once the policy allows it",
+   "text": "Vydat a nasadit teď – až to politika dovolí"
+  },
+  "z_1992": {
+   "source": "What the agent’s policy needs",
+   "text": "Co potřebuje politika agenta"
+  },
+  "z_1993": {
+   "source": "The agent has not said its policy yet - Ask now on its card.",
+   "text": "Agent zatím neřekl svou politiku – Zeptat se teď na jeho kartě."
+  },
+  "z_1994": {
+   "source": "Run these on the server (as root), then Ask now on the agent’s card: the take-over can issue at once.",
+   "text": "Spusťte tyto příkazy na serveru (jako root), pak Zeptat se teď na kartě agenta: převzetí pak může certifikát vydat hned."
+  },
+  "z_1995": {
+   "source": "The agent’s policy allows all of it.",
+   "text": "Politika agenta dovoluje všechno."
+  },
+  "z_1996": {
+   "source": "taken over",
+   "text": "převzato"
+  },
+  "z_1997": {
+   "source": "Fleet templates",
+   "text": "Šablony flotily"
+  },
+  "z_1998": {
+   "source": "whole policies kept in acme - the same for every server of a kind",
+   "text": "celé politiky uložené v acme – stejné pro každý server jednoho druhu"
+  },
+  "z_1999": {
+   "source": "No fleet template for this platform.",
+   "text": "Pro tuto platformu není žádná šablona flotily."
+  },
+  "z_2000": {
+   "source": "Add the fleet template",
+   "text": "Přidat šablonu flotily"
+  },
+  "z_2001": {
+   "source": "Added from the fleet template",
+   "text": "Přidáno ze šablony flotily"
+  },
+  "z_2002": {
+   "source": "Save as a fleet template",
+   "text": "Uložit jako šablonu flotily"
+  },
+  "z_2003": {
+   "source": "give the template a title",
+   "text": "dejte šabloně název"
+  },
+  "z_2004": {
+   "source": "the fleet template is saved",
+   "text": "šablona flotily je uložena"
+  },
+  "z_2005": {
+   "source": "the fleet template",
+   "text": "šablony flotily"
+  },
+  "z_2006": {
+   "source": "nginx web",
+   "text": "nginx web"
+  },
+  "z_2007": {
+   "source": "IIS + Remote Desktop",
+   "text": "IIS + Vzdálená plocha"
+  },
+  "z_2008": {
+   "source": "nginx with its certificates in /etc/nginx/ssl: nginx -t, a reload, a test of what it serves.",
+   "text": "nginx s certifikáty v /etc/nginx/ssl: nginx -t, reload a test toho, co servíruje."
+  },
+  "z_2009": {
+   "source": "A mail server: Postfix and Dovecot with their folders, checks and reloads.",
+   "text": "Poštovní server: Postfix a Dovecot s jejich složkami, kontrolami a reloady."
+  },
+  "z_2010": {
+   "source": "Every IIS site: the machine store and the sites' https bindings.",
+   "text": "Každý web IIS: úložiště počítače a https vazby webů."
+  },
+  "z_2011": {
+   "source": "The Remote Desktop listener's certificate from the machine store.",
+   "text": "Certifikát naslouchání Vzdálené plochy z úložiště počítače."
+  },
+  "z_2012": {
+   "source": "the agent's policy allows all of it: the certificate goes there when it is issued (Issue and deploy now, or the next renewal)",
+   "text": "politika agenta dovoluje všechno: certifikát se tam dostane, jakmile bude vydán (Vydat a nasadit teď, nebo při příštím obnovení)"
+  },
+  "z_2013": {
+   "source": "the agent's policy does not allow all of it yet: until root adds the lines below on the server, the agent refuses the deployment whole - nothing is written there",
+   "text": "politika agenta zatím nedovoluje všechno: dokud root na serveru nepřidá řádky níže, agent nasazení odmítne celé – nic se tam nezapíše"
+  },
+  "z_2014": {
+   "source": "the agents' fleet is for whoever sees every certificate",
+   "text": "flotila agentů je pro toho, kdo vidí všechny certifikáty"
+  },
+  "z_2015": {
+   "source": "a template needs a title",
+   "text": "šablona potřebuje název"
+  },
+  "z_2016": {
+   "source": "the template has no policy text",
+   "text": "šablona nemá text politiky"
+  },
+  "z_2017": {
+   "source": "there is no such template",
+   "text": "taková šablona neexistuje"
+  },
+  "z_2018": {
+   "source": "a built-in template is not deleted",
+   "text": "vestavěná šablona se nemaže"
+  },
+  "z_2019": {
+   "source": "there is no such group",
+   "text": "taková skupina neexistuje"
+  },
+  "z_2020": {
+   "source": "no agent was chosen",
+   "text": "nebyl vybrán žádný agent"
+  },
+  "z_2021": {
+   "source": "a rollout is under way - stop it first",
+   "text": "zavádění už probíhá – nejdřív jej zastavte"
+  },
+  "z_2022": {
+   "source": "the rollout has ended",
+   "text": "zavádění skončilo"
+  },
+  "z_2023": {
+   "source": "the rollout is not waiting",
+   "text": "zavádění nečeká"
+  },
+  "z_2024": {
+   "source": "stop the rollout first",
+   "text": "nejdřív zavádění zastavte"
+  },
+  "z_2025": {
+   "source": "there is no rollout",
+   "text": "žádné zavádění neprobíhá"
+  },
+  "z_2026": {
+   "source": "confirm it first (the preview says what is made)",
+   "text": "nejdřív to potvrďte (náhled říká, co se vytvoří)"
+  },
+  "z_2027": {
+   "source": "choose the source the certificate is issued from",
+   "text": "vyberte zdroj, ze kterého se certifikát vydá"
+  },
+  "z_2028": {
+   "source": "the agent's policy does not allow the deployment yet - add the lines on the server first, then ask the agent again",
+   "text": "politika agenta nasazení zatím nedovoluje – nejdřív přidejte řádky na serveru a pak se agenta zeptejte znovu"
+  },
+  "z_2029": {
+   "source": "the certificate found names nothing acme could ask for",
+   "text": "nalezený certifikát neobsahuje žádné jméno, o které by acme mohlo požádat"
+  },
+  "z_2030": {
+   "source": "acme cannot make a deployment of that service by itself - make it by hand (Make a deployment)",
+   "text": "acme samo nasazení této služby vytvořit neumí – vytvořte je ručně (Vytvořit nasazení)"
+  },
+  "z_2031": {
+   "source": "Update to",
+   "text": "Aktualizace na"
+  },
+  "z_2032": {
+   "source": "follows the template",
+   "text": "se řídí šablonou"
+  },
+  "z_2033": {
+   "source": "follows, through its group, the template",
+   "text": "se přes svou skupinu řídí šablonou"
+  },
+  "z_2034": {
+   "source": "Who may",
+   "text": "Kdo smí"
+  },
+  "z_2035": {
+   "source": "Health",
+   "text": "Zdraví"
+  },
+  "z_2036": {
+   "source": "Governance",
+   "text": "Správa"
+  },
+  "z_2037": {
+   "source": "Quota",
+   "text": "Kvóta"
+  },
+  "z_2038": {
+   "source": "Show more",
+   "text": "Zobrazit další"
+  },
+  "z_2039": {
+   "source": "granted",
+   "text": "uděleno"
+  },
+  "z_2040": {
+   "source": "open",
+   "text": "otevřená"
+  },
+  "z_2041": {
+   "source": "Escalation",
+   "text": "Eskalace"
+  },
+  "z_2042": {
+   "source": "Webhooks",
+   "text": "Webhooky"
+  },
+  "z_2043": {
+   "source": "Slack",
+   "text": "Slack"
+  },
+  "z_2044": {
+   "source": "Microsoft Teams",
+   "text": "Microsoft Teams"
+  },
+  "z_2045": {
+   "source": "On-call",
+   "text": "Pohotovost"
+  },
+  "z_2046": {
+   "source": "Lately",
+   "text": "Nedávno"
+  },
+  "z_2047": {
+   "source": "Enter",
+   "text": "Enter"
+  },
+  "z_2048": {
+   "source": "May",
+   "text": "Smí"
+  },
+  "z_2049": {
+   "source": "temporary",
+   "text": "dočasně"
+  },
+  "z_2050": {
+   "source": "A person",
+   "text": "Osoba"
+  },
+  "z_2051": {
+   "source": "A team",
+   "text": "Tým"
+  },
+  "z_2052": {
+   "source": "Asked by you",
+   "text": "Vaše žádosti"
+  },
+  "z_2053": {
+   "source": "Separation of duties",
+   "text": "Oddělení povinností"
+  },
+  "z_2054": {
+   "source": "Access reviews",
+   "text": "Revize přístupů"
+  },
+  "z_2055": {
+   "source": "Temporary roles",
+   "text": "Dočasné role"
+  },
+  "z_2056": {
+   "source": "health",
+   "text": "zdraví"
+  },
+  "z_2057": {
+   "source": "teams",
+   "text": "týmů"
+  },
+  "z_2058": {
+   "source": "View as",
+   "text": "Zobrazit jako"
+  },
+  "z_2059": {
+   "source": "Stop viewing as",
+   "text": "Ukončit náhled"
+  },
+  "z_2060": {
+   "source": "Take back",
+   "text": "Vzít zpět"
+  },
+  "z_2061": {
+   "source": "End now",
+   "text": "Ukončit hned"
+  },
+  "z_2062": {
+   "source": "Make a team",
+   "text": "Vytvořit tým"
+  },
+  "z_2063": {
+   "source": "Or paste it",
+   "text": "Nebo jej vložte"
+  },
+  "z_2064": {
+   "source": "overdue",
+   "text": "po termínu"
+  },
+  "z_2065": {
+   "source": "fair",
+   "text": "průměrné"
+  },
+  "z_2066": {
+   "source": "poor",
+   "text": "špatné"
+  },
+  "z_2067": {
+   "source": "confirmed",
+   "text": "potvrzeno"
+  },
+  "z_2068": {
+   "source": "taken out",
+   "text": "vyřazen"
+  },
+  "z_2069": {
+   "source": "Approve the role",
+   "text": "Schválit roli"
+  },
+  "z_2070": {
+   "source": "Who is in the group",
+   "text": "Kdo je ve skupině"
+  },
+  "z_2071": {
+   "source": "Download the report (CSV)",
+   "text": "Stáhnout přehled (CSV)"
+  },
+  "z_2072": {
+   "source": "taken back",
+   "text": "vzato zpět"
+  },
+  "z_2073": {
+   "source": "ended early",
+   "text": "ukončeno předčasně"
+  },
+  "z_2074": {
+   "source": "to confirm",
+   "text": "k potvrzení"
+  },
+  "z_2075": {
+   "source": "You see the pages as",
+   "text": "Stránky vidíte jako"
+  },
+  "z_2076": {
+   "source": "full administrator",
+   "text": "plný správce"
+  },
+  "z_2077": {
+   "source": "certificate administrator",
+   "text": "správce certifikátů"
+  },
+  "z_2078": {
+   "source": "- read-only: nothing is changed",
+   "text": "– jen pro čtení: nic se nemění"
+  },
+  "z_2079": {
+   "source": "See what this member sees - read-only: nothing can be changed meanwhile, and it is written in the events (and the team's activity).",
+   "text": "Uvidíte, co vidí tento člen – jen pro čtení: mezitím nelze nic změnit a zapíše se to do událostí (i do aktivity týmu)."
+  },
+  "z_2080": {
+   "source": "Their role and teams, here - if they sign in to the administration.",
+   "text": "Jejich role a týmy, zde – pokud se do administrace přihlašují."
+  },
+  "z_2081": {
+   "source": "The portal",
+   "text": "Portál"
+  },
+  "z_2082": {
+   "source": "In a new tab, as they sign in there - for two hours at most.",
+   "text": "V nové záložce, jako by se tam přihlásili – nejvýše na dvě hodiny."
+  },
+  "z_2083": {
+   "source": "Open the administration as this person sees it - read-only.",
+   "text": "Otevřít administraci tak, jak ji vidí tato osoba – jen pro čtení."
+  },
+  "z_2084": {
+   "source": "Open the portal as",
+   "text": "Otevřít portál jako"
+  },
+  "z_2085": {
+   "source": "Open the portal in a new tab as this person sees it - read-only, for two hours at most.",
+   "text": "Otevřít portál v nové záložce tak, jak jej vidí tato osoba – jen pro čtení, nejvýše na dvě hodiny."
+  },
+  "z_2086": {
+   "source": "View as this member",
+   "text": "Zobrazit jako tento člen"
+  },
+  "z_2087": {
+   "source": "You see the portal as",
+   "text": "Portál vidíte jako"
+  },
+  "z_2088": {
+   "source": "Who may do what - and why",
+   "text": "Kdo smí co – a proč"
+  },
+  "z_2089": {
+   "source": "Every capability across the tree of teams and the roles, each with the reason: which role or right, on which team, inherited from where, ending when. The same answer the server enforces.",
+   "text": "Každé oprávnění napříč stromem týmů a rolemi, u každého důvod: která role či právo, v kterém týmu, zděděno odkud, končí kdy. Stejná odpověď, jakou vynucuje server."
+  },
+  "z_2090": {
+   "source": "Who may…",
+   "text": "Kdo smí…"
+  },
+  "z_2091": {
+   "source": "on a team",
+   "text": "v týmu"
+  },
+  "z_2092": {
+   "source": "on a certificate",
+   "text": "u certifikátu"
+  },
+  "z_2093": {
+   "source": "a certificate's name or number",
+   "text": "název nebo číslo certifikátu"
+  },
+  "z_2094": {
+   "source": "Who?",
+   "text": "Kdo?"
+  },
+  "z_2095": {
+   "source": "on the team itself",
+   "text": "přímo v týmu"
+  },
+  "z_2096": {
+   "source": "inherited from a team above",
+   "text": "zděděno z nadřazeného týmu"
+  },
+  "z_2097": {
+   "source": "a temporary role",
+   "text": "dočasná role"
+  },
+  "z_2098": {
+   "source": "held, but its limits narrow it",
+   "text": "má, ale omezují to limity týmu"
+  },
+  "z_2099": {
+   "source": "Choose a dot in the matrix: why it is there.",
+   "text": "Vyberte tečku v matici: proč tam je."
+  },
+  "z_2100": {
+   "source": "read-only account",
+   "text": "účet jen pro čtení"
+  },
+  "z_2101": {
+   "source": "portal only",
+   "text": "jen portál"
+  },
+  "z_2102": {
+   "source": "A full administrator: every capability on every certificate, whatever the teams say. The matrix shows only what the teams give.",
+   "text": "Plný správce: všechna oprávnění u všech certifikátů bez ohledu na týmy. Matice ukazuje jen to, co dávají týmy."
+  },
+  "z_2103": {
+   "source": "A certificate administrator with \"Certificate administrators manage every certificate\" on: every certificate, whatever the teams say. The matrix shows only what the teams give.",
+   "text": "Správce certifikátů se zapnutým „Správci certifikátů spravují všechny certifikáty“: všechny certifikáty bez ohledu na týmy. Matice ukazuje jen to, co dávají týmy."
+  },
+  "z_2104": {
+   "source": "No membership of any team matches this person or a group they are in.",
+   "text": "Této osobě ani žádné její skupině neodpovídá členství v žádném týmu."
+  },
+  "z_2105": {
+   "source": "No member of this team or of a team above it.",
+   "text": "Tento tým ani týmy nad ním nemají žádného člena."
+  },
+  "z_2106": {
+   "source": "It has no team: only those who see every certificate may.",
+   "text": "Nepatří žádnému týmu: smí jen ti, kdo vidí všechny certifikáty."
+  },
+  "z_2107": {
+   "source": "Nobody may do that there - not even through a team above it.",
+   "text": "To tam nesmí nikdo – ani přes nadřazený tým."
+  },
+  "z_2108": {
+   "source": "Every member of the team, those of the teams above it and the temporary roles - each capability with its reason.",
+   "text": "Každý člen týmu, členové týmů nad ním i dočasné role – každé oprávnění s důvodem."
+  },
+  "z_2109": {
+   "source": "Who may do what in this team - and why: every member, those of the teams above, temporary roles and the administrators.",
+   "text": "Kdo smí co v tomto týmu – a proč: každý člen, členové týmů nad ním, dočasné role a správci."
+  },
+  "z_2110": {
+   "source": "Failed renewals",
+   "text": "Selhané obnovy"
+  },
+  "z_2111": {
+   "source": "Failed deployments",
+   "text": "Selhaná nasazení"
+  },
+  "z_2112": {
+   "source": "Outside the limits",
+   "text": "Mimo limity"
+  },
+  "z_2113": {
+   "source": "Weak keys",
+   "text": "Slabé klíče"
+  },
+  "z_2114": {
+   "source": "no certificate yet",
+   "text": "zatím žádný certifikát"
+  },
+  "z_2115": {
+   "source": "Nothing to say.",
+   "text": "Není co říct."
+  },
+  "z_2116": {
+   "source": "with the teams below it",
+   "text": "včetně týmů pod ním"
+  },
+  "z_2117": {
+   "source": "All well",
+   "text": "Vše v pořádku"
+  },
+  "z_2118": {
+   "source": "Nothing of its own runs out soon, failed, stands outside its limits or has a weak key.",
+   "text": "Nic z jeho certifikátů brzy nekončí, neselhalo, není mimo limity ani nemá slabý klíč."
+  },
+  "z_2119": {
+   "source": "The health of the teams",
+   "text": "Zdraví týmů"
+  },
+  "z_2120": {
+   "source": "Worst first",
+   "text": "Nejhorší první"
+  },
+  "z_2121": {
+   "source": "As the tree",
+   "text": "Podle stromu"
+  },
+  "z_2122": {
+   "source": "No team",
+   "text": "Žádný tým"
+  },
+  "z_2123": {
+   "source": "No team is called like that.",
+   "text": "Žádný tým se tak nejmenuje."
+  },
+  "z_2124": {
+   "source": "nothing runs out, fails or stands outside its limits",
+   "text": "nic nekončí, neselhává ani není mimo limity"
+  },
+  "z_2125": {
+   "source": "How the certificates of your teams are doing: running out, failed renewals and deployments, outside the team's limits, weak keys and the quota - one score of 100 for each team with the teams below it.",
+   "text": "Jak se daří certifikátům vašich týmů: končící, selhané obnovy a nasazení, mimo limity týmu, slabé klíče a kvóta – jedno skóre ze 100 pro každý tým včetně týmů pod ním."
+  },
+  "z_2126": {
+   "source": "Nothing to show",
+   "text": "Není co zobrazit"
+  },
+  "z_2127": {
+   "source": "None of these teams shows you its certificates.",
+   "text": "Žádný z těchto týmů vám neukazuje své certifikáty."
+  },
+  "z_2128": {
+   "source": "All your teams",
+   "text": "Všechny vaše týmy"
+  },
+  "z_2129": {
+   "source": "The team and the teams below it",
+   "text": "Tým a týmy pod ním"
+  },
+  "z_2130": {
+   "source": "asks for",
+   "text": "žádá o"
+  },
+  "z_2131": {
+   "source": "approved by",
+   "text": "schválil(a)"
+  },
+  "z_2132": {
+   "source": "why - the person who asked reads it",
+   "text": "proč – žadatel si to přečte"
+  },
+  "z_2133": {
+   "source": "A word for the record",
+   "text": "Poznámka do záznamu"
+  },
+  "z_2134": {
+   "source": "optional",
+   "text": "nepovinné"
+  },
+  "z_2135": {
+   "source": "The role is given now and ends by itself after the hours asked. Separation of duties is checked: a role that would clash with another of theirs is refused.",
+   "text": "Role se udělí hned a po požadovaných hodinách sama skončí. Kontroluje se oddělení povinností: role, která by se střetla s jinou jejich rolí, se odmítne."
+  },
+  "z_2136": {
+   "source": "Ask for a temporary role",
+   "text": "Požádat o dočasnou roli"
+  },
+  "z_2137": {
+   "source": "A role on a team for a few hours - for a change window, a night shift, an incident. A manager of the team approves it (never you); it ends by itself.",
+   "text": "Role v týmu na pár hodin – na servisní okno, noční směnu, incident. Schválí ji správce týmu (nikdy vy) a sama skončí."
+  },
+  "z_2138": {
+   "source": "A role on a team for a few hours - a change window, a night shift, an incident. A manager of the team approves it (never you), and it ends by itself.",
+   "text": "Role v týmu na pár hodin – servisní okno, noční směna, incident. Schválí ji správce týmu (nikdy vy) a sama skončí."
+  },
+  "z_2139": {
+   "source": "For how many hours",
+   "text": "Na kolik hodin"
+  },
+  "z_2140": {
+   "source": "what for - a change window, a ticket…",
+   "text": "k čemu – servisní okno, tiket…"
+  },
+  "z_2141": {
+   "source": "choose a role",
+   "text": "vyberte roli"
+  },
+  "z_2142": {
+   "source": "say why you need it",
+   "text": "uveďte, proč ji potřebujete"
+  },
+  "z_2143": {
+   "source": "Ask for a role",
+   "text": "Požádat o roli"
+  },
+  "z_2144": {
+   "source": "A member asks for a role on a team for a few hours; a manager of the team approves it - never the one who asked - and it ends by itself.",
+   "text": "Člen požádá o roli v týmu na pár hodin; schválí ji správce týmu – nikdy žadatel sám – a role sama skončí."
+  },
+  "z_2145": {
+   "source": "Nothing waits for you.",
+   "text": "Nic na vás nečeká."
+  },
+  "z_2146": {
+   "source": "Nothing asked yet",
+   "text": "Zatím žádná žádost"
+  },
+  "z_2147": {
+   "source": "Not offered in your teams",
+   "text": "Ve vašich týmech není k dispozici"
+  },
+  "z_2148": {
+   "source": "Ask for a role for a few hours - a manager of the team approves it, and it ends by itself.",
+   "text": "Požádejte o roli na pár hodin – schválí ji správce týmu a sama skončí."
+  },
+  "z_2149": {
+   "source": "Your teams do not give roles for a while. An administrator switches it on for a team.",
+   "text": "Vaše týmy dočasné role neudělují. Zapíná je pro tým správce."
+  },
+  "z_2150": {
+   "source": "Confirm each member and their roles, or take them out of the team. You do not confirm your own membership. What is not answered by the deadline is reported, or expires - as the team's review says.",
+   "text": "Potvrďte každého člena a jeho role, nebo jej z týmu vyřaďte. Vlastní členství nepotvrzujete. Co nebude do termínu zodpovězeno, se nahlásí, nebo vyprší – podle nastavení revize týmu."
+  },
+  "z_2151": {
+   "source": "Confirm each member and their roles, or take them out of the team. You do not confirm your own membership.",
+   "text": "Potvrďte každého člena a jeho role, nebo jej z týmu vyřaďte. Vlastní členství nepotvrzujete."
+  },
+  "z_2152": {
+   "source": "Take out",
+   "text": "Vyřadit"
+  },
+  "z_2153": {
+   "source": "The reviews open now in the teams you see: confirm each member and their roles, or take them out.",
+   "text": "Revize otevřené nyní v týmech, které vidíte: potvrďte každého člena a jeho role, nebo jej vyřaďte."
+  },
+  "z_2154": {
+   "source": "No review is open.",
+   "text": "Žádná revize není otevřená."
+  },
+  "z_2155": {
+   "source": "No review waits for you",
+   "text": "Žádná revize na vás nečeká"
+  },
+  "z_2156": {
+   "source": "When one of your teams reviews its members, you confirm them here - if you manage its members.",
+   "text": "Když některý z vašich týmů reviduje své členy, potvrdíte je tady – pokud spravujete jeho členy."
+  },
+  "z_2157": {
+   "source": "not confirmed: expires",
+   "text": "nepotvrzení: vyprší"
+  },
+  "z_2158": {
+   "source": "not confirmed: reported",
+   "text": "nepotvrzení: nahlásí se"
+  },
+  "z_2159": {
+   "source": "Off - the members are never asked to be confirmed.",
+   "text": "Vypnuto – členové se nikdy nepotvrzují."
+  },
+  "z_2160": {
+   "source": "Set the access reviews",
+   "text": "Nastavit revize přístupů"
+  },
+  "z_2161": {
+   "source": "The review open now",
+   "text": "Právě otevřená revize"
+  },
+  "z_2162": {
+   "source": "Start a review now",
+   "text": "Zahájit revizi hned"
+  },
+  "z_2163": {
+   "source": "Review the members regularly",
+   "text": "Pravidelně revidovat členy"
+  },
+  "z_2164": {
+   "source": "The managers of the team (team.members) confirm each member and their roles; they never confirm their own membership.",
+   "text": "Správci týmu (team.members) potvrzují každého člena a jeho role; vlastní členství nikdy nepotvrzují."
+  },
+  "z_2165": {
+   "source": "Every … days",
+   "text": "Každých … dní"
+  },
+  "z_2166": {
+   "source": "Days to answer",
+   "text": "Dní na odpověď"
+  },
+  "z_2167": {
+   "source": "Report them",
+   "text": "Nahlásit je"
+  },
+  "z_2168": {
+   "source": "Their membership expires",
+   "text": "Jejich členství vyprší"
+  },
+  "z_2169": {
+   "source": "Members not confirmed in time",
+   "text": "Členové nepotvrzení včas"
+  },
+  "z_2170": {
+   "source": "A template is a team ready to be made again: its kind, members (with {team} for the team's name), limits, request profiles, channels and governance - never a secret. Make a team from one, or a whole structure from a CSV file.",
+   "text": "Šablona je tým připravený k opakovanému vytvoření: druh, členové ({team} za název týmu), limity, profily žádostí, kanály a správa – nikdy žádné tajemství. Vytvořte z ní tým, nebo celou strukturu ze souboru CSV."
+  },
+  "z_2171": {
+   "source": "Save a team as a template",
+   "text": "Uložit tým jako šablonu"
+  },
+  "z_2172": {
+   "source": "Import from CSV",
+   "text": "Import z CSV"
+  },
+  "z_2173": {
+   "source": "No template yet",
+   "text": "Zatím žádná šablona"
+  },
+  "z_2174": {
+   "source": "Save a team as a template - its roles, limits, profiles and notifications - and make new teams from it in one step.",
+   "text": "Uložte tým jako šablonu – jeho role, limity, profily a upozornění – a vytvářejte z ní nové týmy jedním krokem."
+  },
+  "z_2175": {
+   "source": "access reviews",
+   "text": "revize přístupů"
+  },
+  "z_2176": {
+   "source": "temporary roles",
+   "text": "dočasné role"
+  },
+  "z_2177": {
+   "source": "separation of duties",
+   "text": "oddělení povinností"
+  },
+  "z_2178": {
+   "source": "notifications",
+   "text": "upozornění"
+  },
+  "z_2179": {
+   "source": "an empty team",
+   "text": "prázdný tým"
+  },
+  "z_2180": {
+   "source": "Change this template",
+   "text": "Změnit tuto šablonu"
+  },
+  "z_2181": {
+   "source": "Delete this template",
+   "text": "Smazat tuto šablonu"
+  },
+  "z_2182": {
+   "source": "Name of the template",
+   "text": "Název šablony"
+  },
+  "z_2183": {
+   "source": "With its members",
+   "text": "Včetně členů"
+  },
+  "z_2184": {
+   "source": "Its members are copied as they are (a webhook's address never is).",
+   "text": "Členové se zkopírují tak, jak jsou (adresa webhooku nikdy)."
+  },
+  "z_2185": {
+   "source": "Save the template",
+   "text": "Uložit šablonu"
+  },
+  "z_2186": {
+   "source": "name it",
+   "text": "pojmenujte ji"
+  },
+  "z_2187": {
+   "source": "kind, description, members ({team} is the team's name), policy (the limits), contact_mail, extras: review, jit, sod, notify.",
+   "text": "kind, description, members ({team} je název týmu), policy (limity), contact_mail, extras: review, jit, sod, notify."
+  },
+  "z_2188": {
+   "source": "that is not JSON",
+   "text": "to není JSON"
+  },
+  "z_2189": {
+   "source": "the new team's name",
+   "text": "název nového týmu"
+  },
+  "z_2190": {
+   "source": "Teams from a CSV file",
+   "text": "Týmy ze souboru CSV"
+  },
+  "z_2191": {
+   "source": "One team a line; the first line names the columns:",
+   "text": "Jeden tým na řádek; první řádek pojmenuje sloupce:"
+  },
+  "z_2192": {
+   "source": "- only the name is needed. Members as on the command line: local:jan=Requester+Deployer; group:Web=view. A parent may come later in the file. Nothing is made until the preview has no error.",
+   "text": "– povinný je jen název. Členové jako na příkazové řádce: local:jan=Requester+Deployer; group:Web=view. Nadřazený tým může být v souboru i níže. Nic se nevytvoří, dokud náhled obsahuje chybu."
+  },
+  "z_2193": {
+   "source": "Drop a .csv file here, or choose one",
+   "text": "Přetáhněte sem soubor .csv, nebo jej vyberte"
+  },
+  "z_2194": {
+   "source": "paste or drop a file first",
+   "text": "nejprve vložte nebo přetáhněte soubor"
+  },
+  "z_2195": {
+   "source": "nothing made - correct the lines marked",
+   "text": "nic nevytvořeno – opravte označené řádky"
+  },
+  "z_2196": {
+   "source": "What keeps the team's access in order: access reviews, temporary roles, separation of duties, and who is told what. Each is off until it is set; a team above sets them for the teams below where noted.",
+   "text": "Co udržuje přístupy týmu v pořádku: revize přístupů, dočasné role, oddělení povinností a kdo se o čem dozví. Vše je vypnuté, dokud se to nenastaví; kde je uvedeno, nastavuje to tým výše i pro týmy pod ním."
+  },
+  "z_2197": {
+   "source": "Set the temporary roles",
+   "text": "Nastavit dočasné role"
+  },
+  "z_2198": {
+   "source": "Off - nobody asks for a role here for a while.",
+   "text": "Vypnuto – zde nikdo o dočasnou roli nežádá."
+  },
+  "z_2199": {
+   "source": "Members may ask for a role for a while",
+   "text": "Členové smějí žádat o dočasnou roli"
+  },
+  "z_2200": {
+   "source": "Set here, it holds for the teams below too, unless one of them sets its own.",
+   "text": "Nastavení zde platí i pro týmy pod ním, pokud si některý nenastaví vlastní."
+  },
+  "z_2201": {
+   "source": "The roles that may be asked for",
+   "text": "Role, o které lze žádat"
+  },
+  "z_2202": {
+   "source": "For how many hours at most",
+   "text": "Nejvýše na kolik hodin"
+  },
+  "z_2203": {
+   "source": "as the approval rule says",
+   "text": "podle pravidla schvalování"
+  },
+  "z_2204": {
+   "source": "The one who asks never approves their own request",
+   "text": "Žadatel nikdy neschvaluje vlastní žádost"
+  },
+  "z_2205": {
+   "source": "never the same person",
+   "text": "nikdy táž osoba"
+  },
+  "z_2206": {
+   "source": "never their own request",
+   "text": "nikdy vlastní žádost"
+  },
+  "z_2207": {
+   "source": "No pair of roles is kept apart.",
+   "text": "Žádná dvojice rolí není oddělená."
+  },
+  "z_2208": {
+   "source": "Set the separation of duties",
+   "text": "Nastavit oddělení povinností"
+  },
+  "z_2209": {
+   "source": "Wherever requests are approved - certificates, actions waiting for an approval, temporary roles - whatever the approval rule's \"self\" says.",
+   "text": "Všude, kde se schvaluje – certifikáty, akce čekající na schválení, dočasné role – bez ohledu na „self“ v pravidle schvalování."
+  },
+  "z_2210": {
+   "source": "Never the same person on the team",
+   "text": "Nikdy táž osoba v týmu"
+  },
+  "z_2211": {
+   "source": "Take this pair away",
+   "text": "Odebrat tuto dvojici"
+  },
+  "z_2212": {
+   "source": "No pair yet.",
+   "text": "Zatím žádná dvojice."
+  },
+  "z_2213": {
+   "source": "Add a pair",
+   "text": "Přidat dvojici"
+  },
+  "z_2214": {
+   "source": "Checked when members are saved (a membership holding both is refused), when a temporary role is given, and when somebody approves (an approver holding both is refused). A rule here holds for the teams below too.",
+   "text": "Kontroluje se při ukládání členů (členství s oběma se odmítne), při udělení dočasné role a při schvalování (schvalovatel s oběma se odmítne). Pravidlo zde platí i pro týmy pod ním."
+  },
+  "z_2215": {
+   "source": "Separation of duties: memberships that clash now",
+   "text": "Oddělení povinností: členství, která se nyní střetávají"
+  },
+  "z_2216": {
+   "source": "The rule holds for every membership added or changed from now on. These hold both roles of a pair already - change them by hand:",
+   "text": "Pravidlo platí pro každé členství přidané či změněné od teď. Tato už mají obě role z dvojice – upravte je ručně:"
+  },
+  "z_2217": {
+   "source": "Notifications and escalation",
+   "text": "Upozornění a eskalace"
+  },
+  "z_2218": {
+   "source": "the team (no address)",
+   "text": "tým (bez adresy)"
+  },
+  "z_2219": {
+   "source": "the manager (no address)",
+   "text": "vedoucí (bez adresy)"
+  },
+  "z_2220": {
+   "source": "a failed deployment",
+   "text": "selhané nasazení"
+  },
+  "z_2221": {
+   "source": "nobody (no address)",
+   "text": "nikdo (bez adresy)"
+  },
+  "z_2222": {
+   "source": "Teams webhook set",
+   "text": "Webhook Teams nastaven"
+  },
+  "z_2223": {
+   "source": "no Teams webhook",
+   "text": "bez webhooku Teams"
+  },
+  "z_2224": {
+   "source": "Slack webhook set",
+   "text": "Webhook Slack nastaven"
+  },
+  "z_2225": {
+   "source": "no Slack webhook",
+   "text": "bez webhooku Slack"
+  },
+  "z_2226": {
+   "source": "Off - as before: the team's contact addresses are told of failures and certificates running out (Settings → Notifications). Set channels to escalate.",
+   "text": "Vypnuto – jako dosud: kontaktní adresy týmu dostávají zprávy o selháních a končících certifikátech (Nastavení → Upozornění). Pro eskalaci nastavte kanály."
+  },
+  "z_2227": {
+   "source": "Set the channels and the escalation",
+   "text": "Nastavit kanály a eskalaci"
+  },
+  "z_2228": {
+   "source": "Try every channel now",
+   "text": "Vyzkoušet všechny kanály"
+  },
+  "z_2229": {
+   "source": "nothing to try",
+   "text": "není co zkoušet"
+  },
+  "z_2230": {
+   "source": "Channels and escalation of its own",
+   "text": "Vlastní kanály a eskalace"
+  },
+  "z_2231": {
+   "source": "Set here, they hold for the teams below too, unless one of them sets its own.",
+   "text": "Nastavení zde platí i pro týmy pod ním, pokud si některý nenastaví vlastní."
+  },
+  "z_2232": {
+   "source": "Empty: the team's contact addresses.",
+   "text": "Prázdné: kontaktní adresy týmu."
+  },
+  "z_2233": {
+   "source": "The manager",
+   "text": "Vedoucí"
+  },
+  "z_2234": {
+   "source": "set - type a new address to change it",
+   "text": "nastaveno – pro změnu zadejte novou adresu"
+  },
+  "z_2235": {
+   "source": "take it away",
+   "text": "odebrat"
+  },
+  "z_2236": {
+   "source": "Kept sealed - never shown again, not even to you.",
+   "text": "Uloženo zapečetěné – už se nikdy nezobrazí, ani vám."
+  },
+  "z_2237": {
+   "source": "Tell the team … days before a certificate ends",
+   "text": "Upozornit tým … dní před koncem certifikátu"
+  },
+  "z_2238": {
+   "source": "Tell the manager … days before",
+   "text": "Upozornit vedoucího … dní předem"
+  },
+  "z_2239": {
+   "source": "A failed deployment goes to",
+   "text": "Selhané nasazení jde"
+  },
+  "z_2240": {
+   "source": "Temporary roles: asked, given, ended",
+   "text": "Dočasné role: žádost, udělení, konec"
+  },
+  "z_2241": {
+   "source": "Access reviews: opened, overdue",
+   "text": "Revize přístupů: otevřena, po termínu"
+  },
+  "z_2242": {
+   "source": "A role for a few hours when the work needs it, the requests of others to approve, the access reviews of your teams - and who may do what.",
+   "text": "Role na pár hodin, když to práce vyžaduje, žádosti druhých ke schválení, revize přístupů vašich týmů – a kdo smí co."
+  },
+  "z_2243": {
+   "source": "granted until the time it ends by itself",
+   "text": "uděleno – do doby, kdy samo skončí"
+  },
+  "z_2244": {
+   "source": "the review is open",
+   "text": "revize je otevřená"
+  },
+  "z_2245": {
+   "source": "the webhooks are saved",
+   "text": "webhooky jsou uloženy"
+  },
+  "z_2246": {
+   "source": "nothing made (a preview)",
+   "text": "nic nevytvořeno (náhled)"
+  },
+  "z_2247": {
+   "source": "you see the pages as yourself again",
+   "text": "stránky opět vidíte jako vy"
+  },
+  "z_2248": {
+   "source": "you do not confirm your own membership (or that of a group you are in) - another manager of the team does",
+   "text": "vlastní členství (ani členství své skupiny) nepotvrzujete – potvrdí jej jiný správce týmu"
+  },
+  "z_2249": {
+   "source": "say why it is declined - the person who asked reads it",
+   "text": "uveďte, proč se zamítá – žadatel si to přečte"
+  },
+  "z_2250": {
+   "source": "say why you need it - the approver reads it",
+   "text": "uveďte, proč ji potřebujete – schvalovatel si to přečte"
+  },
+  "z_2251": {
+   "source": "in the team",
+   "text": "v týmu"
+  },
+  "z_2252": {
+   "source": "on the certificate",
+   "text": "u certifikátu"
+  },
+  "z_2253": {
+   "source": "inherited",
+   "text": "zděděno"
+  },
+  "z_2254": {
+   "source": "none - it stands alone",
+   "text": "žádný – stojí samostatně"
+  },
+  "z_2255": {
+   "source": "Based on",
+   "text": "Vychází z"
+  },
+  "z_2256": {
+   "source": "Another profile it takes its settings from: each field marked inherited follows it, and a change of it applies here too. Override a field to set it here.",
+   "text": "Jiný profil, ze kterého přebírá nastavení: každé pole označené jako zděděné se jím řídí a jeho změna se projeví i zde. Pole přepište, chcete-li ho nastavit zde."
+  },
+  "z_2257": {
+   "source": "Inherited from the base",
+   "text": "Zděděno ze základu"
+  },
+  "z_2258": {
+   "source": "Empty: what the source gives. A public certificate is valid for at most 200 days from 15 March 2026, 100 from 15 March 2027 and 47 from 15 March 2029 (CA/Browser Forum).",
+   "text": "Prázdné: co dá zdroj. Veřejný certifikát platí nejvýše 200 dní od 15. března 2026, 100 dní od 15. března 2027 a 47 dní od 15. března 2029 (CA/Browser Forum)."
+  },
+  "z_2259": {
+   "source": "It is the base of these profiles. Deleted, each of them takes what it inherits from it as its own and stands alone - nothing they give changes:",
+   "text": "Je základem těchto profilů. Po smazání si každý z nich ponechá zděděné nastavení jako vlastní a bude stát samostatně – na tom, co dávají, se nic nezmění:"
+  },
+  "z_2260": {
+   "source": "The certificates asked for from it stay as they are.",
+   "text": "Certifikáty o něj vyžádané zůstanou, jak jsou."
+  },
+  "z_2261": {
+   "source": "Compliance",
+   "text": "Soulad s pravidly"
+  },
+  "z_2262": {
+   "source": "Each profile and the certificates asked for from it against the CA/Browser Forum's schedule of public TLS validity, the keys and algorithms, and the company's own rules - on any date.",
+   "text": "Každý profil a certifikáty z něj vyžádané porovnané s harmonogramem platnosti veřejných TLS certifikátů podle CA/Browser Fóra, s klíči a algoritmy a s vlastními pravidly firmy – k libovolnému datu."
+  },
+  "z_2263": {
+   "source": "End it…",
+   "text": "Ukončit…"
+  },
+  "z_2264": {
+   "source": "Ends",
+   "text": "Končí"
+  },
+  "z_2265": {
+   "source": "History of the request profile",
+   "text": "Historie profilu žádosti"
+  },
+  "z_2266": {
+   "source": "with",
+   "text": "s"
+  },
+  "z_2267": {
+   "source": "Show the differences",
+   "text": "Ukázat rozdíly"
+  },
+  "z_2268": {
+   "source": "Compare with now",
+   "text": "Porovnat se současností"
+  },
+  "z_2269": {
+   "source": "Not changed since versions are kept: its next change is version 2.",
+   "text": "Od doby, kdy se verze uchovávají, se nezměnil: jeho příští změna bude verze 2."
+  },
+  "z_2270": {
+   "source": "as it was before versions were kept",
+   "text": "jak byl, než se začaly uchovávat verze"
+  },
+  "z_2271": {
+   "source": "no longer ends",
+   "text": "už nekončí"
+  },
+  "z_2272": {
+   "source": "The differences",
+   "text": "Rozdíly"
+  },
+  "z_2273": {
+   "source": "Restore a version",
+   "text": "Obnovit verzi"
+  },
+  "z_2274": {
+   "source": "The version is restored",
+   "text": "Verze je obnovena"
+  },
+  "z_2275": {
+   "source": "What it would issue - nothing is issued, asked of a CA or kept.",
+   "text": "Co by se vydalo – nic se nevydá, CA se na nic neptá a nic se neuloží."
+  },
+  "z_2276": {
+   "source": "A CSR",
+   "text": "CSR"
+  },
+  "z_2277": {
+   "source": "It would be issued",
+   "text": "Vydal by se"
+  },
+  "z_2278": {
+   "source": "It would be refused",
+   "text": "Byl by odmítnut"
+  },
+  "z_2279": {
+   "source": "after an approval",
+   "text": "po schválení"
+  },
+  "z_2280": {
+   "source": "from the CSR - acme never has it",
+   "text": "z CSR – acme ho nikdy nemá"
+  },
+  "z_2281": {
+   "source": "made and kept by acme",
+   "text": "vytvoří a uchová acme"
+  },
+  "z_2282": {
+   "source": "as the CA puts it in",
+   "text": "jak ho vloží CA"
+  },
+  "z_2283": {
+   "source": "as the source puts it in",
+   "text": "jak ho vloží zdroj"
+  },
+  "z_2284": {
+   "source": "what the CA gives",
+   "text": "co dá CA"
+  },
+  "z_2285": {
+   "source": "renews by itself",
+   "text": "obnovuje se sám"
+  },
+  "z_2286": {
+   "source": "The request profile ends",
+   "text": "Profil žádosti končí"
+  },
+  "z_2287": {
+   "source": "End the request profile",
+   "text": "Ukončit profil žádosti"
+  },
+  "z_2288": {
+   "source": "Ended, the portal no longer offers it; each certificate asked for from it takes its successor's settings at its next renewal. It can be taken back.",
+   "text": "Ukončený profil portál už nenabízí; každý certifikát z něj vyžádaný převezme při příští obnově nastavení nástupce. Lze to vzít zpět."
+  },
+  "z_2289": {
+   "source": "choose its successor",
+   "text": "vyberte nástupce"
+  },
+  "z_2290": {
+   "source": "Its successor",
+   "text": "Nástupce"
+  },
+  "z_2291": {
+   "source": "Why - shown to the administrators",
+   "text": "Proč – uvidí to správci"
+  },
+  "z_2292": {
+   "source": "The certificates it moves",
+   "text": "Certifikáty, které převede"
+  },
+  "z_2293": {
+   "source": "Choose its successor to see what moves.",
+   "text": "Vyberte nástupce a uvidíte, co se převede."
+  },
+  "z_2294": {
+   "source": "Offer it again",
+   "text": "Znovu nabízet"
+  },
+  "z_2295": {
+   "source": "The request profile is offered again",
+   "text": "Profil žádosti se znovu nabízí"
+  },
+  "z_2296": {
+   "source": "choose its successor among the request profiles",
+   "text": "vyberte nástupce mezi profily žádostí"
+  },
+  "z_2297": {
+   "source": "Move at their renewal",
+   "text": "Převedou se při obnově"
+  },
+  "z_2298": {
+   "source": "Cannot move",
+   "text": "Nelze převést"
+  },
+  "z_2299": {
+   "source": "No certificate was asked for from it - nothing moves.",
+   "text": "Z něj nebyl vyžádán žádný certifikát – nic se nepřevádí."
+  },
+  "z_2300": {
+   "source": " - it is renewed as it is",
+   "text": " – obnoví se tak, jak je"
+  },
+  "z_2301": {
+   "source": "nothing else changes",
+   "text": "nic jiného se nemění"
+  },
+  "z_2302": {
+   "source": "Twin",
+   "text": "Dvojče"
+  },
+  "z_2303": {
+   "source": "complies",
+   "text": "vyhovuje"
+  },
+  "z_2304": {
+   "source": "does not comply",
+   "text": "nevyhovuje"
+  },
+  "z_2305": {
+   "source": "stops complying",
+   "text": "přestane vyhovovat"
+  },
+  "z_2306": {
+   "source": "Compliance of the request profiles",
+   "text": "Soulad profilů žádostí s pravidly"
+  },
+  "z_2307": {
+   "source": "Which profiles and certificates stop complying - and when",
+   "text": "Které profily a certifikáty přestanou vyhovovat – a kdy"
+  },
+  "z_2308": {
+   "source": "A publicly trusted TLS certificate is valid for at most the days the CA/Browser Forum's schedule says (ballot SC-081); a private CA - an authority of acme's own, AD CS - is not bound by it. The keys, SHA-1 and the company's rules apply to every source.",
+   "text": "Veřejně důvěryhodný TLS certifikát platí nejvýše tolik dní, kolik říká harmonogram CA/Browser Fóra (hlasování SC-081); soukromé CA – vlastní autorita acme, AD CS – se jím neřídí. Klíče, SHA-1 a pravidla firmy platí pro každý zdroj."
+  },
+  "z_2309": {
+   "source": "On the date",
+   "text": "K datu"
+  },
+  "z_2310": {
+   "source": "The CA/Browser Forum's schedule",
+   "text": "Harmonogram CA/Browser Fóra"
+  },
+  "z_2311": {
+   "source": " days at most",
+   "text": " dní nejvýše"
+  },
+  "z_2312": {
+   "source": "all comply",
+   "text": "vše vyhovuje"
+  },
+  "z_2313": {
+   "source": "Profiles comply",
+   "text": "Profily vyhovují"
+  },
+  "z_2314": {
+   "source": "Stop complying by the date",
+   "text": "Přestanou vyhovovat k datu"
+  },
+  "z_2315": {
+   "source": "Do not comply now",
+   "text": "Teď nevyhovují"
+  },
+  "z_2316": {
+   "source": "Certificates not complying",
+   "text": "Nevyhovující certifikáty"
+  },
+  "z_2317": {
+   "source": "Profiles",
+   "text": "Profily"
+  },
+  "z_2318": {
+   "source": "No request profile yet.",
+   "text": "Zatím žádný profil žádosti."
+  },
+  "z_2319": {
+   "source": "private CA",
+   "text": "soukromá CA"
+  },
+  "z_2320": {
+   "source": "Within the schedule and the rules.",
+   "text": "V mezích harmonogramu i pravidel."
+  },
+  "z_2321": {
+   "source": "A private CA: the CA/Browser Forum's schedule does not apply; within the rules.",
+   "text": "Soukromá CA: harmonogram CA/Browser Fóra se na ni nevztahuje; v mezích pravidel."
+  },
+  "z_2322": {
+   "source": "Certificates asked for from it",
+   "text": "Certifikáty z něj vyžádané"
+  },
+  "z_2323": {
+   "source": "The company's own rules",
+   "text": "Vlastní pravidla firmy"
+  },
+  "z_2324": {
+   "source": "Of any certificate of a profile, a private CA's too. Empty: no rule.",
+   "text": "Kteréhokoli certifikátu profilu, i ze soukromé CA. Prázdné: bez pravidla."
+  },
+  "z_2325": {
+   "source": "Shortest RSA key",
+   "text": "Nejkratší klíč RSA"
+  },
+  "z_2326": {
+   "source": "RSA below 2048 bits and SHA-1 are never allowed.",
+   "text": "RSA pod 2048 bitů a SHA-1 nejsou dovoleny nikdy."
+  },
+  "z_2327": {
+   "source": "Key types forbidden",
+   "text": "Zakázané typy klíčů"
+  },
+  "z_2328": {
+   "source": "Wildcards wait for approval",
+   "text": "Zástupné znaky čekají na schválení"
+  },
+  "z_2329": {
+   "source": "A profile that gives wildcards is approved first.",
+   "text": "Profil, který dává zástupné znaky (*.), se nejdřív schvaluje."
+  },
+  "z_2330": {
+   "source": "No PFX with the key",
+   "text": "Žádné PFX s klíčem"
+  },
+  "z_2331": {
+   "source": "No profile lets the person download the private key.",
+   "text": "Žádný profil nedovolí stáhnout soukromý klíč."
+  },
+  "z_2332": {
+   "source": "At most. Empty: no rule.",
+   "text": "Nejvýše. Prázdné: bez pravidla."
+  },
+  "z_2333": {
+   "source": "Save the rules",
+   "text": "Uložit pravidla"
+  },
+  "z_2334": {
+   "source": "The rules are saved",
+   "text": "Pravidla jsou uložena"
+  },
+  "z_2335": {
+   "source": "Approved first",
+   "text": "Nejdřív se schvaluje"
+  },
+  "z_2336": {
+   "source": "Ends - its successor",
+   "text": "Končí – nástupce"
+  },
+  "z_2337": {
+   "source": "fixed",
+   "text": "pevně"
+  },
+  "z_2338": {
+   "source": "a team they pick",
+   "text": "tým, který si vybere"
+  },
+  "z_2339": {
+   "source": "a profile is not its own base",
+   "text": "profil nemůže být svým vlastním základem"
+  },
+  "z_2340": {
+   "source": "its base profiles go round in a circle",
+   "text": "jeho základní profily se zacyklily"
+  },
+  "z_2341": {
+   "source": "a profile is not its own successor",
+   "text": "profil nemůže být svým vlastním nástupcem"
+  },
+  "z_2342": {
+   "source": "the rules of the request profiles are saved",
+   "text": "pravidla profilů žádostí jsou uložena"
+  },
+  "z_2343": {
+   "source": "a date is YYYY-MM-DD",
+   "text": "datum se píše RRRR-MM-DD"
+  },
+  "z_2344": {
+   "source": "the shortest RSA key is 2048, 3072 or 4096 bits",
+   "text": "nejkratší klíč RSA je 2048, 3072 nebo 4096 bitů"
+  },
+  "z_2345": {
+   "source": "the CA chooses the validity - it keeps to the CA/Browser Forum's schedule by itself",
+   "text": "platnost volí CA – harmonogram CA/Browser Fóra dodržuje sama"
+  },
+  "z_2346": {
+   "source": "a public CA does not sign Ed25519 keys",
+   "text": "veřejná CA nepodepisuje klíče Ed25519"
+  },
+  "z_2347": {
+   "source": "wildcards issued at once - the company's rule is that a profile with wildcards waits for approval",
+   "text": "zástupné znaky se vydávají hned – podle pravidla firmy profil se zástupnými znaky čeká na schválení"
+  },
+  "z_2348": {
+   "source": "a PFX with the key may be downloaded - the company's rules forbid it",
+   "text": "lze stáhnout PFX s klíčem – pravidla firmy to zakazují"
+  },
+  "z_2349": {
+   "source": "the certificate could not be read",
+   "text": "certifikát nelze přečíst"
+  },
+  "z_2350": {
+   "source": "it is switched off - the portal does not offer it",
+   "text": "je vypnutý – portál ho nenabízí"
+  },
+  "z_2351": {
+   "source": "the profile waits for approval",
+   "text": "profil čeká na schválení"
+  },
+  "z_2352": {
+   "source": "an approver of the owner of those names",
+   "text": "schvalovatel vlastníka těch jmen"
+  },
+  "z_2353": {
+   "source": "issued for a CSR - the successor takes no CSR",
+   "text": "vydán pro CSR – nástupce CSR nepřijímá"
+  },
+  "z_2354": {
+   "source": "its key is made by acme - the successor takes only a CSR",
+   "text": "jeho klíč vytváří acme – nástupce přijímá jen CSR"
+  },
+  "z_2355": {
+   "source": "its names are held by certificates of another owner",
+   "text": "jeho jména drží certifikáty jiného vlastníka"
+  },
+  "z_2356": {
+   "source": "only an account that sees every certificate sees what ending a profile moves",
+   "text": "co ukončení profilu převede, vidí jen účet, který vidí všechny certifikáty"
+  },
+  "z_2357": {
+   "source": "It could not be asked",
+   "text": "Nepodařilo se zjistit"
+  },
+  "z_2358": {
+   "source": "Nothing can be done here",
+   "text": "Tady nelze nic udělat"
+  },
+  "z_2359": {
+   "source": "On the acme clipboard",
+   "text": "Ve schránce acme"
+  },
+  "z_2360": {
+   "source": "Row",
+   "text": "Řádek"
+  },
+  "z_2361": {
+   "source": "Filter by",
+   "text": "Filtrovat podle"
+  },
+  "z_2362": {
+   "source": "Leave out",
+   "text": "Vynechat"
+  },
+  "z_2363": {
+   "source": "The list is paged - use its search box",
+   "text": "Seznam je stránkovaný – použijte jeho vyhledávací pole"
+  },
+  "z_2364": {
+   "source": "This table has no headings to filter by",
+   "text": "Tato tabulka nemá záhlaví, podle kterých by šlo filtrovat"
+  },
+  "z_2365": {
+   "source": "The rows",
+   "text": "Řádky"
+  },
+  "z_2366": {
+   "source": "The row",
+   "text": "Řádek"
+  },
+  "z_2367": {
+   "source": "As CSV",
+   "text": "Jako CSV"
+  },
+  "z_2368": {
+   "source": "copied as CSV",
+   "text": "zkopírováno jako CSV"
+  },
+  "z_2369": {
+   "source": "As JSON",
+   "text": "Jako JSON"
+  },
+  "z_2370": {
+   "source": "without any secret",
+   "text": "bez tajných údajů"
+  },
+  "z_2371": {
+   "source": "copied as JSON",
+   "text": "zkopírováno jako JSON"
+  },
+  "z_2372": {
+   "source": "Its identifiers",
+   "text": "Identifikátory"
+  },
+  "z_2373": {
+   "source": "To make it again",
+   "text": "Pro vytvoření znovu"
+  },
+  "z_2374": {
+   "source": "As a CLI command",
+   "text": "Jako příkaz CLI"
+  },
+  "z_2375": {
+   "source": "the command is on the clipboard",
+   "text": "příkaz je ve schránce"
+  },
+  "z_2376": {
+   "source": "As an API call (curl)",
+   "text": "Jako volání API (curl)"
+  },
+  "z_2377": {
+   "source": "the API call is on the clipboard",
+   "text": "volání API je ve schránce"
+  },
+  "z_2378": {
+   "source": "Copy to the acme clipboard",
+   "text": "Kopírovat do schránky acme"
+  },
+  "z_2379": {
+   "source": "Copy them to the acme clipboard",
+   "text": "Kopírovat je do schránky acme"
+  },
+  "z_2380": {
+   "source": "Paste",
+   "text": "Vložit"
+  },
+  "z_2381": {
+   "source": "Paste as new:",
+   "text": "Vložit jako nový:"
+  },
+  "z_2382": {
+   "source": "Paste as new",
+   "text": "Vložit jako nový"
+  },
+  "z_2383": {
+   "source": "Only a full administrator may do that",
+   "text": "To smí jen plný administrátor"
+  },
+  "z_2384": {
+   "source": "Clone…",
+   "text": "Klonovat…"
+  },
+  "z_2385": {
+   "source": "a new one with the same settings, saved only when you save it",
+   "text": "nový se stejným nastavením, uloží se až po Uložit"
+  },
+  "z_2386": {
+   "source": "Show in Events",
+   "text": "Zobrazit v Událostech"
+  },
+  "z_2387": {
+   "source": "Show in Jobs",
+   "text": "Zobrazit v Úlohách"
+  },
+  "z_2388": {
+   "source": "Clear the selection",
+   "text": "Zrušit výběr"
+  },
+  "z_2389": {
+   "source": "Select",
+   "text": "Vybrat"
+  },
+  "z_2390": {
+   "source": "Take this row out",
+   "text": "Vyřadit tento řádek"
+  },
+  "z_2391": {
+   "source": "This row",
+   "text": "Tento řádek"
+  },
+  "z_2392": {
+   "source": "Every row of the list",
+   "text": "Všechny řádky seznamu"
+  },
+  "z_2393": {
+   "source": "Shift+click: from one to another",
+   "text": "Shift+klik: od jednoho k druhému"
+  },
+  "z_2394": {
+   "source": "The list",
+   "text": "Seznam"
+  },
+  "z_2395": {
+   "source": "Add a new one…",
+   "text": "Přidat nový…"
+  },
+  "z_2396": {
+   "source": "The acme clipboard holds another kind of object",
+   "text": "Ve schránce acme je jiný druh objektu"
+  },
+  "z_2397": {
+   "source": "The acme clipboard is empty - copy one first",
+   "text": "Schránka acme je prázdná – nejdřív nějaký zkopírujte"
+  },
+  "z_2398": {
+   "source": "Copy the whole list",
+   "text": "Kopírovat celý seznam"
+  },
+  "z_2399": {
+   "source": "Empty the acme clipboard",
+   "text": "Vyprázdnit schránku acme"
+  },
+  "z_2400": {
+   "source": "Open Jobs",
+   "text": "Otevřít Úlohy"
+  },
+  "z_2401": {
+   "source": "Selection and the acme clipboard",
+   "text": "Výběr a schránka acme"
+  },
+  "z_2402": {
+   "source": "Actions",
+   "text": "Akce"
+  },
+  "z_2403": {
+   "source": "Take this filter away",
+   "text": "Zrušit tento filtr"
+  },
+  "z_2404": {
+   "source": "On the acme clipboard (this browser, every tab of it, without any secret). Paste it with the right button on a row or on the empty part of a list, or Ctrl+Shift+V.",
+   "text": "Ve schránce acme (v tomto prohlížeči, ve všech jeho záložkách, bez tajných údajů). Vložíte ji pravým tlačítkem na řádku nebo na prázdném místě seznamu, případně Ctrl+Shift+V."
+  },
+  "z_2405": {
+   "source": "Only a certificate administrator (or a full one) may do that",
+   "text": "To smí jen administrátor certifikátů (nebo plný administrátor)"
+  },
+  "z_2406": {
+   "source": "Your teams do not give you that on this certificate",
+   "text": "Vaše týmy vám to u tohoto certifikátu nedovolují"
+  },
+  "z_2407": {
+   "source": "ID",
+   "text": "ID"
+  },
+  "z_2408": {
+   "source": "It has no source - renewed by importing a new one",
+   "text": "Nemá zdroj – obnovuje se importem nového"
+  },
+  "z_2409": {
+   "source": "Not in this state",
+   "text": "V tomto stavu ne"
+  },
+  "z_2410": {
+   "source": "It is not deployed anywhere yet",
+   "text": "Zatím není nikde nasazen"
+  },
+  "z_2411": {
+   "source": "Export…",
+   "text": "Exportovat…"
+  },
+  "z_2412": {
+   "source": "Nothing is issued yet",
+   "text": "Zatím nic není vydáno"
+  },
+  "z_2413": {
+   "source": "There is nothing issued by a source to revoke",
+   "text": "Není co odvolat – nic nevydal zdroj"
+  },
+  "z_2414": {
+   "source": "Delete…",
+   "text": "Smazat…"
+  },
+  "z_2415": {
+   "source": "a new request with the same names and settings - never the same key",
+   "text": "nový požadavek se stejnými jmény a nastavením – nikdy stejný klíč"
+  },
+  "z_2416": {
+   "source": "Add a certificate…",
+   "text": "Přidat certifikát…"
+  },
+  "z_2417": {
+   "source": "Paste the deployment",
+   "text": "Vložit nasazení"
+  },
+  "z_2418": {
+   "source": "Add the tags",
+   "text": "Přidat štítky"
+  },
+  "z_2419": {
+   "source": "your teams do not give you that on it",
+   "text": "vaše týmy vám to u něj nedovolují"
+  },
+  "z_2420": {
+   "source": "not yours to change",
+   "text": "nemůžete ho měnit"
+  },
+  "z_2421": {
+   "source": "Renew them now…",
+   "text": "Obnovit je teď…"
+  },
+  "z_2422": {
+   "source": "a new certificate is asked for now",
+   "text": "hned se požádá o nový certifikát"
+  },
+  "z_2423": {
+   "source": "A new certificate is asked for at once for each, due or not; the ones in use stay valid until they run out. One job each.",
+   "text": "Pro každý se hned požádá o nový certifikát, ať je na řadě, nebo ne; ty používané zůstanou platné, dokud nevyprší. Každý má svou úlohu."
+  },
+  "z_2424": {
+   "source": "renewed now",
+   "text": "obnoví se teď"
+  },
+  "z_2425": {
+   "source": "no source - imported or from an outside CA",
+   "text": "bez zdroje – importovaný nebo od vnější CA"
+  },
+  "z_2426": {
+   "source": "not in this state",
+   "text": "v tomto stavu ne"
+  },
+  "z_2427": {
+   "source": "Deploy them now…",
+   "text": "Nasadit je teď…"
+  },
+  "z_2428": {
+   "source": "Each is put again on every target it is deployed on, whether it changed or not.",
+   "text": "Každý se znovu umístí na všechny cíle, kde je nasazen, ať se změnil, nebo ne."
+  },
+  "z_2429": {
+   "source": "deployed nowhere",
+   "text": "nikde nenasazen"
+  },
+  "z_2430": {
+   "source": "Renew them by themselves",
+   "text": "Obnovovat je samy"
+  },
+  "z_2431": {
+   "source": "Renew them only when asked",
+   "text": "Obnovovat je jen na požádání"
+  },
+  "z_2432": {
+   "source": "Each is renewed by itself before it runs out.",
+   "text": "Každý se obnoví sám, než vyprší."
+  },
+  "z_2433": {
+   "source": "None of them is renewed by itself any more - it stays valid and deployed until it runs out.",
+   "text": "Žádný z nich se už nebude obnovovat sám – zůstane platný a nasazený, dokud nevyprší."
+  },
+  "z_2434": {
+   "source": "already so",
+   "text": "už je to tak"
+  },
+  "z_2435": {
+   "source": "Give them to a team…",
+   "text": "Přidělit je týmu…"
+  },
+  "z_2436": {
+   "source": "Owners and teams are not on this page",
+   "text": "Vlastníci a týmy nejsou na této stránce"
+  },
+  "z_2437": {
+   "source": "Give them",
+   "text": "Přidělit"
+  },
+  "z_2438": {
+   "source": "Each certificate gets the team chosen here as its owner; what its members may do with it follows.",
+   "text": "Každý certifikát dostane jako vlastníka zde zvolený tým; podle toho se řídí, co s ním smějí jeho členové."
+  },
+  "z_2439": {
+   "source": "of nobody now",
+   "text": "teď bez vlastníka"
+  },
+  "z_2440": {
+   "source": "Add a tag to them…",
+   "text": "Přidat jim štítek…"
+  },
+  "z_2441": {
+   "source": "Add the tag",
+   "text": "Přidat štítek"
+  },
+  "z_2442": {
+   "source": "The tag is added beside the ones each already has.",
+   "text": "Štítek se přidá k těm, které už každý má."
+  },
+  "z_2443": {
+   "source": "The tag",
+   "text": "Štítek"
+  },
+  "z_2444": {
+   "source": "write the tag",
+   "text": "napište štítek"
+  },
+  "z_2445": {
+   "source": "the tag added",
+   "text": "štítek se přidá"
+  },
+  "z_2446": {
+   "source": "already has it",
+   "text": "už ho má"
+  },
+  "z_2447": {
+   "source": "Copy their names",
+   "text": "Kopírovat jejich jména"
+  },
+  "z_2448": {
+   "source": "Delete them…",
+   "text": "Smazat je…"
+  },
+  "z_2449": {
+   "source": "Delete them",
+   "text": "Smazat je"
+  },
+  "z_2450": {
+   "source": "Each is deleted from acme with its versions and deployments - this cannot be taken back. Nothing is removed from the targets.",
+   "text": "Každý se z acme smaže i s verzemi a nasazeními – nelze to vrátit. Z cílů se nic neodstraní."
+  },
+  "z_2451": {
+   "source": "Revoke each first",
+   "text": "Nejdřív každý odvolat"
+  },
+  "z_2452": {
+   "source": "Its CA is told it must not be trusted any more, then it is deleted; one whose revocation fails is kept.",
+   "text": "Jeho CA se oznámí, že už mu nelze věřit, a pak se smaže; ten, jehož odvolání selže, zůstane."
+  },
+  "z_2453": {
+   "source": "Deployment",
+   "text": "Nasazení"
+  },
+  "z_2454": {
+   "source": "the same target and options on another certificate",
+   "text": "stejný cíl a volby u jiného certifikátu"
+  },
+  "z_2455": {
+   "source": "deployed there from now on",
+   "text": "od teď se tam nasazuje"
+  },
+  "z_2456": {
+   "source": "Make the deployments",
+   "text": "Vytvořit nasazení"
+  },
+  "z_2457": {
+   "source": "Each certificate is deployed on the target with the options copied; a secret option is never copied - one that needs it is refused and said here. Nothing is put on a target until the next deployment (Deploy now).",
+   "text": "Každý certifikát se nasadí na cíl se zkopírovanými volbami; tajná volba se nikdy nekopíruje – nasazení, které ji potřebuje, se odmítne a zde se to uvede. Na cíl se nic neumístí až do příštího nasazení (Nasadit teď)."
+  },
+  "z_2458": {
+   "source": "the tags added",
+   "text": "štítky se přidají"
+  },
+  "z_2459": {
+   "source": "only a full administrator may",
+   "text": "smí jen plný administrátor"
+  },
+  "z_2460": {
+   "source": "already has them",
+   "text": "už je má"
+  },
+  "z_2461": {
+   "source": "the certificate manager is not on this page",
+   "text": "správce certifikátů není na této stránce"
+  },
+  "z_2462": {
+   "source": "It keeps a password, a token or a key. The copy can sign in with the same ones - acme copies them on the server when you save, they never come to this page - or you give it new ones.",
+   "text": "Uchovává heslo, token nebo klíč. Kopie se může přihlašovat stejnými – acme je při uložení zkopíruje na serveru a na tuto stránku se nikdy nedostanou – nebo jí zadáte nové."
+  },
+  "z_2463": {
+   "source": "Use the same credentials",
+   "text": "Použít stejné přihlašovací údaje"
+  },
+  "z_2464": {
+   "source": "Copied on the server when the copy is saved; changing them later changes only the copy.",
+   "text": "Zkopírují se na serveru při uložení kopie; pozdější změna se týká jen kopie."
+  },
+  "z_2465": {
+   "source": "Enter new credentials",
+   "text": "Zadat nové přihlašovací údaje"
+  },
+  "z_2466": {
+   "source": "The copy starts without them - fill them in the form.",
+   "text": "Kopie začne bez nich – vyplňte je ve formuláři."
+  },
+  "z_2467": {
+   "source": "Kept secret:",
+   "text": "Tajné:"
+  },
+  "z_2468": {
+   "source": "Test it now",
+   "text": "Otestovat teď"
+  },
+  "z_2469": {
+   "source": "nothing is changed",
+   "text": "nic se nezmění"
+  },
+  "z_2470": {
+   "source": "Have no default",
+   "text": "Žádný výchozí"
+  },
+  "z_2471": {
+   "source": "Take it away…",
+   "text": "Odebrat…"
+  },
+  "z_2472": {
+   "source": "Add a source…",
+   "text": "Přidat zdroj…"
+  },
+  "z_2473": {
+   "source": "Add a way of validation…",
+   "text": "Přidat způsob validace…"
+  },
+  "z_2474": {
+   "source": "Add a target…",
+   "text": "Přidat cíl…"
+  },
+  "z_2475": {
+   "source": "Add a test…",
+   "text": "Přidat test…"
+  },
+  "z_2476": {
+   "source": "Copy its tags",
+   "text": "Kopírovat jeho štítky"
+  },
+  "z_2477": {
+   "source": "It has no tag",
+   "text": "Nemá žádný štítek"
+  },
+  "z_2478": {
+   "source": "tags",
+   "text": "štítky"
+  },
+  "z_2479": {
+   "source": "Test them now…",
+   "text": "Otestovat je teď…"
+  },
+  "z_2480": {
+   "source": "Test them",
+   "text": "Otestovat je"
+  },
+  "z_2481": {
+   "source": "Each is tried as it is saved - nothing is changed. One job each.",
+   "text": "Každý se vyzkouší tak, jak je uložen – nic se nemění. Každý má svou úlohu."
+  },
+  "z_2482": {
+   "source": "only a certificate administrator may",
+   "text": "smí jen administrátor certifikátů"
+  },
+  "z_2483": {
+   "source": "Switch them on",
+   "text": "Zapnout je"
+  },
+  "z_2484": {
+   "source": "Switch them off",
+   "text": "Vypnout je"
+  },
+  "z_2485": {
+   "source": "Each is used again.",
+   "text": "Každý se bude znovu používat."
+  },
+  "z_2486": {
+   "source": "Each is kept, but not used for anything until it is switched on.",
+   "text": "Každý zůstane uložený, ale nebude se k ničemu používat, dokud se nezapne."
+  },
+  "z_2487": {
+   "source": "Job",
+   "text": "Úloha"
+  },
+  "z_2488": {
+   "source": "Open its certificate",
+   "text": "Otevřít jeho certifikát"
+  },
+  "z_2489": {
+   "source": "A new team with the same kind, place in the tree, description, contacts, note and limits. Its members are not copied - add them once it is saved.",
+   "text": "Nový tým se stejným druhem, místem ve stromu, popisem, kontakty, poznámkou a limity. Členové se nekopírují – přidejte je po uložení."
+  },
+  "z_2490": {
+   "source": "- at the top -",
+   "text": "– nahoře –"
+  },
+  "z_2491": {
+   "source": "no member",
+   "text": "bez členů"
+  },
+  "z_2492": {
+   "source": "a new team with the same settings and limits - without its members",
+   "text": "nový tým se stejným nastavením a limity – bez členů"
+  },
+  "z_2493": {
+   "source": "Paste the limits",
+   "text": "Vložit limity"
+  },
+  "z_2494": {
+   "source": "Give them the limits",
+   "text": "Nastavit jim limity"
+  },
+  "z_2495": {
+   "source": "its limits replaced",
+   "text": "jeho limity se nahradí"
+  },
+  "z_2496": {
+   "source": "Limits of a team",
+   "text": "Limity týmu"
+  },
+  "z_2497": {
+   "source": "limits",
+   "text": "limity"
+  },
+  "z_2498": {
+   "source": "Copy its limits",
+   "text": "Zkopírovat jeho limity"
+  },
+  "z_2499": {
+   "source": "Not a name of a built-in role or of an old right.",
+   "text": "Ne název vestavěné role ani starého práva."
+  },
+  "z_2500": {
+   "source": "roles",
+   "text": "role"
+  },
+  "z_2501": {
+   "source": "Change this role…",
+   "text": "Změnit tuto roli…"
+  },
+  "z_2502": {
+   "source": "Delete this role…",
+   "text": "Smazat tuto roli…"
+  },
+  "z_2503": {
+   "source": "A new request profile with these settings, under a name of its own. Open it afterwards to change anything.",
+   "text": "Nový profil požadavku s tímto nastavením a vlastním názvem. Chcete-li cokoli změnit, otevřete ho potom."
+  },
+  "z_2504": {
+   "source": "request profiles",
+   "text": "profily požadavků"
+  },
+  "z_2505": {
+   "source": "Add a request profile…",
+   "text": "Přidat profil požadavku…"
+  },
+  "z_2506": {
+   "source": "DNS set",
+   "text": "Sada DNS"
+  },
+  "z_2507": {
+   "source": "User of the nodes",
+   "text": "Uživatel uzlů"
+  },
+  "z_2508": {
+   "source": "users of the nodes",
+   "text": "uživatelé uzlů"
+  },
+  "z_2509": {
+   "source": "root is changed only on the machine itself",
+   "text": "root se mění jen přímo na stroji"
+  },
+  "z_2510": {
+   "source": "a new user with the same full name, shell and sudo - and a password of its own",
+   "text": "nový uživatel se stejným celým jménem, shellem a sudo – a vlastním heslem"
+  },
+  "z_2511": {
+   "source": "Page",
+   "text": "Stránka"
+  },
+  "z_2512": {
+   "source": "Deploy",
+   "text": "Nasadit"
+  },
+  "z_2513": {
+   "source": "Clone",
+   "text": "Klonovat"
+  },
+  "z_2514": {
+   "source": "Find and do anything",
+   "text": "Najít a udělat cokoli"
+  },
+  "z_2515": {
+   "source": "A certificate, a target, a setting - or “renew web”…",
+   "text": "Certifikát, cíl, nastavení – nebo „obnov web“…"
+  },
+  "z_2516": {
+   "source": "to move",
+   "text": "pohyb"
+  },
+  "z_2517": {
+   "source": "to open or do",
+   "text": "otevřít nebo provést"
+  },
+  "z_2518": {
+   "source": "to close",
+   "text": "zavřít"
+  },
+  "z_2519": {
+   "source": "Recent",
+   "text": "Nedávné"
+  },
+  "z_2520": {
+   "source": "Go to",
+   "text": "Přejít na"
+  },
+  "z_2521": {
+   "source": "Best match",
+   "text": "Nejlepší shoda"
+  },
+  "z_2522": {
+   "source": "Pages",
+   "text": "Stránky"
+  },
+  "z_2523": {
+   "source": "Looking…",
+   "text": "Hledám…"
+  },
+  "z_2524": {
+   "source": "rows",
+   "text": "řádky"
+  },
+  "z_2525": {
+   "source": "objects",
+   "text": "objekty"
+  },
+  "z_2526": {
+   "source": "A copy of",
+   "text": "Kopie"
+  },
+  "z_2527": {
+   "source": "A new team as",
+   "text": "Nový tým podle"
+  },
+  "z_2528": {
+   "source": "A new request profile as",
+   "text": "Nový profil požadavku podle"
+  },
+  "z_2529": {
+   "source": "Event",
+   "text": "Událost"
+  },
+  "z_2530": {
+   "source": "Objects",
+   "text": "Objekty"
+  },
+  "z_2531": {
+   "source": "History…",
+   "text": "Historie…"
+  },
+  "z_2532": {
+   "source": "every change, and a version put back",
+   "text": "každá změna a vrácení verze"
+  },
+  "z_2533": {
+   "source": "Open the trash",
+   "text": "Otevřít koš"
+  },
+  "z_2534": {
+   "source": "Type a verb first: renew, deploy, test, edit, clone, history",
+   "text": "Napište nejdřív sloveso: obnov, nasaď, otestuj, uprav, klonuj, historie"
+  },
+  "z_2535": {
+   "source": "Try fewer letters, or a verb first: renew, deploy, test, edit, clone, history.",
+   "text": "Zkuste méně písmen nebo nejdřív sloveso: obnov, nasaď, otestuj, uprav, klonuj, historie."
+  },
+  "z_2536": {
+   "source": "Trash and history",
+   "text": "Koš a historie"
+  },
+  "z_2537": {
+   "source": "What was deleted - kept for a while and restored with what went with it - and every change of the targets, deployments, tests, sources, validations, profiles, owners, roles, tags and DNS sets: who, when, what.",
+   "text": "Co bylo smazáno – chvíli uchované a obnovitelné i s tím, co s ním odešlo – a každá změna cílů, nasazení, testů, zdrojů, validací, profilů, vlastníků, rolí, štítků a sad DNS: kdo, kdy, co."
+  },
+  "z_2538": {
+   "source": "What was deleted waits here for a while and comes back with what went with it - its secrets sealed as they were, never shown. Every change of a target, deployment, test, source, validation, request profile, owner, role, tag, DNS set or certificate is written down: who, when, from where and what changed; each one's History restores a version.",
+   "text": "Co bylo smazáno, tu chvíli počká a vrátí se i s tím, co s ním odešlo – jeho tajné údaje zůstávají zapečetěné, jak byly, a nikdy se nezobrazí. Každá změna cíle, nasazení, testu, zdroje, validace, profilu žádosti, vlastníka, role, štítku, sady DNS nebo certifikátu se zapisuje: kdo, kdy, odkud a co se změnilo; Historie každého z nich umí vrátit starší verzi."
+  },
+  "z_2539": {
+   "source": "How long things are kept",
+   "text": "Jak dlouho se co uchovává"
+  },
+  "z_2540": {
+   "source": "Keep what was deleted (days)",
+   "text": "Uchovat smazané (dny)"
+  },
+  "z_2541": {
+   "source": "Keep the history of changes (days)",
+   "text": "Uchovat historii změn (dny)"
+  },
+  "z_2542": {
+   "source": "A target, deployment, test, source, validation, request profile, owner, role, tag, DNS set or certificate deleted on the pages goes to the trash below for this many days and can be restored - its secrets sealed as they were. 0: nothing is kept, deleted is gone (as before).",
+   "text": "Cíl, nasazení, test, zdroj, validace, profil žádosti, vlastník, role, štítek, sada DNS nebo certifikát smazaný na stránkách jde na tolik dní do koše níže a dá se obnovit – jeho tajné údaje zůstávají zapečetěné, jak byly. 0: nic se neuchovává, smazané je pryč (jako dosud)."
+  },
+  "z_2543": {
+   "source": "Every change of those objects is written down - who, when, from where and what changed (a secret only as \"changed\") - and kept this many days; each object's History shows it and restores a version. 0: no history is written.",
+   "text": "Každá změna těchto objektů se zapíše – kdo, kdy, odkud a co se změnilo (tajný údaj jen jako „změněno“) – a uchová se tolik dní; Historie každého objektu ji ukáže a umí vrátit starší verzi. 0: historie se nezapisuje."
+  },
+  "z_2544": {
+   "source": "Trash",
+   "text": "Koš"
+  },
+  "z_2545": {
+   "source": "Latest changes",
+   "text": "Poslední změny"
+  },
+  "z_2546": {
+   "source": "Only a full or a certificate administrator sees the trash.",
+   "text": "Koš vidí jen plný správce nebo správce certifikátů."
+  },
+  "z_2547": {
+   "source": "Find in the trash…",
+   "text": "Hledat v koši…"
+  },
+  "z_2548": {
+   "source": "Find a name…",
+   "text": "Hledat jméno…"
+  },
+  "z_2549": {
+   "source": "by anybody",
+   "text": "kýmkoli"
+  },
+  "z_2550": {
+   "source": "any time",
+   "text": "kdykoli"
+  },
+  "z_2551": {
+   "source": "the last 7 days",
+   "text": "posledních 7 dní"
+  },
+  "z_2552": {
+   "source": "Only of this kind",
+   "text": "Jen tohoto druhu"
+  },
+  "z_2553": {
+   "source": "Deleted by",
+   "text": "Smazal(a)"
+  },
+  "z_2554": {
+   "source": "Deleted when",
+   "text": "Kdy smazáno"
+  },
+  "z_2555": {
+   "source": "Changed by",
+   "text": "Změnil(a)"
+  },
+  "z_2556": {
+   "source": "Changed when",
+   "text": "Kdy změněno"
+  },
+  "z_2557": {
+   "source": "Empty the trash",
+   "text": "Vysypat koš"
+  },
+  "z_2558": {
+   "source": "Everything in the trash is deleted for good - it can never be restored.",
+   "text": "Vše v koši se smaže natrvalo – už to nikdy nepůjde obnovit."
+  },
+  "z_2559": {
+   "source": "Nothing deleted matches",
+   "text": "Nic smazaného neodpovídá"
+  },
+  "z_2560": {
+   "source": "Another kind, another person or a longer time shows more.",
+   "text": "Jiný druh, jiná osoba nebo delší doba ukáže víc."
+  },
+  "z_2561": {
+   "source": "The trash is empty",
+   "text": "Koš je prázdný"
+  },
+  "z_2562": {
+   "source": "Nothing is kept while the trash is off.",
+   "text": "Dokud je koš vypnutý, nic se neuchovává."
+  },
+  "z_2563": {
+   "source": "The trash is switched off: what is deleted is gone at once. Set how many days it is kept above.",
+   "text": "Koš je vypnutý: co se smaže, je hned pryč. Nahoře nastavte, kolik dní se smazané uchovává."
+  },
+  "z_2564": {
+   "source": "The history is switched off: no change is written down. Set how many days it is kept above.",
+   "text": "Historie je vypnutá: žádná změna se nezapisuje. Nahoře nastavte, kolik dní se uchovává."
+  },
+  "z_2565": {
+   "source": "The history is switched off (Settings → Trash and history).",
+   "text": "Historie je vypnutá (Nastavení → Koš a historie)."
+  },
+  "z_2566": {
+   "source": "deleted by",
+   "text": "smazal(a)"
+  },
+  "z_2567": {
+   "source": "Deleted for good on",
+   "text": "Natrvalo se smaže"
+  },
+  "z_2568": {
+   "source": "Its history: every change before it was deleted.",
+   "text": "Jeho historie: každá změna před smazáním."
+  },
+  "z_2569": {
+   "source": "Delete for good",
+   "text": "Smazat natrvalo"
+  },
+  "z_2570": {
+   "source": "Deleted for good - it can never be restored.",
+   "text": "Smaže se natrvalo – už nikdy nepůjde obnovit."
+  },
+  "z_2571": {
+   "source": "It is deleted for good and can never be restored.",
+   "text": "Smaže se natrvalo a už nikdy nepůjde obnovit."
+  },
+  "z_2572": {
+   "source": "Deleted for good",
+   "text": "Smazáno natrvalo"
+  },
+  "z_2573": {
+   "source": "Restore…",
+   "text": "Obnovit…"
+  },
+  "z_2574": {
+   "source": "Only a full administrator brings this back.",
+   "text": "Tohle vrátí jen plný správce."
+  },
+  "z_2575": {
+   "source": "No change written down",
+   "text": "Žádná zapsaná změna"
+  },
+  "z_2576": {
+   "source": "Every change of a target, a deployment, a test, a source, a validation, a request profile, an owner, a role, a tag, a DNS set or a certificate shows here.",
+   "text": "Tady se ukáže každá změna cíle, nasazení, testu, zdroje, validace, profilu žádosti, vlastníka, role, štítku, sady DNS nebo certifikátu."
+  },
+  "z_2577": {
+   "source": "Restore from the trash",
+   "text": "Obnovit z koše"
+  },
+  "z_2578": {
+   "source": "Its name is taken since:",
+   "text": "Jeho jméno je mezitím obsazené:"
+  },
+  "z_2579": {
+   "source": "is another one now. It comes back under the name below.",
+   "text": "je teď někdo jiný. Vrátí se pod jménem níže."
+  },
+  "z_2580": {
+   "source": "Restore it as",
+   "text": "Obnovit jako"
+  },
+  "z_2581": {
+   "source": "The name it has here after it is restored.",
+   "text": "Jméno, které tu bude mít po obnovení."
+  },
+  "z_2582": {
+   "source": "It needs what is not here",
+   "text": "Potřebuje něco, co tu není"
+  },
+  "z_2583": {
+   "source": "Restore what it needs too",
+   "text": "Obnovit i to, co potřebuje"
+  },
+  "z_2584": {
+   "source": "It is in the trash as well - it comes back first.",
+   "text": "Je také v koši – vrátí se jako první."
+  },
+  "z_2585": {
+   "source": "What comes back",
+   "text": "Co se vrátí"
+  },
+  "z_2586": {
+   "source": "sealed",
+   "text": "zapečetěno"
+  },
+  "z_2587": {
+   "source": "Its secrets come back as they were, never shown:",
+   "text": "Jeho tajné údaje se vrátí, jak byly, a nikdy se nezobrazí:"
+  },
+  "z_2588": {
+   "source": "Comes back with it",
+   "text": "Vrátí se s ním"
+  },
+  "z_2589": {
+   "source": "left in the trash",
+   "text": "zůstalo v koši"
+  },
+  "z_2590": {
+   "source": "Restored",
+   "text": "Obnoveno"
+  },
+  "z_2591": {
+   "source": "History: every change of it - who, when, what - and restore a version.",
+   "text": "Historie: každá jeho změna – kdo, kdy, co – a návrat ke starší verzi."
+  },
+  "z_2592": {
+   "source": "deleted - in the trash",
+   "text": "smazáno – v koši"
+  },
+  "z_2593": {
+   "source": "No change written down yet",
+   "text": "Zatím žádná zapsaná změna"
+  },
+  "z_2594": {
+   "source": "restored",
+   "text": "obnoveno"
+  },
+  "z_2595": {
+   "source": "What it was made with",
+   "text": "Nastavení při vytvoření"
+  },
+  "z_2596": {
+   "source": "What it came back with",
+   "text": "Nastavení při návratu"
+  },
+  "z_2597": {
+   "source": "Restore this version",
+   "text": "Vrátit tuto verzi"
+  },
+  "z_2598": {
+   "source": "What restoring this version changes",
+   "text": "Co návrat k této verzi změní"
+  },
+  "z_2599": {
+   "source": "Nothing - it is as that version already.",
+   "text": "Nic – už je takový jako tato verze."
+  },
+  "z_2600": {
+   "source": "Also put back the secrets of that version",
+   "text": "Vrátit i tajné údaje té verze"
+  },
+  "z_2601": {
+   "source": "Off: the secrets it has now stay - only the other settings go back.",
+   "text": "Vypnuto: zůstanou současné tajné údaje – vrátí se jen ostatní nastavení."
+  },
+  "z_2602": {
+   "source": "It is saved as any change is - checked, and written down here as a new version.",
+   "text": "Uloží se jako každá jiná změna – zkontroluje se a zapíše sem jako nová verze."
+  },
+  "z_2603": {
+   "source": "The version was restored",
+   "text": "Verze byla vrácena"
+  },
+  "z_2604": {
+   "source": "a secret is never shown - only that it changed",
+   "text": "tajný údaj se nikdy nezobrazí – jen to, že se změnil"
+  },
+  "z_2605": {
+   "source": "test of a certificate",
+   "text": "test certifikátu"
+  },
+  "z_2606": {
+   "source": "request profile",
+   "text": "profil žádosti"
+  },
+  "z_2607": {
+   "source": "role",
+   "text": "role"
+  },
+  "z_2608": {
+   "source": "use of a DNS set",
+   "text": "použití sady DNS"
+  },
+  "z_2609": {
+   "source": "DNS record",
+   "text": "záznam DNS"
+  },
+  "z_2610": {
+   "source": "tests of certificates",
+   "text": "testy certifikátů"
+  },
+  "z_2611": {
+   "source": "owners",
+   "text": "vlastníci"
+  },
+  "z_2612": {
+   "source": "Validation per name",
+   "text": "Validace podle jména"
+  },
+  "z_2613": {
+   "source": "Second key type",
+   "text": "Druhý typ klíče"
+  },
+  "z_2614": {
+   "source": "Renewed days before the end",
+   "text": "Obnovit dní před koncem"
+  },
+  "z_2615": {
+   "source": "Keeps its key",
+   "text": "Ponechává si klíč"
+  },
+  "z_2616": {
+   "source": "Subject and extensions",
+   "text": "Subjekt a rozšíření"
+  },
+  "z_2617": {
+   "source": "Contact mail",
+   "text": "Kontaktní e-mail"
+  },
+  "z_2618": {
+   "source": "Contact phone",
+   "text": "Kontaktní telefon"
+  },
+  "z_2619": {
+   "source": "TLS name",
+   "text": "Jméno pro TLS"
+  },
+  "z_2620": {
+   "source": "Order",
+   "text": "Pořadí"
+  },
+  "z_2621": {
+   "source": "Runs after",
+   "text": "Spouští se po"
+  },
+  "z_2622": {
+   "source": "Key made by",
+   "text": "Klíč vyrábí"
+  },
+  "z_2623": {
+   "source": "Comes from",
+   "text": "Pochází z"
+  },
+  "z_2624": {
+   "source": "CSR given",
+   "text": "Dodaný CSR"
+  },
+  "z_2625": {
+   "source": "Views",
+   "text": "Pohledy"
+  },
+  "z_2626": {
+   "source": "Saved views",
+   "text": "Uložené pohledy"
+  },
+  "z_2627": {
+   "source": "Saved views: the filters, the sort and the columns of this list under a name - yours, a team's or everybody's. The star opens one by itself.",
+   "text": "Uložené pohledy: filtry, řazení a sloupce tohoto seznamu pod jménem – vaše, týmu nebo pro všechny. Hvězdička jeden otevře sama."
+  },
+  "z_2628": {
+   "source": "Mine",
+   "text": "Moje"
+  },
+  "z_2629": {
+   "source": "Shared with a team",
+   "text": "Sdílené s týmem"
+  },
+  "z_2630": {
+   "source": "For everybody",
+   "text": "Pro všechny"
+  },
+  "z_2631": {
+   "source": "No view of this list yet. Set the filters and the columns as you want them, then save them as a view.",
+   "text": "Tento seznam zatím nemá žádný pohled. Nastavte filtry a sloupce, jak je chcete, a uložte je jako pohled."
+  },
+  "z_2632": {
+   "source": "Save this view…",
+   "text": "Uložit tento pohled…"
+  },
+  "z_2633": {
+   "source": "Rename or share…",
+   "text": "Přejmenovat nebo sdílet…"
+  },
+  "z_2634": {
+   "source": "Delete the view",
+   "text": "Smazat pohled"
+  },
+  "z_2635": {
+   "source": "The view is deleted - the list stays as it is now.",
+   "text": "Pohled se smaže – seznam zůstane, jak je teď."
+  },
+  "z_2636": {
+   "source": "Back to the list as it comes",
+   "text": "Zpět na výchozí seznam"
+  },
+  "z_2637": {
+   "source": "Open it by itself with the page",
+   "text": "Otevírat ho samo se stránkou"
+  },
+  "z_2638": {
+   "source": "Opens by itself - press to stop that",
+   "text": "Otevírá se samo – stiskem to zrušíte"
+  },
+  "z_2639": {
+   "source": "Save this view",
+   "text": "Uložit tento pohled"
+  },
+  "z_2640": {
+   "source": "Rename or share the view",
+   "text": "Přejmenovat nebo sdílet pohled"
+  },
+  "z_2641": {
+   "source": "e.g. Mine, running out soon",
+   "text": "např. Moje, brzy vyprší"
+  },
+  "z_2642": {
+   "source": "Who sees it",
+   "text": "Kdo ho vidí"
+  },
+  "z_2643": {
+   "source": "Only me",
+   "text": "Jen já"
+  },
+  "z_2644": {
+   "source": "Yours - nobody else sees it.",
+   "text": "Váš – nikdo jiný ho nevidí."
+  },
+  "z_2645": {
+   "source": "Every account of acme - a full administrator's.",
+   "text": "Každý účet acme – smí jen plný správce."
+  },
+  "z_2646": {
+   "source": "Open it by itself",
+   "text": "Otevírat samo"
+  },
+  "z_2647": {
+   "source": "With the page, this list shows this view (for you).",
+   "text": "Se stránkou ukáže tento seznam právě tento pohled (vám)."
+  },
+  "z_2648": {
+   "source": "What it keeps",
+   "text": "Co si pamatuje"
+  },
+  "z_2649": {
+   "source": "its columns",
+   "text": "jeho sloupce"
+  },
+  "z_2650": {
+   "source": "its sort",
+   "text": "jeho řazení"
+  },
+  "z_2651": {
+   "source": "Give the view a name",
+   "text": "Dejte pohledu jméno"
+  },
+  "z_2652": {
+   "source": "The columns stay as they are while editing the columns is switched on - the filters were set",
+   "text": "Dokud je zapnuté upravování sloupců, sloupce zůstávají, jak jsou – nastavily se jen filtry"
+  },
+  "z_2653": {
+   "source": "Deleted",
+   "text": "Smazáno"
+  },
+  "z_2654": {
+   "source": "It comes back as a request, not issued: its key and its certificates were not kept - Issue now issues a new one.",
+   "text": "Vrátí se jako žádost, nevydaný: jeho klíč ani jeho certifikáty se neuchovaly – Vydat teď vydá nový."
+  },
+  "z_2655": {
+   "source": "Its agent was let go when it was deleted: pair the agent again after.",
+   "text": "Jeho agent byl při smazání propuštěn: po obnovení agenta znovu spárujte."
+  },
+  "z_2656": {
+   "source": "An account it had at its CA is used again when it opens; else a new one is made at the first certificate.",
+   "text": "Účet, který měl u své CA, se znovu použije, pokud se dá otevřít; jinak se u prvního certifikátu založí nový."
+  },
+  "z_2657": {
+   "source": "its certificate is not here any more",
+   "text": "jeho certifikát už tu není"
+  },
+  "z_2658": {
+   "source": "restored from the trash",
+   "text": "obnoveno z koše"
+  },
+  "z_2659": {
+   "source": "no view opens by itself now",
+   "text": "teď se žádný pohled neotevírá sám"
+  },
+  "z_2660": {
+   "source": "it comes back with what it was deleted with - restore that",
+   "text": "vrátí se s tím, s čím byl smazán – obnovte to"
+  },
+  "z_2661": {
+   "source": "that was a deletion - what was deleted is in the trash",
+   "text": "to bylo smazání – co bylo smazáno, je v koši"
+  },
+  "z_2662": {
+   "source": "it is not here any more - restore it from the trash first",
+   "text": "už tu není – nejdřív ho obnovte z koše"
+  },
+  "z_2663": {
+   "source": "only a full administrator may make a view for everybody",
+   "text": "pohled pro všechny smí vytvořit jen plný správce"
+  },
+  "z_2664": {
+   "source": "a view is shared with a team only by those who may see the team (team.view)",
+   "text": "pohled s týmem sdílí jen ten, kdo smí tým vidět (team.view)"
+  },
+  "z_2665": {
+   "source": "a view has a name (80 characters at most)",
+   "text": "pohled má jméno (nejvýš 80 znaků)"
+  },
+  "z_2666": {
+   "source": "that view is not yours to change",
+   "text": "tento pohled nemůžete měnit, není váš"
+  },
+  "z_2667": {
+   "source": "that view is not yours to delete",
+   "text": "tento pohled nemůžete smazat, není váš"
+  },
+  "z_2668": {
+   "source": "there is no such view",
+   "text": "takový pohled není"
+  },
+  "z_2669": {
+   "source": "it is not in the trash (any more)",
+   "text": "v koši (už) není"
+  },
+  "z_2670": {
+   "source": "only a full administrator may empty the trash",
+   "text": "koš smí vysypat jen plný správce"
+  },
+  "z_2671": {
+   "source": "a view is yours, a team's or everybody's",
+   "text": "pohled je váš, týmu, nebo pro všechny"
+  },
+  "z_2672": {
+   "source": "Everybody who may see the team.",
+   "text": "Každý, kdo smí vidět tým."
   }
  },
  "patterns": {
@@ -100436,11 +104196,11 @@
   },
   "pzfg136_01": {
    "source": "there is no local certificate {0} on the FortiGate (VDOM {1}) - it is created under this name (\"When it is not there\": create); the deployments after this one replace it in place",
-   "text": "lokální certifikát {0} na FortiGate (VDOM {1}) není – vytvoří se pod tímto jménem („Když na zařízení není“: vytvořit); další nasazení ho nahradí na místě"
+   "text": "lokální certifikát {0} na FortiGate (VDOM {1}) není – vytvoří se pod tímto jménem („Když tam není“: vytvořit); další nasazení ho nahradí na místě"
   },
   "pzfg136_02": {
    "source": "there is no local certificate {0} on the FortiGate - it is created under this name (\"When it is not there\": create); the deployments after this one replace it in place",
-   "text": "lokální certifikát {0} na FortiGate není – vytvoří se pod tímto jménem („Když na zařízení není“: vytvořit); další nasazení ho nahradí na místě"
+   "text": "lokální certifikát {0} na FortiGate není – vytvoří se pod tímto jménem („Když tam není“: vytvořit); další nasazení ho nahradí na místě"
   },
   "pzfg136_03": {
    "source": "created {0} - the new certificate imported under this name",
@@ -100569,6 +104329,1018 @@
   "pz_570": {
    "source": "the new key and certificate given to the CLI for {0} (the key {1}{2}), ended with abort - FortiOS checks the lines, nothing is saved yet",
    "text": "nový klíč a certifikát předány CLI pro {0} (klíč {1}{2}), ukončeno příkazem abort – FortiOS řádky zkontroluje, zatím se nic neuloží"
+  },
+  "pz_571": {
+   "source": "{0} anomalies",
+   "text": "{0} {0:anomálie|anomálie|anomálií}"
+  },
+  "pz_572": {
+   "source": "{0} watching",
+   "text": "{0} {0:dohled|dohledy|dohledů}"
+  },
+  "pz_573": {
+   "source": "{0} agents",
+   "text": "{0} {0:agent|agenti|agentů}"
+  },
+  "pz_574": {
+   "source": "{0} earlier keys still pinned",
+   "text": "{0} {0:dřívější klíč se stále drží|dřívější klíče se stále drží|dřívějších klíčů se stále drží}"
+  },
+  "pz_575": {
+   "source": "{0} still serve the old one",
+   "text": "{0} stále {0:servíruje|servírují|servíruje} starý"
+  },
+  "pz_576": {
+   "source": "checked up to entry {0}",
+   "text": "zkontrolováno po záznam {0}"
+  },
+  "pz_577": {
+   "source": "every {0} days",
+   "text": "každých {0} {0:den|dny|dní}"
+  },
+  "pz_578": {
+   "source": "Show all {0}",
+   "text": "Zobrazit všech {0}"
+  },
+  "pz_579": {
+   "source": "Rotate the keys of {0}",
+   "text": "Vyměnit klíče agenta {0}"
+  },
+  "pz_580": {
+   "source": "a new command key - {0} agents moved",
+   "text": "nový command key – {0} {0:agent přesunut|agenti přesunuti|agentů přesunuto}"
+  },
+  "pz_581": {
+   "source": "acme’s command key and the agent’s key for secrets changed on a schedule - the old one still taken for {0} h.",
+   "text": "Command key acme a klíč agenta pro tajemství se mění podle plánu – starý platí ještě {0} h."
+  },
+  "pz_582": {
+   "source": "acme compares the chain from entry {0} on (where it was switched on); the server keeps every entry before too - acme-agent audit show.",
+   "text": "acme porovnává řetěz od záznamu {0} (kdy bylo porovnávání zapnuto); server drží i všechny dřívější záznamy – acme-agent audit show."
+  },
+  "pz_583": {
+   "source": "A new command key is made. Every agent whose keys are changed on a schedule is moved to it now (its old key still taken for {0} h); the others keep theirs - acme still signs their jobs with it - and new joins pin the new one.",
+   "text": "Vytvoří se nový command key. Každý agent s plánovanou výměnou klíčů se na něj hned přesune (starý klíč platí ještě {0} h); ostatní si ponechají svůj – acme jejich úlohy dál podepisuje jím – a nově připojení agenti drží nový."
+  },
+  "pz_584": {
+   "source": "the policy of the agent of target {0} was widened on the server: {1}",
+   "text": "politika agenta cíle {0} byla na serveru rozšířena: {1}"
+  },
+  "pz_585": {
+   "source": "the policy of the agent of target {0} changed on the server ({1})",
+   "text": "politika agenta cíle {0} se na serveru změnila ({1})"
+  },
+  "pz_586": {
+   "source": "the agent of target {0} comes from a new network: {1} (its usual: {2})",
+   "text": "agent cíle {0} přichází z nové sítě: {1} (obvyklé: {2})"
+  },
+  "pz_587": {
+   "source": "the clock of the server of target {0} is {1} s ahead of acme's",
+   "text": "hodiny serveru cíle {0} jdou o {1} s napřed proti acme"
+  },
+  "pz_588": {
+   "source": "the clock of the server of target {0} is {1} s behind acme's",
+   "text": "hodiny serveru cíle {0} jdou o {1} s pozadu proti acme"
+  },
+  "pz_589": {
+   "source": "the agent of target {0} runs {1} - {2} is offered",
+   "text": "agent cíle {0} běží ve verzi {1} – nabízí se {2}"
+  },
+  "pz_590": {
+   "source": "the policy of the agent of target {0} differs from its design saved in acme ({1} to add, {2} not in the design)",
+   "text": "politika agenta cíle {0} se liší od návrhu uloženého v acme ({1} přidat, {2} není v návrhu)"
+  },
+  "pz_591": {
+   "source": "the policy of the agent of target {0} differs from its template {1}",
+   "text": "politika agenta cíle {0} se liší od jeho šablony {1}"
+  },
+  "pz_592": {
+   "source": "the agent of target {0} pins a command key acme does not have ({1}…) - acme's jobs are refused once its overlap ends",
+   "text": "agent cíle {0} drží command key, který acme nemá ({1}…) – po skončení přechodného období budou úlohy acme odmítány"
+  },
+  "pz_593": {
+   "source": "the audit chain of the agent of target {0} does not agree with acme: {1}",
+   "text": "řetěz auditu agenta cíle {0} nesouhlasí s acme: {1}"
+  },
+  "pz_594": {
+   "source": "the agent did a job acme never sent (job {0}, {1}, entry {2}) - somebody else signed it with acme's command key",
+   "text": "agent provedl úlohu, kterou acme neposlalo (úloha {0}, {1}, záznam {2}) – podepsal ji někdo jiný command keyem acme"
+  },
+  "pz_595": {
+   "source": "entry {0} is now another one than acme read - the chain was written anew",
+   "text": "záznam {0} je teď jiný, než acme přečetlo – řetěz byl přepsán"
+  },
+  "pz_596": {
+   "source": "the chain ends at entry {0} - acme read it up to entry {1}: entries were taken away",
+   "text": "řetěz končí záznamem {0} – acme ho přečetlo po záznam {1}: záznamy byly odebrány"
+  },
+  "pz_597": {
+   "source": "an entry acme cannot read after entry {0}",
+   "text": "záznam po záznamu {0}, který acme nepřečte"
+  },
+  "pz_598": {
+   "source": "entries {0} to {1} are missing",
+   "text": "chybí záznamy {0} až {1}"
+  },
+  "pz_599": {
+   "source": "entry {0} comes again after entry {1}",
+   "text": "záznam {0} přichází znovu po záznamu {1}"
+  },
+  "pz_600": {
+   "source": "entry {0} does not follow entry {1} acme read - the chain was written anew",
+   "text": "záznam {0} nenavazuje na záznam {1}, který acme přečetlo – řetěz byl přepsán"
+  },
+  "pz_601": {
+   "source": "entry {0} is not what its hash says - it was changed",
+   "text": "záznam {0} neodpovídá svému hashi – byl změněn"
+  },
+  "pz_602": {
+   "source": "entry {0} is not the one acme read - the chain was written anew",
+   "text": "záznam {0} není ten, který acme přečetlo – řetěz byl přepsán"
+  },
+  "pz_603": {
+   "source": "entry {0} does not follow entry {1} - the chain was written anew",
+   "text": "záznam {0} nenavazuje na záznam {1} – řetěz byl přepsán"
+  },
+  "pz_604": {
+   "source": "{0} is deployed to {1}, but the service still serves the old certificate (version {2}, at {3}:{4}) - reload it",
+   "text": "{0} je nasazen na {1}, ale služba stále servíruje starý certifikát (verze {2}, na {3}:{4}) – proveďte reload"
+  },
+  "pz_605": {
+   "source": "the service of {0} on {1} serves the deployed certificate now",
+   "text": "služba {0} na {1} teď servíruje nasazený certifikát"
+  },
+  "pz_606": {
+   "source": "acme compares the audit chain of the agent of target {0} (switched on by {1})",
+   "text": "acme porovnává řetěz auditu agenta cíle {0} (zapnul {1})"
+  },
+  "pz_607": {
+   "source": "acme no longer compares the audit chain of the agent of target {0} (switched off by {1})",
+   "text": "acme už neporovnává řetěz auditu agenta cíle {0} (vypnul {1})"
+  },
+  "pz_608": {
+   "source": "acme watches the agent of target {0} for anomalies (switched on by {1})",
+   "text": "acme hlídá anomálie agenta cíle {0} (zapnul {1})"
+  },
+  "pz_609": {
+   "source": "acme no longer watches the agent of target {0} for anomalies (switched off by {1})",
+   "text": "acme už nehlídá anomálie agenta cíle {0} (vypnul {1})"
+  },
+  "pz_610": {
+   "source": "the keys of the agent of target {0} are changed on a schedule (switched on by {1})",
+   "text": "klíče agenta cíle {0} se mění podle plánu (zapnul {1})"
+  },
+  "pz_611": {
+   "source": "the keys of the agent of target {0} are no longer changed on a schedule (switched off by {1})",
+   "text": "klíče agenta cíle {0} se už nemění podle plánu (vypnul {1})"
+  },
+  "pz_612": {
+   "source": "what did not agree in the audit chain of the agent of target {0} was looked at by {1} ({2})",
+   "text": "co nesouhlasilo v řetězu auditu agenta cíle {0}, prověřil {1} ({2})"
+  },
+  "pz_613": {
+   "source": "the anomalies of the agent of target {0} were looked at by {1} ({2}) - what it is now is its usual",
+   "text": "anomálie agenta cíle {0} prověřil {1} ({2}) – současný stav je teď obvyklý"
+  },
+  "pz_614": {
+   "source": "acme's command key was changed by {0}: {1}… (the one before, {2}…, is kept while an agent pins it)",
+   "text": "command key acme vyměnil {0}: {1}… (předchozí, {2}…, se drží, dokud ho drží některý agent)"
+  },
+  "pz_615": {
+   "source": "the agent of target {0} now takes acme's command key {1}… (by {2}; the one before for {3} h yet)",
+   "text": "agent cíle {0} teď přijímá command key acme {1}… ({2}; předchozí ještě {3} h)"
+  },
+  "pz_616": {
+   "source": "the agent of target {0} made a new key for secrets (by {1})",
+   "text": "agent cíle {0} vytvořil nový klíč pro tajemství ({1})"
+  },
+  "pz_617": {
+   "source": "acme's command key {0}… was retired: no agent takes it any more",
+   "text": "command key acme {0}… byl vyřazen: žádný agent ho už nepřijímá"
+  },
+  "pz_618": {
+   "source": "acme asks what the services of the agent of target {0} serve (switched on by {1})",
+   "text": "acme zjišťuje, co servírují služby agenta cíle {0} (zapnul {1})"
+  },
+  "pz_619": {
+   "source": "acme no longer asks what the services of the agent of target {0} serve (switched off by {1})",
+   "text": "acme už nezjišťuje, co servírují služby agenta cíle {0} (vypnul {1})"
+  },
+  "pz_620": {
+   "source": "{0} agent",
+   "text": "{0} {0:agent|agenti|agentů}"
+  },
+  "pz_621": {
+   "source": "{0} drifted",
+   "text": "{0} {0:odchýlený|odchýlené|odchýlených}"
+  },
+  "pz_622": {
+   "source": "{0} to update",
+   "text": "{0} k aktualizaci"
+  },
+  "pz_623": {
+   "source": "{0} more line",
+   "text": "{0:další|další|dalších} {0} {0:řádek|řádky|řádků}"
+  },
+  "pz_624": {
+   "source": "{0} more lines",
+   "text": "{0:další|další|dalších} {0} {0:řádek|řádky|řádků}"
+  },
+  "pz_625": {
+   "source": "{0} day ago",
+   "text": "před {0} {0:dnem|dny|dny}"
+  },
+  "pz_626": {
+   "source": "{0} day left",
+   "text": "{0:zbývá|zbývají|zbývá} {0} {0:den|dny|dní}"
+  },
+  "pz_627": {
+   "source": "{0} line",
+   "text": "{0} {0:řádek|řádky|řádků}"
+  },
+  "pz_628": {
+   "source": "{0} lines",
+   "text": "{0} {0:řádek|řádky|řádků}"
+  },
+  "pz_629": {
+   "source": "The template of {0} agent",
+   "text": "Šablona {0} {0:agenta|agentů|agentů}"
+  },
+  "pz_630": {
+   "source": "The template of {0} agents",
+   "text": "Šablona {0} {0:agenta|agentů|agentů}"
+  },
+  "pz_631": {
+   "source": "Take over {0}",
+   "text": "Převzít {0}"
+  },
+  "pz_632": {
+   "source": "Compared with the template: {0}",
+   "text": "Porovnání se šablonou: {0}"
+  },
+  "pz_633": {
+   "source": "Group {0}",
+   "text": "Skupina {0}"
+  },
+  "pz_634": {
+   "source": "acme makes the certificate {0} for {1} from {2} (nothing is issued yet)",
+   "text": "acme vytvoří certifikát {0} pro {1} ze zdroje {2} (zatím se nic nevydává)"
+  },
+  "pz_635": {
+   "source": "a deployment of it to {0} through its acme-agent: {1}",
+   "text": "jeho nasazení na {0} přes acme-agenta: {1}"
+  },
+  "pz_636": {
+   "source": "there is a group {0} already",
+   "text": "skupina {0} už existuje"
+  },
+  "pz_637": {
+   "source": "line {0} of the template: {1}",
+   "text": "řádek {0} šablony: {1}"
+  },
+  "pz_638": {
+   "source": "no agent can be updated now ({0})",
+   "text": "teď nelze aktualizovat žádného agenta ({0})"
+  },
+  "pz_639": {
+   "source": "nothing was discovered on {0} yet - run a discovery first",
+   "text": "na {0} zatím nic nebylo prozkoumáno – nejdřív spusťte průzkum"
+  },
+  "pz_640": {
+   "source": "that service is not among what was found on {0}",
+   "text": "tato služba není mezi tím, co bylo nalezeno na {0}"
+  },
+  "pz_641": {
+   "source": "acme manages that certificate already ({0})",
+   "text": "acme už tento certifikát spravuje ({0})"
+  },
+  "pz_642": {
+   "source": "wait is {0} to {1} minutes",
+   "text": "čekání je {0} až {1} minut"
+  },
+  "pz_643": {
+   "source": "{0}: not updated",
+   "text": "{0}: neaktualizován"
+  },
+  "pz_644": {
+   "source": "{0}: still runs {1}",
+   "text": "{0}: stále běží {1}"
+  },
+  "pz_645": {
+   "source": "{0}: does not answer",
+   "text": "{0}: neodpovídá"
+  },
+  "pz_646": {
+   "source": "Start the rollout? {0} now, {1} after the wait.",
+   "text": "Spustit zavádění? {0} hned, {1} po čekání."
+  },
+  "pz_647": {
+   "source": "ends in {0} min",
+   "text": "končí za {0} min"
+  },
+  "pz_648": {
+   "source": "ends in {0} h",
+   "text": "končí za {0} h"
+  },
+  "pz_649": {
+   "source": "ends in {0} days",
+   "text": "končí za {0} {0:den|dny|dní}"
+  },
+  "pz_650": {
+   "source": "The portal opens as {0} - read-only",
+   "text": "Portál se otevírá jako {0} – jen pro čtení"
+  },
+  "pz_651": {
+   "source": "View as {0}",
+   "text": "Zobrazit jako {0}"
+  },
+  "pz_652": {
+   "source": "The administration is shown as {0} sees it - their role, their teams. Nothing can be changed meanwhile; it is written in the events. Stop it with the button at the top.",
+   "text": "Administrace se zobrazí tak, jak ji vidí {0} – jeho role, jeho týmy. Mezitím nelze nic změnit; zapíše se to do událostí. Ukončíte to tlačítkem nahoře."
+  },
+  "pz_653": {
+   "source": "{0} people and groups",
+   "text": "{0} {0:osoba či skupina|osoby a skupiny|osob a skupin}"
+  },
+  "pz_654": {
+   "source": "max_certs: {0} certificates at most (the limit of {1})",
+   "text": "max_certs: nejvýše {0} {0:certifikát|certifikáty|certifikátů} (limit týmu {1})"
+  },
+  "pz_655": {
+   "source": "Health of {0}",
+   "text": "Zdraví týmu {0}"
+  },
+  "pz_656": {
+   "source": "{0} of its own",
+   "text": "{0} {0:vlastní|vlastní|vlastních}"
+  },
+  "pz_657": {
+   "source": "Certificates running out within {0} days, failed renewals and deployments, certificates outside their team's limits, weak keys and the quota - one score of 100 for each team and its teams below; for the leadership, all of them together.",
+   "text": "Certifikáty končící do {0} {0:dne|dnů|dnů}, selhané obnovy a nasazení, certifikáty mimo limity týmu, slabé klíče a kvóta – jedno skóre ze 100 pro každý tým včetně týmů pod ním; pro vedení všechny dohromady."
+  },
+  "pz_658": {
+   "source": "{0} h",
+   "text": "{0} h"
+  },
+  "pz_659": {
+   "source": "asked {0}",
+   "text": "požádáno {0}"
+  },
+  "pz_660": {
+   "source": "Approve {0} for {1}",
+   "text": "Schválit roli {0} pro {1}"
+  },
+  "pz_661": {
+   "source": "{0} hours at most",
+   "text": "nejvýše {0} {0:hodina|hodiny|hodin}"
+  },
+  "pz_662": {
+   "source": "Access review of {0}",
+   "text": "Revize přístupů týmu {0}"
+  },
+  "pz_663": {
+   "source": "{0} is taken out of the team {1} now.",
+   "text": "{0} bude nyní vyřazen(a) z týmu {1}."
+  },
+  "pz_664": {
+   "source": "Waiting for you ({0})",
+   "text": "Čeká na vás ({0})"
+  },
+  "pz_665": {
+   "source": "{0} to confirm, by {1}",
+   "text": "k potvrzení: {0}, do {1}"
+  },
+  "pz_666": {
+   "source": "{0} limits",
+   "text": "{0} {0:limit|limity|limitů}"
+  },
+  "pz_667": {
+   "source": "{0} request profiles",
+   "text": "{0} {0:profil žádostí|profily žádostí|profilů žádostí}"
+  },
+  "pz_668": {
+   "source": "The template {0} is deleted. The teams made from it stay as they are.",
+   "text": "Šablona {0} bude smazána. Týmy z ní vytvořené zůstanou, jak jsou."
+  },
+  "pz_669": {
+   "source": "The template {0}",
+   "text": "Šablona {0}"
+  },
+  "pz_670": {
+   "source": "A team from {0}",
+   "text": "Tým ze šablony {0}"
+  },
+  "pz_671": {
+   "source": "{0} new",
+   "text": "{0} {0:nový|nové|nových}"
+  },
+  "pz_672": {
+   "source": "{0} there already - left as they are",
+   "text": "{0} {0:už existuje|už existují|už existuje} – ponecháno beze změny"
+  },
+  "pz_673": {
+   "source": "{0} wrong",
+   "text": "{0} {0:chybný|chybné|chybných}"
+  },
+  "pz_674": {
+   "source": "{0} made",
+   "text": "{0} {0:vytvořen|vytvořeny|vytvořeno}"
+  },
+  "pz_675": {
+   "source": "{0} days to answer",
+   "text": "{0} {0:den|dny|dní} na odpověď"
+  },
+  "pz_676": {
+   "source": "{0} confirmed, {1} taken out",
+   "text": "potvrzeno {0}, vyřazeno {1}"
+  },
+  "pz_677": {
+   "source": "{0} h at most",
+   "text": "nejvýše {0} h"
+  },
+  "pz_678": {
+   "source": "{0} days before the end",
+   "text": "{0} {0:den|dny|dní} před koncem"
+  },
+  "pz_679": {
+   "source": "Access reviews of {0}",
+   "text": "Revize přístupů týmu {0}"
+  },
+  "pz_680": {
+   "source": "Temporary roles on {0}",
+   "text": "Dočasné role v týmu {0}"
+  },
+  "pz_681": {
+   "source": "Separation of duties in {0}",
+   "text": "Oddělení povinností v týmu {0}"
+  },
+  "pz_682": {
+   "source": "Notifications of {0}",
+   "text": "Upozornění týmu {0}"
+  },
+  "pz_683": {
+   "source": "you see the pages as {0} now - read-only",
+   "text": "stránky nyní vidíte jako {0} – jen pro čtení"
+  },
+  "pz_684": {
+   "source": "read-only: you are viewing the pages as {0} - nothing is changed while you do (Stop viewing as first)",
+   "text": "jen pro čtení: stránky prohlížíte jako {0} – mezitím se nic nemění (nejprve ukončete náhled)"
+  },
+  "pz_685": {
+   "source": "asked - a manager of the team {0} approves it",
+   "text": "požádáno – schválí to správce týmu {0}"
+  },
+  "pz_686": {
+   "source": "the governance of {0} is saved",
+   "text": "správa týmu {0} je uložena"
+  },
+  "pz_687": {
+   "source": "the template {0} is saved",
+   "text": "šablona {0} je uložena"
+  },
+  "pz_688": {
+   "source": "the template {0} is deleted",
+   "text": "šablona {0} je smazána"
+  },
+  "pz_689": {
+   "source": "the team {0} is made",
+   "text": "tým {0} je vytvořen"
+  },
+  "pz_690": {
+   "source": "approving needs \"team.members\" on the team {0}",
+   "text": "schvalování vyžaduje „team.members“ v týmu {0}"
+  },
+  "pz_691": {
+   "source": "you give only what you hold on the team {0} yourself",
+   "text": "udělujete jen to, co v týmu {0} máte sami"
+  },
+  "pz_692": {
+   "source": "the team {0} does not take requests for a temporary role (just-in-time elevation is off)",
+   "text": "tým {0} nepřijímá žádosti o dočasnou roli (dočasné zvýšení oprávnění je vypnuté)"
+  },
+  "pz_693": {
+   "source": "the team {0} gives a role for {1} hours at most",
+   "text": "tým {0} uděluje roli nejvýše na {1} {1:hodinu|hodiny|hodin}"
+  },
+  "pz_694": {
+   "source": "you are not a member of the team {0} - ask its manager to add you",
+   "text": "nejste členem týmu {0} – požádejte jeho správce, aby vás přidal"
+  },
+  "pz_695": {
+   "source": "confirming the members needs \"team.members\" on the team {0}",
+   "text": "potvrzování členů vyžaduje „team.members“ v týmu {0}"
+  },
+  "pz_696": {
+   "source": "separation of duties on the team {0}: {1} may not hold both {2} and {3}",
+   "text": "oddělení povinností v týmu {0}: {1} nesmí mít zároveň {2} a {3}"
+  },
+  "pz_697": {
+   "source": "Inherited from {0} - press to override it here",
+   "text": "Zděděno z {0} – stiskem to zde přepíšete"
+  },
+  "pz_698": {
+   "source": "Its own value here - press to inherit it from {0}",
+   "text": "Vlastní hodnota – stiskem ji zdědíte z {0}"
+  },
+  "pz_699": {
+   "source": "{0} field(s)",
+   "text": "{0} {0:pole|pole|polí}"
+  },
+  "pz_700": {
+   "source": "based on {0}",
+   "text": "vychází z {0}"
+  },
+  "pz_701": {
+   "source": "ends → {0}",
+   "text": "končí → {0}"
+  },
+  "pz_702": {
+   "source": "{0} based on it",
+   "text": "{0} z něj {0:vychází|vycházejí|vychází}"
+  },
+  "pz_703": {
+   "source": "version {0} now",
+   "text": "teď verze {0}"
+  },
+  "pz_704": {
+   "source": "History - version {0}",
+   "text": "Historie – verze {0}"
+  },
+  "pz_705": {
+   "source": "restored from version {0}",
+   "text": "obnoveno z verze {0}"
+  },
+  "pz_706": {
+   "source": "inherited from {0}",
+   "text": "zděděno z {0}"
+  },
+  "pz_707": {
+   "source": "{0} change(s)",
+   "text": "{0} {0:změna|změny|změn}"
+  },
+  "pz_708": {
+   "source": "Show the {0} fields that are the same",
+   "text": "Ukázat {0} {0:pole|pole|polí} beze změny"
+  },
+  "pz_709": {
+   "source": "Hide the {0} fields that are the same",
+   "text": "Skrýt {0} {0:pole|pole|polí} beze změny"
+  },
+  "pz_710": {
+   "source": "The request profile will be as version {0} said - saved as a new version, so nothing is lost. Its name, and whether it ends, stay as they are now.",
+   "text": "Profil žádosti bude takový, jak říkala verze {0} – uloží se jako nová verze, takže se nic neztratí. Jeho název a to, zda končí, zůstanou jako teď."
+  },
+  "pz_711": {
+   "source": "At most {0}, under: ",
+   "text": "Nejvýše {0}, pod doménami: "
+  },
+  "pz_712": {
+   "source": "until about {0}",
+   "text": "zhruba do {0}"
+  },
+  "pz_713": {
+   "source": "a public certificate: at most {0} days now",
+   "text": "veřejný certifikát: teď nejvýše {0} {0:den|dny|dní}"
+  },
+  "pz_714": {
+   "source": "It ends: its successor is {0}",
+   "text": "Končí: nástupcem je {0}"
+  },
+  "pz_715": {
+   "source": "renewed about {0}",
+   "text": "obnoví se zhruba {0}"
+  },
+  "pz_716": {
+   "source": "{0} / {1} not complying",
+   "text": "{0} / {1} nevyhovuje"
+  },
+  "pz_717": {
+   "source": "{0} set",
+   "text": "nastaveno: {0}"
+  },
+  "pz_718": {
+   "source": "Dry run: {0}",
+   "text": "Zkouška nanečisto: {0}"
+  },
+  "pz_719": {
+   "source": "End it…: {0}",
+   "text": "Ukončit…: {0}"
+  },
+  "pz_720": {
+   "source": "Ends: {0}",
+   "text": "Končí: {0}"
+  },
+  "pz_721": {
+   "source": "ends: its successor is {0}",
+   "text": "končí: nástupcem je {0}"
+  },
+  "pz_722": {
+   "source": "its base {0} was deleted: it stands alone",
+   "text": "jeho základ {0} byl smazán: stojí samostatně"
+  },
+  "pz_723": {
+   "source": "there is no request profile {0} to base it on",
+   "text": "neexistuje profil žádosti {0}, ze kterého by mohl vycházet"
+  },
+  "pz_724": {
+   "source": "{0} is based on {1} already - the bases would go round in a circle",
+   "text": "{0} už vychází z {1} – základy by se zacyklily"
+  },
+  "pz_725": {
+   "source": "{0} bases one on another at most",
+   "text": "nejvýše {0} základů nad sebou"
+  },
+  "pz_726": {
+   "source": "the profile {0} is based on it and would not fit: {1}",
+   "text": "profil {0} z něj vychází a nedával by smysl: {1}"
+  },
+  "pz_727": {
+   "source": "it is the successor of {0}, which ends - choose another successor there first",
+   "text": "je nástupcem profilu {0}, který končí – nejdřív tam vyberte jiného nástupce"
+  },
+  "pz_728": {
+   "source": "it is the base of {0} - make them stand alone, or change their base first",
+   "text": "je základem pro {0} – nejdřív je osamostatněte nebo jim změňte základ"
+  },
+  "pz_729": {
+   "source": "its base profile {0} is gone",
+   "text": "jeho základní profil {0} už neexistuje"
+  },
+  "pz_730": {
+   "source": "the request profile {0} is as version {1} said - as a new version",
+   "text": "profil žádosti {0} je takový, jak říkala verze {1} – jako nová verze"
+  },
+  "pz_731": {
+   "source": "the request profile {0} no longer ends",
+   "text": "profil žádosti {0} už nekončí"
+  },
+  "pz_732": {
+   "source": "the request profile {0} ends",
+   "text": "profil žádosti {0} končí"
+  },
+  "pz_733": {
+   "source": "{0} does not end",
+   "text": "{0} nekončí"
+  },
+  "pz_734": {
+   "source": "{0} ends itself - choose one that does not",
+   "text": "{0} sám končí – vyberte takový, který nekončí"
+  },
+  "pz_735": {
+   "source": "there is no such version of {0}",
+   "text": "taková verze profilu {0} neexistuje"
+  },
+  "pz_736": {
+   "source": "there is no version {0} of {1}",
+   "text": "verze {0} profilu {1} neexistuje"
+  },
+  "pz_737": {
+   "source": "valid for {0} days - a public TLS certificate issued from {1} is valid for at most {2} days",
+   "text": "platnost {0} {0:den|dny|dní} – veřejný TLS certifikát vydaný od {1} platí nejvýše {2} {2:den|dny|dní}"
+  },
+  "pz_738": {
+   "source": "renewed {0} days before the end - from {1} a public certificate lasts at most {2} days: it would be renewed again at once",
+   "text": "obnovuje se {0} {0:den|dny|dní} před koncem – od {1} platí veřejný certifikát nejvýše {2} {2:den|dny|dní}: obnovoval by se hned znovu"
+  },
+  "pz_739": {
+   "source": "the CA chooses the validity - it keeps to the CA/Browser Forum's schedule by itself (at most {0} days from {1})",
+   "text": "platnost volí CA – harmonogram CA/Browser Fóra dodržuje sama (nejvýše {0} {0:den|dny|dní} od {1})"
+  },
+  "pz_740": {
+   "source": "an RSA key of {0} bits - {1} at least",
+   "text": "klíč RSA o {0} bitech – nejméně {1}"
+  },
+  "pz_741": {
+   "source": "an RSA key of {0} bits - the company's rule is {1} at least",
+   "text": "klíč RSA o {0} bitech – pravidlo firmy je nejméně {1}"
+  },
+  "pz_742": {
+   "source": "the company's rules forbid the key type {0}",
+   "text": "pravidla firmy zakazují typ klíče {0}"
+  },
+  "pz_743": {
+   "source": "valid for {0} days - the company's rule is {1} at most",
+   "text": "platnost {0} {0:den|dny|dní} – pravidlo firmy je nejvýše {1}"
+  },
+  "pz_744": {
+   "source": "{0} names in one certificate - the company's rule is {1} at most",
+   "text": "{0} {0:jméno|jména|jmen} v jednom certifikátu – pravidlo firmy je nejvýše {1}"
+  },
+  "pz_745": {
+   "source": "signed with SHA-1 ({0})",
+   "text": "podepsán SHA-1 ({0})"
+  },
+  "pz_746": {
+   "source": "an EC key of {0} bits - 256 at least",
+   "text": "klíč EC o {0} bitech – nejméně 256"
+  },
+  "pz_747": {
+   "source": "valid for {0} days - longer than the {1} days a public certificate issued on {2} may be",
+   "text": "platnost {0} {0:den|dny|dní} – déle než {1} {1:den|dny|dní}, které smí mít veřejný certifikát vydaný {2}"
+  },
+  "pz_748": {
+   "source": "renewed from {0} with the {1} days of its profile - a public certificate is valid for at most {2} days then",
+   "text": "obnoven od {0} s platností {1} {1:den|dny|dní} podle profilu – veřejný certifikát pak platí nejvýše {2} {2:den|dny|dní}"
+  },
+  "pz_749": {
+   "source": "valid for {0} days - renewed from {1} the CA gives at most {2} days",
+   "text": "platnost {0} {0:den|dny|dní} – při obnově od {1} dá CA nejvýše {2} {2:den|dny|dní}"
+  },
+  "pz_750": {
+   "source": "it ends - the portal no longer offers it (its successor: {0})",
+   "text": "končí – portál ho už nenabízí (nástupce: {0})"
+  },
+  "pz_751": {
+   "source": "choose a team: {0}",
+   "text": "vyberte tým: {0}"
+  },
+  "pz_752": {
+   "source": "the team {0} may not ask from this profile",
+   "text": "tým {0} o tento profil žádat nesmí"
+  },
+  "pz_753": {
+   "source": "its names are held by certificates of another owner: {0}",
+   "text": "jeho jména drží certifikáty jiného vlastníka: {0}"
+  },
+  "pz_754": {
+   "source": "the certificate administrators - on the portal, the members with the right approve of {0}",
+   "text": "správci certifikátů – na portálu členové s právem schvalovat týmu {0}"
+  },
+  "pz_755": {
+   "source": "names the successor does not give: {0}",
+   "text": "jména, která nástupce nedává: {0}"
+  },
+  "pz_756": {
+   "source": "{0} names - the successor gives at most {1}",
+   "text": "{0} {0:jméno|jména|jmen} – nástupce dává nejvýše {1}"
+  },
+  "pz_757": {
+   "source": "the key of its CSR ({0}) is not one the successor takes",
+   "text": "klíč jeho CSR ({0}) nástupce nepřijímá"
+  },
+  "pz_758": {
+   "source": "the successor's source {0} is gone",
+   "text": "zdroj nástupce {0} už neexistuje"
+  },
+  "pz_759": {
+   "source": "the request profile {0} ends (by {1}): no longer offered, its certificates move to {2} at their next renewal",
+   "text": "profil žádosti {0} končí ({1}): už se nenabízí, jeho certifikáty přejdou při příští obnově na {2}"
+  },
+  "pz_760": {
+   "source": "the request profile {0} no longer ends (by {1}): it is offered again",
+   "text": "profil žádosti {0} už nekončí ({1}): znovu se nabízí"
+  },
+  "pz_761": {
+   "source": "{0} moved from the request profile {1}, which ends, to {2} at its renewal",
+   "text": "{0} při obnově přešel z končícího profilu žádosti {1} na {2}"
+  },
+  "pz_762": {
+   "source": "the rules of the request profiles changed by {0}",
+   "text": "pravidla profilů žádostí změnil {0}"
+  },
+  "pz_763": {
+   "source": "its request profile {0} ends, but it cannot move to {1}: {2} - renewed as it is",
+   "text": "jeho profil žádosti {0} končí, ale na {1} přejít nemůže: {2} – obnoví se tak, jak je"
+  },
+  "pz_764": {
+   "source": "its request profile {0} ends: it takes the settings of {1} now ({2})",
+   "text": "jeho profil žádosti {0} končí: teď přebírá nastavení profilu {1} ({2})"
+  },
+  "pz_765": {
+   "source": "it could not move to the successor of its request profile: {0}",
+   "text": "nemohl přejít na nástupce svého profilu žádosti: {0}"
+  },
+  "pz_766": {
+   "source": "{0} objects on the acme clipboard",
+   "text": "Ve schránce acme: {0} {0:objekt|objekty|objektů}"
+  },
+  "pz_767": {
+   "source": "{0} selected",
+   "text": "Vybráno: {0}"
+  },
+  "pz_768": {
+   "source": "Left out of the list: {0}",
+   "text": "Vynecháno ze seznamu: {0}"
+  },
+  "pz_769": {
+   "source": "Only: {0}",
+   "text": "Jen: {0}"
+  },
+  "pz_770": {
+   "source": "{0} will be done",
+   "text": "Provede se: {0}"
+  },
+  "pz_771": {
+   "source": "{0} left as they are",
+   "text": "Zůstane beze změny: {0}"
+  },
+  "pz_772": {
+   "source": "{0} done, {1} failed",
+   "text": "Hotovo: {0}, selhalo: {1}"
+  },
+  "pz_773": {
+   "source": "All {0} done",
+   "text": "Hotovo vše ({0})"
+  },
+  "pz_774": {
+   "source": "{0} job(s) started - their steps are in Jobs",
+   "text": "Spuštěno {0} {0:úloha|úlohy|úloh} – jejich kroky jsou v Úlohách"
+  },
+  "pz_775": {
+   "source": "{0} on the clipboard",
+   "text": "Ve schránce: {0}"
+  },
+  "pz_776": {
+   "source": "Renew {0} certificate(s) now?",
+   "text": "Obnovit teď {0} {0:certifikát|certifikáty|certifikátů}?"
+  },
+  "pz_777": {
+   "source": "Deploy {0} certificate(s) now?",
+   "text": "Nasadit teď {0} {0:certifikát|certifikáty|certifikátů}?"
+  },
+  "pz_778": {
+   "source": "put on {0} target(s)",
+   "text": "umístí se na {0} {0:cíl|cíle|cílů}"
+  },
+  "pz_779": {
+   "source": "Renew {0} certificate(s) by themselves?",
+   "text": "Obnovovat {0} {0:certifikát|certifikáty|certifikátů} samy?"
+  },
+  "pz_780": {
+   "source": "Renew {0} certificate(s) only when asked?",
+   "text": "Obnovovat {0} {0:certifikát|certifikáty|certifikátů} jen na požádání?"
+  },
+  "pz_781": {
+   "source": "Give {0} certificate(s) to a team?",
+   "text": "Přidělit {0} {0:certifikát|certifikáty|certifikátů} týmu?"
+  },
+  "pz_782": {
+   "source": "now of {0}",
+   "text": "teď patří {0}"
+  },
+  "pz_783": {
+   "source": "Add a tag to {0} certificate(s)?",
+   "text": "Přidat štítek {0} {0:certifikátu|certifikátům|certifikátům}?"
+  },
+  "pz_784": {
+   "source": "Put {0} deployment(s) on the certificates?",
+   "text": "Vytvořit u certifikátů {0} {0:nasazení|nasazení|nasazení}?"
+  },
+  "pz_785": {
+   "source": "Add the tags to {0} certificate(s)?",
+   "text": "Přidat štítky {0} {0:certifikátu|certifikátům|certifikátům}?"
+  },
+  "pz_786": {
+   "source": "Add the tags to {0} target(s)?",
+   "text": "Přidat štítky {0} {0:cíli|cílům|cílům}?"
+  },
+  "pz_787": {
+   "source": "Added beside the ones each has: {0}",
+   "text": "Přidají se k těm, které každý má: {0}"
+  },
+  "pz_788": {
+   "source": "the module {0} is not installed here",
+   "text": "modul {0} tu není nainstalován"
+  },
+  "pz_789": {
+   "source": "Test the {0} selected now?",
+   "text": "Otestovat teď {0} {0:vybraný|vybrané|vybraných}?"
+  },
+  "pz_790": {
+   "source": "Switch the {0} selected on?",
+   "text": "Zapnout {0} {0:vybraný|vybrané|vybraných}?"
+  },
+  "pz_791": {
+   "source": "Switch the {0} selected off?",
+   "text": "Vypnout {0} {0:vybraný|vybrané|vybraných}?"
+  },
+  "pz_792": {
+   "source": "{0} limit(s) copied",
+   "text": "Zkopírováno {0} {0:limit|limity|limitů}"
+  },
+  "pz_793": {
+   "source": "Give {0} the limits of {1}?",
+   "text": "Nastavit {0} limity týmu {1}?"
+  },
+  "pz_794": {
+   "source": "The limits of the team are replaced by these: {0}",
+   "text": "Limity týmu se nahradí těmito: {0}"
+  },
+  "pz_795": {
+   "source": "{0} filter(s) set",
+   "text": "{0} {0:nastavený filtr|nastavené filtry|nastavených filtrů}"
+  },
+  "pz_796": {
+   "source": "Kept {0} days. A secret is never shown here - only that it changed.",
+   "text": "Uchovává se {0} {0:den|dny|dní}. Tajný údaj se tu nikdy nezobrazí – jen to, že se změnil."
+  },
+  "pz_797": {
+   "source": "Every change of it from now on is written here - who, when, from where and what changed. Kept {0} days.",
+   "text": "Každá jeho změna se od teď zapíše sem – kdo, kdy, odkud a co se změnilo. Uchovává se {0} {0:den|dny|dní}."
+  },
+  "pz_798": {
+   "source": "What is deleted - a target, a deployment, a test, a source, a validation, a request profile, an owner, a role, a tag, a DNS set, a certificate - waits here {0} days and can be restored.",
+   "text": "Co se smaže – cíl, nasazení, test, zdroj, validace, profil žádosti, vlastník, role, štítek, sada DNS, certifikát – tu čeká {0} {0:den|dny|dní} a dá se obnovit."
+  },
+  "pz_799": {
+   "source": "The latest {0} of {1} - a filter shows the others.",
+   "text": "Posledních {0} z {1} – ostatní ukáže filtr."
+  },
+  "pz_800": {
+   "source": "{0} is back",
+   "text": "{0} je zpět"
+  },
+  "pz_801": {
+   "source": "the view {0} was saved",
+   "text": "pohled {0} byl uložen"
+  },
+  "pz_802": {
+   "source": "the view {0} was deleted",
+   "text": "pohled {0} byl smazán"
+  },
+  "pz_803": {
+   "source": "the view {0} opens by itself now",
+   "text": "pohled {0} se teď otevírá sám"
+  },
+  "pz_804": {
+   "source": "{0} deleted for good",
+   "text": "natrvalo smazáno: {0}"
+  },
+  "pz_805": {
+   "source": "the version of {0} restored",
+   "text": "vrácena verze z {0}"
+  },
+  "pz_806": {
+   "source": "the target {0} is not here",
+   "text": "cíl {0} tu není"
+  },
+  "pz_807": {
+   "source": "the test {0} is not here",
+   "text": "test {0} tu není"
+  },
+  "pz_808": {
+   "source": "the team above it, {0}, is not here",
+   "text": "nadřazený tým {0} tu není"
+  },
+  "pz_809": {
+   "source": "{0} - restore it first",
+   "text": "{0} – nejdřív to obnovte"
+  },
+  "pz_810": {
+   "source": "{0} - it cannot come back",
+   "text": "{0} – nemůže se vrátit"
+  },
+  "pz_811": {
+   "source": "{0} could not be opened - enter it again",
+   "text": "{0} se nepodařilo otevřít – zadejte znovu"
+  },
+  "pz_812": {
+   "source": "the certificate is deployed on {0} already",
+   "text": "certifikát už je nasazený na {0}"
+  },
+  "pz_813": {
+   "source": "the test {0} is attached already",
+   "text": "test {0} už je připojený"
+  },
+  "pz_814": {
+   "source": "there is a view called {0} already",
+   "text": "pohled {0} už existuje"
+  },
+  "pz_815": {
+   "source": "{0} views of one table at most",
+   "text": "nejvýš {0} pohledů jedné tabulky"
+  },
+  "pz_816": {
+   "source": "you may not restore that {0}",
+   "text": "tento objekt ({0}) obnovit nesmíte"
+  },
+  "pz_817": {
+   "source": "you may not change that {0}",
+   "text": "tento objekt ({0}) měnit nesmíte"
+  },
+  "pz_818": {
+   "source": "you may not see the history of that {0}",
+   "text": "historii tohoto objektu ({0}) vidět nesmíte"
+  },
+  "pz_819": {
+   "source": "there is a {0} called {1} already - restore it under another name",
+   "text": "{0} se jménem {1} už existuje – obnovte pod jiným jménem"
+  },
+  "pz_820": {
+   "source": "History: {0}",
+   "text": "Historie: {0}"
+  },
+  "pz_821": {
+   "source": "Saved views: {0}",
+   "text": "Uložené pohledy: {0}"
+  },
+  "pz_822": {
+   "source": "The version was restored - {0}: enter again",
+   "text": "Verze byla vrácena – {0}: zadejte znovu"
+  },
+  "pz_823": {
+   "source": "{0} - left in the trash: {1}",
+   "text": "{0} – zůstalo v koši: {1}"
   }
  },
  "rich": {
