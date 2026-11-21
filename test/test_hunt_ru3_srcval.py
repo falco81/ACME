@@ -46,7 +46,7 @@ class Source(unittest.TestCase):
     def test_version_switch_keeps_typed(self):
         js = read('web/assets/certs.js')
         self.assertIn('typed: keep && keep.config ? keep.config : null', js)
-        self.assertIn("tags: tags ? tags.value : undefined});", js)
+        self.assertIn("tags: tags ? tags.value : undefined, copyOf: keep && keep.copyOf, like: keep && keep.like});", js)
         self.assertIn('keep && keep.tags !== undefined ? splitNames(keep.tags)', js)
         self.assertEqual(js.count('secretBox(sv, '), 1)
         self.assertEqual(js.count('secretPemBox(sv, '), 1)
