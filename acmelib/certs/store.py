@@ -1693,9 +1693,15 @@ def deploy_public(store, row, full=False):
     out['options'] = opts
     out['secret_set'] = is_set
     # Its target switched off (1.0.23): said with the deployment, where the certificate is.
-    trow = store.db.row('SELECT enabled FROM cert_targets WHERE name = ?', (row.get('target'),))
+    trow = store.db.row('SELECT enabled, kind FROM cert_targets WHERE name = ?',
+                        (row.get('target'),))
     out['target_off'] = bool(trow) and not int(trow.get('enabled') if trow.get('enabled')
                                                is not None else 1)
+    if trow and trow.get('kind') in ('agent', 'agent_windows'):
+        # 1.0.138 (B6): what the service on the agent's server serves - "deployed, but it
+        # still serves the old certificate" (agent_guard)
+        from acmelib.certs import agent_guard
+        out['served'] = agent_guard.served_of_deploy(store, row)
     return out
 
 

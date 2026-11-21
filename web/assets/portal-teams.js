@@ -349,7 +349,10 @@ var VIEWS = [
   {id: 'deploys', icon: 'deploy', words: 'Deployments', may: function () { return can('deploy.view'); }},
   {id: 'members', icon: 'people', words: 'Members', may: function () { return can('team.members'); }},
   {id: 'teams', icon: 'tree', words: 'Sub-teams & limits', may: function () { return can('team.create') || can('team.policy'); }},
-  {id: 'activity', icon: 'pulse', words: 'Activity', may: function () { return can('team.activity'); }}
+  {id: 'activity', icon: 'pulse', words: 'Activity', may: function () { return can('team.activity'); }},
+  /* governance (1.0.138) */
+  {id: 'health', icon: 'chart', words: 'Health', may: function () { return can('cert.view'); }},
+  {id: 'access', icon: 'shield', words: 'Access', may: function () { return true; }}
 ];
 
 function start(host, me, d) {
@@ -453,7 +456,8 @@ function go(view, first) {
   main.className = 'pw-main pw-v-' + view;
   try {
     ({home: viewHome, certs: viewCerts, inbox: viewInbox, devices: viewDevices, tests: viewTests, deploys: viewDeploys,
-      members: viewMembers, teams: viewTeams, activity: viewActivity})[view](main);
+      members: viewMembers, teams: viewTeams, activity: viewActivity, health: viewHealth,
+      access: viewAccess})[view](main);
   } catch (e) {
     if (window.console) console.error(e);
     failed(main, e);
@@ -3116,6 +3120,523 @@ function viewActivity(main) {
   };
   load();
 }
+
+
+/* =============================================================================================
+   GOVERNANCE (1.0.138, docs/teams.md "Governance"): the health of the teams, temporary roles
+   (asked, approved by a manager of the team - never oneself), access reviews to answer, who may
+   do what in a team, and the banner while an administrator views the portal as somebody
+   ============================================================================================= */
+var G_HEALTH = [['expiring', 'Running out', 'clock', 'warn'], ['expired', 'Expired', 'ban', 'crit'],
+                ['failed_renewals', 'Failed renewals', 'pulse', 'crit'], ['failed_deploys', 'Failed deployments', 'deploy', 'crit'],
+                ['outside', 'Outside the limits', 'shield', 'warn'], ['weak', 'Weak keys', 'key', 'warn']];
+var G_GRADE = {good: ['good', 'ok'], fair: ['fair', 'warn'], poor: ['poor', 'crit']};
+var G_STATE = {waiting: ['waiting', 'violet'], granted: ['granted', 'ok'], declined: ['declined', 'crit'],
+               cancelled: ['taken back', 'dim'], ended: ['ended early', 'dim'], expired: ['ended', 'dim'],
+               open: ['open', 'info'], overdue: ['overdue', 'warn'], done: ['done', 'ok'], closed: ['closed', 'dim'],
+               kept: ['confirmed', 'ok'], removed: ['taken out', 'crit'], pending: ['to confirm', 'warn']};
+function gState(st) { var x = G_STATE[st] || [st, 'dim']; return chip(x[0], x[1]); }
+function gRing(score, size, grade) {
+  size = size || 56;
+  var r = (size - 8) / 2, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, Number(score) || 0));
+  var w = el('div', 'pwg-ring g-' + (grade || 'good'));
+  w.style.width = size + 'px';
+  w.style.height = size + 'px';
+  w.innerHTML = '<svg viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true"><circle class="bg" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r +
+    '"/><circle class="fg" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" stroke-dasharray="' + (c * v / 100).toFixed(1) + ' ' + c.toFixed(1) +
+    '" transform="rotate(-90 ' + size / 2 + ' ' + size / 2 + ')"/></svg>';
+  w.appendChild(data('b', 'pwg-ring-v', String(Math.round(v))));
+  w.setAttribute('role', 'img');
+  w.setAttribute('aria-label', tr('health') + ' ' + Math.round(v) + ' / 100');
+  if (size >= 80) w.classList.add('big');
+  return w;
+}
+function gPills(m, all) {
+  var p = el('div', 'pwg-pills');
+  G_HEALTH.forEach(function (k) {
+    var v = Number((m || {})[k[0]] || 0);
+    if (!v && !all) return;
+    var x = el('span', 'pwg-pill' + (v ? ' ' + k[3] : ' zero'));
+    x.appendChild(ic(k[2], 12));
+    x.appendChild(data('b', '', String(v)));
+    x.appendChild(el('span', '', k[1]));
+    p.appendChild(x);
+  });
+  if (!p.firstChild) {
+    var ok = el('span', 'pwg-pill ok');
+    ok.appendChild(ic('check', 12));
+    ok.appendChild(el('span', '', (m || {}).certs ? 'all well' : 'no certificate yet'));
+    p.appendChild(ok);
+  }
+  return p;
+}
+function gQuota(q) {
+  var b = el('div', 'pwg-quota');
+  var pct = q.max ? Math.min(100, Math.round(100 * q.used / q.max)) : 0;
+  var t = el('div', 'pwg-quota-t');
+  t.appendChild(el('span', '', 'Quota'));
+  t.appendChild(data('b', '', q.used + ' / ' + q.max));
+  b.appendChild(t);
+  var bar = el('div', 'pwg-quota-b' + (pct >= 100 ? ' crit' : pct >= 80 ? ' warn' : ''));
+  var f = el('span', '');
+  f.style.width = pct + '%';
+  bar.appendChild(f);
+  b.appendChild(bar);
+  return b;
+}
+function viewHealth(main) {
+  main.appendChild(pageHead('pulse', 'Health', 'How the certificates of your teams are doing: running out, failed renewals and deployments, outside the team\'s limits, weak keys and the quota - one score of 100 for each team with the teams below it.'));
+  var body = el('div', 'pwg-health');
+  body.appendChild(skeleton(3));
+  main.appendChild(body);
+  var seq = WS.seq;
+  api('health').then(function (d) {
+    if (seq !== WS.seq) return;
+    clear(body);
+    var want = {};
+    scope().forEach(function (t) { want[low(t.name)] = 1; });
+    var rows = arr(d.teams).filter(function (h) { return want[low(h.team)]; });
+    if (!rows.length) { body.appendChild(emptyState('pulse', 'Nothing to show', 'None of these teams shows you its certificates.')); return; }
+    var top = rows[0];
+    var hero = el('section', 'card pwg-hero');
+    var sc = WS.team === '*' ? (d.score === null || d.score === undefined ? 100 : d.score) : top.score;
+    var grade = sc >= 90 ? 'good' : sc >= 70 ? 'fair' : 'poor';
+    hero.appendChild(gRing(sc, 92, grade));
+    var hw = el('div', 'pwg-hero-w');
+    var h3 = el('h3', '');
+    h3.appendChild(el('span', '', WS.team === '*' ? 'All your teams' : 'The team and the teams below it'));
+    h3.appendChild(document.createTextNode(' '));
+    h3.appendChild(chip(G_GRADE[grade][0], G_GRADE[grade][1]));
+    hw.appendChild(h3);
+    hw.appendChild(gPills(WS.team === '*' ? rows.reduce(function (a, r) {
+      if (r.parent && want[low(r.parent)]) return a;
+      G_HEALTH.forEach(function (k) { a[k[0]] = (a[k[0]] || 0) + Number(r.below[k[0]] || 0); });
+      a.certs = (a.certs || 0) + Number(r.below.certs || 0);
+      return a;
+    }, {}) : top.below, true));
+    if (WS.team !== '*' && top.below.quota && top.below.quota.max) hw.appendChild(gQuota(top.below.quota));
+    hero.appendChild(hw);
+    body.appendChild(hero);
+    var grid = el('div', 'pwg-hgrid');
+    grid.id = 'pwg-hgrid';
+    rows.slice().sort(function (a, b) { return a.score - b.score; }).slice(0, 200).forEach(function (h) {
+      var c = el('button', 'pwg-hcard g-' + h.grade);
+      c.type = 'button';
+      c.dataset.team = h.team;
+      var t = el('div', 'pwg-hcard-t');
+      t.appendChild(gRing(h.score, 50, h.grade));
+      var w = el('div', 'pwg-hcard-w');
+      var n = el('div', 'pwg-hcard-n');
+      n.appendChild(ic(h.kind === 'unit' ? 'unit' : 'people', 14));
+      n.appendChild(data('b', '', h.team));
+      w.appendChild(n);
+      w.appendChild(el('span', 'muted small', nW(h.below.certs || 0, 'certificates')));
+      t.appendChild(w);
+      c.appendChild(t);
+      c.appendChild(gPills(h.below));
+      if (h.below.quota && h.below.quota.max) c.appendChild(gQuota(h.below.quota));
+      c.onclick = function () { healthDetail(h.team); };
+      grid.appendChild(c);
+    });
+    body.appendChild(grid);
+    explainWhatWasDrawn(main);
+  }).catch(function (e) { if (seq === WS.seq) failed(body, e); });
+}
+function healthDetail(name) {
+  modal(tr('Health of {0}').replace('{0}', name), function (body) {
+    body.classList.add('pwg-dlg');
+    body.appendChild(skeleton(2));
+    api('health&team=' + encodeURIComponent(name)).then(function (d) {
+      clear(body);
+      var h = arr(d.teams).filter(function (x) { return low(x.team) === low(name); })[0];
+      if (!h) return;
+      var top = el('div', 'pwg-hd');
+      top.appendChild(gRing(h.score, 80, h.grade));
+      top.appendChild(gPills(h.below, true));
+      body.appendChild(top);
+      var any = false;
+      G_HEALTH.forEach(function (k) {
+        var lst = arr((h.list || {})[k[0]]);
+        if (!lst.length) return;
+        any = true;
+        var sec = el('div', 'pwg-hsec');
+        var hh = el('h4', '');
+        hh.appendChild(ic(k[2], 14));
+        hh.appendChild(el('span', '', k[1]));
+        sec.appendChild(hh);
+        lst.forEach(function (x) {
+          var it = el('div', 'pwg-hit');
+          it.appendChild(data('b', 'mono', x.name));
+          if (x.why) it.appendChild(data('span', 'muted small', x.why));
+          sec.appendChild(it);
+        });
+        body.appendChild(sec);
+      });
+      if (!any) body.appendChild(emptyState('check', 'All well', 'Nothing of its own runs out soon, failed, stands outside its limits or has a weak key.'));
+    }).catch(function (e) { failed(body, e); });
+  }, [{words: 'Close', close: true}], 'medium');
+}
+
+/* ---- Access: temporary roles, reviews, who may ---------------------------------------------- */
+function viewAccess(main) {
+  main.appendChild(pageHead('shield', 'Access', 'A role for a few hours when the work needs it, the requests of others to approve, the access reviews of your teams - and who may do what.'));
+  var grid = el('div', 'pwg-acc');
+  main.appendChild(grid);
+  var c1 = card('Temporary roles', 'clock', 'pwg-elev');
+  c1.id = 'pwg-elev';
+  var l1 = el('div', 'pwg-list');
+  l1.appendChild(skeleton(2));
+  c1.appendChild(l1);
+  grid.appendChild(c1);
+  var c2 = card('Access reviews', 'check', 'pwg-rev');
+  c2.id = 'pwg-rev';
+  var l2 = el('div', 'pwg-list');
+  l2.appendChild(skeleton(1));
+  c2.appendChild(l2);
+  grid.appendChild(c2);
+  var seq = WS.seq;
+  var again = function () { if (WS.view === 'access') go('access', true); };
+  api('elevations').then(function (d) {
+    if (seq !== WS.seq) return;
+    clear(l1);
+    var may = arr(d.may_ask);
+    if (WS.team !== '*') may = may.filter(function (m) { return low(m.team) === low(WS.team) || below(WS.team).some(function (t) { return low(t.name) === low(m.team); }); });
+    if (may.length) {
+      var ask = cmdButton('Ask for a role', 'add', 'small primary');
+      ask.id = 'pwg-ask';
+      ask.onclick = function () { askRole(may, again); };
+      cardRight(c1, ask);
+    }
+    var todo = arr(d.to_decide), mine = arr(d.mine);
+    if (todo.length) {
+      l1.appendChild(el('h4', 'pwg-sub', 'Waiting for you'));
+      todo.forEach(function (r) { l1.appendChild(elevCard(r, 'decide', again)); });
+    }
+    if (mine.length) {
+      l1.appendChild(el('h4', 'pwg-sub', 'Asked by you'));
+      mine.slice(0, 30).forEach(function (r) { l1.appendChild(elevCard(r, 'mine', again)); });
+    }
+    if (!todo.length && !mine.length) {
+      l1.appendChild(emptyState('clock', may.length ? 'Nothing asked yet' : 'Not offered in your teams',
+        may.length ? 'Ask for a role for a few hours - a manager of the team approves it, and it ends by itself.'
+          : 'Your teams do not give roles for a while. An administrator switches it on for a team.'));
+    }
+    explainWhatWasDrawn(c1);
+  }).catch(function (e) { if (seq === WS.seq) failed(l1, e); });
+  api('reviews').then(function (d) {
+    if (seq !== WS.seq) return;
+    clear(l2);
+    var open = arr(d.open);
+    open.forEach(function (r) {
+      var it = el('button', 'pwg-rv' + (r.late || r.state === 'overdue' ? ' late' : ''));
+      it.type = 'button';
+      it.dataset.team = r.team;
+      var t = el('div', 'pwg-rv-t');
+      t.appendChild(teamChip(r.team, 'small'));
+      t.appendChild(gState(r.late && r.state === 'open' ? 'overdue' : r.state));
+      it.appendChild(t);
+      var bar = el('div', 'pwg-prog');
+      var f = el('span', '');
+      var tot = arr(r.items).length;
+      f.style.width = (tot ? Math.round(100 * (tot - r.pending) / tot) : 100) + '%';
+      bar.appendChild(f);
+      it.appendChild(bar);
+      it.appendChild(el('span', 'muted small', tr('{0} to confirm, by {1}').replace('{0}', r.pending).replace('{1}', when(r.due).split(' ')[0])));
+      it.onclick = function () { reviewAnswer(r, again); };
+      l2.appendChild(it);
+    });
+    if (!open.length) l2.appendChild(emptyState('check', 'No review waits for you', 'When one of your teams reviews its members, you confirm them here - if you manage its members.'));
+  }).catch(function (e) { if (seq === WS.seq) failed(l2, e); });
+  if (WS.team !== '*' && can('team.members')) {
+    var c3 = card('Who may do what', 'people', 'pwg-who');
+    c3.id = 'pwg-who';
+    c3.appendChild(el('p', 'muted small', 'Every member of the team, those of the teams above it and the temporary roles - each capability with its reason.'));
+    var show = cmdButton('Show', 'eye', 'small');
+    show.id = 'pwg-who-go';
+    var out = el('div', 'pwg-who-out');
+    show.onclick = function () {
+      clear(out);
+      out.appendChild(skeleton(3));
+      api('whomay&team=' + encodeURIComponent(WS.team)).then(function (d) { clear(out); out.appendChild(whoMatrix(d)); explainWhatWasDrawn(out); })
+        .catch(function (e) { failed(out, e); });
+    };
+    cardRight(c3, show);
+    c3.appendChild(out);
+    main.appendChild(c3);
+  }
+}
+function elevCard(r, mode, after) {
+  var c = el('article', 'pwg-e');
+  c.dataset.id = r.id;
+  var top = el('div', 'pwg-e-t');
+  top.appendChild(avatar(r.who || r.asked_by));
+  var w = el('div', 'pwg-e-w');
+  var l1 = el('div', 'pwg-e-l1');
+  l1.appendChild(data('b', '', whoWords(r.asked_by || r.who)));
+  l1.appendChild(gState(r.state));
+  w.appendChild(l1);
+  var l2 = el('div', 'pwg-e-l2');
+  l2.appendChild(el('span', 'muted', 'asks for'));
+  l2.appendChild(chip(r.role, 'info', null, true));
+  l2.appendChild(el('span', 'muted', 'on'));
+  l2.appendChild(teamChip(r.team, 'small'));
+  l2.appendChild(chip(Math.round(r.hours || 0) + ' h', 'dim', 'clock', true));
+  w.appendChild(l2);
+  if (r.reason) w.appendChild(data('p', 'pwg-e-r', '“' + r.reason + '”'));
+  var m = el('div', 'pwg-e-m muted small');
+  m.appendChild(el('span', '', agoW(r.asked)));
+  if (r.decided_by) { m.appendChild(document.createTextNode(' · ')); m.appendChild(data('span', '', whoWords(r.decided_by))); }
+  if (r.state === 'granted' && r.until) { m.appendChild(document.createTextNode(' · ')); m.appendChild(el('span', 'pwg-left', tr('until {0}').replace('{0}', when(r.until)))); }
+  w.appendChild(m);
+  top.appendChild(w);
+  c.appendChild(top);
+  var b = el('div', 'pwg-e-b');
+  if (mode === 'decide') {
+    var no = cmdButton('Decline', 'ban', 'small');
+    no.onclick = function () { decideRole(r, false, after); };
+    var yes = cmdButton('Approve', 'check', 'small primary');
+    yes.classList.add('pwg-e-ok');
+    yes.onclick = function () { decideRole(r, true, after); };
+    b.appendChild(no);
+    b.appendChild(yes);
+  } else if (r.state === 'waiting' || r.state === 'granted') {
+    var end = cmdButton(r.state === 'waiting' ? 'Take back' : 'End now', 'close', 'small');
+    end.onclick = function () {
+      busy(end, true);
+      api('elevate-end', {id: r.id}).then(function (x) { ok(x.message || tr('ended')); after(); }).catch(oops).then(function () { busy(end, false); });
+    };
+    b.appendChild(end);
+  }
+  if (b.firstChild) c.appendChild(b);
+  return c;
+}
+function decideRole(r, yes, after) {
+  var why = null;
+  modal(yes ? tr('Approve the role') : tr('Decline the request'), function (body) {
+    body.appendChild(elevCard(r, 'view', function () { }));
+    why = el('input', '');
+    why.type = 'text';
+    why.id = 'pwg-why';
+    why.placeholder = yes ? tr('optional') : tr('why - the person who asked reads it');
+    noI18n(why);
+    body.appendChild(formField(yes ? 'A word for the record' : 'Why', why));
+  }, [{words: 'Close', close: true},
+      {words: yes ? 'Approve' : 'Decline', cls: yes ? 'primary' : 'danger', icon: yes ? 'check' : 'ban', go: function (b) {
+        var w = why.value.trim();
+        if (!yes && !w) { toast(tr('say why it is declined'), 'bad'); return; }
+        busy(b, true);
+        api('elevate-decide', {id: r.id, ok: yes ? 1 : 0, why: w}).then(function (x) {
+          ok(x.message || tr('done'));
+          closeModal(true);
+          after();
+        }).catch(oops).then(function () { busy(b, false); });
+      }}], true);
+}
+function askRole(may, after) {
+  var st = {team: may[0].team, role: '', hours: 4};
+  var read = null;
+  modal(tr('Ask for a temporary role'), function (body) {
+    body.classList.add('pwg-dlg');
+    body.appendChild(el('p', 'muted', 'A role on a team for a few hours - a change window, a night shift, an incident. A manager of the team approves it (never you), and it ends by itself.'));
+    var ts = selectBox(may.map(function (m) { return [m.team, m.team]; }), st.team);
+    ts.id = 'pwg-ask-team';
+    noI18n(ts);
+    body.appendChild(formField('Team', ts));
+    var roles = el('div', 'pwg-roles');
+    roles.id = 'pwg-ask-roles';
+    body.appendChild(formField('Role', roles));
+    var hours = el('input', '');
+    hours.type = 'number';
+    hours.id = 'pwg-ask-hours';
+    hours.min = '1';
+    hours.value = '4';
+    var hw = el('div', 'pwg-hours');
+    hw.appendChild(hours);
+    [1, 2, 4, 8].forEach(function (n) {
+      var q = el('button', 'pw-pill', n + ' h');
+      q.type = 'button';
+      noI18n(q);
+      q.onclick = function () { hours.value = Math.min(n, Number(hours.max || 8)); };
+      hw.appendChild(q);
+    });
+    var most = el('span', 'muted small');
+    hw.appendChild(most);
+    body.appendChild(formField('For how many hours', hw));
+    var why = el('input', '');
+    why.type = 'text';
+    why.id = 'pwg-ask-why';
+    why.placeholder = tr('what for - a change window, a ticket…');
+    noI18n(why);
+    body.appendChild(formField('Why', why));
+    var paint = function () {
+      clear(roles);
+      var m = may.filter(function (x) { return x.team === ts.value; })[0] || {roles: [], max_hours: 8};
+      hours.max = String(m.max_hours || 8);
+      if (Number(hours.value) > m.max_hours) hours.value = m.max_hours;
+      most.textContent = tr('{0} hours at most').replace('{0}', m.max_hours || 8);
+      if (m.roles.indexOf(st.role) < 0) st.role = m.roles[0] || '';
+      m.roles.forEach(function (r) {
+        var b = el('button', 'pw-pill' + (st.role === r ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('aria-pressed', st.role === r ? 'true' : 'false');
+        b.appendChild(data('span', '', r));
+        b.onclick = function () { st.role = r; paint(); };
+        roles.appendChild(b);
+      });
+    };
+    ts.addEventListener('change', paint);
+    paint();
+    read = function () { return {team: ts.value, role: st.role, hours: Number(hours.value), reason: why.value.trim()}; };
+  }, [{words: 'Close', close: true},
+      {words: 'Ask', cls: 'primary', icon: 'bell', go: function (b) {
+        var r = read();
+        if (!r.role) { toast(tr('choose a role'), 'bad'); return; }
+        if (r.reason.length < 3) { toast(tr('say why you need it'), 'bad'); return; }
+        busy(b, true);
+        api('elevate', r).then(function (x) { ok(x.message || tr('asked')); closeModal(true); after(); })
+          .catch(oops).then(function () { busy(b, false); });
+      }}], 'medium');
+}
+function reviewAnswer(rv, after) {
+  modal(tr('Access review of {0}').replace('{0}', rv.team), function (body) {
+    body.classList.add('pwg-dlg');
+    body.appendChild(el('p', 'muted', 'Confirm each member and their roles, or take them out of the team. You do not confirm your own membership.'));
+    var list = el('div', 'pwg-list');
+    list.id = 'pwg-rv-list';
+    arr(rv.items).forEach(function (it) {
+      var r = el('div', 'pwg-rvi' + (it.state !== 'pending' ? ' answered' : ''));
+      r.dataset.who = it.who;
+      r.appendChild(avatar(it.who, /^group:/i.test(it.who)));
+      var w = el('div', 'pwg-rvi-w');
+      var t = el('div', 'pwg-e-l1');
+      t.appendChild(data('b', '', whoWords(it.who)));
+      t.appendChild(gState(it.state));
+      w.appendChild(t);
+      var roles = el('div', 'pw-chips');
+      arr(it.roles).concat(arr(it.rights)).forEach(function (x) { roles.appendChild(chip(x, 'info', null, true)); });
+      w.appendChild(roles);
+      r.appendChild(w);
+      if (it.state === 'pending') {
+        var b = el('div', 'pwg-e-b');
+        var outB = cmdButton('Take out', 'trash', 'small');
+        var keepB = cmdButton('Confirm', 'check', 'small primary');
+        keepB.classList.add('pwg-rv-keep');
+        var answer = function (keep, btn) {
+          busy(btn, true);
+          api('review-answer', {id: rv.id, who: it.who, keep: keep ? 1 : 0}).then(function (x) {
+            ok(x.message || tr('saved'));
+            closeModal(true);
+            after();
+          }).catch(oops).then(function () { busy(btn, false); });
+        };
+        keepB.onclick = function () { answer(true, keepB); };
+        outB.onclick = function () { answer(false, outB); };
+        b.appendChild(outB);
+        b.appendChild(keepB);
+        r.appendChild(b);
+      }
+      list.appendChild(r);
+    });
+    body.appendChild(list);
+  }, [{words: 'Close', close: true}], 'medium');
+}
+var G_GROUPS = [['Certificates', 'cert'], ['Deployments', 'deploy'], ['Devices', 'target'], ['Tests', 'test'], ['The team', 'team']];
+function whoMatrix(d) {
+  var box = el('div', 'pwg-mx-s');
+  var t = el('table', 'pwg-mx');
+  var caps = arr(d.caps);
+  var groups = G_GROUPS.map(function (g) { return {name: g[0], cls: g[1], caps: caps.filter(function (c) { return c.group === g[0]; })}; })
+    .filter(function (g) { return g.caps.length; });
+  var th = el('thead');
+  var r1 = el('tr');
+  var c0 = el('th', 'pwg-mx-c0', 'Who');
+  c0.rowSpan = 2;
+  r1.appendChild(c0);
+  groups.forEach(function (g) { var x = el('th', 'pwg-mx-g g-' + g.cls, g.name); x.colSpan = g.caps.length; r1.appendChild(x); });
+  th.appendChild(r1);
+  var r2 = el('tr');
+  groups.forEach(function (g) {
+    g.caps.forEach(function (c, i) {
+      var x = el('th', 'pwg-mx-cap' + (i === 0 ? ' first' : ''));
+      x.appendChild(data('span', '', c.id.split('.')[1]));
+      explain(x, c.id + ' - ' + c.words);
+      r2.appendChild(x);
+    });
+  });
+  th.appendChild(r2);
+  t.appendChild(th);
+  var tb = el('tbody');
+  arr(d.people).forEach(function (p) {
+    var row = el('tr');
+    var h = el('th', 'pwg-mx-c0');
+    var lab = el('span', 'pwg-mx-who');
+    lab.appendChild(avatar(p.who, p.kind === 'group'));
+    lab.appendChild(data('span', '', whoWords(p.who)));
+    h.appendChild(lab);
+    row.appendChild(h);
+    groups.forEach(function (g) {
+      g.caps.forEach(function (c, i) {
+        var td = el('td', 'pwg-mx-x' + (i === 0 ? ' first' : ''));
+        if (arr(p.caps).indexOf(c.id) >= 0) {
+          var vias = arr((p.cells || {})[c.id]).map(function (k) { return arr(p.via)[k]; }).filter(Boolean);
+          var kind = vias.some(function (v) { return v.jit; }) ? 'j' : vias.some(function (v) { return !v.inherited; }) ? 'd' : 'i';
+          var dotEl = el('span', 'pwg-dot ' + kind);
+          dotEl.setAttribute('tabindex', '0');
+          dotEl.setAttribute('role', 'img');
+          var words = vias.map(function (v) { return arr(v.roles).concat(arr(v.rights)).join(', ') + ' - ' + (v.inherited ? tr('inherited from') + ' ' : tr('on') + ' ') + v.team + (v.jit ? ' (' + tr('temporary') + ')' : ''); }).join(' · ');
+          dotEl.setAttribute('aria-label', c.id + ': ' + words);
+          explain(dotEl, c.id + ': ' + words);
+          td.appendChild(dotEl);
+        }
+        row.appendChild(td);
+      });
+    });
+    tb.appendChild(row);
+  });
+  t.appendChild(tb);
+  box.appendChild(t);
+  var wrap = el('div', 'pwg-who-res');
+  var leg = el('div', 'pwg-legend');
+  [['d', 'on the team itself'], ['i', 'inherited from a team above'], ['j', 'a temporary role']].forEach(function (x) {
+    var it = el('span', '');
+    it.appendChild(el('span', 'pwg-dot ' + x[0]));
+    it.appendChild(el('span', '', x[1]));
+    leg.appendChild(it);
+  });
+  wrap.appendChild(leg);
+  wrap.appendChild(box);
+  return wrap;
+}
+
+/* ---- the banner while an administrator views the portal as somebody ------------------------ */
+function viewAsBanner() {
+  if (!(typeof PORTAL_ME === 'object' && PORTAL_ME)) return;
+  api('view-as').then(function (d) {
+    if (!d || !d.active || $('pwg-viewas')) return;
+    var b = el('div', 'pwg-viewas');
+    b.id = 'pwg-viewas';
+    b.setAttribute('role', 'status');
+    b.appendChild(ic('eye', 18));
+    var w = el('span', 'pwg-viewas-w');
+    w.appendChild(el('span', '', 'You see the portal as'));
+    w.appendChild(document.createTextNode(' '));
+    w.appendChild(data('b', '', whoWords(d.who)));
+    w.appendChild(document.createTextNode(' '));
+    w.appendChild(el('span', 'muted', '- read-only: nothing is changed'));
+    b.appendChild(w);
+    var stop = cmdButton('Stop viewing as', 'close', 'small');
+    stop.id = 'pwg-viewas-stop';
+    stop.onclick = function () {
+      busy(stop, true);
+      api('logout', {}).then(function () { location.href = '/'; }).catch(function () { location.href = '/'; });
+    };
+    b.appendChild(stop);
+    document.body.insertBefore(b, document.body.firstChild);
+    document.body.classList.add('pwg-viewing');
+  }).catch(function () { });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', viewAsBanner);
+else viewAsBanner();
 
 window.ACME_PORTAL_WS = {start: start, go: go, pick: pickTeam, state: WS};
 })();

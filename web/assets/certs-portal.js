@@ -557,7 +557,8 @@ function certDialog(id, fresh) {
       ['Name', data('span', 'mono', c.name)],
       ['Source', data('span', '', c.issuer || '–')],
       ['Key', keyWords(c)],
-      c.req_profile ? ['Request profile', data('span', '', c.req_profile)] : null,
+      /* ...and the version of it it was asked for from (1.0.138) */
+      c.req_profile ? ['Request profile', data('span', '', c.req_profile + (c.req_profile_version ? ' · v' + c.req_profile_version : ''))] : null,
       ['Valid from', c.not_before ? stamp(c.not_before) : '–'],
       ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
       ['Serial', c.serial ? data('span', 'mono small', c.serial) : '–'],

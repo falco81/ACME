@@ -573,3 +573,106 @@ body.pw-on .wrap.portal{max-width:1400px}
 .pw-pairx{all:unset;cursor:pointer;margin-left:auto;display:inline-flex;padding:2px;border-radius:6px;color:var(--muted)}
 .pw-pairx:focus-visible{outline:2px solid var(--info);outline-offset:2px}
 .pw-pair b{font-weight:600}
+
+/* ==== Governance (1.0.138): health, access - temporary roles, reviews, who may - and the banner
+   while an administrator views the portal as somebody. pwg-*, colours from the theme. ==== */
+.pwg-viewas{position:sticky;top:0;z-index:2000;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 16px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--warn) 26%,var(--panel)),color-mix(in srgb,var(--violet) 18%,var(--panel)));
+  border-bottom:1px solid color-mix(in srgb,var(--warn) 50%,var(--line));color:var(--tx);font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.pwg-viewas > .pw-ic{color:var(--warn)}
+.pwg-viewas-w{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+.pwg-ring{position:relative;display:inline-grid;place-items:center;flex:none}
+.pwg-ring svg{position:absolute;inset:0;width:100%;height:100%}
+.pwg-ring circle{fill:none;stroke-width:6}
+.pwg-ring .bg{stroke:color-mix(in srgb,var(--line) 85%,transparent)}
+.pwg-ring .fg{stroke:var(--ok);stroke-linecap:round}
+.pwg-ring.g-fair .fg{stroke:var(--warn)} .pwg-ring.g-poor .fg{stroke:var(--crit)}
+.pwg-ring-v{position:relative;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+.pwg-ring.big .pwg-ring-v{font-size:24px}
+.pwg-health{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.pwg-hero{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:18px 20px;
+  background:radial-gradient(120% 160% at 0% 0%,color-mix(in srgb,var(--ok) 12%,transparent),transparent 60%),var(--panel)}
+.pwg-hero-w{flex:1 1 260px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.pwg-hero-w h3{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px}
+.pwg-pills{display:flex;flex-wrap:wrap;gap:5px}
+.pwg-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border-radius:999px;font-size:12px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--tx-dim);white-space:nowrap}
+.pwg-pill.zero{opacity:.55}
+.pwg-pill.warn{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+.pwg-pill.crit{color:var(--crit);background:var(--crit-bg);border-color:transparent}
+.pwg-pill.ok{color:var(--ok);background:var(--ok-bg);border-color:transparent}
+.pwg-quota{display:flex;flex-direction:column;gap:5px;max-width:340px}
+.pwg-quota-t{display:flex;justify-content:space-between;font-size:12px;color:var(--tx-dim)}
+.pwg-quota-b{height:7px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+.pwg-quota-b > span{display:block;height:100%;border-radius:999px;background:var(--ok)}
+.pwg-quota-b.warn > span{background:var(--warn)} .pwg-quota-b.crit > span{background:var(--crit)}
+.pwg-hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:12px}
+.pwg-hcard{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;padding:14px 15px;border-radius:14px;border:1px solid var(--line);
+  background:linear-gradient(160deg,color-mix(in srgb,var(--pwg-c,var(--ok)) 7%,var(--panel)),var(--panel) 65%);cursor:pointer;min-width:0;transition:transform .15s,border-color .15s}
+.pwg-hcard.g-fair{--pwg-c:var(--warn)} .pwg-hcard.g-poor{--pwg-c:var(--crit)}
+.pwg-hcard:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--pwg-c,var(--ok)) 45%,var(--line))}
+.pwg-hcard:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.pwg-hcard-t{display:flex;align-items:center;gap:12px;min-width:0}
+.pwg-hcard-w{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pwg-hcard-n{display:flex;align-items:center;gap:6px;min-width:0}
+.pwg-hcard-n b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14.5px}
+.pwg-hd{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 12px}
+.pwg-hsec h4{display:flex;align-items:center;gap:7px;margin:14px 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:var(--tx-dim)}
+.pwg-hit{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 10px;border-radius:9px;background:var(--panel2);margin-bottom:3px}
+.pwg-hit .mono{overflow-wrap:anywhere}
+.pwg-acc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:14px;margin:14px 0;align-items:start}
+.pwg-list{display:flex;flex-direction:column;gap:8px}
+.pwg-sub{margin:6px 0 0;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tx-dim)}
+.pwg-e{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--panel2);display:flex;flex-direction:column;gap:10px;min-width:0}
+.pwg-e:hover{border-color:rgba(139,148,163,.4)}
+.pwg-e-t{display:flex;gap:11px;align-items:flex-start;min-width:0}
+.pwg-e-t > .pw-av{width:32px;height:32px;font-size:12px}
+.pwg-e-w{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.pwg-e-l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pwg-e-l1 > .pw-chip{margin-left:auto}
+.pwg-e-l2{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px}
+.pwg-e-r{margin:0;font-style:italic;color:var(--tx-dim);font-size:13px;overflow-wrap:anywhere}
+.pwg-left{color:var(--warn);font-weight:600}
+.pwg-e-b{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding-top:9px;border-top:1px dashed var(--line)}
+.pwg-rv{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:13px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+.pwg-rv:hover,.pwg-rv:focus-visible{border-color:rgba(88,166,255,.5)}
+.pwg-rv:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.pwg-rv.late{border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+.pwg-rv-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pwg-rv-t > .pw-chip{margin-left:auto}
+.pwg-prog{height:7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.pwg-prog > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--info),var(--ok))}
+.pwg-rvi{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
+.pwg-rvi.answered{opacity:.7}
+.pwg-rvi-w{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:5px}
+.pwg-rvi .pwg-e-b{border:0;padding:0}
+.pwg-roles{display:flex;gap:6px;flex-wrap:wrap}
+.pwg-hours{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pwg-hours input{width:90px}
+.pwg-who-res{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.pwg-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--tx-dim)}
+.pwg-legend > span{display:inline-flex;align-items:center;gap:6px}
+.pwg-dot{display:inline-block;width:12px;height:12px;border-radius:50%}
+.pwg-dot.d{background:var(--info);box-shadow:0 0 0 3px color-mix(in srgb,var(--info) 22%,transparent)}
+.pwg-dot.i{border:2.5px solid var(--violet)}
+.pwg-dot.j{background:var(--warn);border-radius:3px;transform:rotate(45deg) scale(.86)}
+.pwg-dot:focus-visible{outline:2px solid var(--info);outline-offset:3px}
+.pwg-mx-s{max-width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+.pwg-mx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+.pwg-mx th,.pwg-mx td{border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);padding:0}
+.pwg-mx .pwg-mx-c0{position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;padding:7px 12px;min-width:170px;max-width:240px}
+.pwg-mx-g{padding:8px 4px 3px !important;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;text-align:center;border-left:1px solid var(--line)}
+.pwg-mx-g.g-cert{color:var(--info)} .pwg-mx-g.g-deploy{color:var(--ok)} .pwg-mx-g.g-target{color:var(--load,#f0883e)} .pwg-mx-g.g-team{color:var(--violet)}
+.pwg-mx-cap{height:70px;min-width:32px;vertical-align:bottom;padding:3px 2px 6px !important}
+.pwg-mx-cap > span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;font-weight:600;color:var(--tx-dim);white-space:nowrap}
+.pwg-mx-cap.first,.pwg-mx-x.first{border-left:1px solid var(--line)}
+.pwg-mx-x{text-align:center;height:34px}
+.pwg-mx-who{display:flex;align-items:center;gap:8px;min-width:0}
+.pwg-mx-who > span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+@media (max-width:520px){
+  .pwg-viewas{padding:8px 12px;font-size:12.5px}
+  .pwg-mx .pwg-mx-c0{min-width:120px;max-width:140px}
+  .pwg-hero{padding:14px}
+  .pwg-e-b{justify-content:flex-start}
+}
+.pwg-acc > .card{margin:0}

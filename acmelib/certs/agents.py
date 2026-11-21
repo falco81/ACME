@@ -390,13 +390,14 @@ def seal(enc_pub_b64, agent_id, label, data):
             'ct': _b64(E.aes256gcm(k, nonce, bytes(data), aad))}
 
 
-def sign_job(store, agent_id, op, args):
-    """(job id, {'job': text, 'sig': base64}) - signed with acme's command key."""
+def sign_job(store, agent_id, op, args, seed=None):
+    """(job id, {'job': text, 'sig': base64}) - signed with acme's command key (`seed`: the
+    one the agent pins, when acme's was changed since - agent_guard.seed_for)."""
     jid = secrets.token_hex(12)
     body = json.dumps({'v': 1, 'agent': agent_id, 'job': jid, 'ts': int(time.time()),
                        'nonce': secrets.token_hex(16), 'op': op, 'args': args or {}},
                       sort_keys=True, separators=(',', ':'))
-    sig = E.ed25519_sign(cmd_key(store)['seed'], ('%s job\n' % PROTO).encode() +
+    sig = E.ed25519_sign(seed or cmd_key(store)['seed'], ('%s job\n' % PROTO).encode() +
                          body.encode('utf-8'))
     return jid, {'job': body, 'sig': _b64(sig)}
 
@@ -572,6 +573,13 @@ def info(store, row, full=False):
         out['design'] = agent_policy.design_summary(store, row, pol)
     except Exception:                                   # noqa: BLE001
         out['design'] = None
+    # 1.0.138: watched more closely (agent_guard: the audit chain, anomalies, keys, what is
+    # served) - each off unless chosen on the card
+    try:
+        from acmelib.certs import agent_guard
+        out['guard'] = agent_guard.summary(store, row, st)
+    except Exception:                                   # noqa: BLE001
+        out['guard'] = None
     return out
 
 
@@ -744,7 +752,9 @@ def join_take(store, row, st, c, secret, req, tls_key_fp=None):
     st['code'] = c
     st['pending'] = {'csr': csr, 'fp': fp, 'enc_pub': enc, 'agent_id': c['agent_id'],
                      'version': _txt(req.get('version'), 40), 'code_hash': _txt(req.get('code'), 64),
-                     'host': _txt(req.get('host'), 120), 'at': now, 'code_id': c['id']}
+                     'host': _txt(req.get('host'), 120), 'at': now, 'code_id': c['id'],
+                     # 1.0.138 (A8): the command key it is given to pin (join_answer)
+                     'cmd_fp': cmd_key(store)['fp']}
     state_put(store, row['id'], st)
     store.add_event('certificates', 'the agent of target %s asks to join (%s, key %s…) - its '
                     'fingerprint is confirmed on the target\'s card' % (
@@ -814,6 +824,12 @@ def _install_identity(store, row, st, pend, cert):
               code_hash=pend.get('code_hash') or '', host=pend.get('host') or '',
               joined_at=time.time(), refused='', last_error='', mode=mode_of(row),
               os=pend.get('os') or st.get('os') or '')
+    # 1.0.138 (A8): the command key it pinned at the join, the age of its key for secrets
+    st['cmd_fp'] = pend.get('cmd_fp') or ''
+    for k in ('cmd_prev_fp', 'cmd_prev_until', 'cmd_moved_at', 'key_said', 'agent_cmd_fp',
+              'features'):
+        st.pop(k, None)
+    st['enc_at'] = time.time()
     st['policy'] = None
     state_put(store, row['id'], st)
     store.set_meta(M_ID(aid), str(row['id']))
@@ -1680,6 +1696,24 @@ def clean_result(r):
             pass
     if isinstance(r.get('cert_fp'), str) and HEX64.match(r['cert_fp']):
         out['cert_fp'] = r['cert_fp']
+    # 1.0.138: the audit chain's head and entries (A6), what it can do, the command key it
+    # pins, when its key for secrets was made (A8) - each of its shape, cut
+    if isinstance(r.get('audit'), dict):
+        from acmelib.certs import agent_guard
+        head = agent_guard.clean_head(r['audit'])
+        if head:
+            out['audit'] = head
+    if isinstance(r.get('entries'), list):
+        out['entries'] = [e for e in r['entries'][:500] if isinstance(e, str) and len(e) <= 8192]
+    if isinstance(r.get('features'), list):
+        out['features'] = [_txt(x, 30) for x in r['features'][:20] if isinstance(x, str)]
+    if isinstance(r.get('cmd_fp'), str) and HEX64.match(r['cmd_fp']):
+        out['cmd_fp'] = r['cmd_fp']
+    try:
+        if r.get('enc_at') is not None and math.isfinite(float(r['enc_at'])):
+            out['enc_at'] = float(r['enc_at'])
+    except (TypeError, ValueError, OverflowError):
+        pass
     if isinstance(r.get('adcs'), dict):
         out['adcs'] = clean_adcs(r['adcs'])
     if isinstance(r.get('discover'), dict):
@@ -1964,7 +1998,11 @@ def call(store, row, op, args=None, timeout=900, step=None):
                           'card' % row['name'], retry=False)
     if not (row.get('enabled') is None or int(row.get('enabled') or 0)):
         raise PluginError('the target is switched off', retry=False)
-    jid, env = sign_job(store, st['agent_id'], op, args or {})
+    # 1.0.138 (A8, A6): signed with the command key this agent pins; kept while its audit
+    # chain is compared (agent_guard - nothing of it while it is off)
+    from acmelib.certs import agent_guard
+    jid, env = sign_job(store, st['agent_id'], op, args or {}, agent_guard.seed_for(store, st))
+    agent_guard.sent(store, row, jid, op)
     mode = mode_of(row)
     t0 = time.time()
     try:
@@ -2005,6 +2043,8 @@ def call(store, row, op, args=None, timeout=900, step=None):
         # 1.0.120: the facts of its server, when they were said, its clock against acme's
         from acmelib.certs import agent_system
         agent_system.seen_hello(st, got, t0, time.time())
+        if got.get('ok'):
+            agent_guard.seen_hello(st, got)     # 1.0.138: what it can do, the key it pins
     if got.get('code'):
         st['code_hash'] = _txt(got['code'], 64)
     st['took_ms'] = int((time.time() - t0) * 1000)
@@ -2012,6 +2052,13 @@ def call(store, row, op, args=None, timeout=900, step=None):
         _blocked_seen(store, row, st, got, op)
     stale = st.pop('policy_stale', False)
     state_put(store, row['id'], st)
+    try:
+        agent_guard.answered(store, row, op, got)       # 1.0.138 (A6): the chain's head
+        if op in ('hello', 'policy') and got.get('policy'):
+            agent_guard.evaluate(store, row, st)        # (A7): its policy against its usual
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('agent-guard-%s' % row['id'], 'watching the agent of %s: %s' % (
+            row['name'], e), 'warn', every=3600)
     if stale and op != 'hello':
         try:
             call(store, row, 'hello', {}, timeout=30)
@@ -2168,7 +2215,10 @@ def tunnel(store, row, host, port, timeout=20):
     if not (row.get('enabled') is None or int(row.get('enabled') or 0)):
         raise PluginError('the target %s is switched off' % row['name'], retry=False)
     to = ('[%s]:%d' % (host, int(port))) if ':' in str(host) else '%s:%d' % (host, int(port))
-    _jid, env = sign_job(store, st['agent_id'], 'connect', {'to': to, 'timeout': int(timeout)})
+    from acmelib.certs import agent_guard
+    _jid, env = sign_job(store, st['agent_id'], 'connect', {'to': to, 'timeout': int(timeout)},
+                         agent_guard.seed_for(store, st))
+    agent_guard.sent(store, row, _jid, 'connect')
     ahost, aport = _hostport(row)
     via = str(target_conf(row).get('via') or '').strip()
     hop = None
@@ -2375,6 +2425,8 @@ def forget(store, row, by):
         store.db.run('DELETE FROM meta WHERE k = ?', (M_ID(st['agent_id']),))
     store.db.run('DELETE FROM meta WHERE k = ?', (M_T(row['id']),))
     store.db.run('DELETE FROM meta WHERE k LIKE ?', ('agentq:%d:%%' % row['id'],))
+    from acmelib.certs import agent_guard
+    agent_guard.forget(store, row)
     store.add_event('certificates', 'the agent of target %s was forgotten by %s - it is no '
                     'longer let in (acme-agent forget on the target takes its side away)'
                     % (row['name'], by), 'warn', who=by)
@@ -2393,6 +2445,8 @@ def target_gone(store, row):
     agent_policy.design_gone(store, row)
     from acmelib.certs import agent_discover
     agent_discover.forget(store, row)
+    from acmelib.certs import agent_guard
+    agent_guard.forget(store, row, gone=True)
 
 
 # ---- now and then (the leader) -------------------------------------------------------------------
@@ -2461,9 +2515,19 @@ def tick(store):
                 state_put(store, row['id'], st)
                 store.add_event('certificates', 'the agent of target %s has not been heard from '
                                 'since %s' % (row['name'], _when(st.get('last_seen'))), 'warn')
+            # 1.0.138: its chain read, its anomalies, its keys, what its services serve - each
+            # only as chosen on its card (what is served: where its policy allows probe local)
+            from acmelib.certs import agent_guard
+            agent_guard.tick(store, row, state(store, row['id']))
         except Exception as e:                          # noqa: BLE001
             E.log_sparing('agent-tick-%s' % row['id'], 'the agent of %s: %s' % (row['name'], e),
                           'warn', every=3600)
+    try:
+        from acmelib.certs import agent_guard
+        agent_guard.sweep(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('agent-guard-sweep', 'the agents\' keys and chains: %s' % e, 'warn',
+                      every=3600)
 
 
 def _ask_quietly(store, row):
@@ -2520,6 +2584,14 @@ def alerts(store):
                         'level': 'bad' if end < now else 'warn',
                         'words': 'the certificate of the agent of target %s %s %s' % (
                             row['name'], 'ended' if end < now else 'ends', _when(end))})
+        # 1.0.138: its audit chain not agreeing, its anomalies (each as chosen on its card),
+        # a deployment whose service still serves the old certificate
+        try:
+            from acmelib.certs import agent_guard
+            out += agent_guard.alerts(store, row, st)
+        except Exception as e:                          # noqa: BLE001
+            E.log_sparing('agent-guard-alerts', 'the agents\' alerts: %s' % e, 'warn',
+                          every=3600)
     return out
 
 

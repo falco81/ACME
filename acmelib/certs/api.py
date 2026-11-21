@@ -69,7 +69,9 @@ def api(method, path, role='readonly'):
             try:
                 # Who may do this with which certificate (teams.py, docs/teams.md).
                 _lib('teams').guard(h, s, method, path)
-                return fn(h, s)
+                # what it changes noted for the history and the trash (history.py, 1.0.138)
+                with _lib('history').acting(h, s, method, path):
+                    return fn(h, s)
             except LookupError as e:
                 raise E.ApiError(404, str(e).strip('\'"'))
             except base.PluginError as e:
@@ -3747,6 +3749,7 @@ from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry ru
 from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and what it makes)
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
 from acmelib.certs import api_agents  # noqa: E402,F401  (target agents: the join, the wire, the pane)
+from acmelib.certs import api_fleet  # noqa: E402,F401  (the agents' fleet: templates, groups, rings)
 from acmelib.certs import api_teams  # noqa: E402,F401  (Settings → Owners and teams, the tags)
 from acmelib.certs import portal_teams  # noqa: E402,F401  (the portal's team workspace, 1.0.125)
 from acmelib.certs import api_reqprofiles  # noqa: E402,F401  (Settings → Request profiles)
@@ -3761,3 +3764,4 @@ from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a so
 from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: any file read and described)
 from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)
 from acmelib.certs import isemonsync  # noqa: E402,F401  (Settings → isemon: the first full sync)
+from acmelib.certs import api_ctxmenu  # noqa: E402,F401  (the right button's Clone: the same credentials, 1.0.138)

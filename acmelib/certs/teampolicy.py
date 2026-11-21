@@ -516,7 +516,28 @@ def self_allowed(store, row):
     """Whether the rule of the request's team lets the one who asked approve it (self: true);
     never by default."""
     rule = rule_for(store, row)
+    if rule and rule.get('self') and _sod_no_self(store, rule.get('team')):
+        # separation of duties (1.0.138): "the requester never approves their own request",
+        # whatever the approval rule's `self` says
+        return False
     return bool(rule and rule.get('self'))
+
+
+def _sod_no_self(store, team):
+    from acmelib.certs import teamgov
+    return teamgov.no_self_approval(store, team)
+
+
+def _sod_refuse(store, team, approver, what):
+    """Separation of duties (1.0.138): an approver holding both roles of an exclusive pair of
+    the team is refused in words (and an event)."""
+    from acmelib.certs import teamgov
+    words = teamgov.approver_conflict(store, team, approver)
+    if words:
+        store.add_event('certificates', '%s was refused: approving %s (%s)' % (
+            (approver or {}).get('by') or '?', what, words), 'warn',
+            who=str((approver or {}).get('by') or '')[:190])
+        raise E.ApiError(403, words)
 
 
 def _record(store, cid, entry):
@@ -536,6 +557,8 @@ def approve_step(store, row, approver, ok, why):
     words (403/409) where this person may not approve it (yet)."""
     rule = rule_for(store, row)
     approver = approver or {'by': '?', 'all': True}
+    if ok:
+        _sod_refuse(store, team_name(store, row.get('owner')), approver, row.get('name'))
     entry = {'by': str(approver.get('by') or '?')[:190], 'at': time.time(), 'ok': bool(ok),
              'why': str(why or '')[:500],
              'ids': [str(x)[:400] for x in (approver.get('ids') or [])][:20]}
@@ -595,6 +618,10 @@ def approve_step(store, row, approver, ok, why):
 def may_approve_now(store, row, approver):
     """(whether this person may approve the request now, why not) - said before, as the
     lists offer it."""
+    from acmelib.certs import teamgov
+    sod = teamgov.approver_conflict(store, team_name(store, (row or {}).get('owner')), approver)
+    if sod:
+        return False, sod
     rule = rule_for(store, row)
     if not rule:
         return True, ''
@@ -857,8 +884,10 @@ def action_approve(store, aid, approver, ok, why=''):
     rule = T.approval_rule(_eff(store, rec['team']))
     rule['team'] = rec['team']
     if _same_person({'ids': rec.get('ids'), 'by': rec.get('by')}, approver) and \
-            not rule.get('self'):
+            (not rule.get('self') or _sod_no_self(store, rec['team'])):
         raise E.ApiError(403, 'you asked for it yourself - someone else approves it')
+    if ok:
+        _sod_refuse(store, rec['team'], approver, '"%s %s"' % (rec.get('action'), rec.get('ref')))
     levels = levels_of(store, rec['team'], approver)
     who = rule.get('approvers') or 'team'
     want = {'team': {'team'}, 'parent': {'parent'}}.get(who, {'team', 'parent'})
@@ -907,7 +936,10 @@ def may_approve_action_now(store, rec, approver):
     one's own unless the rule lets the asker."""
     rule = T.approval_rule(_eff(store, rec.get('team')))
     if _same_person({'ids': rec.get('ids'), 'by': rec.get('by')}, approver) and \
-            not rule.get('self'):
+            (not rule.get('self') or _sod_no_self(store, rec.get('team'))):
+        return False
+    from acmelib.certs import teamgov
+    if teamgov.approver_conflict(store, rec.get('team'), approver):
         return False
     who = rule.get('approvers') or 'team'
     want = {'team': {'team'}, 'parent': {'parent'}}.get(who, {'team', 'parent'})

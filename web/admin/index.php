@@ -544,7 +544,7 @@ if (isset($_GET['api'])) {
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
        write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|roles|dir)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|fleet|roles|dir|history|trash|views)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);
@@ -685,6 +685,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/agents.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/agents.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agents.css')) ?>">
 <?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/fleet.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/fleet.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/fleet.css')) ?>">
+<?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/policybuilder.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/policybuilder.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/policybuilder.css')) ?>">
 <?php endif; ?>
@@ -696,6 +699,12 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/runplan.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/runplan.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/runplan.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/history.css')): /* trash, history, saved views (1.0.138) */ ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/history.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/history.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/ctxmenu.css')): /* the right button's menu, Ctrl+K (1.0.138) */ ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/ctxmenu.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/ctxmenu.css')) ?>">
 <?php endif; ?>
 </head>
 <body class="app-shell fold-words<?= $me ? ' framed' : '' ?>">
@@ -2049,6 +2058,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php if (is_file(dirname(__DIR__) . '/assets/teams.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/teams.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/teams.js')) ?>"></script>
 <?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/reqprofiles-more.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/reqprofiles-more.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reqprofiles-more.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/reqprofiles.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/reqprofiles.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reqprofiles.js')) ?>"></script>
 <?php endif; ?>
@@ -2079,6 +2091,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php if (is_file(dirname(__DIR__) . '/assets/policybuilder.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/policybuilder.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/policybuilder.js')) ?>"></script>
 <?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/fleet.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/fleet.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/fleet.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/cas.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/cas.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/cas.js')) ?>"></script>
 <?php endif; ?>
@@ -2087,6 +2102,21 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/runplan.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/runplan.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/runplan.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/history.js')): /* trash, history (1.0.138) */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/history.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/history.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/savedviews.js')): /* saved views of the lists (1.0.138) */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/savedviews.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/savedviews.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/ctxmenu.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/ctxmenu.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/ctxmenu.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/ctxmenu-registry.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/ctxmenu-registry.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/ctxmenu-registry.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/palette.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/palette.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/palette.js')) ?>"></script>
 <?php endif; ?>
 </body>
 </html>

@@ -2713,7 +2713,8 @@ function modForm(key, row, p, fromPick, keep) {
     var bad = form.check();
     if (bad) { toast(bad, 'bad'); return; }
     busy(b, true);
-    capi(m.list + '/save', g).then(function (d) {
+    /* a clone with the same credentials (1.0.138, ctxmenu.js): the server copies the sealed ones */
+    capi(m.list + (keep && keep.copyOf ? '/save_copy' : '/save'), keep && keep.copyOf ? Object.assign({copy_of: keep.copyOf}, g) : g).then(function (d) {
       toast(said(d, 'saved'), 'good');
       delete LISTS[key];
       closeModal();
@@ -2751,7 +2752,7 @@ function modForm(key, row, p, fromPick, keep) {
         var c2 = {};
         Object.keys(cfg).forEach(function (k) { c2[k] = cfg[k]; });
         Object.keys(now).forEach(function (k) { c2[k] = now[k]; });
-        modForm(key, row, plugVersion(p._base || p, v), fromPick, {config: c2, name: name.value, note: note.value, enabled: on._get(), tags: tags ? tags.value : undefined});
+        modForm(key, row, plugVersion(p._base || p, v), fromPick, {config: c2, name: name.value, note: note.value, enabled: on._get(), tags: tags ? tags.value : undefined, copyOf: keep && keep.copyOf, like: keep && keep.like});
       });
       if (vp) {
         var vf = formField('Version of the module', vp, 'Which version this one uses - an API version of the device, say. Each has its own settings; what is typed stays.');
@@ -2760,7 +2761,7 @@ function modForm(key, row, p, fromPick, keep) {
       }
       if (row && row.version_missing) body.appendChild(el('p', 'ct-bad', 'The version it kept is not there any more - the one marked here is used. Save to keep it.'));
     }
-    form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p,
+    form = fieldForm(p.fields || [], cfg, secretsOf(row || (keep && keep.like)), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p,
                                                           typed: keep && keep.config ? keep.config : null});
     /* "Find the settings from the account" (discover.js, 1.0.29): the sign-in only,
        the rest read from the account and offered - filled in, never saved by itself. */
@@ -3048,6 +3049,11 @@ function deployTable(rows, o) {
       var why = el('div', 'ct-rowerr');
       why.textContent = String(d.last_error);
       nc.appendChild(why);
+    }
+    /* 1.0.138 (B6): deployed, but the service on the agent's server still serves the old one */
+    if (d.served && window.ACME_AGENTS && window.ACME_AGENTS.servedNote) {
+      var sn = window.ACME_AGENTS.servedNote(d.served);
+      if (sn) nc.appendChild(sn);
     }
     return mayOn(o.cert, 'deploy.manage') ? rowOpens(tr, function () { over(function () { deployEdit({deploy: d, cert: o.cert, target: o.target}); }, o.back); }) : tr;
   }, 'plain ct-deptable|Not deployed anywhere yet');
@@ -11048,6 +11054,14 @@ CT.jobLog = jobLog;
 CT.keptSecret = keptSecret;
 CT.api = capi;
 CT.dropZone = dropZone;
+/* The right button's menu (ctxmenu-registry.js, 1.0.138): the functions the rows' buttons and
+   the dialogs run, so the menu runs the same code. */
+CT.ctx = {MODS: MODS, LISTS: LISTS, loadRows: loadRows, plugins: plugins, plugOf: plugOf, plugVersion: plugVersion,
+          modForm: modForm, modEdit: modEdit, modTest: modTest, modDelete: modDelete, modAction: modAction,
+          targetPeek: targetPeek, setDefault: setDefault, certWizard: certWizard, certRenew: certRenew,
+          certDeploy: certDeploy, deleteDialog: deleteDialog, runTestsDialog: runTestsDialog,
+          exportDialog: exportDialog, revokeDialog: revokeDialog, deployOff: deployOff, jobStarted: jobStarted,
+          mayOn: mayOn, secretsOf: secretsOf, over: over};
 
 window.ACME_EXTRA_TABS = window.ACME_EXTRA_TABS || [];
 Object.keys(MY_TABS).concat(['overview']).forEach(function (name) {

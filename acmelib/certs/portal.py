@@ -303,6 +303,8 @@ def public_row(store, r, via):
     # What it may be downloaded as, and the request profile it was asked for from (1.0.18).
     one['formats'] = row_formats(store, r)
     one['req_profile'] = asker(store, r['id']).get('profile') or ''
+    # ...and its version then (1.0.138, docs/request-profiles.md "Versions")
+    one['req_profile_version'] = asker(store, r['id']).get('profile_version') or None
     return one
 
 

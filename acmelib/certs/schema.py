@@ -103,7 +103,24 @@ SCHEMA = [
     ('cert_teams', '''CREATE TABLE IF NOT EXISTS cert_teams (
         id {ID}, name {K} NOT NULL UNIQUE, kind {K}, members {B}, contact_mail {T},
         contact_phone {K}, note {T}, created {N}, created_by {K}, updated {N},
-        updated_by {K}, parent {K}, policy {B}, description {T})'''),
+        updated_by {K}, parent {K}, policy {B}, description {T}, extras {B},
+        hooks_sealed {B})'''),
+    # 1.0.138 (docs/teams.md "Governance"): extras - JSON of the team's access reviews, just-in-time
+    # elevation, separation of duties and notification channels (NULL: none, as before);
+    # hooks_sealed - its Teams/Slack webhook addresses, sealed (never shown back).
+    # Templates of teams (1.0.138, teamgov.py): roles, limits, profiles, notifications - no secret.
+    ('cert_team_templates', '''CREATE TABLE IF NOT EXISTS cert_team_templates (
+        id {ID}, name {K} NOT NULL UNIQUE, description {T}, config {B}, created {N},
+        created_by {K}, updated {N}, updated_by {K})'''),
+    # Just-in-time elevation (1.0.138): a role on a team asked for N hours, approved, ended.
+    ('cert_team_elevations', '''CREATE TABLE IF NOT EXISTS cert_team_elevations (
+        id {ID}, team {K}, who {K}, ids {T}, role {K}, hours {N}, reason {T}, state {K},
+        asked {N}, asked_by {K}, decided {N}, decided_by {K}, decided_why {T}, until {N},
+        ended {N}, ended_by {K}, updated {N})'''),
+    # Access reviews (1.0.138): one review of a team's members, each member's answer in items.
+    ('cert_team_reviews', '''CREATE TABLE IF NOT EXISTS cert_team_reviews (
+        id {ID}, team {K}, started {N}, started_by {K}, due {N}, state {K}, items {B},
+        done {N}, done_by {K}, action {K}, updated {N})'''),
     # 1.0.125 (docs/teams.md "Enterprise teams"): parent - the team above it (NULL top level),
     # policy - its limits (JSON, NULL none of its own), description; kind also 'unit'.
     # Members also carry roles (names of the built-in roles or of cert_roles) and until.
@@ -122,6 +139,12 @@ SCHEMA = [
     ('cert_req_profiles', '''CREATE TABLE IF NOT EXISTS cert_req_profiles (
         id {ID}, name {K} NOT NULL UNIQUE, description {T}, enabled {I}, config {B},
         created {N}, created_by {K}, updated {N}, updated_by {K})'''),
+    # Every saved change of a request profile (1.0.138, docs/request-profiles.md "Versions"):
+    # its number per profile, the profile as it was then (name, description, enabled, its own
+    # config), what changed (changes: JSON), who, when and why; uid matches it in an import.
+    ('cert_req_profile_versions', '''CREATE TABLE IF NOT EXISTS cert_req_profile_versions (
+        id {ID}, uid {K} NOT NULL UNIQUE, profile {K}, version {I}, name {K}, description {T},
+        enabled {I}, config {B}, changes {B}, why {T}, created {N}, created_by {K})'''),
     # Tests of what a server really serves (acmelib/plugins/checks, 1.0.32): defined as
     # targets are - a module (kind) with its settings, secrets sealed.
     ('cert_tests', '''CREATE TABLE IF NOT EXISTS cert_tests (
@@ -142,6 +165,7 @@ SCHEMA = [
 
 INDEXES = [
     'CREATE INDEX IF NOT EXISTS cert_checks_cert ON cert_checks (cert_id)',
+    'CREATE INDEX IF NOT EXISTS cert_req_profile_versions_p ON cert_req_profile_versions (profile)',
     'CREATE INDEX IF NOT EXISTS certs_not_after ON certs (not_after)',
     'CREATE INDEX IF NOT EXISTS certs_state ON certs (state, next_try)',
     'CREATE INDEX IF NOT EXISTS cert_versions_cert ON cert_versions (cert_id, version)',

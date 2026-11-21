@@ -48,6 +48,21 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
     POST /api/agents/confirm-many {items: [{id, fp}]}   several confirmed, each by the
                                         fingerprint it asks with              full administrator
 
+    1.0.138 - watched more closely (agent_guard.py; each chosen per target, off by default):
+    GET  /api/agents/guard?id=          the audit chain (A6), anomalies (A7), keys and their age
+                                        (A8), what the services serve (B6) of one target's agent
+    POST /api/agents/guard {id, audit?, anomaly?, rotate?, rotate_days?, health?}   the choices
+                                                                             full administrator
+    POST /api/agents/guard/verify {id}  the chain read and checked now   certificate administrator
+    POST /api/agents/guard/ack {id, what: audit|anomaly}   looked at: what did not agree put
+                                        away, what is there now the usual    full administrator
+    POST /api/agents/guard/rotate {id, what: command|seal|both}   Rotate now  full administrator
+    POST /api/agents/guard/served {id}  what the services serve asked now
+                                                                      certificate administrator
+    GET  /api/agents/keys               the age of every key (acme's and each agent's)
+    POST /api/agents/keys/rotate        a new command key for acme; the agents whose keys are
+                                        changed on a schedule moved to it   full administrator
+
     POST /api/agent-wire/{join,status,poll,enroll}   an active agent (enroll: one joining with a
                                         company enrollment code), through nginx (the agents' port)
                                         and web/agent.php only - the API's token, never a
@@ -283,6 +298,73 @@ def _package(h, s):
             'size': pkg['size'], 'signed': pkg['signed'], 'mime': 'application/gzip',
             'filename': pkg['name'], 'data_b64': base64.b64encode(data).decode('ascii'),
             'platform': 'linux', 'windows': win, 'windows_why': why}
+
+
+# ---- watched more closely (1.0.138, agent_guard.py) ------------------------------------------
+def _guard():
+    from acmelib.certs import agent_guard
+    return agent_guard
+
+
+@A.api('GET', '/api/agents/guard')
+def _guard_view(h, s):
+    return {'guard': _guard().view(h.store, _row(h))}
+
+
+@A.api('POST', '/api/agents/guard', 'fulladmin')
+def _guard_save(h, s):
+    b = h.body()
+    row = _row(h, b)
+    body = {k: b[k] for k in ('audit', 'anomaly', 'rotate', 'rotate_days', 'health') if k in b}
+    _guard().set_opts(h.store, row, body, A.who(s))
+    return {'guard': _guard().view(h.store, row), 'agent': G.info(h.store, row)}
+
+
+@A.api('POST', '/api/agents/guard/verify', 'certadmin')
+def _guard_verify(h, s):
+    row = _row(h, h.body())
+    if not _guard().opts(h.store, row['id'])['audit']:
+        raise ValueError('acme does not compare the audit chain of this agent (switch it on)')
+    _guard().read_chain(h.store, row, A.who(s), recheck=True)
+    return {'guard': _guard().view(h.store, row)}
+
+
+@A.api('POST', '/api/agents/guard/ack', 'fulladmin')
+def _guard_ack(h, s):
+    b = h.body()
+    row = _row(h, b)
+    _guard().ack(h.store, row, A._text(b, 'what', 20), A.who(s))
+    return {'guard': _guard().view(h.store, row), 'agent': G.info(h.store, row)}
+
+
+@A.api('POST', '/api/agents/guard/rotate', 'fulladmin')
+def _guard_rotate(h, s):
+    b = h.body()
+    row = _row(h, b)
+    got = _guard().rotate_now(h.store, row, A._text(b, 'what', 20) or 'both', A.who(s))
+    return {'rotated': got, 'guard': _guard().view(h.store, row)}
+
+
+@A.api('POST', '/api/agents/guard/served', 'certadmin')
+def _guard_served(h, s):
+    row = _row(h, h.body())
+    st = G.state(h.store, row['id'])
+    if not _guard().served_on(h.store, row, st):
+        raise ValueError('what the services serve is asked only where the agent\'s policy allows '
+                         '"allow probe local" (and it is not switched off on the card)')
+    _guard().served_check(h.store, row, force=True, by=A.who(s))
+    return {'guard': _guard().view(h.store, row)}
+
+
+@A.api('GET', '/api/agents/keys')
+def _keys(h, s):
+    return {'keys': _guard().keys_report(h.store)}
+
+
+@A.api('POST', '/api/agents/keys/rotate', 'fulladmin')
+def _keys_rotate(h, s):
+    got = _guard().rotate_all(h.store, A.who(s))
+    return {'rotated': got, 'keys': _guard().keys_report(h.store)}
 
 
 # ---- the company enrollment code (1.0.120) ---------------------------------------------------

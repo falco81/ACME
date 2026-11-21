@@ -3198,6 +3198,15 @@ def audit(**kw):
                 f.write(line + '\n')
     except OSError:
         pass
+    # 1.0.138 (A6): with `audit chain` in the policy, the same in the hash chain - the chained
+    # entry also in the Application event log (where acme-agent cannot take it away unseen)
+    try:
+        if os.path.isdir(A.ROOT_STATE):
+            ch = A.chain_add(kw)
+            if ch:
+                W.event(ch.get('ok', True), 'chain ' + A.chain_text(ch))
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 # ---- files in the policy's folders: through W ------------------------------------------------

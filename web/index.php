@@ -221,7 +221,11 @@ if (isset($_GET['api'])) {
                     'team-save' => 'team_save', 'team-delete' => 'team_delete',
                     /* the team's tests (1.0.128) */
                     'test-save' => 'test_save', 'test-delete' => 'test_delete',
-                    'test-run' => 'test_run'];
+                    'test-run' => 'test_run',
+                    /* governance (1.0.138): temporary roles, access reviews */
+                    'elevate' => 'elevate', 'elevate-decide' => 'elevate_decide',
+                    'elevate-end' => 'elevate_end', 'review-open' => 'review_open',
+                    'review-answer' => 'review_answer'];
     /* GET: the arguments each takes, nothing else passed on (each 200 characters at most). */
     $team_reads = ['teams' => [], 'inbox' => [], 'timeline' => ['id'],
                    'devices' => ['team', 'below', 'q'], 'device' => ['id'], 'kinds' => ['team'],
@@ -231,7 +235,10 @@ if (isset($_GET['api'])) {
                    'members' => ['team'], 'dir-search' => ['q', 'kind'],
                    'activity' => ['team', 'page', 'per', 'below'],
                    'tests' => ['team', 'below', 'q'], 'test' => ['id'], 'test-kinds' => ['team'],
-                   'policy-catalog' => ['team']];
+                   'policy-catalog' => ['team'],
+                   /* governance (1.0.138) */
+                   'health' => ['team'], 'elevations' => [], 'reviews' => ['team'],
+                   'whomay' => ['team'], 'view-as' => []];
     if ($post && isset($team_writes[$what])) {
         if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 256 * 1024) {
             http_response_code(413);
@@ -279,6 +286,21 @@ if (isset($_GET['api'])) {
     http_response_code(404);
     header('Content-Type: application/json');
     echo json_encode(['ok' => false, 'error' => 'unknown endpoint']);
+    exit;
+}
+
+/* ---- the portal as a member, read-only (1.0.138, docs/teams.md "View as") --------
+   A full administrator's one-time link (/?viewas=CODE, 2 minutes, once): the daemon checks it
+   and hands a sign-in of the portal as that member - its cookie set here, then the page. */
+if (isset($_GET['viewas']) && is_string($_GET['viewas'])
+        && preg_match('/^[A-Za-z0-9_-]{16,100}$/', $_GET['viewas']) === 1) {
+    [$va_status, $va_body] = acme_call('/api/portal/view_as_enter', 'POST',
+                                       ['code' => $_GET['viewas']], 30.0);
+    $va = json_decode($va_body, true);
+    if ($va_status === 200 && is_array($va) && !empty($va['token'])) {
+        acme_set_session((string) $va['token']);
+    }
+    header('Location: /', true, 303);
     exit;
 }
 
@@ -341,7 +363,7 @@ if ($title_ours) {
 <?php acme_head($title, $lang, $load, $nonce, '/'); ?>
 <?php if ($me && is_file(__DIR__ . '/assets/certs-portal.js')):
     /* The certificate manager's own pieces (names, days left, states), as the administration has them. */
-    foreach (['certs.css', 'certs-portal.css', 'portal-teams.css'] as $css):
+    foreach (['certs.css', 'certs-portal.css', 'portal-teams.css', 'ctxmenu.css'] as $css):
         if (is_file(__DIR__ . '/assets/' . $css)): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/<?= h($css) ?>?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/' . $css)) ?>">
 <?php endif; endforeach; endif; ?>
@@ -472,6 +494,9 @@ if ($title_ours) {
 <?php endif; ?>
 <?php if (is_file(__DIR__ . '/assets/certs-portal.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs-portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/certs-portal.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(__DIR__ . '/assets/ctxmenu.js')): /* the right button's menu (1.0.138): copy, filter */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/ctxmenu.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/ctxmenu.js')) ?>"></script>
 <?php endif; ?>
 <script nonce="<?= h($nonce) ?>">portalApp(PORTAL_ME);</script>
 <?php endif; ?>

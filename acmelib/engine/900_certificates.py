@@ -386,7 +386,11 @@ CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_ca
                      # the tests and where they are bound, an authority's renewals (1.0.80)
                      'cert_tests', 'cert_checks', 'cert_ca_versions',
                      # the custom roles of the teams (1.0.125, docs/teams.md)
-                     'cert_roles']
+                     'cert_roles',
+                     # the templates of teams (1.0.138, docs/teams.md "Governance")
+                     'cert_team_templates',
+                     # the versions of the request profiles (1.0.138, docs/request-profiles.md)
+                     'cert_req_profile_versions']
 
 
 @_certs_hook('carry_tables')

@@ -398,6 +398,7 @@ function drawList(box, d) {
   box.appendChild(g);
   var sv = serversTable(rows);    /* 1.0.120: every server at a glance */
   if (sv) box.appendChild(sv);
+  if (rows.some(function (a) { return a.joined; })) box.appendChild(keysReport());   /* 1.0.138 */
 }
 function tile(a, d) {
   var t = el('div', 'dbs-tile ag-tile ' + (a.state === 'refused' ? 'bad' : ''));
@@ -446,6 +447,7 @@ function tile(a, d) {
     explain(kf, arr(a.keys_of).join(', '));
     flags.appendChild(kf);
   }
+  guardFlags(a, flags);          /* 1.0.138: the watching's flags */
   if (flags.firstChild) t.appendChild(flags);
   if (a.design) {
     var df = el('span', 'ag-flag ' + (a.design.state === 'matches' ? 'ok' : (a.design.state === 'differs' ? 'warn' : 'info')));
@@ -1039,6 +1041,8 @@ function card(row, opts) {
     if (a.joined) box.appendChild(sysPanel(row, a, function (b) { load(true, b); }));
     /* 1.0.125: what the server runs that takes certificates (only where its policy allows it) */
     if (a.joined) box.appendChild(discoverBox(row, a, {reopen: opts.reopen, done: function () { load(false); }}));
+    /* 1.0.138: watched more closely - the audit chain, anomalies, keys, what is served */
+    if (a.joined) box.appendChild(guardBox(row, a, function () { load(false); }));
     if (otherProgram(a, a.shipped_code, a.shipped_codes)) {
       box.appendChild(el('div', 'note warn small', 'The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).'));
     }
@@ -2573,6 +2577,659 @@ function discoverBox(row, a, opts) {
   return box;
 }
 
+/* ==========================================================================
+   1.0.138: an agent watched more closely (agent_guard.py, docs/target-agent.md "Watching an
+   agent") - the audit chain (A6), anomalies (A7), keys and their age (A8), what the services
+   serve (B6). Each chosen on the card, off by default (what is served: where the policy
+   allows probe local already).
+   ========================================================================== */
+var G_MARK = {
+  acme: ['acme’s job', 'ok', 'check'], server: ['on the server', 'info', 'terminal'],
+  refused: ['refused', 'warn', 'ban'], unknown: ['not sent by acme', 'bad', 'flag'],
+  before: ['before acme compared', 'dim', 'clock']
+};
+var G_AUDIT = {
+  off: ['off', 'dim'], waiting: ['waiting for its first answer', 'info'], ok: ['verified', 'ok'],
+  behind: ['being read', 'info'], mismatch: ['does not agree', 'bad'],
+  agent_off: ['the server keeps no chain', 'warn'], unsupported: ['the agent is too old', 'warn']
+};
+var G_SERVED = {
+  ok: ['serves the deployed certificate', 'ok', 'check'], old: ['still serves the old certificate', 'warn', 'flag'],
+  other: ['serves another certificate', 'warn', 'flag'], unreachable: ['does not answer', 'dim', 'ban'],
+  none: ['nothing to ask', 'dim', 'info']
+};
+var G_TL = {};          /* target id -> {all: shown whole, filter} - kept while the page is open */
+var G_ROTATE_DAYS = [30, 60, 90, 180, 365];
+
+function gWin(row, a) { return (a && a.platform === 'windows') || (row && row.kind === 'agent_windows'); }
+function gLine(win, words) { return (win ? '' : 'sudo ') + words; }
+function shortFp(fp) { return grouped(fp).slice(0, 4).join(' ') + ' …'; }
+function daysWords(d) {
+  if (d === null || d === undefined) return '–';
+  d = Number(d);
+  if (d < 1) return 'less than a day';
+  return Math.round(d) === 1 ? '1 day' : Math.round(d) + ' days';
+}
+/** A feature of the watching: its mark, its words, its switch (a full administrator's). */
+function gFeat(key, ic, title, words, on, sw) {
+  var c = el('section', 'ag-gd-f ' + key + (on ? ' on' : ''));
+  c.setAttribute('aria-label', tr(title));
+  var top = el('div', 'ag-gd-f-top');
+  var mk = el('span', 'ag-gd-f-ic');
+  mk.appendChild(icon(ic, 18));
+  top.appendChild(mk);
+  var tw = el('div', 'ag-gd-f-tw');
+  tw.appendChild(el('b', 'ag-gd-f-t', title));
+  tw.appendChild(el('span', 'ag-gd-f-sub', words));
+  top.appendChild(tw);
+  if (sw) top.appendChild(sw);
+  c.appendChild(top);
+  return c;
+}
+function gSwitch(on, label, go) {
+  var sw = switchBox(on);
+  sw.classList.add('ag-gd-sw');
+  sw._input.setAttribute('aria-label', tr(label));
+  if (!FULL) {
+    sw._input.disabled = true;
+    sw.title = tr('A full administrator switches it');
+  } else {
+    sw._input.onchange = function () { go(!!sw._input.checked, sw); };
+  }
+  return sw;
+}
+function gRow(k, v) {
+  var r = el('div', 'ag-gd-kv');
+  r.appendChild(el('span', 'k', k));
+  var vv = el('span', 'v');
+  if (v && v.nodeType) vv.appendChild(v); else vv.appendChild(document.createTextNode(v === null || v === undefined || v === '' ? '–' : String(v)));
+  r.appendChild(vv);
+  return r;
+}
+
+function guardBox(row, a, reload) {
+  var box = el('div', 'ag-gd');
+  var head = el('div', 'ag-gd-h');
+  head.appendChild(icon('shield', 16));
+  head.appendChild(el('b', '', 'Watching this agent'));
+  var sum = el('span', 'ag-gd-sum');
+  head.appendChild(sum);
+  box.appendChild(head);
+  var lead = el('p', 'note small ag-gd-lead', 'Each of these is chosen for this agent alone and is off until it is switched on - the agent and acme then talk as before.');
+  box.appendChild(lead);
+  var body = el('div', 'ag-gd-body');
+  body.appendChild(el('p', 'muted small', 'Asking…'));
+  box.appendChild(body);
+  var win = gWin(row, a);
+  function load() {
+    return ask('agents/guard?id=' + encodeURIComponent(row.id)).then(function (x) {
+      /* an acme before 1.0.138 behind the page: nothing of it shown */
+      if (!x || !x.guard) { box.hidden = true; return; }
+      box.hidden = false;
+      draw(x.guard);
+    })
+      .catch(function (e) { clear(body); body.appendChild(el('p', 'ct-bad', String((e && e.message) || e))); });
+  }
+  function save(change, sw) {
+    var b = {id: row.id};
+    Object.keys(change).forEach(function (k) { b[k] = change[k]; });
+    if (sw) sw._input.disabled = true;
+    return ask('agents/guard', b).then(function (x) {
+      toast('saved', 'good');
+      draw(x.guard);
+    }).catch(function (e) { if (sw) { sw._input.checked = !sw._input.checked; sw._input.disabled = false; } oops(e); });
+  }
+  function act(path, b, button, words, wait) {
+    if (button) busy(button, true);
+    return ask(path, b, wait || 60).then(function (x) {
+      if (words) toast(words, 'good');
+      if (x && x.guard) draw(x.guard); else load();
+      if (reload && path !== 'agents/guard/verify' && path !== 'agents/guard/served') reload();
+    }).catch(oops).then(function () { if (button) busy(button, false); });
+  }
+  function draw(g) {
+    clear(body);
+    clear(sum);
+    var au = g.audit || {}, an = g.anomaly || {}, sv = g.served || {}, ks = g.keys;
+    /* the head in short: what is on, what is wrong */
+    var on = ['audit', 'anomaly', 'rotate'].filter(function (k) { return g.opts && g.opts[k]; }).length + (sv.on ? 1 : 0);
+    sum.appendChild(sysPill(on ? 'ok' : 'dim', 'eye', on === 1 ? '1 watching' : on + ' watching'));
+    if (au.state === 'mismatch') sum.appendChild(sysPill('bad', 'flag', 'chain does not agree'));
+    var nAn = arr(an.items).length;
+    if (an.on && nAn) sum.appendChild(sysPill(an.worst === 'bad' ? 'bad' : 'warn', 'bell', nAn === 1 ? '1 anomaly' : nAn + ' anomalies'));
+    if (sv.old) sum.appendChild(sysPill('warn', 'flag', 'serves an old certificate'));
+    var grid = el('div', 'ag-gd-grid');
+    grid.appendChild(auditFeat(g, au));
+    grid.appendChild(anomalyFeat(g, an));
+    grid.appendChild(keysFeat(g, ks));
+    grid.appendChild(servedFeat(g, sv));
+    body.appendChild(grid);
+    if (au.on) body.appendChild(timeline(g, au));
+    explainWhatWasDrawn(body);
+  }
+
+  /* A6 ---------------------------------------------------------------------------------- */
+  function auditFeat(g, au) {
+    var c = gFeat('audit', 'history', 'Audit chain', 'Every job the agent takes, does or refuses, each entry holding the hash of the one before - compared with what acme sent.',
+      !!au.on, gSwitch(!!au.on, 'Audit chain', function (v, sw) { save({audit: v}, sw); }));
+    var m = G_AUDIT[au.state] || G_AUDIT.off;
+    var st = el('div', 'ag-gd-st');
+    st.appendChild(sysPill(m[1], m[1] === 'ok' ? 'check' : (m[1] === 'bad' ? 'flag' : 'history'), m[0]));
+    if (au.on && au.verified_n) {
+      var vn = el('span', 'ag-gd-meta');
+      vn.appendChild(el('span', '', 'checked up to entry ' + au.verified_n));
+      if (au.verified_at) { vn.appendChild(noI18n(el('span', 'muted', ' · '))); vn.appendChild(el('span', 'muted', ago(au.verified_at))); }
+      st.appendChild(vn);
+    }
+    c.appendChild(st);
+    if (!au.on) {
+      c.appendChild(el('p', 'note small', 'Switched on, acme asks the server to keep the chain (the policy’s line below - root decides) and raises an alert for an entry of a job acme never sent, a gap or a chain written anew.'));
+      c.appendChild(cmdBox(gLine(win, 'acme-agent audit on'), 'small'));
+      return c;
+    }
+    if (au.state === 'unsupported') {
+      c.appendChild(el('p', 'note small warn', 'This agent is too old to keep the chain - update it (1.0.138 or later).'));
+    } else if (au.state === 'agent_off') {
+      c.appendChild(el('p', 'note small', 'The server’s policy has no line “audit chain”: root adds it on the server (acme never changes the policy).'));
+      c.appendChild(cmdBox(gLine(win, 'acme-agent audit on'), 'small'));
+    } else if (au.read_said) {
+      c.appendChild(data('p', 'note small warn', String(au.read_said)));
+    }
+    var probs = arr(au.problem_list);
+    if (probs.length) {
+      var pb = el('div', 'ag-gd-probs');
+      probs.slice(0, 5).forEach(function (p) {
+        var r = el('div', 'ag-gd-prob');
+        r.appendChild(icon('flag', 14));
+        var w = el('div', '');
+        w.appendChild(el('span', '', String(p.words || p.kind)));   /* acme's words: translated */
+        if (p.at) w.appendChild(el('span', 'ag-gd-when', ago(p.at)));
+        r.appendChild(w);
+        pb.appendChild(r);
+      });
+      c.appendChild(pb);
+    }
+    var br = el('div', 'btnrow ag-gd-acts');
+    if (MANAGE && au.state !== 'unsupported') {
+      var vb = cmdButton('Verify now', 'check', 'small');
+      vb.onclick = function () { act('agents/guard/verify', {id: row.id}, vb, 'the chain is read and checked', 120); };
+      br.appendChild(vb);
+    }
+    if (FULL && probs.length) {
+      var ab = cmdButton('I have looked at it…', 'check', 'small primary');
+      ab.onclick = function () {
+        confirmThen('What did not agree', 'What did not agree in the chain is put away and its alert ends. What the chain holds now is what acme compares from here.', 'Put it away', function () {
+          return act('agents/guard/ack', {id: row.id, what: 'audit'}, ab, 'put away');
+        }, false);
+      };
+      br.appendChild(ab);
+    }
+    if (br.firstChild) c.appendChild(br);
+    return c;
+  }
+
+  /* A7 ---------------------------------------------------------------------------------- */
+  function anomalyFeat(g, an) {
+    var c = gFeat('anomaly', 'bell', 'Anomaly alerts', 'A new network, its policy changed or widened, drift from its design or template, its clock, silence, an older version.',
+      !!an.on, gSwitch(!!an.on, 'Anomaly alerts', function (v, sw) { save({anomaly: v}, sw); }));
+    var items = arr(an.items);
+    var st = el('div', 'ag-gd-st');
+    if (!an.on) st.appendChild(sysPill('dim', 'bell', 'off'));
+    else if (!items.length) st.appendChild(sysPill('ok', 'check', 'nothing unusual'));
+    else st.appendChild(sysPill(an.worst === 'bad' ? 'bad' : 'warn', 'bell', items.length === 1 ? '1 anomaly' : items.length + ' anomalies'));
+    c.appendChild(st);
+    if (!an.on) {
+      c.appendChild(el('p', 'note small', 'Switched on, what the agent is now is taken as its usual; what changes from it is an event and an alert until a full administrator has looked at it.'));
+      return c;
+    }
+    if (items.length) {
+      var l = el('ul', 'ag-gd-an');
+      items.slice(0, 8).forEach(function (i) {
+        var li = el('li', 'ag-gd-an-i ' + (i.level === 'bad' ? 'bad' : (i.level === 'warn' ? 'warn' : 'info')));
+        li.appendChild(el('span', 'ag-gd-dot'));
+        var w = el('div', 'ag-gd-an-w');
+        w.appendChild(el('span', '', String(i.words || i.kind)));
+        var tags = el('span', 'ag-gd-an-tags');
+        tags.appendChild(el('span', 'ag-gd-tag', i.live ? 'now' : 'kept until looked at'));
+        if (i.at && !i.live) tags.appendChild(el('span', 'ag-gd-when', ago(i.at)));
+        w.appendChild(tags);
+        li.appendChild(w);
+        l.appendChild(li);
+      });
+      c.appendChild(l);
+    }
+    var usual = el('div', 'ag-gd-kvs');
+    if (an.base_at) usual.appendChild(gRow('Its usual since', when(an.base_at)));
+    if (arr(an.nets).length) usual.appendChild(gRow('Its networks', mono(arr(an.nets).join(', '))));
+    if (an.template) {
+      var tp = sysPill(an.template.state === 'matches' ? 'ok' : (an.template.state === 'differs' ? 'warn' : 'dim'), 'shield',
+        an.template.state === 'matches' ? 'matches' : (an.template.state === 'differs' ? 'differs' : 'not known'));
+      var tw = el('span', 'ag-gd-tpl');
+      tw.appendChild(data('b', '', String(an.template.name)));
+      tw.appendChild(tp);
+      usual.appendChild(gRow('Its template', tw));
+    }
+    if (usual.firstChild) c.appendChild(usual);
+    if (FULL && items.some(function (i) { return !i.live; })) {
+      var br = el('div', 'btnrow ag-gd-acts');
+      var ab = cmdButton('Take it as its usual…', 'check', 'small primary');
+      ab.onclick = function () {
+        confirmThen('Take it as its usual', 'What was seen is put away and its alerts end; the agent’s policy and network as they are now are its usual from here.', 'Take it as its usual', function () {
+          return act('agents/guard/ack', {id: row.id, what: 'anomaly'}, ab, 'its usual from now');
+        }, false);
+      };
+      br.appendChild(ab);
+      c.appendChild(br);
+    }
+    return c;
+  }
+
+  /* A8 ---------------------------------------------------------------------------------- */
+  function keysFeat(g, ks) {
+    var o = g.opts || {};
+    var c = gFeat('keys', 'key', 'Key rotation', 'acme’s command key and the agent’s key for secrets changed on a schedule - the old one still taken for ' + (g.overlap_h || 72) + ' h.',
+      !!o.rotate, gSwitch(!!o.rotate, 'Key rotation', function (v, sw) { save({rotate: v}, sw); }));
+    var st = el('div', 'ag-gd-st');
+    if (!ks) {
+      st.appendChild(sysPill('dim', 'key', 'not joined'));
+      c.appendChild(st);
+      return c;
+    }
+    var due = arr(ks.due);
+    if (ks.unknown) st.appendChild(sysPill('bad', 'flag', 'a command key acme does not have'));
+    else if (due.length) st.appendChild(sysPill('warn', 'clock', 'due to be changed'));
+    else st.appendChild(sysPill(o.rotate ? 'ok' : 'dim', 'key', o.rotate ? 'on schedule' : 'changed by hand only'));
+    c.appendChild(st);
+    var kvs = el('div', 'ag-gd-kvs');
+    var ck = el('span', 'ag-gd-key');
+    if (ks.cmd_fp) {
+      var f = mono(shortFp(ks.cmd_fp), 'ag-gd-fp');
+      explain(f, grouped(ks.cmd_fp).join(' '));
+      ck.appendChild(f);
+    }
+    ck.appendChild(el('span', 'ag-gd-age ' + (ks.cmd_current ? '' : 'old'), daysWords(ks.cmd_age)));
+    if (ks.cmd_current === false) ck.appendChild(el('span', 'ag-gd-tag warn', 'an earlier one'));
+    kvs.appendChild(gRow('acme’s command key', ck));
+    kvs.appendChild(gRow('Its key for secrets', el('span', 'ag-gd-age', daysWords(ks.enc_age))));
+    kvs.appendChild(gRow('Its certificate ends', certEnd(ks.tls_end)));
+    if (ks.prev_until) kvs.appendChild(gRow('The key before taken until', when(ks.prev_until)));
+    c.appendChild(kvs);
+    if (FULL) {
+      var sched = el('div', 'ag-gd-sched');
+      sched.appendChild(el('span', 'ag-gd-sched-l', 'Change every'));
+      var pick = el('select', 'ag-gd-days');
+      pick.setAttribute('aria-label', tr('Change every'));
+      var have = Number(o.rotate_days || 90);
+      var list = G_ROTATE_DAYS.indexOf(have) >= 0 ? G_ROTATE_DAYS : G_ROTATE_DAYS.concat([have]).sort(function (x, y) { return x - y; });
+      list.forEach(function (d) {
+        var op = el('option', '', d + ' days');
+        op.value = String(d);
+        if (d === have) op.selected = true;
+        pick.appendChild(op);
+      });
+      pick.onchange = function () { save({rotate_days: Number(pick.value)}); };
+      sched.appendChild(pick);
+      c.appendChild(sched);
+    }
+    if (ks.said) c.appendChild(data('p', 'note small warn', String(ks.said)));
+    else if (ks.can === false) c.appendChild(el('p', 'note small', 'This agent is too old to change keys over the channel - update it (1.0.138 or later).'));
+    if (FULL) {
+      var br = el('div', 'btnrow ag-gd-acts');
+      var rb = cmdButton('Rotate now…', 'refresh', 'small');
+      rb.disabled = ks.can === false;
+      rb.onclick = function () { rotateDialog(rb); };
+      br.appendChild(rb);
+      c.appendChild(br);
+    }
+    return c;
+  }
+  function rotateDialog(button) {
+    var pick = 'both';
+    modal(tr('Rotate the keys of {0}').replace('{0}', row.name), function (b) {
+      b.appendChild(el('p', 'note', 'acme announces its new command key in a job signed by the one the agent pins, proven by the new key itself; the agent takes both for the overlap, then the new one only. The agent’s key for secrets is made anew on the server and acme seals to it from then on.'));
+      var seg = el('div', 'ag-gd-choice');
+      seg.setAttribute('role', 'radiogroup');
+      [['both', 'Both keys', 'key'], ['command', 'acme’s command key', 'shield'], ['seal', 'Its key for secrets', 'lock']].forEach(function (x) {
+        var l = el('label', 'ag-gd-opt' + (x[0] === pick ? ' on' : ''));
+        var r = document.createElement('input');
+        r.type = 'radio';
+        r.name = 'ag-rot';
+        r.value = x[0];
+        r.checked = x[0] === pick;
+        r.onchange = function () {
+          pick = x[0];
+          Array.prototype.forEach.call(seg.children, function (n) { n.classList.toggle('on', n === l); });
+        };
+        l.appendChild(r);
+        l.appendChild(icon(x[2], 16));
+        l.appendChild(el('span', '', x[1]));
+        seg.appendChild(l);
+      });
+      b.appendChild(seg);
+      b.appendChild(el('p', 'note small muted', 'Both keys are kept in acme’s database (sealed) as the command key is - in every backup, on every node. A backup made before the change can no longer command the agent once the overlap ends.'));
+    }, [
+      {words: 'Close', close: true},
+      {words: 'Rotate now', cls: 'primary', close: true, once: true, noDanger: true, go: function () {
+        return act('agents/guard/rotate', {id: row.id, what: pick}, button, 'the keys are changed', 120);
+      }}
+    ], true);
+  }
+
+  /* B6 ---------------------------------------------------------------------------------- */
+  function servedFeat(g, sv) {
+    var c = gFeat('served', 'pulse', 'What the service serves', 'After a deployment and every six hours, the agent tells which certificate the service on the server itself serves - a forgotten reload is seen.',
+      !!sv.on, gSwitch(sv.switch !== 'off', 'What the service serves', function (v, sw) { save({health: v ? 'auto' : 'off'}, sw); }));
+    var st = el('div', 'ag-gd-st');
+    if (!sv.probe_local) st.appendChild(sysPill('dim', 'pulse', 'not allowed by its policy'));
+    else if (sv.switch === 'off') st.appendChild(sysPill('dim', 'pulse', 'off'));
+    else if (sv.old) st.appendChild(sysPill('warn', 'flag', sv.old === 1 ? '1 still serves the old one' : sv.old + ' still serve the old one'));
+    else st.appendChild(sysPill(arr(sv.items).length ? 'ok' : 'dim', 'pulse', arr(sv.items).length ? 'as deployed' : 'nothing asked yet'));
+    c.appendChild(st);
+    if (!sv.probe_local) {
+      c.appendChild(el('p', 'note small', 'Only where the server’s policy already allows tests from there - no permission is taken. To have it, root adds:'));
+      c.appendChild(cmdBox(gLine(win, 'acme-agent allow probe local'), 'small'));
+      return c;
+    }
+    var items = arr(sv.items);
+    if (items.length) {
+      var l = el('div', 'ag-gd-srv');
+      items.forEach(function (i) {
+        var m = G_SERVED[i.state] || G_SERVED.none;
+        var r = el('div', 'ag-gd-srv-i ' + m[1]);
+        r.appendChild(icon(m[2], 15));
+        var w = el('div', 'ag-gd-srv-w');
+        w.appendChild(data('b', '', String(i.cert || '?')));
+        var line = el('span', 'ag-gd-srv-s');
+        line.appendChild(el('span', '', m[0]));
+        var p0 = arr(i.places)[0];
+        if (p0) line.appendChild(mono(' · ' + p0.host + ':' + p0.port, 'ag-gd-port'));
+        if (i.state === 'old' && p0 && p0.version) line.appendChild(el('span', 'ag-gd-tag warn', 'version ' + p0.version));
+        w.appendChild(line);
+        if (i.state === 'old') w.appendChild(el('span', 'ag-gd-hint', 'Deployed, but the service still serves the certificate before - reload it.'));
+        if (i.state === 'unreachable' && p0 && p0.said) w.appendChild(data('span', 'ag-gd-hint', String(p0.said)));
+        if (i.state === 'none' && i.said) w.appendChild(el('span', 'ag-gd-hint', String(i.said)));
+        r.appendChild(w);
+        if (i.at) r.appendChild(el('span', 'ag-gd-when', ago(i.at)));
+        l.appendChild(r);
+      });
+      c.appendChild(l);
+    }
+    if (MANAGE && sv.on) {
+      var br = el('div', 'btnrow ag-gd-acts');
+      var b = cmdButton('Ask it now', 'refresh', 'small');
+      b.onclick = function () { act('agents/guard/served', {id: row.id}, b, 'the agent was asked', 180); };
+      br.appendChild(b);
+      c.appendChild(br);
+    }
+    return c;
+  }
+
+  /* the audit timeline ------------------------------------------------------------------ */
+  function timeline(g, au) {
+    var keep = G_TL[row.id] || (G_TL[row.id] = {all: false, filter: 'all'});
+    var tl = el('div', 'ag-tl');
+    var h = el('div', 'ag-tl-h');
+    h.appendChild(icon('history', 16));
+    h.appendChild(el('b', '', 'Audit timeline'));
+    if (au.verified_n) h.appendChild(noI18n(el('span', 'count', String(au.verified_n))));
+    var seg = el('div', 'seg ag-tl-seg');
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', tr('Show'));
+    [['all', 'All'], ['acme', 'acme’s jobs'], ['server', 'On the server'], ['bad', 'Not agreeing']].forEach(function (x) {
+      var b = el('button', keep.filter === x[0] ? 'on' : '', x[1]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', keep.filter === x[0] ? 'true' : 'false');
+      b.onclick = function () { keep.filter = x[0]; paint(); };
+      seg.appendChild(b);
+    });
+    h.appendChild(seg);
+    tl.appendChild(h);
+    var legend = el('div', 'ag-tl-legend');
+    ['acme', 'server', 'refused', 'unknown'].forEach(function (k) {
+      var m = G_MARK[k];
+      var s = el('span', 'ag-tl-lg ' + m[1]);
+      s.appendChild(el('span', 'ag-tl-lg-dot'));
+      s.appendChild(el('span', '', m[0]));
+      legend.appendChild(s);
+    });
+    tl.appendChild(legend);
+    var list = el('ol', 'ag-tl-l');
+    tl.appendChild(list);
+    var more = el('div', 'ag-tl-more');
+    tl.appendChild(more);
+    var entries = arr(au.entries);
+    function paint() {
+      Array.prototype.forEach.call(seg.children, function (b, i) {
+        var on = ['all', 'acme', 'server', 'bad'][i] === keep.filter;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      clear(list);
+      clear(more);
+      var shown = entries.filter(function (e) {
+        if (keep.filter === 'acme') return e.mark === 'acme';
+        if (keep.filter === 'server') return e.mark === 'server' || e.mark === 'refused' || e.mark === 'before';
+        if (keep.filter === 'bad') return e.mark === 'unknown';
+        return true;
+      });
+      if (!shown.length) {
+        list.appendChild(el('li', 'ag-tl-none', entries.length ? 'Nothing of that kind.' : 'No entry read yet - acme reads the chain after a deployment and every half hour while it grows (or: Verify now).'));
+        return;
+      }
+      var most = keep.all ? shown.length : Math.min(shown.length, 12);
+      shown.slice(0, most).forEach(function (e) { list.appendChild(tlItem(e)); });
+      if (shown.length > most) {
+        var b = cmdButton(tr('Show all {0}').replace('{0}', shown.length), 'unfold', 'small');
+        b.onclick = function () { keep.all = true; paint(); };
+        more.appendChild(b);
+      }
+    }
+    paint();
+    if (au.base_n) tl.appendChild(el('p', 'note small muted ag-tl-foot', 'acme compares the chain from entry ' + au.base_n + ' on (where it was switched on); the server keeps every entry before too - acme-agent audit show.'));
+    return tl;
+  }
+  function tlItem(e) {
+    var m = G_MARK[e.mark] || G_MARK.server;
+    var li = el('li', 'ag-tl-i ' + m[1]);
+    var dot = el('span', 'ag-tl-dot');
+    dot.appendChild(icon(m[2], 12));
+    li.appendChild(dot);
+    var card = el('div', 'ag-tl-c');
+    var top = el('div', 'ag-tl-top');
+    top.appendChild(data('span', 'ag-tl-op', String(e.op || '?')));
+    top.appendChild(el('span', 'ag-tl-mark ' + m[1], m[0]));
+    if (e.ok === false && e.mark !== 'refused') top.appendChild(el('span', 'ag-tl-mark warn', 'refused'));
+    var t = el('span', 'ag-tl-t');
+    t.appendChild(noI18n(el('span', 'ag-tl-n', '#' + e.n)));
+    if (e.ts) {
+      var w = el('time', '', when(e.ts));
+      w.setAttribute('datetime', new Date(Number(e.ts) * 1000).toISOString());
+      t.appendChild(w);
+    }
+    top.appendChild(t);
+    card.appendChild(top);
+    if (e.said) card.appendChild(data('div', 'ag-tl-said', String(e.said)));
+    var foot = el('div', 'ag-tl-foot2');
+    if (e.job) {
+      var j = mono('job ' + String(e.job).slice(0, 12) + '…', 'ag-tl-job');
+      explain(j, String(e.job));
+      foot.appendChild(j);
+    }
+    if (e.h) {
+      var hh = mono('sha256 ' + String(e.h).slice(0, 12) + '…', 'ag-tl-hash');
+      explain(hh, String(e.h));
+      foot.appendChild(hh);
+    }
+    if (e.mark === 'acme') {
+      var v = el('span', 'ag-tl-ver');
+      v.appendChild(icon('check', 12));
+      v.appendChild(el('span', '', 'verified'));
+      foot.appendChild(v);
+    }
+    card.appendChild(foot);
+    li.appendChild(card);
+    return li;
+  }
+  load();
+  return box;
+}
+
+/** The tile's flags of the watching (the list on Settings → Target agents). */
+function guardFlags(a, flags) {
+  var g = a.guard;
+  if (!g) return;
+  function flag(cls, ic, words, why) {
+    var f = el('span', 'ag-flag ' + cls);
+    f.appendChild(icon(ic, 13));
+    f.appendChild(el('span', '', words));
+    if (why) explain(f, why);
+    flags.appendChild(f);
+  }
+  var au = g.audit || {};
+  if (au.state === 'mismatch') flag('bad', 'flag', 'audit chain does not agree');
+  else if (au.state === 'ok' || au.state === 'behind') flag('ok', 'history', 'audit chain verified');
+  else if (au.on && au.state === 'agent_off') flag('warn', 'history', 'no audit chain on the server');
+  var an = arr(g.anomalies);
+  if (g.anomalies && an.length) {
+    var bad = an.some(function (i) { return i.level === 'bad'; });
+    flag(bad ? 'bad' : 'warn', 'bell', an.length === 1 ? '1 anomaly' : an.length + ' anomalies', an.map(function (i) { return tr(i.words); }).join('\n'));
+  }
+  if (g.served && g.served.old) flag('warn', 'pulse', 'serves an old certificate', arr(g.served.items).filter(function (i) { return i.state === 'old'; }).map(function (i) { return i.cert; }).join(', '));
+  if (g.keys && g.keys.unknown) flag('bad', 'key', 'unknown command key');
+  else if (g.keys && arr(g.keys.due).length) flag('warn', 'key', 'keys due to be changed');
+}
+
+/** B6 on a deployment's row: deployed, but its service still serves the old certificate. */
+function servedNote(sv) {
+  if (!sv || (sv.state !== 'old' && sv.state !== 'other')) return null;
+  var p = arr(sv.places).filter(function (x) { return x.state === sv.state; })[0] || {};
+  var n = el('div', 'ag-served-note ' + (sv.state === 'old' ? 'warn' : 'info'));
+  n.setAttribute('role', 'status');
+  n.appendChild(icon('flag', 14));
+  var w = el('span', '');
+  w.appendChild(el('b', '', sv.state === 'old' ? 'Deployed, but the service still serves the old certificate' : 'Deployed, but the service serves another certificate'));
+  w.appendChild(el('span', 'ag-served-sub', sv.state === 'old' ? 'A reload was forgotten? The agent saw it on the server itself.' : 'The agent saw it on the server itself.'));
+  if (p.host) w.appendChild(mono(p.host + ':' + p.port, 'ag-served-port'));
+  if (sv.at) w.appendChild(el('span', 'ag-served-sub', ago(sv.at)));
+  n.appendChild(w);
+  return n;
+}
+
+/** Settings → Target agents: the age of every key (acme's and each agent's). */
+function keysReport() {
+  var box = el('div', 'ag-kr');
+  var h = el('div', 'ag-srv-h ag-kr-h');
+  h.appendChild(icon('key', 18));
+  h.appendChild(el('h3', '', 'Keys and their age'));
+  box.appendChild(h);
+  var body = el('div', 'ag-kr-b');
+  body.appendChild(el('p', 'muted small', 'Asking…'));
+  box.appendChild(body);
+  function load() {
+    ask('agents/keys').then(function (x) {
+      if (!x || !x.keys) { box.hidden = true; return; }
+      draw(x.keys);
+    }).catch(function (e) {
+      clear(body);
+      body.appendChild(el('p', 'ct-bad', String((e && e.message) || e)));
+    });
+  }
+  function tile(ic, title, main, sub, cls) {
+    var t = el('div', 'ag-kr-t ' + (cls || ''));
+    var top = el('div', 'ag-kr-tt');
+    top.appendChild(icon(ic, 15));
+    top.appendChild(el('span', '', title));
+    t.appendChild(top);
+    var m = el('div', 'ag-kr-big');
+    if (main && main.nodeType) m.appendChild(main); else m.appendChild(document.createTextNode(String(main)));
+    t.appendChild(m);
+    if (sub) t.appendChild(sub.nodeType ? sub : el('div', 'ag-kr-sub', sub));
+    return t;
+  }
+  function draw(k) {
+    clear(body);
+    var cur = arr(k.cmd).filter(function (x) { return x.current; })[0] || {};
+    var older = arr(k.cmd).filter(function (x) { return !x.current && !x.retired_at; });
+    var tiles = el('div', 'ag-kr-tiles');
+    var cs = el('div', 'ag-kr-sub');
+    if (cur.fp) cs.appendChild(mono(shortFp(cur.fp)));
+    cs.appendChild(noI18n(el('span', '', ' · ')));
+    cs.appendChild(el('span', '', arr(cur.agents).length === 1 ? '1 agent' : arr(cur.agents).length + ' agents'));
+    tiles.appendChild(tile('shield', 'acme’s command key', daysWords(cur.age), cs, 'cmd'));
+    var os = el('div', 'ag-kr-sub', older.length ? (older.length === 1 ? '1 earlier key still pinned' : older.length + ' earlier keys still pinned') : 'none still pinned');
+    tiles.appendChild(tile('history', 'Earlier command keys', String(older.length), os, older.length ? 'warn' : ''));
+    tiles.appendChild(tile('lock', 'The agent authority', daysWords((k.ca || {}).age), (k.ca || {}).end ? el('div', 'ag-kr-sub', 'ends ' + when(k.ca.end)) : null, 'ca'));
+    tiles.appendChild(tile('globe', 'acme’s own certificate', (k.ctl || {}).end ? certEnd(k.ctl.end) : '–', el('div', 'ag-kr-sub', 'made again 60 days before its end'), 'ctl'));
+    body.appendChild(tiles);
+    var ag = arr(k.agents);
+    if (ag.length) {
+      var wrap = el('div', 'ag-srv-wrap');
+      var t = el('table', 'ag-srv-t ag-kr-tab');
+      var th = el('thead', ''), tb = el('tbody', '');
+      var hr = el('tr', '');
+      ['Target', 'Command key', 'Key for secrets', 'Its certificate', 'Schedule'].forEach(function (w) { hr.appendChild(el('th', '', w)); });
+      th.appendChild(hr);
+      t.appendChild(th);
+      t.appendChild(tb);
+      ag.forEach(function (a) {
+        var r = el('tr', '');
+        var c0 = el('td', 'c-name ag-kr-n');
+        var nb = el('button', 'ag-name');
+        nb.type = 'button';
+        nb.appendChild(data('span', '', a.name));
+        nb.onclick = function () { if (H.openTarget) H.openTarget(a.name); };
+        c0.appendChild(nb);
+        if (a.platform === 'windows') c0.appendChild(platformBadge('windows', true));
+        r.appendChild(c0);
+        var c1 = el('td', '');
+        c1.setAttribute('data-l', tr('Command key'));
+        if (a.unknown) c1.appendChild(sysPill('bad', 'flag', 'unknown'));
+        else {
+          c1.appendChild(sysPill(a.cmd_current ? 'ok' : 'warn', 'shield', a.cmd_current ? 'current' : 'an earlier one'));
+          c1.appendChild(el('span', 'ag-gd-age ag-kr-age', daysWords(a.cmd_age)));
+        }
+        r.appendChild(c1);
+        var c2 = el('td', '');
+        c2.setAttribute('data-l', tr('Key for secrets'));
+        c2.appendChild(el('span', 'ag-gd-age', daysWords(a.enc_age)));
+        r.appendChild(c2);
+        var c3 = el('td', '');
+        c3.setAttribute('data-l', tr('Its certificate'));
+        c3.appendChild(certEnd(a.tls_end));
+        r.appendChild(c3);
+        var c4 = el('td', '');
+        c4.setAttribute('data-l', tr('Schedule'));
+        c4.appendChild(a.rotate ? sysPill(arr(a.due).length ? 'warn' : 'ok', 'clock', arr(a.due).length ? 'due to be changed' : 'every ' + a.rotate_days + ' days') : el('span', 'muted', 'by hand'));
+        r.appendChild(c4);
+        tb.appendChild(r);
+      });
+      wrap.appendChild(t);
+      body.appendChild(wrap);
+    }
+    var foot = el('div', 'ag-kr-foot');
+    foot.appendChild(el('p', 'note small muted', 'Every key is kept in acme’s database, sealed - in every backup and on every node. An earlier command key stays while an agent pins it, then it is retired.'));
+    if (FULL) {
+      var b = cmdButton('Change acme’s command key…', 'refresh', 'small');
+      b.onclick = function () {
+        confirmThen('Change acme’s command key', 'A new command key is made. Every agent whose keys are changed on a schedule is moved to it now (its old key still taken for ' + (k.overlap_h || 72) + ' h); the others keep theirs - acme still signs their jobs with it - and new joins pin the new one.', 'Change it', function () {
+          busy(b, true);
+          return ask('agents/keys/rotate', {}, 300).then(function (x) {
+            var r = (x && x.rotated) || {};
+            toast(tr('a new command key - {0} agents moved').replace('{0}', arr(r.moved).length), 'good');
+            if (arr(r.left).length) toast(arr(r.left).map(function (l) { return l.name + ': ' + l.said; }).join('\n'), 'bad');
+            draw(x.keys || {});
+          }).catch(oops).then(function () { busy(b, false); });
+        }, false);
+      };
+      foot.appendChild(b);
+    }
+    body.appendChild(foot);
+    explainWhatWasDrawn(body);
+  }
+  load();
+  return box;
+}
+
 function init(h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); }
 /* certs.js is loaded before this file on the page: what it hands is waiting there */
 if (window.ACME_AGENTS_HANDS) init(window.ACME_AGENTS_HANDS);
@@ -2580,6 +3237,7 @@ window.ACME_AGENTS = {
   init: init, hands: function () { return H; }, designBox: designBox,
   pane: pane, settle: settle, card: card, wizard: wizard, needs: needs, policyView: policyView,
   statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox,
-  sysPanel: sysPanel, sysLine: sysLine, serversTable: serversTable, discoverBox: discoverBox
+  sysPanel: sysPanel, sysLine: sysLine, serversTable: serversTable, discoverBox: discoverBox,
+  guardBox: guardBox, servedNote: servedNote, keysReport: keysReport
 };
 }());

@@ -1724,3 +1724,133 @@ def _activity(h):
     rows, total = T.team_activity(h.store, team, per, page * per, below=_flag(h, 'below'))
     return {'team': team, 'rows': rows, 'total': total, 'page': page, 'per': per,
             'pages': (total + per - 1) // per}
+
+
+# ---------------------------------------------------------------------------
+# Governance (1.0.138, docs/teams.md "Governance"): health, temporary roles, access reviews,
+# who may do what in a team, viewing as (the banner)
+# ---------------------------------------------------------------------------
+@route('GET', 'health')
+def _health(h):
+    """The health of the teams they see the certificates of (cert.view)."""
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    seen = set(me.reach('cert.view'))
+    team = None
+    if h.arg('team'):
+        team = me.need(h.arg('team'), 'cert.view', 'see the health')
+    rows = G.health_public(h.store, seen, detail_team=team)
+    return {'teams': rows, 'score': G.summary_score(rows), 'team': team,
+            'days': int(E.CONFIG.get('certs_notify_days') or 14)}
+
+
+@route('GET', 'elevations')
+def _elevations(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    actor = G.actor_portal(h, me.s)
+    got = G.elevations_for(h.store, actor)
+    may = []
+    for k in me.reach():
+        src, rule = G.jit_rule(h.store, me.tr.rows[k]['name'])
+        if rule:
+            cat = T.role_catalog(h.store)
+            have = _norm(me.caps(k))
+            roles = [r for r in rule['roles'] if cat.get(_low(r)) and
+                     not _norm(cat[_low(r)]['caps']) <= have]
+            if roles:
+                may.append({'team': me.tr.rows[k]['name'], 'roles': roles,
+                            'max_hours': rule['max_hours'], 'from': src})
+    got['may_ask'] = may[:500]
+    return got
+
+
+@route('POST', 'elevate')
+def _elevate(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    b = h.body()
+    team = me.team(b.get('team'))
+    got = G.elevation_ask(h.store, G.actor_portal(h, me.s), team, b.get('role'), b.get('hours'),
+                          b.get('reason'))
+    return {'elevation': got, 'message': 'asked - a manager of the team %s approves it' % team}
+
+
+@route('POST', 'elevate_decide')
+def _elevate_decide(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    b = h.body()
+    got = G.elevation_decide(h.store, b.get('id'), G.actor_portal(h, me.s), A._flag(b.get('ok')),
+                             b.get('why'))
+    return {'elevation': got, 'message': 'granted until the time it ends by itself'
+            if got['state'] == 'granted' else 'declined'}
+
+
+@route('POST', 'elevate_end')
+def _elevate_end(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    got = G.elevation_end(h.store, h.body().get('id'), G.actor_portal(h, me.s))
+    return {'elevation': got, 'message': 'ended'}
+
+
+@route('GET', 'reviews')
+def _reviews(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    if h.arg('team'):
+        team = me.need(h.arg('team'), 'team.members', 'see the access reviews')
+        t = T.team_get(h.store, team)
+        return {'team': team, 'rule': G.extras_of(t).get('review'),
+                'reviews': G.reviews(h.store, team)}
+    # the reviews open where they confirm members
+    teams = {k for k in me.reach('team.members')}
+    rows = [r for r in G.review_open_rows(h.store) if _low(r['team']) in teams]
+    return {'open': rows[:200]}
+
+
+@route('POST', 'review_open')
+def _review_open(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    team = me.need(h.body().get('team'), 'team.members', 'open an access review')
+    return {'review': G.review_open(h.store, team, me.by), 'message': 'the review is open'}
+
+
+@route('POST', 'review_answer')
+def _review_answer(h):
+    from acmelib.certs import teamgov as G
+    me = Me(h)
+    b = h.body()
+    got = G.review_answer(h.store, b.get('id'), b.get('who'), A._flag(b.get('keep')),
+                          G.actor_portal(h, me.s), b.get('note'))
+    return {'review': got, 'message': 'confirmed' if A._flag(b.get('keep')) else 'taken out'}
+
+
+@route('GET', 'whomay')
+def _whomay(h):
+    """Who may do what in a team, and why - for those who manage its members."""
+    from acmelib.certs import teamaccess as TA
+    me = Me(h)
+    team = me.need(h.arg('team'), 'team.members', 'see who may do what')
+    got = TA.team_matrix(h.store, team, admins=False)
+    got['mode'] = 'team'
+    return got
+
+
+@route('GET', 'view_as')
+def _view_as(h):
+    from acmelib.certs import viewas as VA
+    P.portal_session(h)
+    return VA.portal_public(h)
+
+
+@E.route('POST', '/api/portal/view_as_enter')
+def _view_as_enter(h):
+    """{code}: the one-time code of "Open the portal as" - a portal sign-in viewing as the member
+    (its token set as the portal's cookie by index.php, never shown to the page)."""
+    from acmelib.certs import viewas as VA
+    if not E.CONFIG.get('portal'):
+        raise E.ApiError(403, 'these pages are switched off')
+    return VA.portal_enter(h, h.body().get('code'))

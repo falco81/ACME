@@ -710,6 +710,10 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
     unapproved = S.unapproved_why(store, cert)
     if unapproved:
         raise base.PluginError(unapproved, retry=False)
+    if only != 'alt' and cert.get('cert_pem'):
+        # its request profile ends (1.0.138, docs/request-profiles.md): its successor's now
+        from acmelib.certs import reqprofiles_more as _rpm
+        cert = _rpm.migrate_on_renew(store, job, cert) or cert
     try:
         # Its version revoked (1.0.51): a renewal after a revoke that failed once is 'failed',
         # not 'revoked' any more - the key it holds is the revoked one all the same.
@@ -1188,6 +1192,12 @@ def scan(store, by='the renewer'):
         orphans(store, t)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-orphans', 'looking at renewals left: %s' % e, 'warn', every=3600)
+    # The teams' governance (1.0.138, teamgov.tick): elevations ending, access reviews, escalation.
+    try:
+        from acmelib.certs import teamgov
+        teamgov.tick(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-teamgov', 'the teams\' governance: %s' % e, 'warn', every=3600)
     # The CRLs of acme's own authorities made again past half their life, so
     # one published on acme (publish.py) never runs out.
     try:
@@ -1209,6 +1219,13 @@ def scan(store, by='the renewer'):
             agents.tick(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-agents', 'the target agents: %s' % e, 'warn', every=3600)
+    # The agents' fleet (1.0.138): an update rollout's next ring, when one is under way.
+    try:
+        if store.get_meta('fleet:rollout'):
+            from acmelib.certs import fleet
+            fleet.tick(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-fleet', 'the agents\' fleet: %s' % e, 'warn', every=3600)
     rows = store.db.rows("SELECT * FROM certs WHERE COALESCE(enabled, 1) <> 0 AND "
                          "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
     for r in rows:

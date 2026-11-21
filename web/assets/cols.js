@@ -257,6 +257,8 @@ function colsApply(table) {
   if (!head) return;
   var key = colsKey(table, head);
   table._colsKey = key;
+  /* a saved view's columns (savedviews.js, 1.0.138) put in place before the layout is read */
+  if (window.ACME_COLS_HOOK) { try { window.ACME_COLS_HOOK(table, key); } catch (e) { /* never a broken table */ } }
   if (!table.classList.contains('cols-able')) table.classList.add('cols-able');
   var mine = COLS[key] || null;
   var plan = colsPlan(head, mine);

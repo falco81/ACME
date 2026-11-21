@@ -205,6 +205,12 @@ class ApiHandler(BaseHTTPRequestHandler):
         if not fn:
             return self.send_json({'ok': False, 'error': 'no such endpoint: %s %s'
                                    % (method, path)}, 404)
+        # A sign-in viewing as a member (1.0.138, docs/teams.md "View as"): every write refused.
+        if self.headers.get('X-Acme-Session'):
+            from acmelib.certs import viewas as _viewas
+            said = _viewas.refused(self, method, path)
+            if said:
+                return self.send_json({'ok': False, 'error': said, 'view_as': True}, 403)
         # Changes wait while the nodes are apart, on all but the preferred node (1.0.14,
         # split_freeze): what was changed on each half went its own way.
         if method == 'POST' and split_frozen():
@@ -380,6 +386,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             raise ApiError(401, 'the second step of signing in is not done yet')
         if acc.get('must_change') and getattr(self, 'route_path', '') not in MUST_CHANGE_ALLOWED:
             raise ApiError(403, 'change the password first')
+        # Viewing as a member (1.0.138, docs/teams.md "View as"): answered as theirs, read-only.
+        if isinstance((s.get('data') or {}).get('view_as'), dict):
+            from acmelib.certs import viewas as _viewas
+            s = _viewas.admin_session(self, dict(s, account=acc))
+            acc = s['account']
         if ROLE_RANK.get(s['role'], 0) < ROLE_RANK[role]:
             raise ApiError(403, {'fulladmin': 'only a full administrator may do that',
                                  'certadmin': 'only a certificate administrator may do that'}

@@ -18028,7 +18028,9 @@ function osuCheck(words, on, says) {
   if (says) box.appendChild(el('div', 'muted small osu-says', says));
   return {box: box, input: sw._input};
 }
-function osuAdd(name) {
+function osuAdd(name, like) {
+  /* like: a new user with the full name, shell and sudo of another (the right button's Clone, 1.0.138) */
+  like = name ? null : like;
   var nameI, gecos, shell, pw, sudo, must, pick;
   var admin = ((OSU.d && OSU.d.nodes) || []).map(function (n) { return n.admin_group; }).filter(Boolean)[0] || 'wheel';
   modal(name ? 'Make ' + name + ' on more nodes' : 'Add a user', function (body) {
@@ -18037,14 +18039,14 @@ function osuAdd(name) {
     nameI.autocomplete = 'off'; nameI.spellcheck = false;
     if (name) nameI.disabled = true;
     body.appendChild(formField('Name', nameI, 'Small letters, digits, _ . and -; 32 at most, starting with a letter.'));
-    gecos = textBox(name ? osuAny(osuRows().by[name] || {}).gecos || '' : '', 'e.g. Jan Novák');
+    gecos = textBox(name ? osuAny(osuRows().by[name] || {}).gecos || '' : (like && like.gecos) || '', 'e.g. Jan Novák');
     body.appendChild(formField('Full name', gecos));
-    shell = osuShellSelect(name ? osuAny(osuRows().by[name] || {}).shell : '');
+    shell = osuShellSelect(name ? osuAny(osuRows().by[name] || {}).shell : (like && like.shell) || '');
     body.appendChild(formField('Shell', shell));
     pw = osuPwPair(body, false);
     must = osuCheck('To be changed at the first sign-in', true, 'The user chooses their own at once.');
     body.appendChild(must.box);
-    sudo = osuCheck('May become root with sudo', name ? osuAny(osuRows().by[name] || {}).sudo : false, 'A member of ' + admin + ' - with their own password.');
+    sudo = osuCheck('May become root with sudo', name ? osuAny(osuRows().by[name] || {}).sudo : !!(like && like.sudo), 'A member of ' + admin + ' - with their own password.');
     body.appendChild(sudo.box);
     pick = osuNodePicker(body, name || '', true);
     if (name) {

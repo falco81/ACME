@@ -147,10 +147,11 @@
   }
 
   /* ---- a set added or changed ------------------------------------------------ */
-  function editSet(s) {
+  function editSet(s, copy) {
     var f = {};
     var isNew = !s;
-    s = s || {name: '', servers: [], protocol: 'udp', tls_name: '', timeout: 3, note: ''};
+    /* copy: a new one filled in as another (the right button's Clone, 1.0.138) */
+    s = s || copy || {name: '', servers: [], protocol: 'udp', tls_name: '', timeout: 3, note: ''};
     modal(isNew ? 'A new DNS set' : 'The DNS set ' + s.name, function (body) {
       if (s.keep || s.builtin) body.appendChild(el('p', 'note', 'Built in: its servers, protocol and timeout may be changed; it keeps its name and cannot be deleted - the functions fall back to it.'));
       body.appendChild(el('p', 'note', 'Addresses only - a DNS server is not looked up by a name. One a line: 192.0.2.53, 192.0.2.53:5353, 2001:db8::53 or [2001:db8::53]:5353.'));
@@ -335,6 +336,8 @@
 
   window.ACME_EXTRA_PANES = window.ACME_EXTRA_PANES || {};
   window.ACME_EXTRA_PANES.dnssets = function () { load(); };
+  /* for the right button's menu (ctxmenu-registry.js, 1.0.138) */
+  window.ACME_DNSSETS = {edit: editSet, test: testSet};
   /* A page that opened on this pane drew it before this file came. */
   if (typeof PANE === 'string' && PANE === 'dnssets') load();
 })();

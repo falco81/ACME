@@ -1043,6 +1043,22 @@ function addTemplate(s, t) {
   arr(t.scripts).forEach(function (x) { if (!s.scripts.some(function (y) { return y.path === x.path; })) s.scripts.push({path: x.path, sha256: x.sha256 || ''}); });
   if (t.probe_local) s.probe_local = true;
 }
+/** A fleet template's state (1.0.138, fleet.py: built-in or an administrator's own) added to the
+    state: what it allows that is not there yet - nothing taken away. */
+function mergeState(s, x) {
+  var t = fromSaved(x);
+  var tpl = {files: t.files, units: {}, tests: t.tests, scripts: t.scripts, probe_local: t.probe_local};
+  t.units.forEach(function (u) { if (u.name) tpl.units[u.name] = arr(u.verbs).slice(); });
+  if (W()) ['store', 'rdp', 'iis', 'roles', 'key_read', 'adcs', 'adcs_read'].forEach(function (k) { tpl[k] = t[k]; });
+  addTemplate(s, tpl);
+  ['hashes', 'from', 'probe', 'connect'].forEach(function (k) {
+    arr(t[k]).forEach(function (v) { if (arr(s[k]).indexOf(v) < 0) s[k].push(v); });
+  });
+  if (t.connect.length) s.connect_on = true;
+  if (t.self_update) s.self_update = true;
+  if (discRows(t.discover).length) addNeed(s, {kind: 'discover', kinds: discRows(t.discover)});
+  return s;
+}
 /** Whether all of a template is in the state already. */
 function hasTemplate(s, R, t) {
   var x = clone(s);
@@ -1055,7 +1071,7 @@ var CORE = {setFacts: setFacts, facts: function () { return F; }, discKinds: dis
   wq: wq, splitWin: splitWin, normWin: normWin, protectedWhyWin: protectedWhyWin,
   ipNetwork: ipNetwork, normHostport: normHostport, protectedWhy: protectedWhy, empty: empty, fromPolicy: fromPolicy,
   fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, oneShot: oneShot, diff: diff, covers: covers,
-  addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, oct4: oct4, Bad: Bad};
+  addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, mergeState: mergeState, oct4: oct4, Bad: Bad};
 if (typeof module === 'object' && module.exports) { module.exports = CORE; return; }
 root.ACME_POLICY_CORE = CORE;
 
@@ -1150,13 +1166,16 @@ function build(row, d, opts) {
   var serverState = fromPolicy(A.policy);
   var serverLines = A.policy ? check(serverState).lines : null;
   var version = !!(opts.state || opts.text);
-  var B = {from: version ? 'version' : (opts.from || (D ? 'design' : 'server')), tab: 'file', q: ''};
+  /* 1.0.138: opened from the fleet with a template (fleet.js): it is what the builder starts from */
+  var FT = opts.fleetTemplate && (opts.fleetTemplate.state || opts.fleetTemplate.text) ? opts.fleetTemplate : null;
+  var B = {from: FT ? 'fleet' : (version ? 'version' : (opts.from || (D ? 'design' : 'server'))), tab: 'file', q: '', fleet: null};
   var S;
   function startFrom(w) {
     B.from = w;
     /* a version saved without its state (the command line): its lines, as the design's */
     if (w === 'version' && version) S = opts.state && Object.keys(opts.state).length ? fromSaved(opts.state) : fromPolicyText(opts.text);
     else if (w === 'design' && D) S = D.state && Object.keys(D.state).length ? fromSaved(D.state) : fromPolicyText(D.text);
+    else if (w === 'fleet' && FT) S = FT.state && Object.keys(FT.state).length ? fromSaved(FT.state) : fromPolicyText(FT.text);
     else if (w === 'empty') S = empty();
     else S = clone(serverState);
   }
@@ -1237,6 +1256,7 @@ function build(row, d, opts) {
     var choices = [['server', A.policy ? 'its policy on the server' : 'its policy (not said yet)']];
     if (D) choices.push(['design', 'the saved design']);
     if (version) choices.push(['version', 'the version opened']);
+    if (FT) choices.push(['fleet', 'the fleet template']);
     choices.push(['empty', 'nothing']);
     choices.forEach(function (c) {
       var b = el('button', 'pb-seg-b' + (B.from === c[0] ? ' on' : ''), c[1]);
@@ -1367,6 +1387,7 @@ function build(row, d, opts) {
   function drawTemplates() {
     var s = section('tpl', 'Templates', 'wand', W() ? 'One click adds a coherent set: the machine store, the IIS sites, Remote Desktop, a folder with its readers, a service and its verbs, a test of what it serves.'
       : 'One click adds a coherent set: the folder with its owner and mode (as the deployment presets write it), the units and their verbs, the test, a test of what it serves.');
+    s.body.appendChild(fleetTemplates());
     var find = el('input', 'pb-find ct-kind-find');
     find.type = 'search';
     find.placeholder = 'an application…';
@@ -1413,7 +1434,63 @@ function build(row, d, opts) {
     drawT();
     return s.node;
   }
+  /* ---- the fleet's templates (1.0.138, fleet.py): whole policies - nginx web, Postfix + Dovecot,
+     IIS, Remote Desktop ... and the administrators' own - one click adds all of one ---------- */
+  function fleetTemplates() {
+    var box = el('div', 'pb-fleet');
+    var h = el('div', 'pb-fleet-h');
+    h.appendChild(icon('people', 14));
+    h.appendChild(el('b', '', 'Fleet templates'));
+    h.appendChild(el('span', 'pb-sec-hint', 'whole policies kept in acme - the same for every server of a kind'));
+    box.appendChild(h);
+    var g = el('div', 'pb-tpls pb-fleet-l');
+    box.appendChild(g);
+    refs.ftpl = [];
+    if (B.fleet === null) {
+      B.fleet = 'asking';
+      ask('fleet/templates?platform=' + encodeURIComponent(F.platform || 'linux')).then(function (x) {
+        B.fleet = arr(x && x.templates);
+        if (sec.tpl && sec.tpl.parentNode) redraw('tpl', drawTemplates);
+      }).catch(function () { B.fleet = []; if (sec.tpl && sec.tpl.parentNode) redraw('tpl', drawTemplates); });
+    }
+    if (!Array.isArray(B.fleet)) { g.appendChild(el('p', 'muted small', 'Loading…')); return box; }
+    if (!B.fleet.length) { g.appendChild(el('p', 'muted small', 'No fleet template for this platform.')); return box; }
+    B.fleet.forEach(function (t) {
+      var b = el('button', 'pb-tpl pb-ftpl' + (t.builtin ? '' : ' own'));
+      b.type = 'button';
+      b.appendChild(noI18n(el('span', 'pb-tpl-ic', abbr(t))));
+      var w = el('span', 'pb-tpl-w');
+      w.appendChild(t.builtin ? el('span', 'pb-tpl-n', t.title) : noI18n(el('span', 'pb-tpl-n', t.title)));
+      var sub = el('span', 'pb-tpl-s pb-ftpl-s');
+      sub.appendChild(el('span', '', t.builtin ? 'built-in' : 'yours'));
+      sub.appendChild(noI18n(document.createTextNode(' · ')));
+      var nl = arr(t.lines).length;
+      sub.appendChild(el('span', '', nl + ' ' + (nl === 1 ? 'line' : 'lines')));
+      w.appendChild(sub);
+      b.appendChild(w);
+      var mk = noI18n(el('span', 'pb-tpl-mk', ''));
+      b.appendChild(mk);
+      b.setAttribute('aria-label', tr('Add the fleet template') + ' ' + t.title);
+      explain(b, (t.note ? t.note + '\n\n' : '') + arr(t.lines).join('\n'));
+      b.onclick = function () {
+        mergeState(S, t.state || {});
+        drawAll();
+        refresh();
+        toast(tr('Added from the fleet template') + ': ' + t.title, 'good');
+      };
+      refs.ftpl.push({t: t, b: b, mk: mk});
+      g.appendChild(b);
+    });
+    return box;
+  }
   function paintTemplates() {
+    arr(refs.ftpl).forEach(function (x) {
+      var y = clone(S);
+      mergeState(y, x.t.state || {});
+      var on = check(y).lines.join('\n') === R.lines.join('\n');
+      x.b.classList.toggle('on', on);
+      x.mk.textContent = on ? '✓' : '+';
+    });
     arr(refs.tpl).forEach(function (x) {
       var on = hasTemplate(S, R, x.t);
       x.b.classList.toggle('on', on);
@@ -2197,6 +2274,25 @@ function build(row, d, opts) {
     };
     var br = el('div', 'btnrow');
     br.appendChild(b);
+    /* 1.0.138: the same policy kept as a fleet template (fleet.py) - other agents then follow it */
+    if (FULL) {
+      var fb = cmdButton('Save as a fleet template', 'people', 'small');
+      fb.onclick = function () {
+        if (R.counts.bad) { toast(tr('the design has lines the agent would not read - fix the red ones first'), 'bad'); return; }
+        var title = t.value.trim() || (FT && FT.title) || '';
+        if (!title) { toast(tr('give the template a title'), 'bad'); t.focus(); return; }
+        busy(fb, true);
+        ask('fleet/template_save', {ref: FT && !FT.builtin && FT.title === title ? FT.ref : '', title: title, note: n.value.trim(),
+          platform: F.platform || 'linux', text: fileText(R), design_state: S}).then(function (x) {
+          taken();
+          B.fleet = null;
+          if (sec.tpl && sec.tpl.parentNode) redraw('tpl', drawTemplates);
+          toast(tr('the fleet template is saved') + ': ' + ((x && x.template && x.template.title) || title), 'good');
+          if (opts.fleetDone) opts.fleetDone(x && x.template);
+        }).catch(oops).then(function () { busy(fb, false); });
+      };
+      br.appendChild(fb);
+    }
     c.appendChild(br);
     return c;
   }

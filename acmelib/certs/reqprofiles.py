@@ -71,12 +71,126 @@ def _int(v, what, lo, hi, empty=None):
 # ---------------------------------------------------------------------------
 # The catalog
 # ---------------------------------------------------------------------------
-def rows(store):
+def raw_rows(store):
+    """The rows as they are kept: `config` the profile's own settings (1.0.138: of a profile
+    with a base, only what it overrides, with `base` and `inherit`)."""
     try:
         return store.db.rows('SELECT * FROM cert_req_profiles ORDER BY %s'
                              % store.db.name_order())
     except Exception:                                   # noqa: BLE001
         return store.db.rows('SELECT * FROM cert_req_profiles ORDER BY name')
+
+
+def rows(store):
+    """The rows with `config` as the profile works (1.0.138): what it inherits from its base
+    put in (resolve), its own settings kept in `_own`. Without a base: as kept."""
+    return resolve(raw_rows(store))
+
+
+# ---------------------------------------------------------------------------
+# A base profile (1.0.138, docs/request-profiles.md "A base profile")
+# ---------------------------------------------------------------------------
+# What a profile may take from its base, by the groups the editor overrides or inherits:
+# a group's keys go together (the source and its validation, the key types and the one
+# offered first, whose it is and the team).
+INHERIT_GROUPS = (('source', ('issuer', 'challenge')), ('suffixes', ('suffixes',)),
+                  ('wildcards', ('wildcards',)), ('max_names', ('max_names',)),
+                  ('make_key', ('make_key',)), ('csr', ('csr',)),
+                  ('key_types', ('key_types', 'key_default')),
+                  ('auto_renew', ('auto_renew',)), ('renew_days', ('renew_days',)),
+                  ('days', ('days',)), ('eku', ('eku',)), ('approval', ('approval',)),
+                  ('owner', ('owner', 'owner_team')), ('tags', ('tags',)), ('teams', ('teams',)),
+                  ('pfx', ('pfx',))) + tuple(('subject.' + k, ()) for k, _w in SUBJECT_FIELDS)
+INHERIT_KEYS = dict(INHERIT_GROUPS)
+BASE_DEPTH = 8
+
+
+def own_of(row):
+    """A profile's own settings, as kept (`_own` of a row of rows(), else its config)."""
+    raw = (row or {}).get('_own') if (row or {}).get('_own') is not None else \
+        (row or {}).get('config')
+    cfg = S.jload(raw, {}) or {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def clean_inherit(v):
+    v = v if isinstance(v, (list, tuple)) else []
+    return [g for g, _k in INHERIT_GROUPS if g in v]
+
+
+def merge_base(own, bcfg):
+    """A profile's own settings with what it inherits taken from its base's (as it works)."""
+    out = dict(own)
+    for g in clean_inherit(own.get('inherit')):
+        if g.startswith('subject.'):
+            f = g[8:]
+            subj = dict(out.get('subject') or {})
+            subj[f] = dict((bcfg.get('subject') or {}).get(f) or {'mode': 'off', 'value': ''})
+            out['subject'] = subj
+        else:
+            for k in INHERIT_KEYS[g]:
+                v = bcfg.get(k)
+                out[k] = json.loads(json.dumps(v)) if isinstance(v, (list, dict)) else v
+    return out
+
+
+def resolve(raw):
+    """Rows (raw_rows) with `config` as each works, `_own` as kept, `_base_problems`."""
+    by = {_low(r['name']): r for r in raw}
+    memo = {}
+
+    def eff(r, path):
+        key = _low(r['name'])
+        if key in memo:
+            return memo[key]
+        own = own_of(r)
+        out, probs = dict(own), []
+        b = str(own.get('base') or '').strip()
+        if b:
+            br = by.get(_low(b))
+            if not br:
+                probs.append('its base profile %s is gone' % b)
+            elif _low(b) in path or _low(b) == key or len(path) > BASE_DEPTH:
+                probs.append('its base profiles go round in a circle')
+            else:
+                bcfg, bp = eff(br, path | {key})
+                out = merge_base(own, bcfg)
+                probs += [p for p in bp if p not in probs]
+        memo[key] = (out, probs)
+        return memo[key]
+
+    res = []
+    for r in raw:
+        cfg, probs = eff(r, frozenset())
+        one = dict(r)
+        one['_own'] = r.get('config') or '{}'
+        one['config'] = json.dumps(cfg)
+        one['_base_problems'] = probs
+        res.append(one)
+    return res
+
+
+def chain_of(store, name, rws=None):
+    """[name, its base, the base's base, ...] (the profile first)."""
+    by = {_low(r['name']): r for r in (rws if rws is not None else raw_rows(store))}
+    out, r = [], by.get(_low(name))
+    while r is not None and len(out) <= BASE_DEPTH and r['name'] not in out:
+        out.append(r['name'])
+        r = by.get(_low(own_of(r).get('base')))
+    return out
+
+
+def children_of(store, name, rws=None, deep=False):
+    """The profiles whose base is this one (deep: theirs too)."""
+    rws = rws if rws is not None else raw_rows(store)
+    out = []
+    want = {_low(name)}
+    while want:
+        got = [r['name'] for r in rws if _low(own_of(r).get('base')) in want
+               and r['name'] not in out and _low(r['name']) != _low(name)]
+        out += got
+        want = {_low(x) for x in got} if deep else set()
+    return out
 
 
 def profile_get(store, name):
@@ -211,10 +325,12 @@ def clean_suffixes(v):
     return out[:50]
 
 
-def save_profile(store, b, by):
-    """A profile added or changed, every value checked against its catalog."""
-    from acmelib.certs import compat
-    from acmelib.certs import teams as T
+def save_profile(store, b, by, why='', keep_ends=True):
+    """A profile added or changed, every value checked against its catalog. With `base`
+    (1.0.138): what `inherit` names is taken from that profile, the rest is its own; the
+    profiles based on this one are checked as they will be. Every save is a new version
+    (reqprofiles_more.py); `why` says what made it (a restore)."""
+    from acmelib.certs import reqprofiles_more as RM
     old = profile_get(store, b.get('old_name')) if b.get('old_name') else None
     if b.get('old_name') and not old:
         raise LookupError('there is no request profile %s' % b.get('old_name'))
@@ -222,6 +338,79 @@ def save_profile(store, b, by):
     other = profile_get(store, name)
     if other and (not old or other['id'] != old['id']):
         raise ValueError('there is a request profile called %s already' % other['name'])
+    raw = raw_rows(store)
+    base_name = str(b.get('base') or '').strip()
+    inherit = clean_inherit(b.get('inherit')) if base_name else []
+    base = None
+    body = dict(b)
+    if base_name:
+        base = profile_get(store, base_name)
+        if not base:
+            raise ValueError('there is no request profile %s to base it on' % base_name)
+        if _low(base['name']) == _low(name) or (old and base['id'] == old['id']):
+            raise ValueError('a profile is not its own base')
+        if old and old['name'] in chain_of(store, base['name'], raw):
+            raise ValueError('%s is based on %s already - the bases would go round in a circle'
+                             % (base['name'], old['name']))
+        if len(chain_of(store, base['name'], raw)) >= BASE_DEPTH:
+            raise ValueError('%d bases one on another at most' % BASE_DEPTH)
+        body = merge_base(dict(b, inherit=inherit), config_of(base))
+    cfg = build_cfg(store, body)
+    own = dict(cfg)
+    if base:
+        for g in inherit:
+            if g.startswith('subject.'):
+                own['subject'] = {k: v for k, v in (own.get('subject') or {}).items()
+                                  if k != g[8:]}
+            else:
+                for k in INHERIT_KEYS[g]:
+                    own.pop(k, None)
+        own['base'] = base['name']
+        own['inherit'] = inherit
+    if old and keep_ends and own_of(old).get('ends'):
+        own['ends'] = own_of(old)['ends']        # marked as ending: kept as it is (P5)
+    if 'ends' in b and not keep_ends:
+        if b.get('ends'):
+            own['ends'] = b['ends']
+        else:
+            own.pop('ends', None)
+    desc = str(b.get('description') or '').strip()[:2000]
+    row = {'name': name, 'description': desc, 'enabled': 1 if _flag(b.get('enabled'), True) else 0,
+           'config': json.dumps(own), 'updated': time.time(), 'updated_by': str(by)[:190]}
+    if old:
+        # The profiles based on this one, as they will be (1.0.138): one that would no longer
+        # fit together refuses the change of its base, in its words.
+        sim = [dict(r, **row) if r['id'] == old['id'] else r for r in raw]
+        for r in resolve(sim):
+            if r['id'] == old['id'] or not any(_low(x) == _low(name) for x in
+                                               chain_of(store, r['name'], sim)[1:]):
+                continue
+            try:
+                build_cfg(store, dict(config_of(r)))
+            except (ValueError, LookupError, E.ApiError) as e:
+                raise ValueError('the profile %s is based on it and would not fit: %s'
+                                 % (r['name'], getattr(e, 'message', None) or str(e)))
+    before = dict(old) if old else None
+    if old:
+        store.db.update('cert_req_profiles', old['id'], row)
+        if old['name'] != name:
+            asked_follow(store, old['name'], name)
+            RM.renamed(store, old['name'], name)
+        store.add_event('certificates', 'the request profile %s changed by %s%s' % (
+            name, by, (' (was %s)' % old['name']) if old['name'] != name else ''), who=by)
+    else:
+        row.update(created=time.time(), created_by=str(by)[:190])
+        store.db.insert('cert_req_profiles', row)
+        store.add_event('certificates', 'the request profile %s added by %s' % (name, by), who=by)
+    RM.record(store, before, name, by, why)
+    return public(store, profile_get(store, name))
+
+
+def build_cfg(store, b):
+    """The settings of a profile out of what was sent, every value checked against its
+    catalog and what fits together (compat.py) - ValueError / ApiError when not."""
+    from acmelib.certs import compat
+    from acmelib.certs import teams as T
     irow, icls, info = issuer_info(store, str(b.get('issuer') or '').strip())
     if not irow:
         raise ValueError('choose the source (Certificates → Sources)')
@@ -311,20 +500,7 @@ def save_profile(store, b, by):
     if probs:
         raise E.ApiError(400, 'it does not fit together: %s' % compat.words(probs),
                          detail=json.dumps(probs)[:20000])
-    desc = str(b.get('description') or '').strip()[:2000]
-    row = {'name': name, 'description': desc, 'enabled': 1 if _flag(b.get('enabled'), True) else 0,
-           'config': json.dumps(cfg), 'updated': time.time(), 'updated_by': str(by)[:190]}
-    if old:
-        store.db.update('cert_req_profiles', old['id'], row)
-        if old['name'] != name:
-            asked_follow(store, old['name'], name)
-        store.add_event('certificates', 'the request profile %s changed by %s%s' % (
-            name, by, (' (was %s)' % old['name']) if old['name'] != name else ''), who=by)
-    else:
-        row.update(created=time.time(), created_by=str(by)[:190])
-        store.db.insert('cert_req_profiles', row)
-        store.add_event('certificates', 'the request profile %s added by %s' % (name, by), who=by)
-    return public(store, profile_get(store, name))
+    return cfg
 
 
 def asked_follow(store, old, new):
@@ -343,20 +519,47 @@ def asked_follow(store, old, new):
             store.set_meta(r['k'], json.dumps(got))
 
 
-def delete_profile(store, name, by):
+def delete_profile(store, name, by, detach=False):
+    """A profile deleted. The base of others (1.0.138): refused - unless `detach`, when each of
+    them takes what it inherited as its own first (a new version of it) and stands alone. The
+    successor of a profile that ends: refused."""
+    from acmelib.certs import reqprofiles_more as RM
     r = profile_get(store, name)
     if not r:
         raise LookupError('there is no request profile %s' % name)
+    after = [x['name'] for x in rows(store) if _low((own_of(x).get('ends') or {}).get('successor'))
+             == _low(r['name'])]
+    if after:
+        raise ValueError('it is the successor of %s, which ends - choose another successor there '
+                         'first' % ', '.join(after))
+    kids = children_of(store, r['name'])
+    if kids and not detach:
+        raise E.ApiError(409, 'it is the base of %s - make them stand alone, or change their base '
+                         'first' % ', '.join(kids), extra={'children': kids})
+    for k in kids:
+        kr = profile_get(store, k)
+        cfg = config_of(kr)
+        before = dict(kr)
+        cfg.pop('base', None)
+        cfg.pop('inherit', None)
+        store.db.update('cert_req_profiles', kr['id'], {'config': json.dumps(cfg),
+                                                        'updated': time.time(),
+                                                        'updated_by': str(by)[:190]})
+        RM.record(store, before, kr['name'], by, 'its base %s was deleted: it stands alone'
+                  % r['name'])
     store.db.run('DELETE FROM cert_req_profiles WHERE id = ?', (r['id'],))
+    RM.forget(store, r['name'])
     store.add_event('certificates', 'the request profile %s deleted by %s - the certificates '
                     'asked for from it stay' % (r['name'], by), 'warn', who=by)
     return {'deleted': r['name']}
 
 
 def rename_ref(store, kind, old, new):
-    """An owner (kind 'team') or a tag renamed - or deleted, new None: every profile follows."""
-    for r in rows(store):
-        cfg = config_of(r)
+    """An owner (kind 'team') or a tag renamed - or deleted, new None: every profile follows.
+    A profile whose teams end up none through its base (1.0.138) is switched off too."""
+    had = {r['id']: bool(config_of(r).get('teams')) for r in rows(store)}
+    for r in raw_rows(store):
+        cfg = own_of(r)
         hit = False
         keys = ('teams',) if kind == 'team' else ('tags',)
         for k in keys:
@@ -375,6 +578,10 @@ def rename_ref(store, kind, old, new):
             store.db.update('cert_req_profiles', r['id'], {'config': json.dumps(cfg),
                                                            'enabled': 1 if r.get('enabled', 1)
                                                            else 0})
+    if kind == 'team':
+        for r in rows(store):
+            if had.get(r['id']) and not config_of(r).get('teams') and r.get('enabled', 1):
+                store.db.update('cert_req_profiles', r['id'], {'enabled': 0})
 
 
 def rename_source(store, family, old, new):
@@ -384,8 +591,8 @@ def rename_source(store, family, old, new):
     # the teams' limits naming it follow too (hunt Rt1)
     from acmelib.certs import teams as T
     T.policy_rename(store, 'issuers' if family == 'issuer' else 'validations', old, new)
-    for r in rows(store):
-        cfg = config_of(r)
+    for r in raw_rows(store):
+        cfg = own_of(r)
         if str(cfg.get(key) or '') == old and new:
             cfg[key] = new
             store.db.update('cert_req_profiles', r['id'], {'config': json.dumps(cfg)})
@@ -417,10 +624,11 @@ def used_counts(store):
     return out
 
 
-def problems(store, cfg):
-    """What is wrong with a profile now (a source switched off or gone, ...) - words."""
+def problems(store, cfg, row=None):
+    """What is wrong with a profile now (a source switched off or gone, its base gone, ...) -
+    words."""
     from acmelib.certs import teams as T
-    out = []
+    out = list((row or {}).get('_base_problems') or [])
     irow, icls, _info = issuer_info(store, cfg.get('issuer'))
     if not irow:
         out.append('there is no source %s' % cfg.get('issuer'))
@@ -438,20 +646,32 @@ def problems(store, cfg):
     return out
 
 
-def public(store, r, used=None):
+def public(store, r, used=None, rws=None, versions=None):
+    from acmelib.certs import reqprofiles_more as RM
     cfg = config_of(r)
     out = dict(cfg)
+    rws = rws if rws is not None else raw_rows(store)
+    own = own_of(r)
     out.update({'id': r['id'], 'name': r['name'], 'description': r.get('description') or '',
                 'enabled': bool(r.get('enabled', 1)), 'updated': r.get('updated'),
-                'updated_by': r.get('updated_by') or '', 'problems': problems(store, cfg)})
+                'updated_by': r.get('updated_by') or '', 'problems': problems(store, cfg, r),
+                # 1.0.138: its base and what it inherits, the profiles based on it, its version,
+                # whether it ends (and its successor)
+                'base': own.get('base') or '', 'inherit': clean_inherit(own.get('inherit'))
+                if own.get('base') else [], 'children': children_of(store, r['name'], rws),
+                'version': (versions or {}).get(_low(r['name'])) if versions is not None
+                else RM.current(store, r['name']), 'ends': own.get('ends') or None})
     if used is not None:
         out['used'] = used.get(_low(r['name']), 0)
     return out
 
 
 def profiles(store):
+    from acmelib.certs import reqprofiles_more as RM
     used = used_counts(store)
-    return [public(store, r, used) for r in rows(store)]
+    rws = raw_rows(store)
+    vers = RM.currents(store)
+    return [public(store, r, used, rws, vers) for r in resolve(rws)]
 
 
 def options(store):
@@ -492,7 +712,10 @@ def request_teams(h, s):
 
 def may_use(h, s, r, mine=None):
     cfg = config_of(r)
-    if not r.get('enabled', 1) or problems(h.store, cfg):
+    if not r.get('enabled', 1) or problems(h.store, cfg, r):
+        return False
+    if cfg.get('ends'):
+        # it ends (1.0.138, P5): no longer offered - its certificates go to the successor
         return False
     if E.portal_sees_all(s):
         return True
@@ -788,6 +1011,7 @@ def request(h, s, b):
     from acmelib.certs import compat
     from acmelib.certs import portal as P
     from acmelib.certs import teams as T
+    from acmelib.certs import reqprofiles_more as RM
     store = h.store
     r = need_usable(h, s, b.get('profile'))
     cfg = config_of(r)
@@ -919,7 +1143,10 @@ def request(h, s, b):
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
         'at': t, 'note': note, 'profile': r['name'], 'pfx': bool(cfg.get('pfx')) and not csr_pem,
         'auto': auto, 'held': P.held_list(held_now), 'ids': P.asker_ids(s),
-        'waits': bool(waits)}))       # approved only by an approval (1.0.106)
+        'waits': bool(waits),         # approved only by an approval (1.0.106)
+        # the version of the profile (and of its bases) it was asked for from (1.0.138)
+        'profile_version': RM.current(store, r['name']),
+        'base_versions': [[b_, RM.current(store, b_)] for b_ in chain_of(store, r['name'])[1:]]}))
     if waits and held_now:
         P.tell_holders(store, cid, held_now, who)
     what = '%s asked on the portal for %s (%s) from the request profile %s%s' % (

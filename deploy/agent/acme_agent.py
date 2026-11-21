@@ -55,6 +55,10 @@ Two processes:
   acme-agent discover [--kind K] [--json]   what such a discovery finds here (as root)
   acme-agent limit files N | limit size BYTES
   acme-agent deny ...                    the same words: that entry taken away
+  acme-agent audit on | off              the hash-chained audit log kept (the policy's line
+                                         `audit chain`) - each entry holds the hash of the one
+                                         before, each also in the journal; acme compares it
+  acme-agent audit show [--last N] [--json] | verify    the chain shown / checked whole
   acme-agent root | serve                the two sides (systemd)
   acme-agent init                        its folders and an empty policy (install.sh)
 
@@ -111,7 +115,13 @@ AGENT_ID_RE = re.compile(r'ag-[0-9a-f]{12,32}\Z')
 SAFE_PATH = re.compile(r'/[^\x00-\x1f\x7f]{0,1023}\Z')
 SAFE_ENV = re.compile(r'[A-Z][A-Z0-9_]{0,63}\Z')
 ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'update', 'adcs',
-            'discover')
+            'discover', 'audit', 'cmdkey', 'enckey')
+# 1.0.138: what this agent can do beyond 1.0.137 - told acme with every hello (A6 the audit
+# chain, A8 acme's command key and this agent's key for secrets changed over the channel)
+FEATURES = ('audit-chain', 'cmdkey', 'enckey')
+KEY_OVERLAP_S = 3 * 86400       # an old key still taken this long after a new one (A8)
+KEY_OVERLAP_MOST = 30 * 86400
+KEY_CHANGE_EVERY_S = 3600       # one key changed at most this often (a flapping acme)
 # checked by root (the signature, and - probe, connect - the policy), done by the network side:
 # root never opens a network connection
 NET_OPS = ('csr', 'cert', 'probe', 'connect')
@@ -355,6 +365,262 @@ def audit(**kw):
             f.write(line + '\n')
     except OSError:
         pass
+    # 1.0.138 (A6): with `audit chain` in the policy, the same in the hash chain - and the
+    # chained entry to the journal too, so the file cannot be rewritten unseen
+    ch = chain_add(kw)
+    if ch:
+        try:
+            import syslog
+            syslog.openlog('acme-agent', 0, syslog.LOG_AUTHPRIV)
+            syslog.syslog(syslog.LOG_NOTICE, 'chain ' + chain_text(ch))
+        except Exception:                               # noqa: BLE001
+            pass
+
+
+# ---- the audit chain (1.0.138, A6: docs/target-agent.md "The audit chain") --------------------
+# With `audit chain` in the policy (root's word), every audited operation - each job taken, done
+# or refused, the policy applied, the pins - is also an entry of an append-only file whose every
+# entry holds the SHA-256 of the one before (`prev`) and its own (`h`, over the entry without
+# it). Each chained entry goes to the journal / the event log as well. acme is told the chain's
+# head with every answer and reads the entries it has not seen (op `audit`): an entry of a job
+# acme never sent, a gap or a chain written anew is said in acme. Without the line: nothing of
+# it - no file, no key in any answer (as before 1.0.138).
+CHAIN_ZERO = '0' * 64
+CHAIN_KEYS = ('op', 'job', 'ok', 'said', 'files', 'needs', 'ts')
+CHAIN_LINE_MOST = 8192
+_CHAIN_LOCK = threading.Lock()
+
+
+def chain_path():
+    return os.path.join(ROOT_STATE, 'audit.chain')
+
+
+def chain_on():
+    """Does the policy say `audit chain`? (read each time, as every entry of the policy)"""
+    try:
+        return bool(policy_load()[0].get('audit_chain'))
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def chain_canon(entry):
+    """The bytes an entry's hash is taken of: the entry without `h`, canonical JSON."""
+    return json.dumps({k: v for k, v in entry.items() if k != 'h'}, sort_keys=True,
+                      separators=(',', ':'), ensure_ascii=True).encode('ascii')
+
+
+def chain_text(entry):
+    return json.dumps(entry, sort_keys=True, separators=(',', ':'), ensure_ascii=True)
+
+
+def _chain_entry(kw):
+    e = {}
+    for k in CHAIN_KEYS:
+        v = kw.get(k)
+        if v is None or v == '' or v == []:
+            continue
+        if k == 'said':
+            v = str(v)[:300]
+        elif k in ('files', 'needs'):
+            v = [list(x) if isinstance(x, (list, tuple)) else str(x)[:300] for x in v][:20]
+        elif k == 'op':
+            v = str(v)[:40]
+        elif k == 'job':
+            v = str(v)[:64]
+        elif k == 'ok':
+            v = bool(v)
+        e[k] = v
+    e.setdefault('ok', True)
+    e.setdefault('ts', round(time.time(), 3))
+    return e
+
+
+def _chain_lock(fd, on):
+    try:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX if on else fcntl.LOCK_UN)
+    except (ImportError, OSError):
+        pass                    # Windows: the root side is one process (and _CHAIN_LOCK)
+
+
+def _chain_last(fd):
+    """The last line of the chain file (bytes) or b''."""
+    size = os.fstat(fd).st_size
+    if not size:
+        return b''
+    back = min(size, CHAIN_LINE_MOST * 2)
+    os.lseek(fd, size - back, os.SEEK_SET)
+    tail = b''
+    while len(tail) < back:
+        got = os.read(fd, back - len(tail))
+        if not got:
+            break
+        tail += got
+    lines = [x for x in tail.split(b'\n') if x.strip()]
+    return lines[-1] if lines else b''
+
+
+def _chain_parse(raw):
+    try:
+        e = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(e, dict) or not isinstance(e.get('n'), int) or \
+            not HEX64.match(str(e.get('h') or '')) or not HEX64.match(str(e.get('prev') or '')):
+        return None
+    return e
+
+
+def chain_add(kw, force=False):
+    """The entry chained to the one before (the file's last), written and synced -> the entry,
+    or None (no `audit chain` in the policy, or it could not be written)."""
+    if not force and not chain_on():
+        return None
+    entry = _chain_entry(kw)
+    try:
+        os.makedirs(ROOT_STATE, mode=0o700, exist_ok=True)
+        flags = os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, 'O_NOFOLLOW', 0) | \
+            getattr(os, 'O_BINARY', 0)
+        with _CHAIN_LOCK:
+            fd = os.open(chain_path(), flags, 0o600)
+            try:
+                _chain_lock(fd, True)
+                raw = _chain_last(fd)
+                last = _chain_parse(raw) if raw else None
+                if raw and last is None:
+                    # a last line that is no entry (cut, written over): chained to its bytes -
+                    # acme sees the chain does not go on from what it knew
+                    entry.update(n=1, prev=_sha(raw))
+                else:
+                    entry.update(n=(last['n'] + 1) if last else 1,
+                                 prev=last['h'] if last else CHAIN_ZERO)
+                entry['h'] = _sha(chain_canon(entry))
+                line = chain_text(entry)
+                if len(line) > CHAIN_LINE_MOST:
+                    entry.pop('files', None)
+                    entry.pop('needs', None)
+                    entry['h'] = _sha(chain_canon(entry))
+                    line = chain_text(entry)
+                os.lseek(fd, 0, os.SEEK_END)
+                os.write(fd, (line + '\n').encode('ascii'))
+                try:
+                    os.fsync(fd)
+                except OSError:
+                    pass
+            finally:
+                _chain_lock(fd, False)
+                os.close(fd)
+        return entry
+    except OSError:
+        return None
+
+
+def chain_head():
+    """{n, h, ts, on} of the chain's last entry - None without `audit chain`."""
+    if not chain_on():
+        return None
+    try:
+        fd = os.open(chain_path(), os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) |
+                     getattr(os, 'O_BINARY', 0))
+    except OSError:
+        return {'on': True, 'n': 0, 'h': CHAIN_ZERO, 'ts': None}
+    try:
+        e = _chain_parse(_chain_last(fd) or b'{}')
+    finally:
+        os.close(fd)
+    if not e:
+        return {'on': True, 'n': 0, 'h': CHAIN_ZERO, 'ts': None, 'broken': True}
+    return {'on': True, 'n': e['n'], 'h': e['h'], 'ts': e.get('ts')}
+
+
+def chain_lines():
+    """Every line of the chain file (text), oldest first."""
+    try:
+        with open(chain_path(), 'rb') as f:
+            for raw in f:
+                raw = raw.strip()
+                if raw:
+                    yield raw.decode('utf-8', 'replace')
+    except OSError:
+        return
+
+
+def chain_read(frm, most=200):
+    """The raw lines of the entries numbered `frm` and on (at most `most`): acme checks each
+    one's hash and link itself."""
+    out = []
+    for line in chain_lines():
+        e = _chain_parse(line)
+        n = e['n'] if e else None
+        if n is None or n >= frm:
+            out.append(line[:CHAIN_LINE_MOST])
+            if len(out) >= most:
+                break
+    return out
+
+
+def chain_verify():
+    """The whole chain checked: (ok, entries, the first problem or '')."""
+    prev, want_n, count = CHAIN_ZERO, 1, 0
+    for line in chain_lines():
+        count += 1
+        e = _chain_parse(line)
+        if e is None:
+            return False, count, 'line %d is not an entry of the chain' % count
+        if e['n'] != want_n:
+            return False, count, 'entry %d follows entry %d - a gap' % (e['n'], want_n - 1)
+        if e['prev'] != prev:
+            return False, count, 'entry %d does not follow the one before (its prev is not ' \
+                                 'its hash) - written anew' % e['n']
+        if _sha(chain_canon(e)) != e['h']:
+            return False, count, 'entry %d is not what its hash says - changed' % e['n']
+        prev, want_n = e['h'], e['n'] + 1
+    return True, count, ''
+
+
+def cmd_audit(argv):
+    """acme-agent audit [show [--last N] [--json] | verify | on | off]."""
+    what = argv[0] if argv else 'show'
+    if what in ('on', 'off'):
+        need_root('the policy is root\'s: run it as root')
+        text = _read(POLICY, '') or POLICY_HEAD
+        lines = [x for x in text.rstrip('\n').split('\n') if x.strip() != 'audit chain']
+        if what == 'on':
+            lines.append('audit chain')
+        os.makedirs(ETC, exist_ok=True)
+        _write(POLICY, '\n'.join(lines) + '\n', 0o644)
+        audit(op='policy', ok=True, said='audit chain %s' % ('on' if what == 'on' else 'off'))
+        print('the audit chain is %s (%s)' % ('kept' if what == 'on' else 'no longer kept',
+                                              chain_path()))
+        return 0
+    need_root('the audit chain is root\'s: run it as root')
+    if what == 'verify':
+        ok, n, problem = chain_verify()
+        print(('the audit chain holds %d entries, each one following the one before' % n)
+              if ok else 'THE AUDIT CHAIN IS BROKEN: %s' % problem)
+        return 0 if ok else 1
+    if what == 'show':
+        last = 20
+        if '--last' in argv and argv.index('--last') + 1 < len(argv):
+            try:
+                last = max(1, int(argv[argv.index('--last') + 1]))
+            except ValueError:
+                raise SystemExit('acme-agent audit show --last N')
+        lines = list(chain_lines())[-last:]
+        if '--json' in argv:
+            print(json.dumps({'on': chain_on(), 'entries': [json.loads(x) for x in lines
+                                                            if _chain_parse(x)]}, indent=1))
+            return 0
+        print('# the audit chain (%s): %s' % (chain_path(), 'kept' if chain_on() else
+                                              'NOT kept - acme-agent audit on'))
+        for x in lines:
+            e = _chain_parse(x) or {}
+            print('%6s  %s  %-12s %-4s %s%s' % (
+                e.get('n', '?'), time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(
+                    float(e.get('ts') or 0))), e.get('op', '?'), 'ok' if e.get('ok') else 'NO',
+                ('job %s  ' % e['job']) if e.get('job') else '', e.get('said', '')))
+        return 0
+    raise SystemExit('acme-agent audit show [--last N] [--json] | verify | on | off')
 
 
 # ---- cryptography: Ed25519 (verify), X25519, HKDF, AES-256-GCM (open) -----------------------
@@ -620,8 +886,44 @@ def unseal(sealed, priv, agent_id, label):
     try:
         return aes256gcm_open(k, nonce, ct, seal_aad(agent_id, label))
     except ValueError:
+        # 1.0.138 (A8): sealed to the key before this agent's last new one (a job queued
+        # meanwhile) - opened by it while the overlap lasts
+        old = enc_prev()
+        if old and old != priv:
+            return unseal(sealed, old, agent_id, label)
         raise Refused('a secret does not open: it was sealed to another key (join again) or '
                       'for another file')
+
+
+def enc_prev():
+    """The key for secrets before the last new one (op enckey), while its overlap lasts."""
+    got = _json(os.path.join(ROOT_STATE, 'enc.prev'), {})
+    try:
+        if isinstance(got, dict) and float(got.get('until') or 0) > time.time():
+            k = bytes.fromhex(str(got.get('key') or ''))
+            return k if len(k) == 32 else None
+    except ValueError:
+        pass
+    return None
+
+
+def cmd_prev(c):
+    """acme's command key before its last change (op cmdkey), while its overlap lasts."""
+    try:
+        if c.get('cmd_prev') and float(c.get('cmd_prev_until') or 0) > time.time():
+            return _unb64(c['cmd_prev'], 32, 'acme\'s key')
+    except (Refused, TypeError, ValueError):
+        pass
+    return None
+
+
+def _headed(out):
+    """An answer of the root side with the audit chain's head (A6) - only when it is kept."""
+    if isinstance(out, dict):
+        head = chain_head()
+        if head:
+            out['audit'] = head
+    return out
 
 
 def proof(secret, *parts):
@@ -843,6 +1145,12 @@ def _policy_line(pol, words):
             raise Refused('limit %s is 1 to %d' % (words[1], top))
         pol['limits'][words[1]] = v
         return
+    if head == 'audit':
+        # 1.0.138 (A6): every operation also into the hash chain (and its head told acme)
+        if words[1:] != ['chain']:
+            raise Refused('audit chain (the only audit entry)')
+        pol['audit_chain'] = True
+        return
     if head != 'allow' or len(words) < 2:
         raise Refused('an entry begins with "allow" or "limit"')
     what, rest = words[1], words[2:]
@@ -978,7 +1286,7 @@ def policy_canon(pol):
     # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
     # ...and what Windows adds (the machine store, IIS, Remote Desktop): never on Linux
     for k in ('probe', 'probe_local', 'store', 'iis', 'rdp', 'roles', 'key_read', 'adcs',
-              'adcs_read', 'discover'):
+              'adcs_read', 'discover', 'audit_chain'):
         if pol.get(k):
             keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
@@ -1042,6 +1350,8 @@ def policy_lines(pol):
         out.append('allow key-read %s' % (a if not re.search(r'[\s"\']', a) else '"%s"' % a))
     if pol.get('discover'):
         out.append(discover_line(pol['discover']))
+    if pol.get('audit_chain'):
+        out.append('audit chain')               # 1.0.138 (A6)
     if pol['limits']['files'] != FILES_MOST:
         out.append('limit files %d' % pol['limits']['files'])
     if pol['limits']['size'] != FILE_MOST:
@@ -1061,6 +1371,8 @@ def policy_report(pol, h):
             out[k] = pol[k]
     if pol.get('discover'):
         out['discover'] = list(pol['discover'])     # 1.0.125: discovery (read-only)
+    if pol.get('audit_chain'):
+        out['audit_chain'] = True                   # 1.0.138 (A6): the hash chain kept
     if WINDOWS:
         # what this agent knows of the Windows roles: acme sends none to an agent without it
         out['roles_known'] = [r[0] for r in _winroles().ROLES]
@@ -2072,8 +2384,14 @@ class Root(object):
             raise Refused('the job is not one this agent reads')
         sig = _unb64(msg.get('sig'), 64, 'the signature')
         pub = _unb64(c['cmd_pub'], 32, 'acme\'s key')
-        if not ed25519_verify(pub, ('%s job\n' % PROTO).encode() + text.encode('utf-8'), sig):
-            raise Refused('the job is not signed by the acme this agent joined')
+        signed = ('%s job\n' % PROTO).encode() + text.encode('utf-8')
+        by = 'cur'
+        if not ed25519_verify(pub, signed, sig):
+            # 1.0.138 (A8): acme's key before its last change, while the overlap lasts
+            prev = cmd_prev(c)
+            if not prev or not ed25519_verify(prev, signed, sig):
+                raise Refused('the job is not signed by the acme this agent joined')
+            by = 'prev'
         try:
             job = json.loads(text)
         except ValueError:
@@ -2109,6 +2427,7 @@ class Root(object):
             self._seen_keep(['n:' + nonce, 'j:' + jid], now)
         if not isinstance(job.get('args'), dict):
             job['args'] = {}
+        job['_key'] = by
         return job
 
     def handle(self, msg, peer_uid):
@@ -2140,23 +2459,30 @@ class Root(object):
                         'a test of' if op == 'probe' else 'a connection to', hp),
                         [{'kind': op, 'what': hp, 'allow': 'acme-agent allow %s %s' % (op, hp)}])
                 audit(op=op, job=jid, ok=True, said='%s allowed for the network side' % hp)
-                return {'ok': True, 'verified': True, 'job': job, 'dest': [host, port]}
+                return _headed({'ok': True, 'verified': True, 'job': job, 'dest': [host, port]})
             if op in NET_OPS:
                 audit(op=op, job=jid, ok=True, said='checked for the network side')
-                return {'ok': True, 'verified': True, 'job': job}
+                return _headed({'ok': True, 'verified': True, 'job': job})
+            if op == 'audit':
+                # its own entry first: what is read ends with it (the head acme is told is an
+                # entry acme has read - never one more each time it reads)
+                audit(op=op, job=jid, ok=True, said='the audit chain read from entry %s'
+                      % str(job['args'].get('from'))[:12])
+                return _headed(self.op_audit(job['args'], job, msg))
             out = getattr(self, 'op_' + op)(job['args'], job, msg)
             audit(op=op, job=jid, ok=bool(out.get('ok', True)),
                   said=str(out.get('said') or '')[:300],
                   files=[(f.get('path'), f.get('sha256')) for f in out.get('files') or []][:40])
             out.setdefault('ok', True)
-            return out
+            return _headed(out)
         except Refused as e:
             audit(op=op or 'job', job=jid, ok=False, said=str(e)[:300],
                   needs=[n.get('what') for n in e.needs][:20])
-            return {'ok': False, 'said': str(e)[:600], 'needs': e.needs[:40], 'refused': True}
+            return _headed({'ok': False, 'said': str(e)[:600], 'needs': e.needs[:40],
+                            'refused': True})
         except Exception as e:                          # noqa: BLE001
             audit(op=op or 'job', job=jid, ok=False, said='it went wrong: %s' % str(e)[:200])
-            return {'ok': False, 'said': 'it went wrong on the agent: %s' % str(e)[:300]}
+            return _headed({'ok': False, 'said': 'it went wrong on the agent: %s' % str(e)[:300]})
 
     # -- the join: what root pins itself, from the code it was given ------------------------
     def pin(self, msg):
@@ -2209,6 +2535,15 @@ class Root(object):
         out = {'ok': True, 'said': 'acme-agent %s here' % VERSION, 'version': VERSION,
                'code': CODE, 'policy': st['policy'], 'enc_pub': st['enc_pub'],
                'host': socket.gethostname()[:120], 'os': _os_name(), 'platform': PLATFORM}
+        # 1.0.138: what it can do (A6, A8), the command key it pins, when its key for secrets
+        # was made (an acme before it ignores the keys)
+        c = self.conf()
+        out['features'] = list(FEATURES)
+        out['cmd_fp'] = c.get('cmd_fp') or ''
+        try:
+            out['enc_at'] = os.stat(os.path.join(ROOT_STATE, 'enc.key')).st_mtime
+        except OSError:
+            pass
         # 1.0.120: what the agent tells about its server (an acme before it ignores the key)
         try:
             out['system'] = system_info()[0]
@@ -2218,6 +2553,83 @@ class Root(object):
 
     def op_policy(self, args, job, msg):
         return self.op_hello(args, job, msg)
+
+    # -- 1.0.138: the audit chain read, the keys changed (A6, A8) --------------------------
+    def op_audit(self, args, job, msg):
+        """The entries of the audit chain from `from` on (at most `most`) - their raw lines:
+        acme checks every hash and every link itself. Only with `audit chain` in the policy."""
+        if not chain_on():
+            raise Refused('this machine keeps no audit chain (its policy has no "audit chain")',
+                          [{'kind': 'audit', 'what': 'audit chain',
+                            'allow': 'acme-agent audit on'}])
+        try:
+            frm = max(1, int(args.get('from') or 1))
+            most = max(1, min(500, int(args.get('most') or 200)))
+        except (TypeError, ValueError, OverflowError):
+            raise Refused('from and most are numbers')
+        lines = chain_read(frm, most)
+        return {'ok': True, 'entries': lines,
+                'said': '%d entr%s of the audit chain' % (len(lines), 'y' if len(lines) == 1
+                                                          else 'ies')}
+
+    def op_cmdkey(self, args, job, msg):
+        """acme's command key changed (A8): the new public key, signed by the key pinned now
+        (the job) and proven by the new one itself (`proof`: its signature over this agent's
+        id, the new key and the old one's fingerprint). The old key is still taken for the
+        overlap acme asks (3 days, 30 at most) - then only the new one."""
+        with self.lock:
+            c = self.conf()
+            new = _unb64(args.get('pub'), 32, 'the new key')
+            old = _unb64(c.get('cmd_pub'), 32, 'acme\'s key')
+            if new == old:
+                return {'ok': True, 'cmd_fp': _sha(new), 'said': 'acme\'s command key %s… is '
+                        'the one in use already' % _sha(new)[:16]}
+            if job.get('_key') != 'cur':
+                raise Refused('a new command key is taken only from a job signed by the key in '
+                              'use')
+            words = ('%s cmdkey\n%s\n%s\n%s' % (PROTO, c.get('agent_id'), _b64(new),
+                                                 _sha(old))).encode('utf-8')
+            if not ed25519_verify(new, words, _unb64(args.get('proof'), 64, 'the proof')):
+                raise Refused('the new key does not prove itself - refused')
+            if time.time() - float(c.get('cmd_at') or 0) < KEY_CHANGE_EVERY_S:
+                raise Refused('acme\'s command key was changed less than an hour ago - wait')
+            try:
+                overlap = int(args.get('overlap_s') or KEY_OVERLAP_S)
+            except (TypeError, ValueError, OverflowError):
+                overlap = KEY_OVERLAP_S
+            overlap = max(3600, min(KEY_OVERLAP_MOST, overlap))
+            c.update(cmd_prev=_b64(old), cmd_prev_until=time.time() + overlap,
+                     cmd_pub=_b64(new), cmd_fp=_sha(new), cmd_at=time.time())
+            _write(CONF, json.dumps(c, indent=1, sort_keys=True), 0o644)
+        return {'ok': True, 'cmd_fp': _sha(new),
+                'said': 'acme\'s command key is now %s… (the one before, %s…, is taken %d h yet)'
+                        % (_sha(new)[:16], _sha(old)[:16], overlap // 3600)}
+
+    def op_enckey(self, args, job, msg):
+        """This agent's key for secrets (X25519) made anew (A8): the new public key answered
+        (acme seals to it from now on); the old one still opens what was sealed to it for the
+        overlap (a job queued meanwhile) - then it is gone."""
+        with self.lock:
+            path = os.path.join(ROOT_STATE, 'enc.key')
+            old = self.enc_key()
+            if old is None:
+                raise Refused('this agent has no key for secrets (join it again)')
+            was = _json(os.path.join(ROOT_STATE, 'enc.prev'), {})
+            if isinstance(was, dict) and time.time() - float(was.get('at') or 0) < \
+                    KEY_CHANGE_EVERY_S:
+                raise Refused('the key for secrets was made anew less than an hour ago - wait')
+            try:
+                overlap = int(args.get('overlap_s') or KEY_OVERLAP_S)
+            except (TypeError, ValueError, OverflowError):
+                overlap = KEY_OVERLAP_S
+            overlap = max(3600, min(KEY_OVERLAP_MOST, overlap))
+            _write(os.path.join(ROOT_STATE, 'enc.prev'), json.dumps(
+                {'key': old.hex(), 'until': time.time() + overlap, 'at': time.time()}), 0o600)
+            new = secrets.token_bytes(32)
+            _write(path, new.hex(), 0o600)
+        return {'ok': True, 'enc_pub': _b64(x25519_public(new)), 'enc_at': time.time(),
+                'said': 'a new key for secrets is made here (the one before opens what was '
+                        'sealed to it %d h yet)' % (overlap // 3600)}
 
     def op_fingerprints(self, args, job, msg):
         pol, _h, _t = policy_load()
@@ -4614,9 +5026,12 @@ class Net(object):
         if got.get('verified'):
             job = got['job']
             try:
-                return getattr(self, 'net_' + job['op'])(job['args'], got)
+                out = getattr(self, 'net_' + job['op'])(job['args'], got)
             except Refused as e:
-                return {'ok': False, 'said': str(e)}
+                out = {'ok': False, 'said': str(e)}
+            if isinstance(out, dict) and isinstance(got.get('audit'), dict):
+                out.setdefault('audit', got['audit'])       # 1.0.138 (A6): the chain's head
+            return out
         if got.get('ok') and isinstance(got, dict) and 'policy' in got:
             got.update(self.facts())
         return got
@@ -5842,6 +6257,8 @@ def main(argv):
     if cmd == 'version':
         print(VERSION)
         return 0
+    if cmd == 'audit':
+        return cmd_audit(rest)                  # 1.0.138 (A6): the audit chain
     if cmd == 'adcs':
         raise SystemExit('acme-agent: a Microsoft CA is listed only by acme-agent on Windows')
     if cmd == 'discover':

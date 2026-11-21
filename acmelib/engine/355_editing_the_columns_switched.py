@@ -163,7 +163,7 @@ def _whoami(h):
         prefs = {}
     # The page is drawn with the person's own layout of the tables from the
     # first frame, rather than as it comes and then again.
-    return {'idle_min': int(CONFIG.get('session_idle_min') or 120),
+    got = {'idle_min': int(CONFIG.get('session_idle_min') or 120),
             'who': {'name': acc['name'], 'role': acc['role'], 'source': acc.get('source'),
                     'display': acc.get('display') or '', 'must_change': bool(
                         acc.get('must_change')), 'prefs': prefs,
@@ -177,6 +177,11 @@ def _whoami(h):
                     'password_off': krb_password_off('admin', h.store),
                     # The card watched (1.0.113): only for a sign-in watched, a key only then.
                     **({'card': card} if card else {})}}
+    # Viewing as a member (1.0.138, docs/teams.md "View as"): their role, and the banner's word.
+    if isinstance((s.get('data') or {}).get('view_as'), dict):
+        from acmelib.certs import viewas as _viewas
+        got = _viewas.whoami(h, s, got)
+    return got
 
 
 @route('POST', '/api/auth/password')

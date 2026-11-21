@@ -1,0 +1,229 @@
+# acme-agent for Kubernetes (docs/agent-fleet.md "Kubernetes") - everything it needs, nothing more.
+#
+#   kubectl apply -f manifests.yaml
+#
+# Change before applying:
+#   * the image (built with deploy/agent/k8s/Dockerfile, pushed to your registry);
+#   * the namespaces whose Secrets it may write: one Role + RoleBinding per namespace (shop and
+#     intranet below) - the agent can touch nothing in a namespace without them, whatever its
+#     policy says; and its policy (the ConfigMap): the Secrets and Deployments in them;
+#   * the join code: kubectl -n acme-agent create secret generic acme-agent-join
+#       --from-literal=code='ACAG1....'   (made on the target's card in acme: Join the agent)
+#     or join by hand: kubectl -n acme-agent exec deploy/acme-agent -- \
+#       python3 -I /opt/acme-agent/acme_k8s_agent.py join 'ACAG1....' --no-wait
+#
+# Two walls, both the cluster's: RBAC says what the pod's ServiceAccount may do at all; the
+# policy says what of that acme may ask for. acme can change neither.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acme-agent
+  labels:
+    app.kubernetes.io/name: acme-agent
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acme-agent
+  namespace: acme-agent
+automountServiceAccountToken: true
+---
+# the policy: written by the cluster's administrator, mounted read-only - acme never changes it
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acme-agent-policy
+  namespace: acme-agent
+data:
+  policy: |
+    # what acme may do in this cluster (docs/agent-fleet.md)
+    allow secret shop/web-tls
+    allow restart shop/web
+    allow secret intranet/*
+    allow discover
+---
+# ---- one Role and RoleBinding per namespace the agent writes Secrets in ------------------------
+# get/update/patch (and delete: a Secret it just made is taken away again when the restart after
+# it fails) of the Secrets named; create (Kubernetes cannot limit create by name - the
+# agent's policy does); list only for "allow discover" (drop "list" without it); patch of the
+# Deployments it may restart.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acme-agent
+  namespace: shop
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["web-tls"]
+    verbs: ["get", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["web"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acme-agent
+  namespace: shop
+subjects:
+  - kind: ServiceAccount
+    name: acme-agent
+    namespace: acme-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: acme-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acme-agent
+  namespace: intranet
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acme-agent
+  namespace: intranet
+subjects:
+  - kind: ServiceAccount
+    name: acme-agent
+    namespace: acme-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: acme-agent
+---
+# its keys, its certificate and what it pinned at the join: kept across restarts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: acme-agent-state
+  namespace: acme-agent
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acme-agent
+  namespace: acme-agent
+  labels:
+    app.kubernetes.io/name: acme-agent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: acme-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: acme-agent
+    spec:
+      serviceAccountName: acme-agent
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: acme-agent
+          image: registry.example.net/acme-agent-k8s:1.0.138
+          imagePullPolicy: IfNotPresent
+          args: ["serve"]
+          env:
+            - name: ACME_AGENT_JOIN_CODE
+              valueFrom:
+                secretKeyRef:
+                  name: acme-agent-join
+                  key: code
+                  optional: true
+            # passive mode: acme connects to this port (a Service below); active mode needs none
+            - name: ACME_AGENT_LISTEN
+              value: "0.0.0.0"
+            - name: ACME_K8S_CLUSTER
+              value: "my-cluster"
+          ports:
+            - name: agent
+              containerPort: 8446
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 48Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/acme-agent
+            - name: run
+              mountPath: /run/acme-agent
+            - name: tmp
+              mountPath: /tmp
+            - name: policy
+              mountPath: /etc/acme-agent-k8s
+              readOnly: true
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: acme-agent-state
+        - name: run
+          emptyDir: {medium: Memory}
+        - name: tmp
+          emptyDir: {medium: Memory}
+        - name: policy
+          configMap:
+            name: acme-agent-policy
+            defaultMode: 0444
+---
+# passive mode only: acme connects to the agent here (let only acme's addresses in - a
+# NetworkPolicy or your load balancer's source ranges, and `allow from` in the policy)
+apiVersion: v1
+kind: Service
+metadata:
+  name: acme-agent
+  namespace: acme-agent
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: acme-agent
+  ports:
+    - name: agent
+      port: 8446
+      targetPort: agent
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: acme-agent
+  namespace: acme-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: acme-agent
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 192.0.2.10/32       # acme's address (both nodes, the VIP)
+      ports:
+        - port: 8446

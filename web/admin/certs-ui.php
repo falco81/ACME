@@ -244,9 +244,11 @@ function acme_certs_settings_nav(): void
     <button type="button" data-pane="certs" data-icon="lock" title="When certificates are renewed, how often a failed one is tried again, and who is told when something goes wrong.">Renewal and notices</button>
     <button type="button" data-pane="dnssrv" data-icon="globe" title="acme's own DNS server for DNS-01: the zone it answers for, its NS names, where it listens, and the records in it.">DNS server</button>
     <button type="button" data-pane="agents" data-icon="terminal" title="Servers that take their certificates through acme-agent, without acme holding any of their credentials: the agent to install, acme's agent authority, active mode and its port, and every agent's state.">Target agents</button>
+    <button type="button" data-pane="fleet" data-icon="people" title="Every target agent at a glance: groups with their health, the policy templates they follow and how far each drifted, the versions and updates in rings, and the certificates found on the servers that acme does not manage yet.">Agent fleet</button>
     <button type="button" data-pane="modules" data-icon="list" data-cicon="module" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
     <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
     <button type="button" data-pane="reqprofiles" data-icon="list" title="What people may ask for on the portal with everything set beforehand - the source, the validation, the names allowed, the key or their CSR, the subject, approval and owner: they give only the names.">Request profiles</button>
+    <button type="button" data-pane="trash" data-icon="history" title="What was deleted - kept for a while and restored with what went with it - and every change of the targets, deployments, tests, sources, validations, profiles, owners, roles, tags and DNS sets: who, when, what.">Trash and history</button>
 <?php
 }
 
@@ -279,6 +281,16 @@ function acme_certs_settings_panes(): void
         own CSR, the subject, renewal, approval and whose it is. They give only its names and what a
         profile leaves to them. With none defined, the portal asks as before.</p></div>
     <div id="rp-host"></div>
+  </div>
+
+  <div class="ctl-pane" id="pane-trash" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Trash and history</h2>
+      <p class="ctl-lede">What was deleted waits here for a while and comes back with what went with
+        it - its secrets sealed as they were, never shown. Every change of a target, deployment,
+        test, source, validation, request profile, owner, role, tag, DNS set or certificate is
+        written down: who, when, from where and what changed; each one's History restores a version.</p></div>
+    <div class="card full"><h2>How long things are kept</h2><div id="sect-trash"></div></div>
+    <div id="hs-host"></div>
   </div>
 
 
@@ -314,6 +326,14 @@ function acme_certs_settings_panes(): void
     <div class="card full" id="ag-list"></div>
     <div class="card full" id="ag-pkg"></div>
     <div class="card full" id="ag-ca"></div>
+  </div>
+
+  <div class="ctl-pane" id="pane-fleet" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Agent fleet</h2>
+      <p class="ctl-lede">Every server with acme-agent at once: groups and their health, the policy
+        templates they should follow and how far each drifted, the versions and updates in rings -
+        and the certificates found on the servers that acme does not manage yet.</p></div>
+    <div id="fl-root" class="fl"></div>
   </div>
 
   <div class="ctl-pane" id="pane-dnssrv" hidden>

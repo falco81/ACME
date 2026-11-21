@@ -142,8 +142,13 @@ def _version(store):
         b = store.db.row('SELECT COUNT(*) AS n, MAX(updated) AS u, MAX(id) AS i FROM cert_roles')
     except Exception:                                   # noqa: BLE001
         return None
+    # the roles given for a while (1.0.138, teamgov: just-in-time elevation) - none, as before
+    try:
+        c = store.db.row('SELECT COUNT(*) AS n, MAX(updated) AS u FROM cert_team_elevations')
+    except Exception:                                   # noqa: BLE001
+        c = None
     return (id(store), _GEN[0], int(time.time() // 30),
-            tuple((a or {}).values()), tuple((b or {}).values()))
+            tuple((a or {}).values()), tuple((b or {}).values()), tuple((c or {}).values()))
 
 
 _GEN = [0]
@@ -510,6 +515,13 @@ def person_caps(store, names, groups):
                     got |= member_caps(m, cat, now)
             if got:
                 direct[k] = frozenset(got)
+        # the roles given for a while (1.0.138, docs/teams.md "Just-in-time elevation"): a
+        # membership of their own on the team, until their end
+        for g in _grants(store):
+            k = _low(g.get('team'))
+            one = cat.get(_low(g.get('role')))
+            if k in tr.rows and one and g['until'] > now and _grant_is(g, names):
+                direct[k] = frozenset(direct.get(k, frozenset()) | one['caps'])
         if not direct:
             return {}
         out = {}
@@ -522,6 +534,18 @@ def person_caps(store, names, groups):
                           'direct': direct.get(k, frozenset())}
         return out
     return _cached(('caps', ver, names, gset), make)
+
+
+def _grants(store):
+    try:
+        from acmelib.certs import teamgov
+        return teamgov.active_grants(store)
+    except Exception:                                   # noqa: BLE001
+        return []
+
+
+def _grant_is(g, names):
+    return _low(g.get('who')) in names or any(x in names for x in g.get('ids') or [])
 
 
 def person_teams(store, names, groups):
@@ -552,6 +576,15 @@ def explain(store, names, groups):
                 'group': None if w in names else (w[6:] if w.startswith('group:') else w),
                 'until': m.get('until'), 'expired': member_expired(m, now),
                 'caps': [x for x in CAPS if x in c]})
+    for g in _grants(store):
+        k = _low(g.get('team'))
+        one = cat.get(_low(g.get('role')))
+        if k in tr.rows and one and _grant_is(g, names):
+            hits.setdefault(k, []).append({
+                'team': tr.rows[k]['name'], 'who': g.get('who'), 'kind': member_kind(g.get('who')),
+                'rights': [], 'roles': [one['name']], 'group': None, 'until': g['until'],
+                'expired': False, 'jit': g.get('id'), 'reason': g.get('reason') or '',
+                'caps': [x for x in CAPS if x in one['caps']]})
     caps = person_caps(store, names, [(g, g) for g in gset])
     out = []
     for k in tr.order:
@@ -1578,6 +1611,13 @@ def team_public(t, used=None):
     out['parent'] = t.get('parent') or None
     out['policy'] = policy_of(t)
     out['description'] = t.get('description') or ''
+    # 1.0.138: its governance (reviews, elevation, separation of duties, channels) - never a
+    # webhook's address, only whether it is set
+    try:
+        from acmelib.certs import teamgov
+        out['gov'] = teamgov.public_extras(t)
+    except Exception:                                   # noqa: BLE001
+        out['gov'] = {}
     return out
 
 
@@ -1647,6 +1687,8 @@ def _follow_rename(store, old_name, name):
     _enroll_follow(store, old_name, name)
     from acmelib.certs import teampolicy as TP
     TP.actions_follow(store, old_name, name)
+    from acmelib.certs import teamgov
+    teamgov.follow_rename(store, old_name, name)
 
 
 def _enroll_follow(store, old, new):
@@ -1733,6 +1775,12 @@ def save_team(store, b, by):
         moved = [after[k]['who'] for k in after if k in before and
                  {x: before[k].get(x) for x in ('rights', 'roles', 'until')} !=
                  {x: after[k].get(x) for x in ('rights', 'roles', 'until')}]
+        if came or moved:
+            # separation of duties (1.0.138): a membership added or changed never holds both
+            # roles of an exclusive pair of the team (or of a team above it)
+            from acmelib.certs import teamgov
+            teamgov.check_members(store, old['name'], members,
+                                  only={_low(x) for x in came + moved})
         if came:
             what.append('members added: %s' % ', '.join(came[:20]))
         if gone:
@@ -1743,6 +1791,9 @@ def save_team(store, b, by):
             name, by, (' (was %s)' % old['name']) if old['name'] != name else '',
             (' - the team %s: %s' % (name, '; '.join(what))) if what else ''), who=by)
     else:
+        if members and parent:
+            from acmelib.certs import teamgov
+            teamgov.check_members(store, name, members, parent=parent)
         row.update(created=_now(), created_by=str(by)[:190])
         store.db.insert('cert_teams', row)
         store.add_event('certificates', 'the owner %s added by %s%s' % (
@@ -1797,6 +1848,8 @@ def delete_team(store, name, by, reassign=None, reparent=None):
     _enroll_follow(store, t['name'], None)
     from acmelib.certs import teampolicy as TP
     TP.actions_follow(store, t['name'], None)
+    from acmelib.certs import teamgov
+    teamgov.follow_delete(store, t['name'])
     # The profiles naming it follow (1.0.45): they named an owner no longer there, unusable.
     _profiles_follow(store, 'team', t['name'], moved or None)
     store.add_event('certificates', 'the owner %s deleted by %s%s%s' % (

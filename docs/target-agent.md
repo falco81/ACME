@@ -107,6 +107,7 @@ secret.
     `acme-agents`, two years, made again 60 days before its end) - the client certificate of a
     passive call and the server certificate of the agents' port;
   * **the command key** (`agents:cmd`, Ed25519, sealed): every job is signed with it;
+    1.0.138: the earlier ones an agent still pins (`agents:cmdkey:<fp>`) - *Watching an agent*;
   * **each target's agent** (`agents:t:<id>`): its mode, agent id, the fingerprints of its key and
     certificate, its X25519 public key, its version, when it was last heard from, the policy it
     last said; `agents:id:<agent>` says which target an agent id is;
@@ -154,6 +155,7 @@ Change it with the command line (as root) or by hand, one entry a line:
 | `allow self-update` | `acme-agent allow self-update` | acme may send a newer agent - only a package signed by a release key this agent was installed with, only a newer version |
 | `allow discover [KIND,KIND]` | `acme-agent allow discover nginx,apache` | acme may list the services here that take certificates and the certificates there - read-only (1.0.125, *Discovery* below); no KIND: every kind |
 | `limit files N` / `limit size BYTES` | `acme-agent limit files 30` | files in one deployment (20), bytes of one file (1 MiB) |
+| `audit chain` | `acme-agent audit on` (`off` takes it away) | nothing more for acme: every operation is also written into the hash-chained audit log and its head told acme (1.0.138, *Watching an agent* below). Without the line the policy's hash is what it was |
 
 `acme-agent deny ...` takes an entry away (the same words); `acme-agent policy show [--json]`
 says what is allowed, and which lines could not be read.
@@ -395,7 +397,11 @@ Operations: `hello` / `policy` (version, the policy and its hash, the host), `fi
 nothing written), `deploy`, `csr` and `cert` (the agent's certificate renewed - the network
 side's, checked by root first), `keygen` (a key made by root for a deployment, its CSR answered),
 `probe` and `connect` (checked by root against `allow probe` / `allow connect`, done by the
-network side - root never opens a network connection), `update` (root: signed, newer, allowed).
+network side - root never opens a network connection), `update` (root: signed, newer, allowed);
+1.0.138: `audit` (the entries of the audit chain from an entry on - only with `audit chain`),
+`cmdkey` (acme's new command key, signed by the one pinned, proven by itself), `enckey` (the
+agent's key for secrets made anew) - *Watching an agent* below. An agent before 1.0.138 refuses
+the three ("not an operation of this agent") and acme says it is too old for them.
 
 `deploy` carries the files (each with its path, mode, owner; a file holding a key **sealed**:
 X25519 + HKDF-SHA256 + AES-256-GCM to the agent's key, as acme push's section 7, its aad binding
@@ -777,7 +783,147 @@ that would allow it, and the card shows how to install the package by hand.
   agent_forgotten`, `target`, `target_kind=agent` (and `version`, `blocked`).
 * **Alerts**: not heard from for ten minutes, its certificate ending within seven days, and (phase 4)
   **its policy blocks a deployment** - until a deployment there goes through; (1.0.120) **the
-  server's clock more than 120 s from acme's**.
+  server's clock more than 120 s from acme's**. 1.0.138, as chosen on the card: its **audit chain not
+  agreeing**, its **anomalies**; and a deployment whose service **still serves the old
+  certificate** (where `allow probe local` is there).
+
+## Watching an agent (1.0.138)
+
+The card of every agent target has **Watching this agent**: four things acme can do to watch it
+more closely. Each is chosen **for that agent alone** (a full administrator switches it; anybody
+who sees the card sees it) and three of them are **off by default** - with them off, acme and the
+agent talk exactly as before: no job more, no key more in a job or an answer. An agent before
+1.0.138 keeps working with this acme; a new agent with an acme before it is as before too.
+
+### The audit chain (A6)
+
+Root decides: the policy line `audit chain` (`sudo acme-agent audit on`; on Windows in an
+elevated prompt). With it, every operation the root side audits - each job taken, done or refused,
+the policy applied, the pins - is also an entry of `/var/lib/acme-agent-root/audit.chain`
+(Windows: `C:\ProgramData\acme-agent\root\audit.chain`), appended and synced, one JSON line each:
+
+```
+{"h":"<sha256>","job":"<job id>","n":42,"ok":true,"op":"deploy","prev":"<the entry before's h>","said":"3 files written, reloaded","ts":1795290000.123}
+```
+
+`h` is the SHA-256 of the entry without `h` (canonical JSON: sorted keys, no spaces, ASCII);
+`prev` is the `h` of the entry before (64 zeros for the first). Each chained entry also goes to the
+journal (`journalctl -t acme-agent`, the line starts `chain `) - on Windows to the Application event
+log - so the file cannot be written anew unseen. Names, paths, hashes and results only, never a
+file's content or a secret (as the audit log). `acme-agent audit show [--last N] [--json]` shows
+it, `acme-agent audit verify` checks every hash and link (exit 1 when broken). Never truncate the
+file: a chain that starts again is said in acme.
+
+With the line, every answer of the root side carries the chain's head (`audit: {n, h}`); acme
+switched on for the target (**Audit chain** on the card) keeps its own record (`meta`
+`agents:audit:<target id>`) and every job it sends to that agent (`agentsent:<target>:<job>`, 30
+days). It reads the entries it has not seen (op `audit` - the job's own entry is the last one
+read) after a deployment, when twenty or more are waiting and at least every half hour; from the
+last entry it read (still the same?), and once a day - or **Verify now** - from the oldest one it
+keeps. Each entry is checked: its hash, its link to the one before, its number. What does not
+agree is kept, an **event** (`action=agent_audit_mismatch`, `what=unknown|gap|rewritten|changed|
+shorter|unreadable|broken`) and an **alert** (bad) until a full administrator presses *I have
+looked at it…*:
+
+* **an entry of a job acme never sent** - signed with acme's command key by somebody else;
+* **a gap** (entries missing), **a chain written anew** (an entry acme read is another now, or
+  does not follow the one before), **an entry changed** (not what its hash says), **a chain
+  shorter** than acme read.
+
+The first head acme hears is taken as known (`base`); entries before it are not compared (the
+server keeps them). Jobs signed in the seconds before it was switched on, and those queued for an
+active agent then, are acme's. The card shows the **audit timeline**: each entry with its number,
+time, operation, what it said, its job and hash (shortened, whole on hover) and whose it is -
+*acme's job* (verified), *on the server*, *refused*, *not sent by acme* - filtered by those.
+
+The card says when the server keeps no chain (the line to add) or the agent is too old.
+
+### Anomaly alerts (A7)
+
+Switched on (**Anomaly alerts**), what the agent is now is taken as its usual (`agents:anom:<id>`:
+its policy item by item, its limits, its networks). Then, each said once as an event
+(`action=agent_anomaly`, `what=...`) and an alert until a full administrator presses *Take it as
+its usual…* (which makes what is there now its usual):
+
+* **its policy widened** (red): a folder, unit verb, test, script, script hash, connection, probe,
+  discovery kind, self-update, Windows store / site / role / read on the key more than its usual;
+  a limit raised; `allow from` taken away;
+* **its policy changed** otherwise (amber, with what is no longer there);
+* **a new network**: an active agent polling from an address outside the /24 (IPv4) or /64 (IPv6)
+  networks it came from.
+
+And while they are so (amber; red where said): its **clock** more than 60 s off (the alert of
+every agent says it beyond 120 s); **silent** (not heard from for ten minutes - also the alert of
+every agent); its **version behind** the agent acme offers; its policy **differs from the design**
+saved in acme, or from the **fleet template** assigned to it or its group (`fleet.drift`,
+docs/agent-fleet.md); **a command key acme does not have** pinned by the agent (red - said for
+every agent where key rotation or anomalies are on). The tiles of Settings → Target agents carry a
+badge of them.
+
+### Keys and their age (A8)
+
+**acme's command key** can be changed. The new key is made (`agents:cmd`, sealed as before); the
+one before is kept sealed (`agents:cmdkey:<fp>`; `agents:cmdbase` names the key every agent joined
+before the first change pins) while any agent pins it - acme signs each agent's jobs with the key
+**that agent** pins (`cmd_fp` of its state), so nothing stops working. An agent is moved to the
+new key by the job `cmdkey`, signed with the key it pins: `{pub, fp, overlap_s, proof}`, `proof`
+= Ed25519 by the new key over `acme-agent/1 cmdkey\n<agent id>\n<new public key>\n<old key's
+fingerprint>`. The root side takes it only from a job signed by the key in use, only proven by the
+new key, at most once an hour; it pins the new key and **still takes the old one for the overlap**
+(3 days, 30 at most - queued jobs, the other node), then only the new one. New joins pin the new
+key. An earlier key no agent pins any more is **retired** a day after its overlap (its seed taken
+away; the record of it stays).
+
+**The agent's key for secrets** (X25519) is made anew by the job `enckey` (at most once an hour):
+the agent answers its new public key, acme seals to it from then on; the old key still opens what
+was sealed to it for the overlap (`enc.prev`).
+
+On the card (**Key rotation**): the age of the command key the agent pins (and whether it is the
+current one), of its key for secrets, the end of its certificate; **Change on a schedule** (off by
+default) every 30-365 days (a key older than that is changed by the node that leads: a new command
+key when the current one is that old, the agent moved to it, its key for secrets made anew);
+**Rotate now…** (a full administrator: both keys, the command key or the key for secrets).
+Settings → Target agents → **Keys and their age**: the authority, acme's own certificate, every
+command key with the agents that pin it, and each agent's keys; **Change acme's command key…** (a
+full administrator) makes a new one and moves the agents whose keys change on a schedule.
+
+**HA and backups**: every key is a row of `meta`, sealed - on both nodes, in every backup, put back
+by a restore. A backup made **before** a change still signs with the old key: the agents take it
+during the overlap, not after (restore a newer backup, or join them again).
+
+Events: `agent_cmdkey_new`, `agent_cmdkey_moved`, `agent_enckey_new`, `agent_cmdkey_retired`.
+
+### What the service serves (B6)
+
+Where the agent's policy **already** allows `allow probe local` (nothing else is ever asked - no
+permission is taken) acme asks the agent, after a deployment (20 s after it) and every six hours,
+what the service on the server itself serves: the job `probe` at 127.0.0.1 on the deployment's
+port (its preset's - as the tests of a deployment do), the certificate's name as SNI. The leaf
+served against the deployed certificate (`checks.expected`): **as deployed**; **the old one** (a
+version before - *deployed, but the service still serves the old certificate*: a reload forgotten -
+an event `action=agent_serves_old` and an alert, amber); **another certificate**; **does not
+answer**. Shown on the card (*What the service serves*, *Ask it now*), on the deployment's row of
+the certificate and the target (`served` of each deployment of `GET /api/deploys`,
+`/api/certs/one`), and as a badge on the tile. On by default where `allow probe local` is there; the
+card's switch turns it off for that agent. Up to ten deployments are asked at a time.
+
+### Its routes
+
+`GET /api/agents/guard?id=` (everything of the four for the card), `POST /api/agents/guard {id,
+audit?, anomaly?, rotate?, rotate_days?, health: auto|off}` (a full administrator), `POST
+/api/agents/guard/verify {id}` (the chain read and checked now - a certificate administrator),
+`POST /api/agents/guard/ack {id, what: audit|anomaly}` (a full administrator), `POST
+/api/agents/guard/rotate {id, what: command|seal|both}` (a full administrator), `POST
+/api/agents/guard/served {id}` (asked now - a certificate administrator), `GET /api/agents/keys`,
+`POST /api/agents/keys/rotate` (a full administrator). Each row of `GET /api/agents` carries
+`guard` (the choices, the chain's state, the anomalies, what is served, the keys' age in short).
+The code: `acmelib/certs/agent_guard.py`.
+
+### Windows
+
+The same on Windows: the policy line, the chain file under `root\`, each chained entry in the
+Application event log (source `acme-agent`), the jobs `audit`, `cmdkey`, `enckey`. Nothing of it is
+Linux-only.
 
 ## Backup, restore and HA
 
@@ -1125,6 +1271,17 @@ is SYSTEM, the Administrators or TrustedInstaller and nobody else may change the
 program, made at the join, limited to the `allow from` addresses when there are any (set again
 when `allow from` changes and when the root side starts), taken away at `forget` and at the
 uninstall. An active agent has none (nothing listens).
+
+## The fleet, templates, Kubernetes (1.0.138)
+
+Settings → **Agent fleet** ([agent-fleet.md](agent-fleet.md)): every agent's health, groups
+with actions on all their agents (ask now, update, compare with the template), **policy
+templates** (built-in - nginx web, Apache, HAProxy, Postfix + Dovecot, IIS, Remote Desktop ... -
+and your own, saved from the builder with *Save as a fleet template*; the builder's *Templates*
+offers them as *Fleet templates*), the **drift** of each agent's policy from its template, the
+versions and **updates in rings** (the canary ring first), and the certificates discovery found
+that acme does not manage, each **taken over** with a preview. **acme-agent for Kubernetes**
+(`deploy/agent/k8s`) writes `kubernetes.io/tls` Secrets only where its policy allows.
 
 ## Later
 

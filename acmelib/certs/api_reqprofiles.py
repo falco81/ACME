@@ -11,7 +11,16 @@ the routes of the administration and the two of the portal that go with them.
                                     key_types[], key_default, subject{F: {mode, value}},
                                     auto_renew, renew_days, days, eku[], approval, owner,
                                     owner_team, tags[], teams[], pfx} (full)
-    POST /api/reqprofiles/delete    {name} (full) - what was asked for from it stays
+    POST /api/reqprofiles/delete    {name, detach?} (full) - what was asked for from it stays;
+                                    the base of others: refused, unless detach (they stand alone)
+    GET  /api/reqprofiles/versions  ?name= its versions (1.0.138)
+    GET  /api/reqprofiles/diff      ?name=&a=&b= two versions field by field ('now': as it is)
+    POST /api/reqprofiles/restore   {name, version} (full) - as a new version
+    GET  /api/reqprofiles/compliance ?at=YYYY-MM-DD the CA/B Forum's schedule and the rules
+    POST /api/reqprofiles/rules     the company's rules (full)
+    POST /api/reqprofiles/dryrun    {profile, names[] | csr, key_type, subject, team, who}
+    GET  /api/reqprofiles/impact    ?name=&successor= what ending it moves
+    POST /api/reqprofiles/ends      {name, successor, note} | {name, undo: true} (full)
 
     POST /api/portal/csr_decode     {profile, csr | csr_b64}: the CSR decoded, and checked
                                     against the profile item by item - nothing kept
@@ -27,6 +36,7 @@ from acmelib import engine as E
 from acmelib.certs import api as A
 from acmelib.certs import store as S
 from acmelib.certs import reqprofiles as R
+from acmelib.certs import reqprofiles_more as RM
 
 
 @A.api('GET', '/api/reqprofiles')
@@ -45,9 +55,72 @@ def _save(h, s):
 
 @A.api('POST', '/api/reqprofiles/delete', 'fulladmin')
 def _delete(h, s):
-    got = R.delete_profile(h.store, h.body().get('name'), A.who(s))
+    b = h.body()
+    got = R.delete_profile(h.store, b.get('name'), A.who(s), detach=bool(b.get('detach')))
     got['message'] = 'the request profile %s was deleted' % got['deleted']
     return got
+
+
+# ---- 1.0.138 (reqprofiles_more.py): versions, compliance, a dry run, a profile that ends ----
+@A.api('GET', '/api/reqprofiles/versions')
+def _versions(h, s):
+    return RM.versions(h.store, h.arg('name'))
+
+
+@A.api('GET', '/api/reqprofiles/diff')
+def _diff(h, s):
+    return RM.diff(h.store, h.arg('name'), h.arg('a'), h.arg('b'))
+
+
+@A.api('POST', '/api/reqprofiles/restore', 'fulladmin')
+def _restore(h, s):
+    b = h.body()
+    try:
+        n = int(b.get('version'))
+    except (TypeError, ValueError):
+        raise E.ApiError(400, 'which version?')
+    got = RM.restore(h.store, b.get('name'), n, A.who(s))
+    return {'profile': got, 'message': 'the request profile %s is as version %d said - as a new '
+                                       'version' % (got['name'], n)}
+
+
+@A.api('GET', '/api/reqprofiles/compliance')
+def _compliance(h, s):
+    try:
+        return RM.report(h.store, h.arg('at') or None)
+    except ValueError as e:
+        raise E.ApiError(400, str(e))
+
+
+@A.api('POST', '/api/reqprofiles/rules', 'fulladmin')
+def _rules(h, s):
+    return {'rules': RM.save_rules(h.store, h.body(), A.who(s)),
+            'message': 'the rules of the request profiles are saved'}
+
+
+@A.api('POST', '/api/reqprofiles/dryrun')
+def _dryrun(h, s):
+    try:
+        return RM.dryrun(h.store, h.body())
+    except ValueError as e:
+        raise E.ApiError(400, str(e))
+
+
+@A.api('GET', '/api/reqprofiles/impact')
+def _impact(h, s):
+    return RM.impact(h.store, h.arg('name'), h.arg('successor') or None)
+
+
+@A.api('POST', '/api/reqprofiles/ends', 'fulladmin')
+def _ends(h, s):
+    b = h.body()
+    if b.get('undo'):
+        got = RM.set_ends(h.store, b.get('name'), None, '', A.who(s))
+        return {'profile': got, 'message': 'the request profile %s no longer ends' % got['name']}
+    if not str(b.get('successor') or '').strip():
+        raise E.ApiError(400, 'choose its successor among the request profiles')
+    got = RM.set_ends(h.store, b.get('name'), b.get('successor'), b.get('note'), A.who(s))
+    return {'profile': got, 'message': 'the request profile %s ends' % got['name']}
 
 
 @E.route('POST', '/api/portal/csr_decode')

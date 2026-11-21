@@ -24,6 +24,10 @@
                   ['key', 'The key', 'key'], ['subject', 'The subject', 'person'], ['renewal', 'Use and renewal', 'refresh'],
                   ['approval', 'Approval and owner', 'check'], ['who', 'Who may use it', 'people']];
 
+  if (typeof ICONS === 'object' && !ICONS.rp_link) {
+    /* a chain link: a field taken from the base profile (1.0.138) */
+    ICONS.rp_link = '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.3 1.3"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.3-1.3"/>';
+  }
   if (typeof ICONS === 'object' && !ICONS.rp_cards) {
     ICONS.rp_cards = '<rect x="3" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8"/>'
       + '<rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8"/>';
@@ -207,6 +211,8 @@
     find.appendChild(q);
     b.appendChild(find);
     var right = el('div', 'tmx-bar-r');
+    /* 1.0.138: the compliance check (reqprofiles-more.js) */
+    if (window.ACME_RP_MORE) ACME_RP_MORE.bar(right, d);
     if (full()) {
       var add = cmdButton('Add a profile', 'add', 'small primary');
       add.id = 'rp-add';
@@ -221,7 +227,7 @@
     if (!q) return true;
     /* the domains as the card and the table show them too: *.example.com with wildcards */
     var sufs = (p.suffixes || []).map(function (s) { return p.wildcards ? '*.' + s : s; });
-    var hay = [p.name, p.description, p.issuer, p.challenge, p.owner_team].concat(sufs, p.teams || [], p.tags || [],
+    var hay = [p.name, p.description, p.issuer, p.challenge, p.owner_team, p.base, p.ends && p.ends.successor].concat(sufs, p.teams || [], p.tags || [],
       (p.key_types || []).map(function (k) { return KEY_WORDS[k] || k; }), RP.limits[low(p.name)] || []);
     hay = fold(hay.join(' \u0001 '));
     return fold(q).split(/\s+/).filter(Boolean).every(function (w) { return hay.indexOf(w) >= 0; });
@@ -295,7 +301,9 @@
     var w = el('div', 'rpx-card-w');
     var nm = el('div', 'rpx-card-n');
     nm.appendChild(data('b', 'rpx-name', p.name));
-    nm.appendChild(p.enabled ? chip('offered', 'ok', 'check') : chip('switched off', 'dim rp-off', 'ban'));
+    /* one that ends is not offered (1.0.138): its "ends" chip says so instead */
+    if (!(p.ends && p.enabled)) nm.appendChild(p.enabled ? chip('offered', 'ok', 'check') : chip('switched off', 'dim rp-off', 'ban'));
+    if (window.ACME_RP_MORE) ACME_RP_MORE.chips(nm, p);
     w.appendChild(nm);
     if (p.description) w.appendChild(data('p', 'rpx-card-d rp-desc', p.description));
     head.appendChild(w);
@@ -328,6 +336,7 @@
     card.appendChild(facts);
     var foot = el('div', 'rpx-card-f');
     foot.appendChild(chip(num(p.used || 0) + ' certificate(s)', 'dim', 'lock'));
+    if (window.ACME_RP_MORE) ACME_RP_MORE.foot(foot, p);
     card.appendChild(foot);
     if (full()) {
       card.classList.add('tappable');
@@ -345,8 +354,11 @@
         var nm = cell('', '');
         nm.appendChild(data('b', '', p.name));
         if (!p.enabled) nm.appendChild(el('span', 'tag dim rp-off', 'switched off'));
+        if (window.ACME_RP_MORE) ACME_RP_MORE.chips(nm, p);
         if (p.description) nm.appendChild(data('div', 'muted small rp-desc', p.description));
         (p.problems || []).forEach(function (w) { nm.appendChild(el('div', 'small ct-bad', w)); });
+        /* its history, a dry run, ending (1.0.138) */
+        if (window.ACME_RP_MORE) ACME_RP_MORE.rowActs(nm, p);
         row.appendChild(nm);
         var gives = cell('small', '');
         var src = el('div', '');
@@ -396,6 +408,9 @@
     c.name = base + ' ' + n;
     delete c.used;
     delete c.problems;
+    delete c.children;
+    delete c.version;
+    delete c.ends;
     editProfile(null, c);
   }
 
@@ -558,16 +573,85 @@
     return box;
   }
 
-  function editProfile(p, copy) {
+  /* ---- a base profile (1.0.138, docs/request-profiles.md "A base profile") ------------
+     The groups of fields a profile may take from its base - reqprofiles.py's INHERIT_GROUPS. */
+  var INHERIT = [['source', ['issuer', 'challenge']], ['suffixes', ['suffixes']], ['wildcards', ['wildcards']],
+                 ['max_names', ['max_names']], ['make_key', ['make_key']], ['csr', ['csr']],
+                 ['key_types', ['key_types', 'key_default']], ['auto_renew', ['auto_renew']],
+                 ['renew_days', ['renew_days']], ['days', ['days']], ['eku', ['eku']], ['approval', ['approval']],
+                 ['owner', ['owner', 'owner_team']], ['tags', ['tags']], ['teams', ['teams']], ['pfx', ['pfx']]];
+  var SUBJ_KEYS = ['O', 'OU', 'L', 'ST', 'C', 'emailAddress'];
+  /* chosen as a base the first time: everything inherited but the domains and the teams */
+  function inheritAll() {
+    return INHERIT.map(function (g) { return g[0]; }).concat(SUBJ_KEYS.map(function (k) { return 'subject.' + k; }))
+      .filter(function (g) { return g !== 'suffixes' && g !== 'teams'; });
+  }
+  function profileOf(name) {
+    return (((RP.d || {}).profiles) || []).filter(function (x) { return low(x.name) === low(name); })[0] || null;
+  }
+  /* the profiles based on this one, theirs too - never a base of it */
+  function descendants(name) {
+    var all = ((RP.d || {}).profiles) || [], out = [], want = [low(name)];
+    while (want.length) {
+      var got = all.filter(function (x) { return x.base && want.indexOf(low(x.base)) >= 0 && out.indexOf(x.name) < 0; })
+        .map(function (x) { return x.name; });
+      out = out.concat(got);
+      want = got.map(low);
+    }
+    return out;
+  }
+  function copyOf(v) { return v === undefined ? v : JSON.parse(JSON.stringify(v)); }
+  /* what the editor shows: the inherited groups as the base has them */
+  function withBase(p, b, inh) {
+    var out = copyOf(p);
+    out.subject = copyOf(p.subject || {});
+    inh.forEach(function (g) {
+      if (g.indexOf('subject.') === 0) {
+        var k = g.slice(8);
+        out.subject[k] = copyOf((b.subject || {})[k] || {mode: 'off', value: ''});
+        return;
+      }
+      (INHERIT.filter(function (x) { return x[0] === g; })[0] || [0, []])[1].forEach(function (k) { out[k] = copyOf(b[k]); });
+    });
+    return out;
+  }
+  function inhToggle(g, on, baseName, go) {
+    var b = el('button', 'rpx-inh-t' + (on ? ' on' : ''));
+    b.type = 'button';
+    b.dataset.group = g;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.appendChild(ic(on ? 'rp_link' : 'edit', 12));
+    b.appendChild(el('span', '', on ? 'inherited' : 'overridden'));
+    var says = on ? tr('Inherited from {0} - press to override it here') : tr('Its own value here - press to inherit it from {0}');
+    b.title = says.replace('{0}', baseName);
+    b.setAttribute('aria-label', b.title);
+    b.onclick = go;
+    return b;
+  }
+
+  function editProfile(p, copy, again) {
+    var orig = p;
     var isNew = !p;
     var o = (RP.d || {}).options || {};
     var iss = o.issuers || [];
-    p = p || copy || {name: '', description: '', enabled: true, issuer: (iss.filter(function (i) { return i.enabled; })[0] || iss[0] || {}).name || '',
+    p = again ? again.values : p || copy || {name: '', description: '', enabled: true, issuer: (iss.filter(function (i) { return i.enabled; })[0] || iss[0] || {}).name || '',
               challenge: '', suffixes: [], wildcards: false, max_names: 5, make_key: true, csr: false,
               key_types: ['ec-256', 'rsa-2048'], key_default: 'ec-256', subject: {}, auto_renew: true,
               renew_days: null, days: null, eku: ['serverAuth'], approval: false, owner: 'person',
               owner_team: '', tags: [], teams: [], pfx: false};
+    var st = again ? {base: again.base || '', inherit: (again.inherit || []).slice()}
+      : {base: p.base || '', inherit: (p.inherit || []).slice()};
+    var baseP = st.base ? profileOf(st.base) : null;
+    if (baseP) p = withBase(p, baseP, st.inherit);
+    var G = {};
+    var reg = function (g, x) { (G[g] = G[g] || []).push(x); return x; };
     var f = {};
+    var collect = function () { return {}; };
+    var rerender = function (base, inherit, focus) {
+      var vals = collect();
+      var mb = $('modal-body');
+      editProfile(orig, copy, {base: base, inherit: inherit, values: vals, scroll: mb ? mb.scrollTop : 0, focus: focus});
+    };
     var shown = function () {};
     var preview = function () {};
     modal(isNew ? 'A new request profile' : 'Edit the request profile', function (body) {
@@ -636,6 +720,31 @@
       sg.appendChild(row('Name', f.name, 'What people pick on the portal. Letters, digits, spaces and . _ @ + -.'));
       f.enabled = switchBox(p.enabled);
       sg.appendChild(row('Offered', f.enabled, 'Off: kept, not shown on the portal.'));
+      /* its base (1.0.138): none, or another profile - never itself nor one based on it */
+      var nob = orig ? [low(orig.name)].concat(descendants(orig.name).map(low)) : [];
+      var bases = (((RP.d || {}).profiles) || []).filter(function (x) { return nob.indexOf(low(x.name)) < 0; });
+      if (bases.length || st.base) {
+        f.base = selectBox([['', tr('none - it stands alone')]].concat(bases.map(function (x) { return [x.name, x.name]; })), st.base);
+        f.base.id = 'rp-f-base';
+        noI18n(f.base);
+        f.base.onchange = function () {
+          var nb = f.base.value;
+          rerender(nb, nb ? (st.base ? st.inherit : inheritAll()) : [], '#base');
+        };
+        sg.appendChild(row('Based on', f.base, 'Another profile it takes its settings from: each field marked inherited follows it, and a change of it applies here too. Override a field to set it here.'));
+        if (baseP) {
+          var bn = el('div', 'tmx-note info rpx-basenote');
+          bn.appendChild(ic('rp_link', 16));
+          var bw = el('span', '');
+          bw.appendChild(el('span', '', 'Inherited from the base'));
+          bw.appendChild(document.createTextNode(': '));
+          bw.appendChild(data('b', '', baseP.name));
+          bw.appendChild(document.createTextNode(' · '));
+          bw.appendChild(el('span', '', num(st.inherit.length) + ' field(s)'));
+          bn.appendChild(bw);
+          sg.appendChild(bn);
+        }
+      }
       f.desc = el('textarea', 'rp-f-desc');
       f.desc.rows = 2;
       f.desc.value = p.description || '';
@@ -658,7 +767,7 @@
         f.issuer.insertBefore(og, f.issuer.firstChild);
         f.issuer.value = p.issuer;
       }
-      ss.appendChild(row('Source', f.issuer, 'Certificates → Sources.'));
+      ss.appendChild(reg('source', row('Source', f.issuer, 'Certificates → Sources.')));
       f.srcChips = el('div', 'rpx-srcchips');
       ss.appendChild(f.srcChips);
       f.goneSaid = el('p', 'note ct-bad rp-gone', tr('The source {0} of this profile is deleted: choose another.').replace('{0}', f.gone));
@@ -668,7 +777,7 @@
       f.challenge = selectBox([['', tr('choose one')]].concat((o.challenges || []).map(function (c) { return [c.name, c.name]; })), p.challenge);
       f.challenge.id = 'rp-f-challenge';
       noI18n(f.challenge);
-      f.challengeField = row('Names proved by', f.challenge, 'Certificates → Validation: how its names are proved to the CA.');
+      f.challengeField = reg('source', row('Names proved by', f.challenge, 'Certificates → Validation: how its names are proved to the CA.'));
       ss.appendChild(f.challengeField);
 
       /* -- the names -- */
@@ -683,18 +792,18 @@
         });
       }
       f.suffixes = domainEditor(p.suffixes || [], Object.keys(doms).sort(), function () { preview(); });
-      sn.appendChild(row('Under these domains', f.suffixes, 'A name is the domain itself or under it. Enter, a comma or a space adds the one typed.', 'rpx-wide'));
+      sn.appendChild(reg('suffixes', row('Under these domains', f.suffixes, 'A name is the domain itself or under it. Enter, a comma or a space adds the one typed.', 'rpx-wide')));
       f.wild = switchBox(p.wildcards);
-      sn.appendChild(row('Wildcards', f.wild, 'A name like *.example.com - only where the source gives them, proved by DNS.'));
+      sn.appendChild(reg('wildcards', row('Wildcards', f.wild, 'A name like *.example.com - only where the source gives them, proved by DNS.')));
       f.most = numBox(p.max_names || 1, '5', 1, 50);
-      sn.appendChild(row('Names in one certificate', f.most, 'At most.'));
+      sn.appendChild(reg('max_names', row('Names in one certificate', f.most, 'At most.')));
 
       /* -- the key -- */
       var sk = add(section('key', 'The key', 'key'));
       f.make = switchBox(p.make_key);
-      sk.appendChild(row('acme makes the key', f.make, 'The key is made here and kept, sealed; the person downloads the certificate (and, if allowed below, a PFX with the key).'));
+      sk.appendChild(reg('make_key', row('acme makes the key', f.make, 'The key is made here and kept, sealed; the person downloads the certificate (and, if allowed below, a PFX with the key).')));
       f.csr = switchBox(p.csr);
-      f.csrField = row('The person may send a CSR', f.csr, 'Made where the key is to stay. It is decoded and checked against this profile first; renewals use the same CSR.');
+      f.csrField = reg('csr', row('The person may send a CSR', f.csr, 'Made where the key is to stay. It is decoded and checked against this profile first; renewals use the same CSR.'));
       sk.appendChild(f.csrField);
       f.kts = {};
       var kw = el('div', 'rpx-pills rp-kts');
@@ -706,10 +815,10 @@
         kw.appendChild(lab);
       });
       kw.setAttribute('role', 'group');
-      sk.appendChild(row('Key types allowed', kw, 'Of a key made here, and of a CSR sent in. Greyed: the source does not sign it.'));
+      sk.appendChild(reg('key_types', row('Key types allowed', kw, 'Of a key made here, and of a CSR sent in. Greyed: the source does not sign it.')));
       f.kdefHost = el('div', 'rpx-kdef');
       f.kdef = {value: p.key_default};
-      sk.appendChild(row('Offered first', f.kdefHost));
+      sk.appendChild(reg('key_types', row('Offered first', f.kdefHost)));
       var fillDefault = function () {
         var keep2 = f.kdef.value || p.key_default;
         var ok = Object.keys(f.kts).filter(function (k) { return f.kts[k].checked && !f.kts[k].disabled; });
@@ -758,6 +867,7 @@
         line.appendChild(mode);
         line.appendChild(val);
         f.subject[k] = {mode: mode, value: val};
+        reg('subject.' + k, line);
         sbox.appendChild(line);
       });
       sj.appendChild(sbox);
@@ -765,11 +875,11 @@
       /* -- what it is for, renewal -- */
       var sr = add(section('renewal', 'Use and renewal', 'refresh'));
       f.auto = switchBox(p.auto_renew);
-      sr.appendChild(row('Renew by itself', f.auto, 'Off: only when somebody presses Renew now.'));
+      sr.appendChild(reg('auto_renew', row('Renew by itself', f.auto, 'Off: only when somebody presses Renew now.')));
       f.rdays = numBox(p.renew_days, '30', 1, 3650);
-      sr.appendChild(row('Days before the end', f.rdays, 'Empty: as Renewal and notices says.'));
+      sr.appendChild(reg('renew_days', row('Days before the end', f.rdays, 'Empty: as Renewal and notices says.')));
       f.days = numBox(p.days, '', 1, 36500);
-      f.daysField = row('Valid for (days)', f.days, 'Empty: what the source gives. Browsers take at most 398 days for a public name.');
+      f.daysField = reg('days', row('Valid for (days)', f.days, 'Empty: what the source gives. A public certificate is valid for at most 200 days from 15 March 2026, 100 from 15 March 2027 and 47 from 15 March 2029 (CA/Browser Forum).'));
       sr.appendChild(f.daysField);
       f.eku = {};
       var ek = el('div', 'rpx-pills ct-ekus rp-ekus');
@@ -779,30 +889,30 @@
         f.eku[e] = lab._input;
         ek.appendChild(lab);
       });
-      sr.appendChild(row('Used for', ek, 'A public CA puts in what it puts in; an authority of your own what is asked.', 'rpx-wide'));
+      sr.appendChild(reg('eku', row('Used for', ek, 'A public CA puts in what it puts in; an authority of your own what is asked.', 'rpx-wide')));
 
       /* -- approval, owner, tags -- */
       var sa = add(section('approval', 'Approval and owner', 'check'));
       f.approval = segmented([['0', 'issued at once', 'check'], ['1', 'waits for approval', 'clock']], p.approval ? '1' : '0', 'When asked for');
       f.approval.id = 'rp-f-approval';
-      sa.appendChild(row('When asked for', f.approval, 'Approved by the certificate administrators (Certificates → waiting for approval), and on the portal by the members with the right approve of the team that owns it.'));
+      sa.appendChild(reg('approval', row('When asked for', f.approval, 'Approved by the certificate administrators (Certificates → waiting for approval), and on the portal by the members with the right approve of the team that owns it.')));
       f.owner = segmented([['person', 'the person who asks', 'person'], ['team', 'a team they pick (where they may ask)', 'people'], ['fixed', 'this team', 'pin']],
         ['person', 'team', 'fixed'].indexOf(p.owner) >= 0 ? p.owner : 'person', 'Whose it is');
       f.owner.id = 'rp-f-owner';
-      sa.appendChild(row('Whose it is', f.owner, 'Owners and teams: the members of its team see it on the portal and are told when it fails.'));
+      sa.appendChild(reg('owner', row('Whose it is', f.owner, 'Owners and teams: the members of its team see it on the portal and are told when it fails.')));
       f.oteam = selectBox([['', tr('choose a team')]].concat((o.teams || []).map(function (t) { return [t, t]; })), p.owner_team || '');
       f.oteam.id = 'rp-f-oteam';
       noI18n(f.oteam);
-      f.oteamField = row('The team', f.oteam);
+      f.oteamField = reg('owner', row('The team', f.oteam));
       sa.appendChild(f.oteamField);
       f.pfx = switchBox(p.pfx);
-      f.pfxField = row('PFX with the key', f.pfx, 'The person may download the certificate with its private key, locked with a password they choose. Only for a key acme made.');
+      f.pfxField = reg('pfx', row('PFX with the key', f.pfx, 'The person may download the certificate with its private key, locked with a password they choose. Only for a key acme made.'));
       sa.appendChild(f.pfxField);
       f.tags = window.ACME_TEAMS ? ACME_TEAMS.tagPicker(p.tags || []) : null;
       if (f.tags) {
         var tsel = f.tags.querySelector('select');
         if (tsel) f.tags._labelFor = tsel;
-        sa.appendChild(row('Tags', f.tags, 'Put on every certificate asked for from it, beside "portal".'));
+        sa.appendChild(reg('tags', row('Tags', f.tags, 'Put on every certificate asked for from it, beside "portal".')));
       }
 
       /* -- who may use it -- */
@@ -812,7 +922,7 @@
         f.teams = {_get: function () { return []; }};
       } else {
         f.teams = catalogPicker(p.teams || [], o.teams || [], 'anybody who may sign in', 'rp-f-teams', function () { preview(); });
-        sw.appendChild(row('Teams', f.teams, null, 'rpx-wide'));
+        sw.appendChild(reg('teams', row('Teams', f.teams, null, 'rpx-wide')));
       }
       f.said = el('div', 'said');
       main.appendChild(f.said);
@@ -946,25 +1056,59 @@
       f.make._input.addEventListener('change', shown);
       shown();
       fillDefault();
+      /* inherited or overridden, field by field (1.0.138): an inherited one shows its base's
+         value and cannot be changed here - its toggle overrides it */
+      if (baseP) Object.keys(G).forEach(function (g) {
+        var on = st.inherit.indexOf(g) >= 0;
+        G[g].forEach(function (r, i) {
+          r.classList.add('rpx-hasinh');
+          r.classList.toggle('rpx-inh', on);
+          var parts = r.classList.contains('rpx-subj-row') ? Array.prototype.slice.call(r.children, 1)
+            : [r.querySelector('.tmx-prow-c')];
+          parts.forEach(function (x) { if (x && on) { x.setAttribute('inert', ''); x.classList.add('rpx-locked'); } });
+          if (i) return;
+          var where = r.classList.contains('rpx-subj-row') ? r.querySelector('.rpx-subj-k') : r.querySelector('.tmx-prow-l');
+          if (!where) return;
+          where.appendChild(inhToggle(g, on, baseP.name, function () {
+            var inh = st.inherit.filter(function (x) { return x !== g; });
+            if (!on) inh.push(g);
+            rerender(st.base, inh, g);
+          }));
+        });
+      });
+      collect = function () {
+        var subject = {};
+        Object.keys(f.subject).forEach(function (k) {
+          subject[k] = {mode: f.subject[k].mode.value, value: f.subject[k].value.value.trim()};
+        });
+        return {name: f.name.value.trim(), description: f.desc.value.trim(), enabled: f.enabled._get(),
+                issuer: f.issuer.value, challenge: f.challengeField.hidden ? '' : f.challenge.value,
+                suffixes: f.suffixes._get(), wildcards: f.wild._get(),
+                max_names: Number(f.most.value || 1), make_key: f.make._get(), csr: f.csr._get(),
+                key_types: Object.keys(f.kts).filter(function (k) { return f.kts[k].checked; }),
+                key_default: f.kdef.value, subject: subject, auto_renew: f.auto._get(),
+                renew_days: f.rdays.value ? Number(f.rdays.value) : null,
+                days: !f.daysField.hidden && f.days.value ? Number(f.days.value) : null,
+                eku: Object.keys(f.eku).filter(function (k) { return f.eku[k].checked; }),
+                approval: f.approval.value === '1', owner: f.owner.value, owner_team: f.oteam.value,
+                tags: f.tags ? f.tags._get() : [], pfx: f.make._get() ? f.pfx._get() : 0,
+                teams: f.teams._get(), base: st.base, inherit: st.base ? st.inherit.slice() : []};
+      };
+      if (again) {
+        try { MODAL_TYPED = MODAL_GEN; } catch (e) { }   /* what was typed is still to be saved */
+        /* after the popup's own focus (modal() sets it a moment after this is drawn) */
+        setTimeout(function () { setTimeout(function () {
+          var mb = $('modal-body');
+          if (mb) mb.scrollTop = again.scroll || 0;
+          var t = again.focus === '#base' ? $('rp-f-base')
+            : body.querySelector('.rpx-inh-t[data-group="' + again.focus + '"]');
+          if (t) { try { t.focus({preventScroll: true}); } catch (e) { } }
+        }, 0); }, 0);
+      }
     }, [{words: 'Close', close: true},
         {words: isNew ? 'Add it' : 'Save', cls: 'primary', icon: isNew ? 'add' : 'save', go: function (b) {
-          var subject = {};
-          Object.keys(f.subject).forEach(function (k) {
-            subject[k] = {mode: f.subject[k].mode.value, value: f.subject[k].value.value.trim()};
-          });
-          var out = {name: f.name.value.trim(), description: f.desc.value.trim(), enabled: f.enabled._get(),
-                     issuer: f.issuer.value, challenge: f.challengeField.hidden ? '' : f.challenge.value,
-                     suffixes: f.suffixes._get(), wildcards: f.wild._get(),
-                     max_names: Number(f.most.value || 1), make_key: f.make._get(), csr: f.csr._get(),
-                     key_types: Object.keys(f.kts).filter(function (k) { return f.kts[k].checked; }),
-                     key_default: f.kdef.value, subject: subject, auto_renew: f.auto._get(),
-                     renew_days: f.rdays.value ? Number(f.rdays.value) : null,
-                     days: !f.daysField.hidden && f.days.value ? Number(f.days.value) : null,
-                     eku: Object.keys(f.eku).filter(function (k) { return f.eku[k].checked; }),
-                     approval: f.approval.value === '1', owner: f.owner.value, owner_team: f.oteam.value,
-                     tags: f.tags ? f.tags._get() : [], pfx: f.make._get() ? f.pfx._get() : 0,
-                     teams: f.teams._get()};
-          if (!isNew) out.old_name = p.name;
+          var out = collect();
+          if (!isNew) out.old_name = orig.name;
           f.said.className = 'said';
           f.said.textContent = '';
           busy(b, true);
@@ -983,6 +1127,25 @@
   }
 
   function deleteProfile(p) {
+    /* the base of others (1.0.138): they take what they inherit as their own first */
+    if ((p.children || []).length) {
+      modal('Delete the request profile', function (body) {
+        var n = el('div', 'tmx-note warn rpx-delbase');
+        n.appendChild(ic('rp_link', 18));
+        var w = el('div', '');
+        w.appendChild(el('p', '', 'It is the base of these profiles. Deleted, each of them takes what it inherits from it as its own and stands alone - nothing they give changes:'));
+        var cs = el('div', 'rpx-pc-c');
+        p.children.forEach(function (c) { cs.appendChild(dataChip(c, 'info', 'rp_link')); });
+        w.appendChild(cs);
+        n.appendChild(w);
+        body.appendChild(n);
+        body.appendChild(el('p', 'note', 'The certificates asked for from it stay as they are.'));
+      }, [{words: 'No, leave it', close: true},
+          {words: 'Delete it', cls: 'danger', icon: 'trash', close: true, once: true, go: function () {
+            api('reqprofiles/delete', {name: p.name, detach: true}).then(function () { toast('The request profile is deleted', 'good'); drawPane(); }).catch(oops);
+          }}], true);
+      return;
+    }
     confirmThen('Delete the request profile', htmlText(tr('The request profile {0} is deleted. The certificates asked for from it stay as they are.').replace('{0}', p.name)),
       'Delete it', function () {
         api('reqprofiles/delete', {name: p.name}).then(function (r) { toast('The request profile is deleted', 'good'); drawPane(); }).catch(oops);

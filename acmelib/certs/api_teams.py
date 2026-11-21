@@ -56,7 +56,7 @@ def summary(store, s):
     seen = T.scope(store, s, 'view')
     if seen is not None:
         teams = [t if T.owner_in(seen, t['name']) else
-                 dict(t, members=[], contact_mail='', contact_phone='', note='')
+                 dict(t, members=[], contact_mail='', contact_phone='', note='', gov={})
                  for t in teams]
     # what each team holds (1.0.125, hunt C1): the page asked four lists of every team for it -
     # a scoped account those of the teams it sees only
@@ -887,3 +887,8 @@ def _cli_access(c, who):
                              (' (from %s)' % came[k]) if came.get(k) and came[k] != t['team']
                              else '') for k, v in sorted(pol.items()))))
     return 0
+
+
+# The governance of teams (1.0.138): who may do what and why, view as, elevation, reviews,
+# separation of duties, templates, channels, health - routes of their own.
+from acmelib.certs import api_teamgov  # noqa: E402,F401

@@ -321,10 +321,14 @@
   var UI = {view: 'org', team: null, tab: 'overview', open: {}, q: '', below: false,
             targets: null, cats: null, counts: {}, drawer: false, opened: false};
   var VIEWS = [['org', 'Organisation', 'tm_tree'], ['roles', 'Roles', 'tm_grid'],
-               ['access', 'Access check', 'tm_check'], ['tags', 'Tags', 'tm_tag']];
+               ['access', 'Access check', 'tm_check'], ['tags', 'Tags', 'tm_tag'],
+               /* governance (1.0.138) */
+               ['whomay', 'Who may', 'tmg_who'], ['health', 'Health', 'tmg_heart'],
+               ['gov', 'Requests', 'tmg_inbox'], ['templates', 'Templates', 'tmg_tpl']];
   var TABS = [['overview', 'Overview', 'chart'], ['members', 'Members', 'people'],
               ['limits', 'Limits', 'shield'], ['devices', 'Devices', 'router'],
-              ['certs', 'Certificates', 'lock'], ['activity', 'Activity', 'history']];
+              ['certs', 'Certificates', 'lock'], ['activity', 'Activity', 'history'],
+              ['gov', 'Governance', 'tmg_gov']];
   var KIND_ICON = {unit: 'tm_unit', team: 'people', person: 'person'};
   var KIND_NAME = {unit: 'unit', team: 'team', person: 'person'};
   var WHO_ICON = {user: 'person', group: 'people', local: 'key'};
@@ -478,7 +482,7 @@
       var box = el('div', 'tmx');
       box.id = 'tmx';
       host.appendChild(box);
-      if (!checks() && UI.view === 'access') UI.view = 'org';
+      if (!checks() && (UI.view === 'access' || UI.view === 'whomay')) UI.view = 'org';
       box.appendChild(viewBar(d));
       var body = el('div', 'tmx-view');
       body.id = 'tmx-view';
@@ -501,7 +505,7 @@
     var seg = el('div', 'tmx-views');
     seg.setAttribute('role', 'tablist');
     VIEWS.forEach(function (v) {
-      if (v[0] === 'access' && !checks()) return;
+      if ((v[0] === 'access' || v[0] === 'whomay') && !checks()) return;
       var b = el('button', 'tmx-vbtn' + (UI.view === v[0] ? ' on' : ''));
       b.type = 'button';
       b.dataset.view = v[0];
@@ -537,6 +541,10 @@
     var d = TM.d || {};
     if (UI.view === 'roles') body.appendChild(fade(rolesView(d)));
     else if (UI.view === 'access') body.appendChild(fade(accessView()));
+    else if (UI.view === 'whomay') body.appendChild(fade(whomayView()));
+    else if (UI.view === 'health') body.appendChild(fade(healthView()));
+    else if (UI.view === 'gov') body.appendChild(fade(govView()));
+    else if (UI.view === 'templates') body.appendChild(fade(templatesView()));
     else if (UI.view === 'tags') {
       var tg = fade(el('div', 'tmx-tags'));
       tg.appendChild(tagsCard(d));
@@ -939,7 +947,7 @@
     var inner = fade(el('div', 'tmx-tabbody'));
     body.appendChild(inner);
     var f = {overview: overview, members: membersTab, limits: limitsTab, devices: devicesTab,
-             certs: certsTab, activity: activityTab}[UI.tab] || overview;
+             certs: certsTab, activity: activityTab, gov: govTab}[UI.tab] || overview;
     f(inner, T, n);
     if (typeof explainWhatWasDrawn === 'function') { try { explainWhatWasDrawn(inner); } catch (e) { } }
   }
@@ -1010,6 +1018,7 @@
     };
     paint(null);
     teamCounts(n.name).then(function (c) { if (tiles.isConnected) paint(c); });
+    healthStrip(box, n);
     var cols = el('div', 'tmx-cols');
     /* the limits in force */
     var lim = el('section', 'tmx-sec');
@@ -1144,6 +1153,15 @@
       tools.appendChild(ed);
       tools.appendChild(x);
       r.appendChild(tools);
+    }
+    /* view as this member (1.0.138): a full administrator, a person (not a group) */
+    if (fullAdmin() && kind !== 'group') {
+      var va = iconButton('eye', 'View as this member');
+      va.classList.add('tmg-mview');
+      va.onclick = function () { viewAsChoose(m.who); };
+      var vt = r.querySelector('.tmx-mtools');
+      if (!vt) { vt = el('div', 'tmx-mtools'); r.appendChild(vt); }
+      vt.insertBefore(va, vt.firstChild);
     }
     return r;
   }
@@ -3084,6 +3102,1725 @@
   }
 
 
+
+  /* ==== Governance (1.0.138, docs/teams.md "Governance") ===================================
+     Who may do what and why (a matrix, each cell saying why), view as, temporary roles, access
+     reviews, separation of duties, templates and CSV import, the team's channels and the
+     escalation chain, the teams' health. Everything from /api/teams/* (api_teamgov.py); a full
+     administrator changes, the others see. */
+  var CAP_SHORT = function (id) { return String(id).split('.')[1] || id; };
+  var GOV = {who: null, mode: 'person', team: '', cap: 'cert.key', target: '', cert: '', health: null,
+             hsort: 'worst', hq: '', hshow: 60, rshow: 200};
+  function govIcons() {
+    if (typeof ICONS !== 'object' || ICONS.tmg_who) return;
+    ICONS.tmg_who = '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 3-5.8 6.5-5.8"/><rect x="13" y="12" width="8.5" height="8.5" rx="1.6"/><path d="M15.3 16.3l1.5 1.5 2.6-2.8"/>';
+    ICONS.tmg_heart = '<path d="M12 20s-7.5-4.6-7.5-10.1A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/><path d="M7.5 12.5h2.6l1.4-2.4 2 4.3 1.3-1.9h1.7"/>';
+    ICONS.tmg_inbox = '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1.5 2.5h5L16 13h5"/>';
+    ICONS.tmg_tpl = '<rect x="3" y="3" width="13" height="13" rx="2.2"/><path d="M8 21h11a2 2 0 0 0 2-2V8"/><path d="M7 7.5h5M7 11h3"/>';
+    ICONS.tmg_gov = '<path d="M12 3l8 3.4v5.3c0 4.6-3.3 8.1-8 9.3-4.7-1.2-8-4.7-8-9.3V6.4z"/><path d="M8.6 12.2l2.3 2.3 4.5-4.8"/>';
+    ICONS.tmg_up = '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>';
+    ICONS.tmg_pair = '<circle cx="7" cy="12" r="4"/><circle cx="17" cy="12" r="4"/><path d="M4 20L20 4"/>';
+    ICONS.tmg_chain = '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>';
+  }
+  govIcons();
+  function fullAdmin() { return role() === 'fulladmin'; }
+  function teamNames() { return ((UI.T || tree()).order || []).map(function (n) { return n.name; }); }
+  function teamPick(value, id, none) {
+    var T = UI.T || tree();
+    var pairs = none ? [['', none]] : [];
+    T.order.forEach(function (n) { pairs.push([n.name, '  '.repeat(Math.min(n.depth, 8)) + n.name]); });
+    var s = selectBox(pairs, value || (pairs[0] ? pairs[0][0] : ''));
+    if (id) s.id = id;
+    noI18n(s);
+    return s;
+  }
+  function whenText(ts) { return ts ? stamp(ts) : '–'; }
+  function leftWords(ts) {
+    var s = Number(ts) - Date.now() / 1000;
+    if (s <= 0) return tr('ended');
+    if (s < 3600) return 'ends in {0} min'.replace('{0}', num(Math.max(1, Math.round(s / 60))));
+    if (s < 86400 * 2) return 'ends in {0} h'.replace('{0}', num(Math.round(s / 3600)));
+    return 'ends in {0} days'.replace('{0}', num(Math.round(s / 86400)));
+  }
+  var STATE_TONE = {waiting: 'violet', granted: 'ok', declined: 'crit', cancelled: 'dim', ended: 'dim', expired: 'dim',
+                    open: 'info', overdue: 'warn', done: 'ok', closed: 'dim', kept: 'ok', removed: 'crit', pending: 'warn'};
+  var STATE_WORDS = {waiting: 'waiting', granted: 'granted', declined: 'declined', cancelled: 'taken back',
+                     ended: 'ended early', expired: 'ended', open: 'open', overdue: 'overdue', done: 'done',
+                     closed: 'closed', kept: 'confirmed', removed: 'taken out', pending: 'to confirm'};
+  function stateChip(st) { return chip(STATE_WORDS[st] || st, STATE_TONE[st] || 'dim'); }
+  function govCard(icon, title, sub, tone) {
+    var c = el('section', 'tmx-sec tmg-card' + (tone ? ' ' + tone : ''));
+    var h = el('h3', 'tmx-sec-h');
+    h.appendChild(ic(icon, 16));
+    h.appendChild(el('span', '', title));
+    c.appendChild(h);
+    if (sub) c.appendChild(el('p', 'muted small tmg-sub', sub));
+    c._head = h;
+    return c;
+  }
+  function headButton(card, b) {
+    var r = card._head.querySelector('.tmg-hb');
+    if (!r) { r = el('span', 'tmg-hb'); card._head.appendChild(r); }
+    r.appendChild(b);
+    return b;
+  }
+  function personLine(who, kind, sub) {
+    var r = el('div', 'tmg-person');
+    r.appendChild(avatar(who, kind || kindOf(who)));
+    var w = el('div', 'tmg-person-w');
+    w.appendChild(data('b', '', shortWho(who)));
+    if (sub) w.appendChild(sub instanceof Node ? sub : el('span', 'muted small', sub));
+    r.appendChild(w);
+    return r;
+  }
+
+  /* ---- the banner while viewing as somebody (every page of the administration) -------------- */
+  function viewAsBanner(va) {
+    var old = $('tmg-viewas');
+    if (old) old.parentNode.removeChild(old);
+    if (!va) { document.body.classList.remove('tmg-viewing'); return; }
+    var b = el('div', 'tmg-viewas');
+    b.id = 'tmg-viewas';
+    b.setAttribute('role', 'status');
+    b.appendChild(ic('eye', 18));
+    var w = el('span', 'tmg-viewas-w');
+    w.appendChild(el('span', '', 'You see the pages as'));
+    w.appendChild(document.createTextNode(' '));
+    w.appendChild(data('b', '', va.display || va.name || va.who || '?'));
+    if (va.role) { w.appendChild(document.createTextNode(' ')); w.appendChild(chip({fulladmin: 'full administrator', certadmin: 'certificate administrator', readonly: 'read-only'}[va.role] || va.role, 'dim')); }
+    w.appendChild(document.createTextNode(' '));
+    w.appendChild(el('span', 'tmg-viewas-ro', '- read-only: nothing is changed'));
+    b.appendChild(w);
+    var stop = cmdButton('Stop viewing as', 'close', 'small');
+    stop.id = 'tmg-viewas-stop';
+    stop.onclick = function () {
+      busy(stop, true);
+      api('teams/view_as_stop', {}).then(function () { location.reload(); })
+        .catch(function (e) { busy(stop, false); oops(e); });
+    };
+    b.appendChild(stop);
+    document.body.insertBefore(b, document.body.firstChild);
+    document.body.classList.add('tmg-viewing');
+  }
+  function viewAsCheck() {
+    var va = (typeof ME === 'object' && ME) ? ME.view_as : null;
+    if (va) { viewAsBanner(va); return; }
+    api('teams/view_as').then(function (d) { if (d && d.active) viewAsBanner(d.view_as); }).catch(function () { });
+  }
+  function viewAs(who, portal) {
+    if (!who) return;
+    if (portal) {
+      api('teams/view_as_portal', {who: who}).then(function (d) {
+        var w = window.open(d.url, '_blank', 'noopener');
+        if (!w) location.href = d.url;
+        toast(tr('The portal opens as {0} - read-only').replace('{0}', d.who), 'good');
+      }).catch(oops);
+      return;
+    }
+    confirmThen('View as {0}'.replace('{0}', shortWho(who)),
+      htmlText(tr('The administration is shown as {0} sees it - their role, their teams. Nothing can be changed meanwhile; it is written in the events. Stop it with the button at the top.').replace('{0}', who)),
+      'View as', function () {
+        api('teams/view_as', {who: who}).then(function () { location.reload(); }).catch(oops);
+      });
+  }
+  function viewAsChoose(who) {
+    modal(tr('View as {0}').replace('{0}', shortWho(who)), function (body) {
+      body.classList.add('tmx-dlg');
+      body.appendChild(el('p', 'note', 'See what this member sees - read-only: nothing can be changed meanwhile, and it is written in the events (and the team\'s activity).'));
+      var opts = el('div', 'tmg-vachoose');
+      [['admin', 'The administration', 'gear', 'Their role and teams, here - if they sign in to the administration.'],
+       ['portal', 'The portal', 'globe', 'In a new tab, as they sign in there - for two hours at most.']].forEach(function (o) {
+        var b = el('button', 'tmg-vaopt');
+        b.type = 'button';
+        b.id = 'tmg-va-' + o[0];
+        b.appendChild(ic(o[2], 22));
+        var w = el('span', 'tmg-vaopt-w');
+        w.appendChild(el('b', '', o[1]));
+        w.appendChild(el('span', 'muted small', o[3]));
+        b.appendChild(w);
+        b.onclick = function () {
+          closeModal(true);
+          if (o[0] === 'portal') viewAs(who, true);
+          else api('teams/view_as', {who: who}).then(function () { location.reload(); }).catch(oops);
+        };
+        opts.appendChild(b);
+      });
+      body.appendChild(opts);
+    }, [{words: 'Close', close: true}], true);
+  }
+  function viewAsButtons(who, box) {
+    if (!fullAdmin() || !who || /^group:/i.test(who) || kindOf(who) === 'group') return;
+    var a = cmdButton('View as', 'eye', 'small');
+    a.classList.add('tmg-va-admin');
+    explain(a, 'Open the administration as this person sees it - read-only.');
+    a.onclick = function () { viewAs(who, false); };
+    var p = cmdButton('Open the portal as', 'globe', 'small');
+    p.classList.add('tmg-va-portal');
+    explain(p, 'Open the portal in a new tab as this person sees it - read-only, for two hours at most.');
+    p.onclick = function () { viewAs(who, true); };
+    box.appendChild(a);
+    box.appendChild(p);
+  }
+
+  /* ---- Who may do what and why --------------------------------------------------------------- */
+  function whomayView() {
+    var wrap = el('div', 'tmg-whomay');
+    var card = el('div', 'tmx-ac-ask');
+    var h = el('div', 'tmx-ac-h');
+    h.appendChild(ic('tmg_who', 22));
+    var hw = el('div', '');
+    hw.appendChild(el('b', '', 'Who may do what - and why'));
+    hw.appendChild(el('span', 'muted small', 'Every capability across the tree of teams and the roles, each with the reason: which role or right, on which team, inherited from where, ending when. The same answer the server enforces.'));
+    h.appendChild(hw);
+    card.appendChild(h);
+    var seg = segmented([['person', 'A person', 'person'], ['team', 'A team', 'people'], ['cap', 'Who may…', 'search']], GOV.mode);
+    seg.id = 'tmg-wm-mode';
+    seg.classList.add('tmg-mode');
+    card.appendChild(seg);
+    var form = el('div', 'tmg-wm-form');
+    card.appendChild(form);
+    wrap.appendChild(card);
+    var out = el('div', 'tmg-wm-out');
+    out.id = 'tmg-wm-out';
+    wrap.appendChild(out);
+    var run = function (what, after) {
+      clear(out);
+      out.appendChild(asking());
+      api(what).then(function (d) {
+        clear(out);
+        out.appendChild(fade(after(d)));
+        if (typeof explainWhatWasDrawn === 'function') { try { explainWhatWasDrawn(out); } catch (e) { } }
+      }).catch(function (e) { clear(out); out.appendChild(data('p', 'bad', String(e.message || e))); });
+    };
+    var paint = function () {
+      clear(form);
+      clear(out);
+      var row = el('div', 'tmx-ac-row');
+      form.appendChild(row);
+      if (GOV.mode === 'person') {
+        var f = el('div', 'tmx-find big');
+        f.appendChild(ic('person', 16));
+        var q = el('input', '');
+        q.type = 'search';
+        q.id = 'tmg-wm-who';
+        q.placeholder = tr('local:NAME, a login or a UPN');
+        q.value = GOV.who || '';
+        noI18n(q);
+        f.appendChild(q);
+        row.appendChild(f);
+        var go = cmdButton('Show', 'search', 'primary');
+        go.id = 'tmg-wm-go';
+        row.appendChild(go);
+        if (typeof dirPickButton === 'function') {
+          dirPickButton(q, {kinds: ['user'], format: 'login', quiet: true, after: f,
+                            picked: function () { setTimeout(function () { go.click(); }, 0); }});
+        }
+        var check = function () {
+          var w = q.value.trim();
+          if (!w) { toast('whom?', 'bad'); return; }
+          GOV.who = w;
+          run('teams/whomay&who=' + enc(w), personResult);
+        };
+        q.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); check(); } });
+        go.onclick = check;
+        if (GOV.who) setTimeout(check, 0);
+      } else if (GOV.mode === 'team') {
+        var s = teamPick(GOV.team || UI.team, 'tmg-wm-team');
+        row.appendChild(formField('Team', s));
+        var go2 = cmdButton('Show', 'search', 'primary');
+        go2.id = 'tmg-wm-go';
+        row.appendChild(go2);
+        go2.onclick = function () {
+          GOV.team = s.value;
+          if (!s.value) return;
+          run('teams/whomay&team=' + enc(s.value), teamResult);
+        };
+        if (s.value) setTimeout(function () { go2.click(); }, 0);
+      } else {
+        var caps = [];
+        capGroups().forEach(function (g) { g.caps.forEach(function (c) { caps.push([c.id, c.id + ' - ' + c.words]); }); });
+        var cs = selectBox(caps, GOV.cap);
+        cs.id = 'tmg-wm-cap';
+        row.appendChild(formField('May', cs));
+        var on = segmented([['team', 'on a team'], ['cert', 'on a certificate']], GOV.target || 'team');
+        on.classList.add('small');
+        row.appendChild(on);
+        var holder = el('div', 'tmg-wm-target');
+        row.appendChild(holder);
+        var ts = teamPick(GOV.team || UI.team, 'tmg-wm-cteam');
+        var cert = textBox(GOV.cert, tr('a certificate\'s name or number'));
+        cert.id = 'tmg-wm-cert';
+        noI18n(cert);
+        var paintTarget = function () {
+          clear(holder);
+          holder.appendChild(on.value === 'cert' ? formField('Certificate', cert) : formField('Team', ts));
+        };
+        on.addEventListener('change', function () { GOV.target = on.value; paintTarget(); });
+        paintTarget();
+        var go3 = cmdButton('Who?', 'search', 'primary');
+        go3.id = 'tmg-wm-go';
+        row.appendChild(go3);
+        go3.onclick = function () {
+          GOV.cap = cs.value;
+          GOV.team = ts.value;
+          GOV.cert = cert.value.trim();
+          var q2 = 'teams/whocan&cap=' + enc(cs.value) + (on.value === 'cert' ? '&cert=' + enc(GOV.cert) : '&team=' + enc(ts.value));
+          run(q2, whoCanResult);
+        };
+        cert.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go3.click(); } });
+      }
+    };
+    seg.addEventListener('change', function () { GOV.mode = seg.value; paint(); });
+    paint();
+    return wrap;
+  }
+  function legend() {
+    var l = el('div', 'tmg-legend');
+    [['d', 'on the team itself'], ['i', 'inherited from a team above'], ['j', 'a temporary role'], ['l', 'held, but its limits narrow it']].forEach(function (x) {
+      var it = el('span', 'tmg-leg');
+      it.appendChild(el('span', 'tmg-dot ' + x[0]));
+      it.appendChild(el('span', '', x[1]));
+      l.appendChild(it);
+    });
+    return l;
+  }
+  /* rows x capabilities; rows: {label node, caps, cells: {cap: [via idx]}, via, limits} */
+  function capMatrix(rows, onCell, rowHead) {
+    var groups = capGroups();
+    var box = el('div', 'tmx-mx-s tmg-mx-s wide');
+    var t = el('table', 'tmx-mx tmg-mx');
+    var thead = el('thead');
+    var g1 = el('tr', 'tmg-mx-gh');
+    var c0 = el('th', 'tmx-mx-c0', rowHead || '');
+    c0.rowSpan = 2;
+    g1.appendChild(c0);
+    groups.forEach(function (g) {
+      var th = el('th', 'tmg-mx-g g-' + g.cls, g.name);
+      th.colSpan = g.caps.length;
+      g1.appendChild(th);
+    });
+    thead.appendChild(g1);
+    var g2 = el('tr');
+    groups.forEach(function (g) {
+      g.caps.forEach(function (c, i) {
+        var th = el('th', 'tmg-mx-cap g-' + g.cls + (i === 0 ? ' first' : ''));
+        th.appendChild(data('span', '', CAP_SHORT(c.id)));
+        explain(th, c.id + ' - ' + known(c.words));
+        th.dataset.cap = c.id;
+        g2.appendChild(th);
+      });
+    });
+    thead.appendChild(g2);
+    t.appendChild(thead);
+    var tb = el('tbody');
+    var shown = 0;
+    var addRows = function (upto) {
+      rows.slice(shown, upto).forEach(function (r, ri) {
+        var tr_ = el('tr', 'tmg-mx-row' + (r.cls ? ' ' + r.cls : ''));
+        var h = el('th', 'tmx-mx-c0');
+        h.appendChild(r.label);
+        tr_.appendChild(h);
+        groups.forEach(function (g) {
+          g.caps.forEach(function (c, i) {
+            var td = el('td', 'tmg-mx-x' + (i === 0 ? ' first' : ''));
+            var held = (r.caps || []).indexOf(c.id) >= 0;
+            if (held) {
+              var idx = (r.cells || {})[c.id] || [];
+              var vias = idx.map(function (k) { return (r.via || [])[k]; }).filter(Boolean);
+              var kind = !vias.length ? 'a' : vias.some(function (v) { return v.jit; }) ? 'j'
+                : vias.some(function (v) { return !v.inherited; }) ? 'd' : 'i';
+              var lim = (r.limits || {})[c.id];
+              var b = el('button', 'tmg-cell');
+              b.type = 'button';
+              b.dataset.cap = c.id;
+              b.appendChild(el('span', 'tmg-dot ' + kind + (lim ? ' l' : '')));
+              b.setAttribute('aria-label', r.name + ': ' + c.id);
+              var words = !vias.length ? tr(r.why || '') : vias.map(function (v) {
+                return (v.roles || []).concat(v.rights || []).join(', ') + ' - ' + (v.inherited ? tr('inherited from') + ' ' + v.team : tr('on') + ' ' + v.team);
+              }).join(' · ');
+              if (lim) words += ' · ' + lim;
+              explain(b, c.id + ': ' + words);
+              b.onclick = function () {
+                tb.querySelectorAll('.tmg-cell.on').forEach(function (x) { x.classList.remove('on'); });
+                b.classList.add('on');
+                onCell(r, c, vias, lim);
+              };
+              td.appendChild(b);
+            }
+            tr_.appendChild(td);
+          });
+        });
+        tb.appendChild(tr_);
+      });
+      shown = Math.min(upto, rows.length);
+    };
+    addRows(GOV.rshow);
+    t.appendChild(tb);
+    box.appendChild(t);
+    var wrap = el('div', 'tmg-mx-wrap');
+    wrap.appendChild(box);
+    if (rows.length > shown) {
+      var more = cmdButton('Show more', 'down', 'small');
+      more.classList.add('tmg-more');
+      more.onclick = function () { addRows(shown + 200); if (shown >= rows.length) more.remove(); };
+      wrap.appendChild(more);
+    }
+    return wrap;
+  }
+  function whyPanel() {
+    var p = el('div', 'tmg-why');
+    p.id = 'tmg-why';
+    p.setAttribute('aria-live', 'polite');
+    p.appendChild(el('span', 'muted small', 'Choose a dot in the matrix: why it is there.'));
+    p.show = function (title, vias, lim, extra) {
+      clear(p);
+      var h = el('div', 'tmg-why-h');
+      h.appendChild(ic('info', 15));
+      h.appendChild(title);
+      p.appendChild(h);
+      if (extra) p.appendChild(extra);
+      vias.forEach(function (v) {
+        var line = el('div', 'tmx-why-l');
+        var who = el('span', 'tmx-why-s who');
+        who.appendChild(ic(WHO_ICON[v.kind] || 'person', 12));
+        who.appendChild(data('span', 'mono', shortWho(v.who)));
+        line.appendChild(who);
+        if (v.group) { line.appendChild(ic('next', 12, 'tmx-why-a')); var gg = el('span', 'tmx-why-s grp'); gg.appendChild(el('span', '', 'through')); gg.appendChild(document.createTextNode(' ')); gg.appendChild(data('b', '', v.group)); line.appendChild(gg); }
+        line.appendChild(ic('next', 12, 'tmx-why-a'));
+        var rr = el('span', 'tmx-why-r');
+        (v.roles || []).forEach(function (x) { rr.appendChild(roleChip(x)); });
+        (v.rights || []).forEach(function (x) { rr.appendChild(chip(RIGHT_WORDS[x] || x, 'legacy')); });
+        line.appendChild(rr);
+        line.appendChild(ic('next', 12, 'tmx-why-a'));
+        if (v.inherited) {
+          var ih = el('span', 'tmx-from');
+          ih.appendChild(ic('tm_tree', 12));
+          ih.appendChild(el('span', '', 'inherited from'));
+          ih.appendChild(data('b', '', v.team));
+          line.appendChild(ih);
+        } else {
+          var on = el('span', 'tmx-chip here');
+          on.appendChild(el('span', '', 'on'));
+          on.appendChild(document.createTextNode(' '));
+          on.appendChild(data('b', '', v.team));
+          line.appendChild(on);
+        }
+        if (v.jit) line.appendChild(chip('temporary', 'warn', 'clock'));
+        if (v.until) line.appendChild(untilChip(v));
+        if (v.reason) line.appendChild(data('span', 'muted small tmg-reason', '“' + v.reason + '”'));
+        p.appendChild(line);
+      });
+      if (lim) { var n = el('div', 'tmx-note warn tmg-lim'); n.appendChild(ic('shield', 15)); n.appendChild(el('span', '', lim)); p.appendChild(n); }
+      p.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    };
+    return p;
+  }
+  function personResult(d) {
+    var box = el('div', 'tmg-res');
+    var who = d.who || {};
+    var head = el('div', 'tmx-ac-who');
+    head.appendChild(avatar(who.name || '?', 'user'));
+    var w = el('div', 'tmx-ac-ww');
+    w.appendChild(data('b', '', who.display || who.name || ''));
+    var sub = [who.upn, who.sam, who.mail].filter(Boolean).filter(function (x, i, a) { return a.indexOf(x) === i; });
+    if (sub.length) w.appendChild(data('span', 'mono small muted', sub.join(' · ')));
+    head.appendChild(w);
+    var tags = el('div', 'tmx-ac-tags');
+    if (d.account) tags.appendChild(chip({fulladmin: 'full administrator', certadmin: 'certificate administrator', tokenadmin: 'certificate administrator', readonly: 'read-only account', portal: 'portal only'}[d.account.role] || d.account.role, d.account.role === 'fulladmin' ? 'crit' : 'info', 'key'));
+    tags.appendChild(chip('{0} teams'.replace('{0}', num((d.teams || []).length)), 'dim', 'people'));
+    if (d.groups_count) tags.appendChild(chip('{0} groups'.replace('{0}', num(d.groups_count)), 'dim', 'people'));
+    head.appendChild(tags);
+    var acts = el('div', 'tmg-va');
+    viewAsButtons(who.kind === 'local' ? who.name : (who.upn || who.sam || who.name), acts);
+    if (acts.firstChild) head.appendChild(acts);
+    box.appendChild(head);
+    if (d.account && (d.account.role === 'fulladmin' || ((d.account.role === 'certadmin' || d.account.role === 'tokenadmin') && (d.settings || {}).certadmin_all))) {
+      var n = el('div', 'tmx-note');
+      n.appendChild(ic('info', 16));
+      n.appendChild(el('span', '', d.account.role === 'fulladmin' ? 'A full administrator: every capability on every certificate, whatever the teams say. The matrix shows only what the teams give.' : 'A certificate administrator with "Certificate administrators manage every certificate" on: every certificate, whatever the teams say. The matrix shows only what the teams give.'));
+      box.appendChild(n);
+    }
+    var teams = d.teams || [];
+    if (!teams.length) { box.appendChild(empty('tmg_who', 'In no team', 'No membership of any team matches this person or a group they are in.')); return box; }
+    box.appendChild(legend());
+    var why = whyPanel();
+    var rows = teams.map(function (t) {
+      var lab = el('span', 'tmg-rl');
+      lab.style.paddingLeft = Math.min(t.depth || 0, 6) * 10 + 'px';
+      lab.appendChild(kindBadge(t.kind, 14));
+      lab.appendChild(data('span', 'tmg-rl-n', t.team));
+      if (!(t.caps || []).length) lab.appendChild(chip('ended', 'crit'));
+      return {name: t.team, label: lab, caps: t.caps, cells: t.cells, via: t.via, limits: t.limits,
+              cls: (t.caps || []).length ? '' : 'none'};
+    });
+    box.appendChild(capMatrix(rows, function (r, c, vias, lim) {
+      var title = el('span', '');
+      title.appendChild(data('b', '', c.id));
+      title.appendChild(document.createTextNode(' '));
+      title.appendChild(el('span', '', 'on'));
+      title.appendChild(document.createTextNode(' '));
+      title.appendChild(data('b', '', r.name));
+      why.show(title, vias, lim);
+    }, tr('Team')));
+    box.appendChild(why);
+    return box;
+  }
+  function teamResult(d) {
+    var box = el('div', 'tmg-res');
+    var head = el('div', 'tmg-res-h');
+    head.appendChild(kindBadge(d.kind, 18));
+    head.appendChild(data('b', '', d.team));
+    if ((d.chain || []).length > 1) head.appendChild(data('span', 'muted small', d.chain.slice(0, -1).join(' › ')));
+    head.appendChild(chip('{0} people and groups'.replace('{0}', num((d.people || []).length)), 'dim', 'people'));
+    box.appendChild(head);
+    if (!(d.people || []).length) { box.appendChild(empty('people', 'Nobody', 'No member of this team or of a team above it.')); return box; }
+    box.appendChild(legend());
+    var why = whyPanel();
+    var rows = (d.people || []).map(function (p) {
+      var lab = el('span', 'tmg-rl');
+      lab.appendChild(avatar(p.who, p.kind));
+      lab.appendChild(data('span', 'tmg-rl-n', shortWho(p.who)));
+      if (p.admin) lab.appendChild(chip(p.admin === 'fulladmin' ? 'full administrator' : p.admin === 'certadmin' ? 'certificate administrator' : 'read-only', 'dim'));
+      return {name: p.who, label: lab, caps: p.caps, cells: p.cells, via: p.via, limits: d.limits, admin: p.admin, why: p.why,
+              cls: p.admin ? 'adm' : ''};
+    });
+    box.appendChild(capMatrix(rows, function (r, c, vias, lim) {
+      var title = el('span', '');
+      title.appendChild(data('b', '', shortWho(r.name)));
+      title.appendChild(document.createTextNode(' - '));
+      title.appendChild(data('b', '', c.id));
+      var extra = r.admin ? el('p', 'muted small', r.why) : null;
+      if (extra) extra.textContent = tr(r.why);
+      why.show(title, vias, lim, extra);
+    }, tr('Who')));
+    box.appendChild(why);
+    return box;
+  }
+  function whoCanResult(d) {
+    var box = el('div', 'tmg-res');
+    var head = el('div', 'tmg-res-h');
+    head.appendChild(ic('search', 18));
+    var t = el('span', 'tmg-q');
+    t.appendChild(el('span', '', 'Who may'));
+    t.appendChild(document.createTextNode(' '));
+    t.appendChild(data('b', 'mono', d.cap));
+    t.appendChild(document.createTextNode(' '));
+    t.appendChild(el('span', '', 'on'));
+    t.appendChild(document.createTextNode(' '));
+    t.appendChild(data('b', '', d.cert ? d.cert : (d.team || '?')));
+    if (d.cert && d.team) { t.appendChild(document.createTextNode(' (')); t.appendChild(data('span', '', d.team)); t.appendChild(document.createTextNode(')')); }
+    head.appendChild(t);
+    head.appendChild(chip(num((d.people || []).length), 'info', 'people'));
+    box.appendChild(head);
+    if (d.words) box.appendChild(el('p', 'muted small', d.words));
+    if (d.admins_only) box.appendChild(data('p', 'note warn', tr('It has no team: only those who see every certificate may.')));
+    if (d.limit) { var n = el('div', 'tmx-note warn'); n.appendChild(ic('shield', 16)); n.appendChild(el('span', '', d.limit)); box.appendChild(n); }
+    var list = el('div', 'tmx-mlist tmg-wc');
+    list.id = 'tmg-wc-list';
+    (d.people || []).forEach(function (p) {
+      var r = el('div', 'tmx-mrow tmg-wc-row' + (p.admin ? ' adm' : ''));
+      r.dataset.who = p.who;
+      r.appendChild(avatar(p.who, p.kind));
+      var w = el('div', 'tmx-mw');
+      var top = el('div', 'tmx-mtop');
+      top.appendChild(data('b', 'tmx-mwho', shortWho(p.who)));
+      top.appendChild(chip(KIND_WORDS[p.kind] || p.kind, 'dim k', WHO_ICON[p.kind] || 'person'));
+      w.appendChild(top);
+      if (p.admin) w.appendChild(el('div', 'muted small', p.why));
+      (p.why_here || []).forEach(function (v) {
+        var line = el('div', 'tmx-mroles');
+        (v.roles || []).forEach(function (x) { line.appendChild(roleChip(x)); });
+        (v.rights || []).forEach(function (x) { line.appendChild(chip(RIGHT_WORDS[x] || x, 'legacy')); });
+        if (v.inherited) { var ih = el('span', 'tmx-from'); ih.appendChild(el('span', '', 'from')); ih.appendChild(data('b', '', v.team)); line.appendChild(ih); }
+        else line.appendChild(chip('on this team', 'here'));
+        if (v.jit) line.appendChild(chip('temporary', 'warn', 'clock'));
+        if (v.until) line.appendChild(untilChip(v));
+        w.appendChild(line);
+      });
+      r.appendChild(w);
+      if (p.kind === 'group' && dirs().length) {
+        var g = iconButton('people', 'Who is in the group');
+        g.onclick = function () {
+          busy(g, true);
+          api('dir/group&name=' + enc(p.who)).then(function (x) {
+            var names = el('div', 'tmx-gnames');
+            names.appendChild(chip((x.count === 1 ? '1 person' : '{0} people'.replace('{0}', num(x.count || 0))) + (x.capped ? '+' : ''), 'info', 'people'));
+            (x.first || []).slice(0, 12).forEach(function (u) { names.appendChild(dataChip(u.display || u.sam || u.upn, 'dim')); });
+            w.appendChild(names);
+            g.remove();
+          }).catch(oops).then(function () { busy(g, false); });
+        };
+        r.appendChild(g);
+      }
+      list.appendChild(r);
+    });
+    if (!(d.people || []).length) list.appendChild(empty('ban', 'Nobody', 'Nobody may do that there - not even through a team above it.'));
+    box.appendChild(list);
+    return box;
+  }
+
+  /* ---- Health ------------------------------------------------------------------------------ */
+  var HEALTH_KEYS = [['expiring', 'Running out', 'clock', 'warn'], ['expired', 'Expired', 'ban', 'crit'],
+                     ['failed_renewals', 'Failed renewals', 'pulse', 'crit'], ['failed_deploys', 'Failed deployments', 'router', 'crit'],
+                     ['outside', 'Outside the limits', 'shield', 'warn'], ['weak', 'Weak keys', 'key', 'warn']];
+  var GRADE_WORDS = {good: 'good', fair: 'fair', poor: 'poor'};
+  function ring(score, size, grade) {
+    size = size || 64;
+    var r = (size - 8) / 2, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, Number(score) || 0));
+    var wrap = el('div', 'tmg-ring g-' + (grade || 'good'));
+    wrap.style.width = size + 'px';
+    wrap.style.height = size + 'px';
+    wrap.innerHTML = '<svg viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true"><circle class="bg" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r +
+      '"/><circle class="fg" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" stroke-dasharray="' + (c * v / 100).toFixed(1) + ' ' + c.toFixed(1) +
+      '" transform="rotate(-90 ' + size / 2 + ' ' + size / 2 + ')"/></svg>';
+    wrap.appendChild(data('b', 'tmg-ring-v', String(Math.round(v))));
+    wrap.setAttribute('role', 'img');
+    wrap.setAttribute('aria-label', tr('health') + ' ' + Math.round(v) + ' / 100');
+    return wrap;
+  }
+  function quotaBar(q) {
+    var b = el('div', 'tmg-quota');
+    var pct = q.max ? Math.min(100, Math.round(100 * q.used / q.max)) : 0;
+    var top = el('div', 'tmg-quota-t');
+    top.appendChild(el('span', '', 'Quota'));
+    top.appendChild(data('b', '', num(q.used) + ' / ' + num(q.max)));
+    b.appendChild(top);
+    var bar = el('div', 'tmg-quota-b' + (pct >= 100 ? ' crit' : pct >= 80 ? ' warn' : ''));
+    var fill = el('span', '');
+    fill.style.width = pct + '%';
+    bar.appendChild(fill);
+    b.appendChild(bar);
+    explain(b, 'max_certs: {0} certificates at most (the limit of {1})'.replace('{0}', num(q.max)).replace('{1}', q.from || ''));
+    return b;
+  }
+  function healthCard(h, onOpen) {
+    var m = h.below || {};
+    var c = el('button', 'tmg-hcard g-' + h.grade);
+    c.type = 'button';
+    c.dataset.team = h.team;
+    var top = el('div', 'tmg-hcard-t');
+    top.appendChild(ring(h.score, 52, h.grade));
+    var w = el('div', 'tmg-hcard-w');
+    var n = el('div', 'tmg-hcard-n');
+    n.appendChild(kindBadge(h.kind, 14));
+    n.appendChild(data('b', '', h.team));
+    w.appendChild(n);
+    var s = el('div', 'tmg-hcard-s');
+    s.appendChild(chip(GRADE_WORDS[h.grade] || h.grade, h.grade === 'good' ? 'ok' : h.grade === 'fair' ? 'warn' : 'crit'));
+    s.appendChild(el('span', 'muted small', m.certs === 1 ? '1 certificate' : '{0} certificates'.replace('{0}', num(m.certs || 0))));
+    w.appendChild(s);
+    top.appendChild(w);
+    c.appendChild(top);
+    var pills = el('div', 'tmg-hpills');
+    HEALTH_KEYS.forEach(function (k) {
+      var v = Number(m[k[0]] || 0);
+      if (!v) return;
+      var p = el('span', 'tmg-hpill ' + k[3]);
+      p.dataset.k = k[0];
+      p.appendChild(ic(k[2], 12));
+      p.appendChild(data('b', '', num(v)));
+      p.appendChild(el('span', '', k[1]));
+      pills.appendChild(p);
+    });
+    if (!pills.firstChild) {
+      var okp = el('span', 'tmg-hpill ok');
+      okp.appendChild(ic('check', 12));
+      okp.appendChild(el('span', '', m.certs ? 'all well' : 'no certificate yet'));
+      pills.appendChild(okp);
+    }
+    c.appendChild(pills);
+    if (m.quota && m.quota.max) c.appendChild(quotaBar(m.quota));
+    c.onclick = function () { onOpen(h); };
+    return c;
+  }
+  function healthDetail(name) {
+    modal(tr('Health of {0}').replace('{0}', name), function (body) {
+      body.classList.add('tmx-dlg', 'tmg-hdlg');
+      body.appendChild(asking());
+      api('teams/health&team=' + enc(name)).then(function (d) {
+        clear(body);
+        var h = (d.teams || []).filter(function (x) { return low(x.team) === low(name); })[0];
+        if (!h) { body.appendChild(el('p', 'muted', 'Nothing to say.')); return; }
+        var top = el('div', 'tmg-hd-top');
+        top.appendChild(ring(h.score, 84, h.grade));
+        var w = el('div', 'tmg-hd-w');
+        w.appendChild(data('b', 'tmg-hd-n', h.team));
+        w.appendChild(el('span', 'muted small', 'with the teams below it'));
+        var own = h.own || {};
+        w.appendChild(el('span', 'muted small', '{0} of its own'.replace('{0}', num(own.certs || 0))));
+        top.appendChild(w);
+        body.appendChild(top);
+        if ((h.below || {}).quota && h.below.quota.max) body.appendChild(quotaBar(h.below.quota));
+        var any = false;
+        HEALTH_KEYS.forEach(function (k) {
+          var lst = (h.list || {})[k[0]] || [];
+          if (!lst.length) return;
+          any = true;
+          body.appendChild(sectionHead(k[2], k[1]));
+          var l = el('div', 'tmg-hlist');
+          lst.forEach(function (x) {
+            var it = el('div', 'tmg-hlist-it');
+            it.appendChild(data('b', 'mono', x.name));
+            if (x.why) it.appendChild(data('span', 'muted small', x.why));
+            l.appendChild(it);
+          });
+          body.appendChild(l);
+        });
+        if (!any) body.appendChild(empty('check', 'All well', 'Nothing of its own runs out soon, failed, stands outside its limits or has a weak key.'));
+      }).catch(function (e) { clear(body); body.appendChild(data('p', 'bad', String(e.message || e))); });
+    }, [{words: 'Close', close: true}], 'medium');
+  }
+  function healthView() {
+    var wrap = el('div', 'tmg-health');
+    wrap.appendChild(asking());
+    api('teams/health').then(function (d) {
+      clear(wrap);
+      GOV.health = d;
+      var rows = d.teams || [];
+      var hero = el('div', 'tmg-hhero');
+      var sc = d.score === null || d.score === undefined ? 100 : d.score;
+      var grade = sc >= 90 ? 'good' : sc >= 70 ? 'fair' : 'poor';
+      hero.appendChild(ring(sc, 96, grade));
+      var hw = el('div', 'tmg-hhero-w');
+      hw.appendChild(el('b', '', 'The health of the teams'));
+      hw.appendChild(el('span', 'muted small', 'Certificates running out within {0} days, failed renewals and deployments, certificates outside their team\'s limits, weak keys and the quota - one score of 100 for each team and its teams below; for the leadership, all of them together.'.replace('{0}', num(d.days || 14))));
+      var tot = {};
+      rows.filter(function (r) { return !r.parent; }).forEach(function (r) { HEALTH_KEYS.forEach(function (k) { tot[k[0]] = (tot[k[0]] || 0) + Number((r.below || {})[k[0]] || 0); }); });
+      var pills = el('div', 'tmg-hpills big');
+      HEALTH_KEYS.forEach(function (k) {
+        var v = tot[k[0]] || 0;
+        var p = el('span', 'tmg-hpill' + (v ? ' ' + k[3] : ' zero'));
+        p.appendChild(ic(k[2], 13));
+        p.appendChild(data('b', '', num(v)));
+        p.appendChild(el('span', '', k[1]));
+        pills.appendChild(p);
+      });
+      hw.appendChild(pills);
+      hero.appendChild(hw);
+      wrap.appendChild(hero);
+      var bar = el('div', 'tmg-hbar');
+      var f = el('div', 'tmx-find');
+      f.appendChild(ic('search', 15));
+      var q = el('input', '');
+      q.type = 'search';
+      q.id = 'tmg-h-q';
+      q.placeholder = tr('Find a team…');
+      q.value = GOV.hq;
+      noI18n(q);
+      f.appendChild(q);
+      bar.appendChild(f);
+      var sort = segmented([['worst', 'Worst first', 'down'], ['tree', 'As the tree', 'tm_tree']], GOV.hsort);
+      sort.classList.add('small');
+      bar.appendChild(sort);
+      wrap.appendChild(bar);
+      var grid = el('div', 'tmg-hgrid');
+      grid.id = 'tmg-hgrid';
+      wrap.appendChild(grid);
+      var paint = function () {
+        clear(grid);
+        var w = fold(q.value).trim();
+        var list = rows.filter(function (r) { return !w || fold(r.team).indexOf(w) >= 0; });
+        if (GOV.hsort === 'worst') list = list.slice().sort(function (a, b) { return a.score - b.score || (b.below.certs - a.below.certs); });
+        list.slice(0, GOV.hshow).forEach(function (h) { grid.appendChild(healthCard(h, function (x) { healthDetail(x.team); })); });
+        if (!list.length) grid.appendChild(empty('search', 'No team', 'No team is called like that.'));
+        if (list.length > GOV.hshow) {
+          var more = cmdButton('Show more', 'down', 'small');
+          more.classList.add('tmg-more');
+          more.onclick = function () { GOV.hshow += 120; paint(); };
+          grid.appendChild(more);
+        }
+      };
+      q.oninput = debounce(function () { GOV.hq = q.value; paint(); }, 150);
+      sort.addEventListener('change', function () { GOV.hsort = sort.value; paint(); });
+      paint();
+    }).catch(function (e) { clear(wrap); wrap.appendChild(data('p', 'bad', String(e.message || e))); });
+    return wrap;
+  }
+  /* the strip on a team's Overview */
+  function healthStrip(box, n) {
+    var s = el('div', 'tmg-hstrip');
+    box.appendChild(s);
+    var paint = function (d) {
+      var h = (d.teams || []).filter(function (x) { return low(x.team) === n.key; })[0];
+      if (!h) { s.remove(); return; }
+      clear(s);
+      s.appendChild(ring(h.score, 48, h.grade));
+      var w = el('div', 'tmg-hstrip-w');
+      var t = el('div', '');
+      t.appendChild(el('b', '', 'Health'));
+      t.appendChild(document.createTextNode(' '));
+      t.appendChild(chip(GRADE_WORDS[h.grade], h.grade === 'good' ? 'ok' : h.grade === 'fair' ? 'warn' : 'crit'));
+      w.appendChild(t);
+      var pills = el('div', 'tmg-hpills');
+      HEALTH_KEYS.forEach(function (k) {
+        var v = Number((h.below || {})[k[0]] || 0);
+        if (!v) return;
+        var p = el('span', 'tmg-hpill ' + k[3]);
+        p.appendChild(ic(k[2], 12));
+        p.appendChild(data('b', '', num(v)));
+        p.appendChild(el('span', '', k[1]));
+        pills.appendChild(p);
+      });
+      if (!pills.firstChild) pills.appendChild(el('span', 'muted small', 'nothing runs out, fails or stands outside its limits'));
+      w.appendChild(pills);
+      s.appendChild(w);
+      if ((h.below || {}).quota && h.below.quota.max) s.appendChild(quotaBar(h.below.quota));
+      var open = el('button', 'tmx-link', 'Details');
+      open.type = 'button';
+      open.onclick = function () { healthDetail(n.name); };
+      s.appendChild(open);
+    };
+    if (GOV.health && GOV.health.at > Date.now() - 60000) paint(GOV.health);
+    else api('teams/health').then(function (d) { d.at = Date.now(); GOV.health = d; if (s.isConnected) paint(d); }).catch(function () { s.remove(); });
+  }
+
+  /* ---- Temporary roles (just-in-time) and reviews: the inbox -------------------------------- */
+  function elevRow(r, mode, after) {
+    var row = el('div', 'tmg-erow');
+    row.dataset.id = r.id;
+    var head = el('div', 'tmg-erow-h');
+    head.appendChild(avatar(r.who || r.asked_by, kindOf(r.who || '')));
+    var hw = el('div', 'tmg-erow-w');
+    var top = el('div', 'tmg-erow-t');
+    top.appendChild(data('b', 'tmx-mwho', shortWho(r.asked_by || r.who)));
+    top.appendChild(stateChip(r.state));
+    hw.appendChild(top);
+    var line = el('div', 'tmg-erow-l');
+    line.appendChild(el('span', 'muted small', 'asks for'));
+    line.appendChild(roleChip(r.role));
+    line.appendChild(el('span', 'muted small', 'on'));
+    line.appendChild(dataChip(r.team, 'dim', 'people'));
+    line.appendChild(chip('{0} h'.replace('{0}', num(Math.round(r.hours || 0))), 'dim', 'clock'));
+    hw.appendChild(line);
+    head.appendChild(hw);
+    row.appendChild(head);
+    if (r.reason) row.appendChild(data('div', 'tmx-mnote tmg-erow-r', '“' + r.reason + '”'));
+    var meta = el('div', 'tmg-emeta muted small');
+    meta.appendChild(el('span', '', 'asked {0}'.replace('{0}', whenText(r.asked))));
+    if (r.decided_by) { meta.appendChild(document.createTextNode(' · ')); meta.appendChild(el('span', '', r.state === 'declined' ? 'declined by' : 'approved by')); meta.appendChild(document.createTextNode(' ')); meta.appendChild(data('span', '', shortWho(r.decided_by))); }
+    if (r.decided_why) { meta.appendChild(document.createTextNode(' · ')); meta.appendChild(data('span', '', '“' + r.decided_why + '”')); }
+    if (r.state === 'granted' && r.until) { meta.appendChild(document.createTextNode(' · ')); meta.appendChild(el('span', 'tmg-left', leftWords(r.until))); }
+    row.appendChild(meta);
+    var tools = el('div', 'tmg-etools');
+    if (mode === 'decide') {
+      var ok = cmdButton('Approve', 'check', 'small primary');
+      ok.classList.add('tmg-e-ok');
+      ok.onclick = function () { decideElev(r, true, after); };
+      var no = cmdButton('Decline', 'close', 'small');
+      no.classList.add('tmg-e-no');
+      no.onclick = function () { decideElev(r, false, after); };
+      tools.appendChild(ok);
+      tools.appendChild(no);
+    } else if ((r.state === 'waiting' || r.state === 'granted') && mode !== 'view') {
+      var end = cmdButton(r.state === 'waiting' ? 'Take back' : 'End now', 'close', 'small');
+      end.classList.add('tmg-e-end');
+      end.onclick = function () {
+        busy(end, true);
+        api('teams/elevate_end', {id: r.id}).then(function (x) { toast(x.message || 'ended', 'good'); after(); }).catch(oops).then(function () { busy(end, false); });
+      };
+      tools.appendChild(end);
+    }
+    if (tools.firstChild) row.appendChild(tools);
+    return row;
+  }
+  function decideElev(r, ok, after) {
+    modal(ok ? tr('Approve {0} for {1}').replace('{0}', r.role).replace('{1}', shortWho(r.asked_by)) : tr('Decline the request'), function (body) {
+      body.classList.add('tmx-dlg');
+      body.appendChild(elevRow(r, 'view', function () { }));
+      var why = textBox('', ok ? tr('optional') : tr('why - the person who asked reads it'));
+      why.id = 'tmg-e-why';
+      noI18n(why);
+      body.appendChild(formField(ok ? 'A word for the record' : 'Why', why));
+      if (ok) body.appendChild(el('p', 'note', 'The role is given now and ends by itself after the hours asked. Separation of duties is checked: a role that would clash with another of theirs is refused.'));
+      decideElev._why = why;
+    }, [{words: 'Close', close: true},
+        {words: ok ? 'Approve' : 'Decline', cls: ok ? 'primary' : 'danger', icon: ok ? 'check' : 'close', go: function (b) {
+          var w = decideElev._why.value.trim();
+          if (!ok && !w) { toast('say why it is declined', 'bad'); return; }
+          busy(b, true);
+          api('teams/elevate_decide', {id: r.id, ok: ok, why: w}).then(function (x) {
+            toast(x.message || 'done', 'good');
+            closeModal(true);
+            after();
+          }).catch(oops).then(function () { busy(b, false); });
+        }}], true);
+  }
+  function askElevation(may, team, after) {
+    var st = {team: team || (may[0] || {}).team || '', role: '', hours: 4};
+    modal('Ask for a temporary role', function (body) {
+      body.classList.add('tmx-dlg', 'tmg-ask');
+      body.appendChild(el('p', 'note', 'A role on a team for a few hours - for a change window, a night shift, an incident. A manager of the team approves it (never you); it ends by itself.'));
+      var ts = selectBox(may.map(function (m) { return [m.team, m.team]; }), st.team);
+      ts.id = 'tmg-ask-team';
+      noI18n(ts);
+      body.appendChild(formField('Team', ts));
+      var rolesBox = el('div', 'tmx-rolepick');
+      rolesBox.id = 'tmg-ask-roles';
+      var maxSaid = el('span', 'muted small');
+      var hours = el('input', '');
+      hours.type = 'number';
+      hours.min = '1';
+      hours.id = 'tmg-ask-hours';
+      hours.value = st.hours;
+      var paintRoles = function () {
+        clear(rolesBox);
+        var m = may.filter(function (x) { return x.team === ts.value; })[0] || {roles: [], max_hours: 8};
+        hours.max = String(m.max_hours || 8);
+        if (Number(hours.value) > m.max_hours) hours.value = m.max_hours;
+        maxSaid.textContent = tr('{0} hours at most').replace('{0}', num(m.max_hours || 8));
+        if (m.roles.indexOf(st.role) < 0) st.role = m.roles[0] || '';
+        m.roles.forEach(function (r) {
+          var b = el('button', 'tmx-rchip' + (st.role === r ? ' on' : ''));
+          b.type = 'button';
+          b.setAttribute('aria-pressed', st.role === r ? 'true' : 'false');
+          var k = el('span', 'tmx-rchk');
+          k.innerHTML = iconMarkup('check', 11);
+          b.appendChild(k);
+          b.appendChild(data('span', '', r));
+          var ro = roleOf(r);
+          if (ro) explain(b, (ro.description ? known(ro.description) + ' - ' : '') + ro.caps.join(', '));
+          b.onclick = function () { st.role = r; paintRoles(); };
+          rolesBox.appendChild(b);
+        });
+      };
+      ts.addEventListener('change', paintRoles);
+      body.appendChild(formField('Role', rolesBox));
+      var hw = el('div', 'tmg-hours');
+      hw.appendChild(hours);
+      [1, 2, 4, 8].forEach(function (n) {
+        var q = el('button', 'tmx-qbtn', '{0} h'.replace('{0}', n));
+        q.type = 'button';
+        q.onclick = function () { hours.value = Math.min(n, Number(hours.max || 8)); };
+        hw.appendChild(q);
+      });
+      hw.appendChild(maxSaid);
+      body.appendChild(formField('For how many hours', hw));
+      var why = textBox('', tr('what for - a change window, a ticket…'));
+      why.id = 'tmg-ask-why';
+      noI18n(why);
+      body.appendChild(formField('Why', why));
+      paintRoles();
+      askElevation._read = function () { return {team: ts.value, role: st.role, hours: Number(hours.value), reason: why.value.trim()}; };
+    }, [{words: 'Close', close: true},
+        {words: 'Ask', cls: 'primary', icon: 'bell', go: function (b) {
+          var r = askElevation._read();
+          if (!r.role) { toast('choose a role', 'bad'); return; }
+          if (r.reason.length < 3) { toast('say why you need it', 'bad'); return; }
+          busy(b, true);
+          api('teams/elevate', r).then(function (x) { toast(x.message || 'asked', 'good'); closeModal(true); after(); })
+            .catch(oops).then(function () { busy(b, false); });
+        }}], 'medium');
+  }
+  function reviewDialog(rv, after) {
+    modal(tr('Access review of {0}').replace('{0}', rv.team), function (body) {
+      body.classList.add('tmx-dlg', 'tmg-rdlg');
+      var head = el('div', 'tmg-rhead');
+      var done = (rv.items || []).length - rv.pending;
+      var bar = el('div', 'tmg-prog');
+      var fill = el('span', '');
+      fill.style.width = ((rv.items || []).length ? Math.round(100 * done / rv.items.length) : 100) + '%';
+      bar.appendChild(fill);
+      head.appendChild(bar);
+      head.appendChild(el('span', 'muted small', '{0} of {1} answered'.replace('{0}', num(done)).replace('{1}', num((rv.items || []).length))));
+      head.appendChild(el('span', 'muted small', 'by {0}'.replace('{0}', whenText(rv.due))));
+      if (rv.late || rv.state === 'overdue') head.appendChild(chip('overdue', 'warn', 'clock'));
+      body.appendChild(head);
+      body.appendChild(el('p', 'note', 'Confirm each member and their roles, or take them out of the team. You do not confirm your own membership. What is not answered by the deadline is reported, or expires - as the team\'s review says.'));
+      var list = el('div', 'tmx-mlist');
+      list.id = 'tmg-rv-list';
+      (rv.items || []).forEach(function (it) {
+        var r = el('div', 'tmx-mrow tmg-rv-row' + (it.state !== 'pending' ? ' answered' : ''));
+        r.dataset.who = it.who;
+        r.appendChild(avatar(it.who, kindOf(it.who)));
+        var w = el('div', 'tmx-mw');
+        var top = el('div', 'tmx-mtop');
+        top.appendChild(data('b', 'tmx-mwho', shortWho(it.who)));
+        top.appendChild(stateChip(it.state));
+        w.appendChild(top);
+        var roles = el('div', 'tmx-mroles');
+        (it.roles || []).forEach(function (x) { roles.appendChild(roleChip(x)); });
+        (it.rights || []).forEach(function (x) { roles.appendChild(chip(RIGHT_WORDS[x] || x, 'legacy')); });
+        if (it.until) roles.appendChild(untilChip(it));
+        w.appendChild(roles);
+        if (it.by) w.appendChild(data('div', 'muted small', it.by + ' · ' + whenText(it.at) + (it.note ? ' · “' + it.note + '”' : '')));
+        r.appendChild(w);
+        if (it.state === 'pending' && (rv.state === 'open' || rv.state === 'overdue')) {
+          var tools = el('div', 'tmx-mtools tmg-etools');
+          var keepB = cmdButton('Confirm', 'check', 'small primary');
+          keepB.classList.add('tmg-rv-keep');
+          var outB = cmdButton('Take out', 'trash', 'small');
+          outB.classList.add('tmg-rv-out');
+          var answer = function (keep, b) {
+            busy(b, true);
+            api('teams/review_answer', {id: rv.id, who: it.who, keep: keep}).then(function (x) {
+              toast(x.message || 'saved', 'good');
+              closeModal(true);
+              after(x.review);
+            }).catch(oops).then(function () { busy(b, false); });
+          };
+          keepB.onclick = function () { answer(true, keepB); };
+          outB.onclick = function () {
+            confirmThen('Take the member out', htmlText(tr('{0} is taken out of the team {1} now.').replace('{0}', it.who).replace('{1}', rv.team)), 'Take it out', function () { answer(false, outB); });
+          };
+          tools.appendChild(keepB);
+          tools.appendChild(outB);
+          r.appendChild(tools);
+        }
+        list.appendChild(r);
+      });
+      body.appendChild(list);
+    }, [{words: 'Close', close: true}], 'medium');
+  }
+  function govView() {
+    var wrap = el('div', 'tmg-inbox');
+    var paint = function () {
+      clear(wrap);
+      wrap.appendChild(asking());
+      Promise.all([api('teams/elevations'), api('teams/reviews').catch(function () { return {open: []}; })]).then(function (x) {
+        clear(wrap);
+        var d = x[0] || {}, rv = x[1] || {};
+        var cols = el('div', 'tmg-icols');
+        var c1 = govCard('clock', 'Temporary roles', 'A member asks for a role on a team for a few hours; a manager of the team approves it - never the one who asked - and it ends by itself.');
+        c1.id = 'tmg-elev';
+        if ((d.may_ask || []).length) {
+          var ask = headButton(c1, cmdButton('Ask for a role', 'add', 'small primary'));
+          ask.id = 'tmg-ask';
+          ask.onclick = function () { askElevation(d.may_ask, UI.team, paint); };
+        }
+        var todo = d.to_decide || [];
+        c1.appendChild(sectionHead('tmg_inbox', 'Waiting for you ({0})'.replace('{0}', num(todo.length))));
+        var l1 = el('div', 'tmx-mlist');
+        l1.id = 'tmg-todo';
+        todo.forEach(function (r) { l1.appendChild(elevRow(r, 'decide', paint)); });
+        if (!todo.length) l1.appendChild(el('p', 'muted small tmx-none', 'Nothing waits for you.'));
+        c1.appendChild(l1);
+        var mine = d.mine || [];
+        if (mine.length) {
+          c1.appendChild(sectionHead('person', 'Asked by you'));
+          var l2 = el('div', 'tmx-mlist');
+          l2.id = 'tmg-mine';
+          mine.slice(0, 50).forEach(function (r) { l2.appendChild(elevRow(r, 'mine', paint)); });
+          c1.appendChild(l2);
+        }
+        cols.appendChild(c1);
+        var c2 = govCard('tmg_gov', 'Access reviews', 'The reviews open now in the teams you see: confirm each member and their roles, or take them out.');
+        c2.id = 'tmg-reviews';
+        var open = rv.open || [];
+        var l3 = el('div', 'tmg-rvlist');
+        open.forEach(function (r) {
+          var it = el('button', 'tmg-rvcard' + (r.late || r.state === 'overdue' ? ' late' : ''));
+          it.type = 'button';
+          it.dataset.team = r.team;
+          var t = el('div', 'tmg-rvcard-t');
+          t.appendChild(ic('people', 15));
+          t.appendChild(data('b', '', r.team));
+          t.appendChild(stateChip(r.late && r.state === 'open' ? 'overdue' : r.state));
+          it.appendChild(t);
+          var bar = el('div', 'tmg-prog');
+          var fill = el('span', '');
+          var tot = (r.items || []).length;
+          fill.style.width = (tot ? Math.round(100 * (tot - r.pending) / tot) : 100) + '%';
+          bar.appendChild(fill);
+          it.appendChild(bar);
+          it.appendChild(el('span', 'muted small', '{0} to confirm, by {1}'.replace('{0}', num(r.pending)).replace('{1}', dateOf(r.due))));
+          it.onclick = function () { reviewDialog(r, paint); };
+          l3.appendChild(it);
+        });
+        if (!open.length) l3.appendChild(el('p', 'muted small tmx-none', 'No review is open.'));
+        c2.appendChild(l3);
+        cols.appendChild(c2);
+        wrap.appendChild(cols);
+        if (typeof explainWhatWasDrawn === 'function') { try { explainWhatWasDrawn(wrap); } catch (e) { } }
+      }).catch(function (e) { clear(wrap); wrap.appendChild(data('p', 'bad', String(e.message || e))); });
+    };
+    paint();
+    return wrap;
+  }
+
+  /* ---- Templates and CSV import ------------------------------------------------------------ */
+  function templatesView() {
+    var wrap = el('div', 'tmg-tpl');
+    var head = el('div', 'tmx-tabh');
+    head.appendChild(el('p', 'note', 'A template is a team ready to be made again: its kind, members (with {team} for the team\'s name), limits, request profiles, channels and governance - never a secret. Make a team from one, or a whole structure from a CSV file.'));
+    if (fullAdmin()) {
+      var save = cmdButton('Save a team as a template', 'tmg_tpl', 'small');
+      save.id = 'tmg-tpl-from';
+      save.onclick = function () { templateFromTeam(paint); };
+      var imp = cmdButton('Import from CSV', 'upload', 'small primary');
+      imp.id = 'tmg-csv';
+      imp.onclick = function () { importCsv(); };
+      head.appendChild(save);
+      head.appendChild(imp);
+    }
+    wrap.appendChild(head);
+    var list = el('div', 'tmg-tgrid');
+    list.id = 'tmg-tgrid';
+    wrap.appendChild(list);
+    var paint = function () {
+      clear(list);
+      list.appendChild(asking());
+      api('teams/templates').then(function (d) {
+        clear(list);
+        (d.templates || []).forEach(function (t) { list.appendChild(templateCard(t, paint)); });
+        if (!(d.templates || []).length) list.appendChild(empty('tmg_tpl', 'No template yet', 'Save a team as a template - its roles, limits, profiles and notifications - and make new teams from it in one step.'));
+      }).catch(function (e) { clear(list); list.appendChild(data('p', 'bad', String(e.message || e))); });
+    };
+    paint();
+    return wrap;
+  }
+  function templateCard(t, after) {
+    var c = el('div', 'tmg-tcard');
+    c.dataset.name = t.name;
+    var cfg = t.config || {};
+    var top = el('div', 'tmg-tcard-t');
+    top.appendChild(kindBadge(cfg.kind || 'team', 18));
+    var w = el('div', 'tmg-tcard-w');
+    w.appendChild(data('b', '', t.name));
+    if (t.description || cfg.description) w.appendChild(data('span', 'muted small', t.description || cfg.description));
+    top.appendChild(w);
+    c.appendChild(top);
+    var chips = el('div', 'tmx-mroles');
+    if ((cfg.members || []).length) chips.appendChild(chip('{0} members'.replace('{0}', num(cfg.members.length)), 'info', 'people'));
+    var pk = Object.keys(cfg.policy || {});
+    if (pk.length) chips.appendChild(chip('{0} limits'.replace('{0}', num(pk.length)), 'violet', 'shield'));
+    if ((cfg.policy || {}).profiles) chips.appendChild(chip('{0} request profiles'.replace('{0}', num(cfg.policy.profiles.length)), 'dim', 'list'));
+    Object.keys(cfg.extras || {}).forEach(function (k) {
+      chips.appendChild(chip({review: 'access reviews', jit: 'temporary roles', sod: 'separation of duties', notify: 'notifications'}[k] || k, 'ok', 'tmg_gov'));
+    });
+    if (!chips.firstChild) chips.appendChild(el('span', 'muted small', 'an empty team'));
+    c.appendChild(chips);
+    var acts = el('div', 'tmg-tcard-a');
+    if (fullAdmin()) {
+      var mk = cmdButton('Make a team', 'add', 'small primary');
+      mk.classList.add('tmg-tpl-make');
+      mk.onclick = function () { teamFromTemplate(t); };
+      var ed = iconButton('edit', 'Change this template');
+      ed.onclick = function () { editTemplate(t, after); };
+      var del = iconButton('trash', 'Delete this template');
+      del.onclick = function () {
+        confirmThen('Delete the template', htmlText(tr('The template {0} is deleted. The teams made from it stay as they are.').replace('{0}', t.name)), 'Delete it', function () {
+          api('teams/template_delete', {name: t.name}).then(function (x) { toast(x.message || 'deleted', 'good'); after(); }).catch(oops);
+        });
+      };
+      acts.appendChild(mk);
+      acts.appendChild(ed);
+      acts.appendChild(del);
+    }
+    c.appendChild(acts);
+    return c;
+  }
+  function templateFromTeam(after) {
+    modal('Save a team as a template', function (body) {
+      body.classList.add('tmx-dlg');
+      var ts = teamPick(UI.team, 'tmg-tf-team');
+      body.appendChild(formField('Team', ts));
+      var name = textBox('', tr('Web team'));
+      name.id = 'tmg-tf-name';
+      noI18n(name);
+      body.appendChild(formField('Name of the template', name));
+      var desc = textBox('', '');
+      desc.id = 'tmg-tf-desc';
+      noI18n(desc);
+      body.appendChild(formField('Description', desc));
+      var mem = switchBox(false);
+      mem.id = 'tmg-tf-members';
+      body.appendChild(formField('With its members', mem, 'Its members are copied as they are (a webhook\'s address never is).'));
+      templateFromTeam._read = function () { return {from_team: ts.value, name: name.value.trim(), description: desc.value.trim(), members: !!(mem._input || mem.querySelector('input')).checked}; };
+    }, [{words: 'Close', close: true},
+        {words: 'Save the template', cls: 'primary', icon: 'save', go: function (b) {
+          var r = templateFromTeam._read();
+          if (!r.name) { toast('name it', 'bad'); return; }
+          busy(b, true);
+          api('teams/template_save', r).then(function (x) { toast(x.message || 'saved', 'good'); closeModal(true); after(); }).catch(oops).then(function () { busy(b, false); });
+        }}], 'medium');
+  }
+  function editTemplate(t, after) {
+    modal(tr('The template {0}').replace('{0}', t.name), function (body) {
+      body.classList.add('tmx-dlg');
+      var name = textBox(t.name, '');
+      name.id = 'tmg-te-name';
+      noI18n(name);
+      body.appendChild(formField('Name', name));
+      var desc = textBox(t.description || '', '');
+      noI18n(desc);
+      body.appendChild(formField('Description', desc));
+      var cfg = el('textarea', 'mono tmg-json');
+      cfg.id = 'tmg-te-cfg';
+      cfg.rows = 14;
+      cfg.spellcheck = false;
+      cfg.value = JSON.stringify(t.config || {}, null, 2);
+      noI18n(cfg);
+      body.appendChild(formField('What it holds', cfg, 'kind, description, members ({team} is the team\'s name), policy (the limits), contact_mail, extras: review, jit, sod, notify.'));
+      editTemplate._read = function () { return {old_name: t.name, name: name.value.trim(), description: desc.value.trim(), config: JSON.parse(cfg.value || '{}')}; };
+    }, [{words: 'Close', close: true},
+        {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+          var r;
+          try { r = editTemplate._read(); } catch (e) { toast(tr('that is not JSON') + ': ' + e.message, 'bad'); return; }
+          busy(b, true);
+          api('teams/template_save', r).then(function (x) { toast(x.message || 'saved', 'good'); closeModal(true); after(); }).catch(oops).then(function () { busy(b, false); });
+        }}], 'medium');
+  }
+  function teamFromTemplate(t) {
+    modal(tr('A team from {0}').replace('{0}', t.name), function (body) {
+      body.classList.add('tmx-dlg');
+      var name = textBox('', tr('the new team\'s name'));
+      name.id = 'tmg-ft-name';
+      noI18n(name);
+      body.appendChild(formField('Name', name));
+      var p = teamPick(UI.team, 'tmg-ft-parent', tr('the top - under no team'));
+      body.appendChild(formField('Under', p));
+      teamFromTemplate._read = function () { return {template: t.name, name: name.value.trim(), parent: p.value}; };
+    }, [{words: 'Close', close: true},
+        {words: 'Make the team', cls: 'primary', icon: 'add', go: function (b) {
+          var r = teamFromTemplate._read();
+          if (!r.name) { toast('name it', 'bad'); return; }
+          busy(b, true);
+          api('teams/from_template', r).then(function (x) { toast(x.message || 'made', 'good'); closeModal(true); UI.view = 'org'; keep(); refresh(x.team.name); })
+            .catch(oops).then(function () { busy(b, false); });
+        }}], 'medium');
+  }
+  function importCsv() {
+    var st = {text: '', preview: null};
+    modal('Teams from a CSV file', function (body) {
+      body.classList.add('tmx-dlg', 'tmg-csvdlg');
+      var cols = el('p', 'note');
+      cols.appendChild(el('span', '', 'One team a line; the first line names the columns:'));
+      cols.appendChild(document.createTextNode(' '));
+      cols.appendChild(data('code', '', 'name,parent,kind,template,description,contact_mail,members'));
+      cols.appendChild(document.createTextNode(' '));
+      cols.appendChild(el('span', '', '- only the name is needed. Members as on the command line: local:jan=Requester+Deployer; group:Web=view. A parent may come later in the file. Nothing is made until the preview has no error.'));
+      body.appendChild(cols);
+      var drop = el('label', 'tmg-drop');
+      drop.appendChild(ic('upload', 22));
+      drop.appendChild(el('span', '', 'Drop a .csv file here, or choose one'));
+      var file = el('input', '');
+      file.type = 'file';
+      file.accept = '.csv,text/csv,text/plain';
+      file.id = 'tmg-csv-file';
+      drop.appendChild(file);
+      body.appendChild(drop);
+      var ta = el('textarea', 'mono tmg-json');
+      ta.id = 'tmg-csv-text';
+      ta.rows = 8;
+      ta.spellcheck = false;
+      ta.placeholder = 'name,parent,kind\nEurope,,unit\nPrague,Europe,unit\nWeb,Prague,team';
+      noI18n(ta);
+      body.appendChild(formField('Or paste it', ta));
+      var prev = el('div', 'tmg-csvprev');
+      prev.id = 'tmg-csv-prev';
+      body.appendChild(prev);
+      var load_ = function (f) {
+        if (!f) return;
+        var rd = new FileReader();
+        rd.onload = function () { ta.value = String(rd.result || ''); ta.dispatchEvent(new Event('input')); };
+        rd.readAsText(f);
+      };
+      file.onchange = function () { load_(file.files[0]); };
+      drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+      drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+      drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('over'); load_(e.dataTransfer.files[0]); });
+      importCsv._ta = ta;
+      importCsv._prev = prev;
+    }, [{words: 'Close', close: true},
+        {words: 'Preview', icon: 'eye', go: function (b) { csvRun(true, b); }},
+        {words: 'Make the teams', cls: 'primary', icon: 'add', go: function (b) { csvRun(false, b); }}], 'wide');
+  }
+  function csvRun(dry, b) {
+    var text = importCsv._ta.value;
+    if (!text.trim()) { toast('paste or drop a file first', 'bad'); return; }
+    busy(b, true);
+    api('teams/import_csv', {csv: text, dry_run: dry}).then(function (d) {
+      var prev = importCsv._prev;
+      clear(prev);
+      var sum = el('div', 'tmx-mroles');
+      sum.appendChild(chip('{0} new'.replace('{0}', num(d.new)), 'ok', 'add'));
+      if (d.exists) sum.appendChild(chip('{0} there already - left as they are'.replace('{0}', num(d.exists)), 'dim'));
+      if (d.errors) sum.appendChild(chip('{0} wrong'.replace('{0}', num(d.errors)), 'crit', 'ban'));
+      if ((d.made || []).length) sum.appendChild(chip('{0} made'.replace('{0}', num(d.made.length)), 'ok', 'check'));
+      prev.appendChild(sum);
+      var tbl = el('table', 'tmg-ctable');
+      var hr = el('tr');
+      ['Line', 'Team', 'Under', 'Kind', 'Template', 'Members', ''].forEach(function (h) { hr.appendChild(el('th', '', h)); });
+      var th = el('thead');
+      th.appendChild(hr);
+      tbl.appendChild(th);
+      var tb = el('tbody');
+      (d.rows || []).forEach(function (r) {
+        var tr_ = el('tr', 's-' + r.state);
+        tr_.appendChild(data('td', 'mono', String(r.line)));
+        tr_.appendChild(data('td', '', r.name));
+        tr_.appendChild(data('td', '', r.parent || '–'));
+        tr_.appendChild(data('td', '', r.kind || 'team'));
+        tr_.appendChild(data('td', '', r.template || ''));
+        tr_.appendChild(data('td', 'small', (r.members || []).join(', ')));
+        var st = el('td', '');
+        st.appendChild(r.state === 'error' ? chip(r.error || 'wrong', 'crit') : chip(r.state === 'new' ? 'new' : 'there already', r.state === 'new' ? 'ok' : 'dim'));
+        tr_.appendChild(st);
+        tb.appendChild(tr_);
+      });
+      tbl.appendChild(tb);
+      var sc = el('div', 'tmg-ctable-s');
+      sc.appendChild(tbl);
+      prev.appendChild(sc);
+      if (!dry && (d.made || []).length) { toast(d.message || 'made', 'good'); changed().then(function () { }); }
+      else if (!dry && d.errors) toast('nothing made - correct the lines marked', 'bad');
+    }).catch(oops).then(function () { busy(b, false); });
+  }
+
+  /* ---- A team's Governance tab ------------------------------------------------------------- */
+  function govTab(box, T, n) {
+    var t = n.t;
+    var g = t.gov || {};
+    box.appendChild(el('p', 'note', 'What keeps the team\'s access in order: access reviews, temporary roles, separation of duties, and who is told what. Each is off until it is set; a team above sets them for the teams below where noted.'));
+    var grid = el('div', 'tmg-ggrid');
+    box.appendChild(grid);
+    /* access reviews */
+    var rc = govCard('tmg_gov', 'Access reviews', null);
+    rc.id = 'tmg-g-review';
+    var rule = g.review;
+    if (rule) {
+      var line = el('div', 'tmx-mroles');
+      line.appendChild(chip(tr('every {0} days').replace('{0}', num(rule.every_days)), 'info', 'refresh'));
+      line.appendChild(chip(tr('{0} days to answer').replace('{0}', num(rule.answer_days)), 'dim', 'clock'));
+      line.appendChild(chip(rule.action === 'expire' ? 'not confirmed: expires' : 'not confirmed: reported', rule.action === 'expire' ? 'crit' : 'warn'));
+      rc.appendChild(line);
+    } else rc.appendChild(el('p', 'muted small tmx-none', 'Off - the members are never asked to be confirmed.'));
+    var rhist = el('div', 'tmg-rhist');
+    rc.appendChild(rhist);
+    if (fullAdmin()) {
+      var re = headButton(rc, iconButton('edit', 'Set the access reviews'));
+      re.id = 'tmg-g-review-edit';
+      re.onclick = function () { editReview(t); };
+    }
+    api('teams/reviews&team=' + enc(t.name)).then(function (d) {
+      var list = d.reviews || [];
+      var cur = list.filter(function (r) { return r.state === 'open' || r.state === 'overdue'; })[0];
+      if (cur) {
+        var open = el('button', 'tmg-rvcard' + (cur.late || cur.state === 'overdue' ? ' late' : ''));
+        open.type = 'button';
+        open.id = 'tmg-g-review-open';
+        var tt = el('div', 'tmg-rvcard-t');
+        tt.appendChild(el('b', '', 'The review open now'));
+        tt.appendChild(stateChip(cur.late && cur.state === 'open' ? 'overdue' : cur.state));
+        open.appendChild(tt);
+        var bar = el('div', 'tmg-prog');
+        var fill = el('span', '');
+        var tot = (cur.items || []).length;
+        fill.style.width = (tot ? Math.round(100 * (tot - cur.pending) / tot) : 100) + '%';
+        bar.appendChild(fill);
+        open.appendChild(bar);
+        open.appendChild(el('span', 'muted small', '{0} to confirm, by {1}'.replace('{0}', num(cur.pending)).replace('{1}', dateOf(cur.due))));
+        open.onclick = function () { reviewDialog(cur, function () { refresh(t.name); }); };
+        rhist.appendChild(open);
+      } else if (d.may_answer) {
+        var st = cmdButton('Start a review now', 'play', 'small');
+        st.id = 'tmg-g-review-start';
+        st.onclick = function () {
+          busy(st, true);
+          api('teams/review_open', {team: t.name}).then(function (x) { toast(x.message || 'open', 'good'); refresh(t.name); }).catch(oops).then(function () { busy(st, false); });
+        };
+        rhist.appendChild(st);
+      }
+      var past = list.filter(function (r) { return r !== cur; });
+      if (past.length) {
+        rhist.appendChild(sectionHead('history', 'History'));
+        var tb = el('div', 'tmg-hrows');
+        past.slice(0, 8).forEach(function (r) {
+          var row = el('div', 'tmg-hrow');
+          row.appendChild(data('span', 'mono small', dateOf(r.started)));
+          row.appendChild(stateChip(r.state));
+          var kept = (r.items || []).filter(function (i) { return i.state === 'kept'; }).length;
+          var out = (r.items || []).filter(function (i) { return i.state === 'removed' || i.state === 'expired'; }).length;
+          row.appendChild(el('span', 'muted small', '{0} confirmed, {1} taken out'.replace('{0}', num(kept)).replace('{1}', num(out))));
+          tb.appendChild(row);
+        });
+        rhist.appendChild(tb);
+        var dl = cmdButton('Download the report (CSV)', 'download', 'small');
+        dl.id = 'tmg-g-review-csv';
+        dl.onclick = function () { reviewCsv(t.name, list); };
+        rhist.appendChild(dl);
+      }
+    }).catch(function () { });
+    grid.appendChild(rc);
+    /* temporary roles */
+    var jc = govCard('clock', 'Temporary roles', null);
+    jc.id = 'tmg-g-jit';
+    var jl = el('div', 'tmg-jit');
+    jc.appendChild(jl);
+    if (fullAdmin()) {
+      var je = headButton(jc, iconButton('edit', 'Set the temporary roles'));
+      je.id = 'tmg-g-jit-edit';
+      je.onclick = function () { editJit(t); };
+    }
+    api('teams/elevations&team=' + enc(t.name)).then(function (d) {
+      if (d.rule) {
+        var line = el('div', 'tmx-mroles');
+        d.rule.roles.forEach(function (r) { line.appendChild(roleChip(r)); });
+        line.appendChild(chip(tr('{0} h at most').replace('{0}', num(d.rule.max_hours)), 'dim', 'clock'));
+        if (d.rule_from && low(d.rule_from) !== low(t.name)) { var f = el('span', 'tmx-from'); f.appendChild(el('span', '', 'from')); f.appendChild(data('b', '', d.rule_from)); line.appendChild(f); }
+        jl.appendChild(line);
+      } else jl.appendChild(el('p', 'muted small tmx-none', 'Off - nobody asks for a role here for a while.'));
+      var act = (d.rows || []).filter(function (r) { return r.state === 'granted' || r.state === 'waiting'; });
+      act.forEach(function (r) { jl.appendChild(elevRow(r, r.state === 'waiting' && (d.to_decide || []).some(function (x) { return x.id === r.id; }) ? 'decide' : 'mine', function () { refresh(t.name); })); });
+      var mayHere = (d.may_ask || []).filter(function (m) { return low(m.team) === low(t.name); });
+      if (mayHere.length) {
+        var ab = cmdButton('Ask for a role', 'add', 'small');
+        ab.id = 'tmg-g-jit-ask';
+        ab.onclick = function () { askElevation(mayHere, t.name, function () { refresh(t.name); }); };
+        jl.appendChild(ab);
+      }
+      var past = (d.rows || []).filter(function (r) { return act.indexOf(r) < 0; }).slice(0, 5);
+      if (past.length) {
+        jl.appendChild(sectionHead('history', 'Lately'));
+        past.forEach(function (r) {
+          var row = el('div', 'tmg-hrow');
+          row.appendChild(data('span', 'mono small', dateOf(r.asked)));
+          row.appendChild(data('span', 'small', shortWho(r.asked_by)));
+          row.appendChild(roleChip(r.role));
+          row.appendChild(stateChip(r.state));
+          jl.appendChild(row);
+        });
+      }
+    }).catch(function () { });
+    grid.appendChild(jc);
+    /* separation of duties */
+    var sc = govCard('tmg_pair', 'Separation of duties', null);
+    sc.id = 'tmg-g-sod';
+    var sod = g.sod || {};
+    var sl = el('div', 'tmg-sod');
+    var self = el('div', 'tmg-sodl');
+    self.appendChild(chip(sod.no_self_approval ? 'on' : 'as the approval rule says', sod.no_self_approval ? 'ok' : 'dim', sod.no_self_approval ? 'check' : null));
+    self.appendChild(el('span', 'small', 'The one who asks never approves their own request'));
+    sl.appendChild(self);
+    (sod.exclusive || []).forEach(function (p) {
+      var pr = el('div', 'tmg-pair');
+      pr.appendChild(pairSide(p[0]));
+      pr.appendChild(ic('tmg_pair', 14, 'tmg-pair-x'));
+      pr.appendChild(pairSide(p[1]));
+      pr.appendChild(el('span', 'muted small', 'never the same person'));
+      sl.appendChild(pr);
+    });
+    var up = chainOf(T, n.name).slice(0, -1);
+    up.forEach(function (a) {
+      var s2 = (a.t.gov || {}).sod || {};
+      (s2.exclusive || []).forEach(function (p) {
+        var pr = el('div', 'tmg-pair inh');
+        pr.appendChild(pairSide(p[0]));
+        pr.appendChild(ic('tmg_pair', 14, 'tmg-pair-x'));
+        pr.appendChild(pairSide(p[1]));
+        var f = el('span', 'tmx-from'); f.appendChild(el('span', '', 'from')); f.appendChild(data('b', '', a.name));
+        pr.appendChild(f);
+        sl.appendChild(pr);
+      });
+      if (s2.no_self_approval && !sod.no_self_approval) { var x = el('div', 'tmg-sodl'); x.appendChild(chip('on', 'ok', 'check')); x.appendChild(el('span', 'small', 'never their own request')); var f2 = el('span', 'tmx-from'); f2.appendChild(el('span', '', 'from')); f2.appendChild(data('b', '', a.name)); x.appendChild(f2); sl.appendChild(x); }
+    });
+    if (!(sod.exclusive || []).length && !sod.no_self_approval && !sl.querySelector('.inh')) sl.appendChild(el('p', 'muted small tmx-none', 'No pair of roles is kept apart.'));
+    sc.appendChild(sl);
+    if (fullAdmin()) {
+      var se = headButton(sc, iconButton('edit', 'Set the separation of duties'));
+      se.id = 'tmg-g-sod-edit';
+      se.onclick = function () { editSod(t); };
+    }
+    grid.appendChild(sc);
+    /* notifications */
+    var nc = govCard('bell', 'Notifications and escalation', null);
+    nc.id = 'tmg-g-notify';
+    var nt = g.notify;
+    if (nt) {
+      var chain = el('div', 'tmg-chain');
+      var stepN = function (icon, when, who, tone) {
+        var s = el('div', 'tmg-step ' + (tone || ''));
+        s.appendChild(ic(icon, 16));
+        var w = el('div', 'tmg-step-w');
+        w.appendChild(el('span', 'tmg-step-when', when));
+        w.appendChild(who instanceof Node ? who : el('b', '', who));
+        s.appendChild(w);
+        return s;
+      };
+      var mails = function (v, fallback) {
+        var x = el('span', 'tmg-mails');
+        var lst = String(v || '').split(/\s*,\s*/).filter(Boolean);
+        if (!lst.length) { x.appendChild(el('span', 'muted small', fallback)); return x; }
+        lst.forEach(function (m) { x.appendChild(dataChip(m, 'dim', 'mail')); });
+        return x;
+      };
+      if (nt.expiry_days) chain.appendChild(stepN('clock', tr('{0} days before the end').replace('{0}', num(nt.expiry_days)), mails(nt.mail || t.contact_mail, tr('the team (no address)')), 'info'));
+      if (nt.manager_days) chain.appendChild(stepN('tmg_up', tr('{0} days before the end').replace('{0}', num(nt.manager_days)), mails(nt.manager_mail, tr('the manager (no address)')), 'warn'));
+      if (nt.deploy_failed) chain.appendChild(stepN('router', tr('a failed deployment'), mails(nt.deploy_failed === 'oncall' ? nt.oncall_mail : nt.deploy_failed === 'manager' ? nt.manager_mail : (nt.mail || t.contact_mail), tr('nobody (no address)')), 'crit'));
+      nc.appendChild(chain);
+      var hk = el('div', 'tmx-mroles tmg-hooks');
+      hk.appendChild(chip((g.hooks || {}).teams ? 'Teams webhook set' : 'no Teams webhook', (g.hooks || {}).teams ? 'ok' : 'dim', 'tmg_chain'));
+      hk.appendChild(chip((g.hooks || {}).slack ? 'Slack webhook set' : 'no Slack webhook', (g.hooks || {}).slack ? 'ok' : 'dim', 'tmg_chain'));
+      nc.appendChild(hk);
+    } else nc.appendChild(el('p', 'muted small tmx-none', 'Off - as before: the team\'s contact addresses are told of failures and certificates running out (Settings → Notifications). Set channels to escalate.'));
+    if (fullAdmin()) {
+      var ne = headButton(nc, iconButton('edit', 'Set the channels and the escalation'));
+      ne.id = 'tmg-g-notify-edit';
+      ne.onclick = function () { editNotify(t); };
+      if (nt) {
+        var tryB = headButton(nc, iconButton('play', 'Try every channel now'));
+        tryB.id = 'tmg-g-notify-try';
+        tryB.onclick = function () {
+          busy(tryB, true);
+          api('teams/notify_test', {team: t.name}).then(function (d) {
+            var said = Object.keys(d.channels || {}).map(function (k) { return k + ': ' + ((d.channels[k] || {}).result || '?'); }).join(' · ');
+            toast(said || 'nothing to try', said.indexOf('sent') >= 0 ? 'good' : 'bad');
+          }).catch(oops).then(function () { busy(tryB, false); });
+        };
+      }
+    }
+    grid.appendChild(nc);
+    /* who may */
+    if (checks()) {
+      var wm = el('div', 'tmx-note');
+      wm.appendChild(ic('tmg_who', 16));
+      wm.appendChild(el('span', '', 'Who may do what in this team - and why: every member, those of the teams above, temporary roles and the administrators.'));
+      var go = cmdButton('Show', 'tmg_who', 'small');
+      go.id = 'tmg-g-whomay';
+      go.onclick = function () { GOV.mode = 'team'; GOV.team = t.name; UI.view = 'whomay'; keep(); drawPane(); };
+      wm.appendChild(go);
+      box.appendChild(wm);
+    }
+  }
+  function pairSide(x) {
+    if (/^[a-z]+\.[a-z]+$/.test(x)) { var c = data('span', 'tmx-cap', x); return c; }
+    return roleOf(x) ? roleChip(x) : dataChip(x, 'legacy');
+  }
+  function reviewCsv(team, list) {
+    var q = function (v) { v = String(v === undefined || v === null ? '' : v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lines = [['team', 'review', 'started', 'started_by', 'due', 'state', 'member', 'roles', 'answer', 'by', 'at', 'note'].join(',')];
+    list.forEach(function (r) {
+      (r.items || []).forEach(function (i) {
+        lines.push([team, r.id, stamp(r.started), r.started_by, stamp(r.due), r.state, i.who, (i.roles || []).concat(i.rights || []).join(' '),
+                    i.state, i.by || '', i.at ? stamp(i.at) : '', i.note || ''].map(q).join(','));
+      });
+    });
+    var blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], {type: 'text/csv;charset=utf-8'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'access-reviews-' + team.replace(/[^A-Za-z0-9._-]+/g, '_') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function govSave(t, key, value, b) {
+    var body = {team: t.name};
+    body[key] = value;
+    busy(b, true);
+    return api('teams/governance', body).then(function (x) {
+      toast(x.message || 'saved', 'good');
+      closeModal(true);
+      if ((x.clash || []).length) {
+        modal('Separation of duties: memberships that clash now', function (bd) {
+          bd.classList.add('tmx-dlg');
+          bd.appendChild(el('p', 'note', 'The rule holds for every membership added or changed from now on. These hold both roles of a pair already - change them by hand:'));
+          x.clash.forEach(function (c) {
+            var r = el('div', 'tmg-pair');
+            r.appendChild(dataChip(c.team, 'dim', 'people'));
+            r.appendChild(data('b', 'mono', shortWho(c.who)));
+            r.appendChild(pairSide(c.pair[0]));
+            r.appendChild(ic('tmg_pair', 14, 'tmg-pair-x'));
+            r.appendChild(pairSide(c.pair[1]));
+            bd.appendChild(r);
+          });
+        }, [{words: 'Close', close: true}], 'medium');
+      }
+      UI.tab = 'gov';
+      keep();
+      return refresh(t.name);
+    }).catch(oops).then(function () { busy(b, false); });
+  }
+  function numBox(v, id, min, max) {
+    var i = el('input', '');
+    i.type = 'number';
+    i.id = id;
+    if (min !== undefined) i.min = String(min);
+    if (max !== undefined) i.max = String(max);
+    i.value = v === undefined || v === null ? '' : String(v);
+    return i;
+  }
+  function switchOn(sw) { var i = sw._input || sw.querySelector('input'); return !!(i && i.checked); }
+  function editReview(t) {
+    var r = (t.gov || {}).review || {};
+    modal(tr('Access reviews of {0}').replace('{0}', t.name), function (body) {
+      body.classList.add('tmx-dlg');
+      var on = switchBox(!!(t.gov || {}).review);
+      on.id = 'tmg-rv-on';
+      body.appendChild(formField('Review the members regularly', on, 'The managers of the team (team.members) confirm each member and their roles; they never confirm their own membership.'));
+      var every = numBox(r.every_days || 90, 'tmg-rv-every', 7, 3650);
+      body.appendChild(formField('Every … days', every));
+      var ans = numBox(r.answer_days || 14, 'tmg-rv-answer', 1, 365);
+      body.appendChild(formField('Days to answer', ans));
+      var act = segmented([['report', 'Report them', 'flag'], ['expire', 'Their membership expires', 'clock']], r.action || 'report');
+      act.id = 'tmg-rv-action';
+      body.appendChild(formField('Members not confirmed in time', act));
+      editReview._read = function () { return switchOn(on) ? {every_days: Number(every.value), answer_days: Number(ans.value), action: act.value} : null; };
+    }, [{words: 'Close', close: true},
+        {words: 'Save', cls: 'primary', icon: 'save', go: function (b) { govSave(t, 'review', editReview._read(), b); }}], 'medium');
+  }
+  function editJit(t) {
+    var r = (t.gov || {}).jit || {};
+    var chosen = (r.roles || []).slice();
+    modal(tr('Temporary roles on {0}').replace('{0}', t.name), function (body) {
+      body.classList.add('tmx-dlg');
+      var on = switchBox(!!(t.gov || {}).jit);
+      on.id = 'tmg-jit-on';
+      body.appendChild(formField('Members may ask for a role for a while', on, 'Set here, it holds for the teams below too, unless one of them sets its own.'));
+      var pick = el('div', 'tmx-rolepick');
+      pick.id = 'tmg-jit-roles';
+      var paint = function () {
+        clear(pick);
+        ((TM.d || {}).roles || []).forEach(function (ro) {
+          var isOn = chosen.indexOf(ro.name) >= 0;
+          var b = el('button', 'tmx-rchip' + (isOn ? ' on' : '') + (ro.builtin ? '' : ' custom'));
+          b.type = 'button';
+          b.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+          var k = el('span', 'tmx-rchk');
+          k.innerHTML = iconMarkup('check', 11);
+          b.appendChild(k);
+          b.appendChild((ro.builtin ? el : data)('span', '', ro.name));
+          b.onclick = function () { if (isOn) chosen = chosen.filter(function (x) { return x !== ro.name; }); else chosen.push(ro.name); paint(); };
+          pick.appendChild(b);
+        });
+      };
+      paint();
+      body.appendChild(formField('The roles that may be asked for', pick));
+      var mh = numBox(r.max_hours || 8, 'tmg-jit-max', 1, 720);
+      body.appendChild(formField('For how many hours at most', mh));
+      editJit._read = function () { return switchOn(on) ? {roles: chosen, max_hours: Number(mh.value)} : null; };
+    }, [{words: 'Close', close: true},
+        {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+          var v = editJit._read();
+          if (v && !v.roles.length) { toast('choose at least one role', 'bad'); return; }
+          govSave(t, 'jit', v, b);
+        }}], 'medium');
+  }
+  function editSod(t) {
+    var r = (t.gov || {}).sod || {};
+    var pairs = (r.exclusive || []).map(function (p) { return [p[0], p[1]]; });
+    modal(tr('Separation of duties in {0}').replace('{0}', t.name), function (body) {
+      body.classList.add('tmx-dlg');
+      var self = switchBox(!!r.no_self_approval);
+      self.id = 'tmg-sod-self';
+      body.appendChild(formField('The one who asks never approves their own request', self, 'Wherever requests are approved - certificates, actions waiting for an approval, temporary roles - whatever the approval rule\'s "self" says.'));
+      body.appendChild(sectionHead('tmg_pair', 'Never the same person on the team'));
+      var list = el('div', 'tmg-pairs');
+      list.id = 'tmg-sod-pairs';
+      body.appendChild(list);
+      var opts = [];
+      ((TM.d || {}).roles || []).forEach(function (ro) { opts.push([ro.name, ro.name]); });
+      capGroups().forEach(function (g) { g.caps.forEach(function (c) { opts.push([c.id, c.id]); }); });
+      var paint = function () {
+        clear(list);
+        pairs.forEach(function (p, i) {
+          var row = el('div', 'tmg-pair edit');
+          var a = selectBox(opts, p[0]);
+          var b = selectBox(opts, p[1]);
+          noI18n(a); noI18n(b);
+          a.onchange = function () { p[0] = a.value; };
+          b.onchange = function () { p[1] = b.value; };
+          row.appendChild(a);
+          row.appendChild(ic('tmg_pair', 14, 'tmg-pair-x'));
+          row.appendChild(b);
+          var x = iconButton('trash', 'Take this pair away');
+          x.onclick = function () { pairs.splice(i, 1); paint(); };
+          row.appendChild(x);
+          list.appendChild(row);
+        });
+        if (!pairs.length) list.appendChild(el('p', 'muted small tmx-none', 'No pair yet.'));
+      };
+      paint();
+      var add = cmdButton('Add a pair', 'add', 'small');
+      add.id = 'tmg-sod-add';
+      add.onclick = function () { pairs.push(['Approver', 'Certificate manager']); paint(); };
+      body.appendChild(add);
+      body.appendChild(el('p', 'muted small', 'Checked when members are saved (a membership holding both is refused), when a temporary role is given, and when somebody approves (an approver holding both is refused). A rule here holds for the teams below too.'));
+      editSod._read = function () { return (switchOn(self) || pairs.length) ? {no_self_approval: switchOn(self), exclusive: pairs} : null; };
+    }, [{words: 'Close', close: true},
+        {words: 'Save', cls: 'primary', icon: 'save', go: function (b) { govSave(t, 'sod', editSod._read(), b); }}], 'medium');
+  }
+  function editNotify(t) {
+    var r = (t.gov || {}).notify || {};
+    var hooks = (t.gov || {}).hooks || {};
+    modal(tr('Notifications of {0}').replace('{0}', t.name), function (body) {
+      body.classList.add('tmx-dlg', 'tmg-ndlg');
+      var on = switchBox(!!(t.gov || {}).notify);
+      on.id = 'tmg-n-on';
+      body.appendChild(formField('Channels and escalation of its own', on, 'Set here, they hold for the teams below too, unless one of them sets its own.'));
+      body.appendChild(sectionHead('mail', 'Who'));
+      var mail = textBox(r.mail || '', t.contact_mail || 'team@example.com');
+      mail.id = 'tmg-n-mail';
+      noI18n(mail);
+      body.appendChild(formField('The team', mail, 'Empty: the team\'s contact addresses.'));
+      var mgr = textBox(r.manager_mail || '', 'lead@example.com');
+      mgr.id = 'tmg-n-mgr';
+      noI18n(mgr);
+      body.appendChild(formField('The manager', mgr));
+      var onc = textBox(r.oncall_mail || '', 'oncall@example.com');
+      onc.id = 'tmg-n-oncall';
+      noI18n(onc);
+      body.appendChild(formField('On-call', onc));
+      body.appendChild(sectionHead('tmg_chain', 'Webhooks'));
+      var hk = function (k, label, ph) {
+        var i = el('input', '');
+        i.type = 'password';
+        i.autocomplete = 'new-password';
+        i.id = 'tmg-n-' + k;
+        i.placeholder = hooks[k] ? tr('set - type a new address to change it') : ph;
+        noI18n(i);
+        var wrap = el('div', 'tmg-hookrow');
+        wrap.appendChild(i);
+        var clr = null;
+        if (hooks[k]) {
+          clr = el('label', 'tmg-hookclr');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.id = 'tmg-n-' + k + '-clear';
+          clr.appendChild(cb);
+          clr.appendChild(el('span', '', 'take it away'));
+          wrap.appendChild(clr);
+        }
+        body.appendChild(formField(label, wrap, 'Kept sealed - never shown again, not even to you.'));
+        return function () {
+          if (clr && clr.querySelector('input').checked) return '';
+          return i.value.trim() || null;
+        };
+      };
+      var teamsHook = hk('teams', 'Microsoft Teams', 'https://….webhook.office.com/…');
+      var slackHook = hk('slack', 'Slack', 'https://hooks.slack.com/services/…');
+      body.appendChild(sectionHead('tmg_up', 'Escalation'));
+      var ed = numBox(r.expiry_days === undefined ? 14 : r.expiry_days, 'tmg-n-exp', 0, 365);
+      body.appendChild(formField('Tell the team … days before a certificate ends', ed));
+      var md = numBox(r.manager_days === undefined ? 3 : r.manager_days, 'tmg-n-mdays', 0, 365);
+      body.appendChild(formField('Tell the manager … days before', md));
+      var dep = segmented([['oncall', 'On-call'], ['manager', 'The manager'], ['team', 'The team'], ['', 'Nobody']], r.deploy_failed === undefined ? 'oncall' : r.deploy_failed);
+      dep.id = 'tmg-n-dep';
+      dep.classList.add('wrap');
+      body.appendChild(formField('A failed deployment goes to', dep));
+      var ev = switchBox(r.elevations !== false);
+      ev.id = 'tmg-n-elev';
+      body.appendChild(formField('Temporary roles: asked, given, ended', ev));
+      var rv = switchBox(r.reviews !== false);
+      rv.id = 'tmg-n-rev';
+      body.appendChild(formField('Access reviews: opened, overdue', rv));
+      editNotify._read = function () {
+        return {notify: switchOn(on) ? {mail: mail.value.trim(), manager_mail: mgr.value.trim(), oncall_mail: onc.value.trim(),
+                                         expiry_days: Number(ed.value), manager_days: Number(md.value), deploy_failed: dep.value,
+                                         elevations: switchOn(ev), reviews: switchOn(rv)} : null,
+                hooks: {teams: teamsHook(), slack: slackHook()}};
+      };
+    }, [{words: 'Close', close: true},
+        {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+          var v = editNotify._read();
+          var hk = {team: t.name};
+          if (v.hooks.teams !== null) hk.teams = v.hooks.teams;
+          if (v.hooks.slack !== null) hk.slack = v.hooks.slack;
+          busy(b, true);
+          var first = (hk.teams !== undefined || hk.slack !== undefined) ? api('teams/hooks', hk) : Promise.resolve();
+          first.then(function () { busy(b, false); return govSave(t, 'notify', v.notify, b); }).catch(function (e) { busy(b, false); oops(e); });
+        }}], 'medium');
+  }
+
   function tr(s) {
     try { var got = typeof i18nText === 'function' ? i18nText(s) : null; return got || s; } catch (e) { return s; }
   }
@@ -3095,4 +4832,7 @@
   /* A page that opened on this pane drew it before this file came. */
   if (typeof PANE === 'string' && PANE === 'teams') drawPane();
   load().then(fillFilters).catch(function () { });
+  /* viewing as somebody (1.0.138): the banner on every page of the administration */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', viewAsCheck);
+  else viewAsCheck();
 })();
