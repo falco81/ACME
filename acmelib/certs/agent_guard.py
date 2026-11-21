@@ -985,6 +985,25 @@ def _too_old(st, feature):
     return isinstance(st.get('features'), list) and not can(st, feature)
 
 
+def on_old_cmdkey(store):
+    """The agents that still pin a command key of acme's other than the current one (1.0.138):
+    an acme older than 1.0.138 signs every job with the current key alone - they would refuse
+    them all. [] when none (or the key was never changed)."""
+    G = _G()
+    base = str(store.get_meta(M_CMDBASE) or '')
+    if not base:
+        return []
+    cur = _cmd_current(store)[0]['fp']
+    out = []
+    for r in G.rows(store):
+        st = G.state(store, r['id'])
+        if not st.get('cert_fp') and not st.get('pending'):
+            continue
+        if (str(st.get('cmd_fp') or '') or base) != cur:
+            out.append(str(r['name']))
+    return out
+
+
 def retire(store):
     """Earlier command keys no agent pins any more (and past the overlap): their seed taken
     away - a backup made before the change still has it; the record of when stays."""

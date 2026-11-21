@@ -299,8 +299,10 @@ while a request profile stands on a base profile (an older version reads it
 without what it inherits and stops offering it - let it stand alone first)
 or a team has governance switched on (separation of duties, temporary roles,
 access reviews, team channels - an older version would drop them without a
-word, "never approve your own request" among them). Each is named; with
-neither in use, going back is as before.
+word, "never approve your own request" among them), or a target agent still
+pins an earlier command key of acme's (an older acme signs with the current key
+only - the agent would refuse every job). Each is named; with none of them,
+going back is as before.
 
 **The package against the database.** Fetched or given, the older package is
 checked like an upgrade's (signed, every file) and then against this

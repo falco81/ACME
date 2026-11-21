@@ -75903,6 +75903,10 @@
   "z_2672": {
    "source": "Everybody who may see the team.",
    "text": "Každý, kdo smí vidět tým."
+  },
+  "z_2673": {
+   "source": "no agent of the canary group can be updated now - the rest is not updated without its canary ring (choose another group, or none)",
+   "text": "žádného agenta kanárkové skupiny teď nelze aktualizovat - zbytek se bez kanárkového kruhu neaktualizuje (zvolte jinou skupinu, nebo žádnou)"
   }
  },
  "patterns": {
@@ -105349,6 +105353,10 @@
   "pz_825": {
    "source": "acme {0} does not know the governance of teams ({1}) - separation of duties, temporary roles, access reviews and team channels would be dropped without a word: switch it off first",
    "text": "acme {0} nezná správu týmů ({1}) – oddělení povinností, dočasné role, revize přístupů a kanály týmů by bez varování zahodila: nejdřív ji vypněte"
+  },
+  "pz_826": {
+   "source": "acme {0} signs with acme's current command key only, and these agents still pin an earlier one ({1}) - they would refuse every job: let them move to the current key first (Target agents → Keys and their age)",
+   "text": "acme {0} podepisuje jen současným klíčem pro příkazy a tito agenti mají připnutý dřívější ({1}) – odmítli by každou úlohu: nejdřív je převeďte na současný klíč (Agenti cílů → Klíče a jejich stáří)"
   }
  },
  "rich": {

@@ -539,7 +539,7 @@ function modBulk(key, list) {
     var clip = CX.clip();
     if (clip && clip.type === 'tags') out.push({label: ['Add the tags ', {data: CX.clipName(clip)}], icon: 'import', go: function () { return addTags('target', clip, list); }});
   }
-  out.push({label: 'Copy them to the acme clipboard', icon: 'archive', go: function () { return CX.copyObjects(CX.types[f.type], list, {}); }});
+  /* "Copy them to the acme clipboard" is the menu's own (ctxmenu.js clipItems): not twice */
   return out;
 }
 

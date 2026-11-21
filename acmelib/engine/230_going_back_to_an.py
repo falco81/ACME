@@ -98,7 +98,8 @@ def downgrade_new_use(store, version):
     version reads it without the base's source and keys and stops offering it; a team's
     governance (separation of duties, temporary roles, access reviews, its notification
     channels) is not known before 1.0.138 - "never approve your own request" would be dropped
-    without a word. Without them in use, going back is as before."""
+    without a word; agents still on an earlier command key would refuse an older acme, which
+    signs with the current one only. Without them, going back is as before."""
     if _ver_tuple(version) >= (1, 0, 138):
         return []
     based, governed = [], []
@@ -125,7 +126,18 @@ def downgrade_new_use(store, version):
                 governed.append(str(dict(r).get('name')))
     except Exception:                                   # noqa: BLE001 - no such column yet
         pass
+    old_key = []
+    try:
+        from acmelib.certs import agent_guard as _ag
+        old_key = _ag.on_old_cmdkey(store)
+    except Exception:                                   # noqa: BLE001 - no agents here
+        old_key = []
     words = []
+    if old_key:
+        words.append('acme %s signs with acme\'s current command key only, and these agents '
+                     'still pin an earlier one (%s) - they would refuse every job: let them '
+                     'move to the current key first (Target agents → Keys and their age)'
+                     % (version, ', '.join(sorted(old_key)[:10])))
     if based:
         words.append('acme %s does not know request profiles on a base profile (%s) - it reads '
                      'them without what they inherit: let them stand alone first'

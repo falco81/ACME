@@ -49,5 +49,19 @@ class NewUse(unittest.TestCase):
         self.assertTrue(any('base profile' in w for w in E.downgrade_why_not(STORE, '1.0.137')))
 
 
+
+    def test_agents_on_an_earlier_command_key(self):
+        from acmelib.certs import agent_guard
+        self.assertEqual(agent_guard.on_old_cmdkey(STORE), [])     # never changed: none
+        old = agent_guard.on_old_cmdkey
+        agent_guard.on_old_cmdkey = lambda store: ['web1']
+        try:
+            got = E.downgrade_new_use(STORE, '1.0.137')
+            self.assertEqual(len(got), 1)
+            self.assertIn('web1', got[0])
+            self.assertEqual(E.downgrade_new_use(STORE, '1.0.138'), [])
+        finally:
+            agent_guard.on_old_cmdkey = old
+
 if __name__ == '__main__':
     unittest.main()
