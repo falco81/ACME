@@ -168,7 +168,7 @@ function itemNode(it, menu, depth) {
     clearTimeout(menu.subTimer);
     /* on a phone a sub-menu takes the menu's place: opened by a tap, never by the pointer passing */
     if (it.sub && !it.off && !narrow()) menu.subTimer = setTimeout(function () { openSub(b, menu, depth); }, 160);
-    else menu.subTimer = setTimeout(function () { closeDeeper(depth); }, 220);
+    else menu.subTimer = setTimeout(function () { if (!menu.node.hidden) closeDeeper(depth); }, 220);
   });
   return b;
 }
@@ -204,6 +204,7 @@ function closeDeeper(depth) {
 function narrow() { return window.innerWidth < 560; }
 function openSub(b, menu, depth, focusFirst) {
   if (!OPEN) return;
+  clearTimeout(menu.subTimer);
   if (OPEN.stack[depth + 1] && OPEN.stack[depth + 1].from === b) { if (focusFirst) focusItem(OPEN.stack[depth + 1], items(OPEN.stack[depth + 1])[0]); return; }
   closeDeeper(depth);
   var it = b._it;
@@ -354,6 +355,7 @@ document.addEventListener('mousedown', function (e) {
 }, true);
 document.addEventListener('scroll', function (e) {
   if (!OPEN || Date.now() - OPEN.at < 400) return;     /* the page settling as the menu came */
+  if (narrow()) return;                                /* a phone's menu stays where it is: its page moves under it */
   if (OPEN.stack.some(function (m) { return m.node.contains(e.target); })) return;
   close(false);
 }, true);
