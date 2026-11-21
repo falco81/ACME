@@ -49,7 +49,7 @@ function inPage() {
     return {ctx, page};
   };
   const rclick = async (page, loc) => {
-    await loc.scrollIntoViewIfNeeded();
+    await loc.evaluate(e => e.scrollIntoView({block: 'center'}));
     await page.waitForTimeout(150);
     const bx = await loc.boundingBox();
     await page.mouse.click(bx.x + Math.min(30, bx.width / 2), bx.y + bx.height / 2, {button: 'right'});
@@ -136,8 +136,11 @@ function inPage() {
       await page.evaluate(() => colsEditing(false));
       await page.waitForTimeout(200);
       // picking rows, the dock, a bulk action with what will happen, one result
-      await rows.nth(0).locator('td').nth(1).click({modifiers: ['Control']});
-      await rows.nth(1).locator('td').nth(1).click({modifiers: ['Control']});
+      for (const i of [0, 1]) {
+        await rows.nth(i).evaluate(e => e.scrollIntoView({block: 'center'}));
+        await page.waitForTimeout(150);
+        await rows.nth(i).locator('td').nth(1).click({modifiers: ['Control']});
+      }
       await page.waitForTimeout(300);
       run.picked = await page.$$eval('#ct-table tr.cxm-sel', n => n.length);
       run.modalAfterPick = await page.evaluate(() => !document.getElementById('modal').hidden);

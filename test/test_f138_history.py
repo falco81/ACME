@@ -25,7 +25,6 @@ docs/history-and-trash.md).
 import contextlib
 import json
 import os
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -247,7 +246,7 @@ class History(unittest.TestCase):
         self.assertEqual(use[0], 'Gone set')
 
     def test_06_certificate_to_trash_without_its_key(self):
-        tid = self.target('trash-dep')
+        self.target('trash-dep')
         self.ok('POST', '/api/sources/save', {'name': 'selfie', 'kind': 'selfsigned', 'config': {}})
         cid = self.ok('POST', '/api/certs/save', {'name': 'trash-cert', 'names': ['t.example.test'],
                                                   'issuer': 'selfie', 'key_type': 'ec-256'})['id']

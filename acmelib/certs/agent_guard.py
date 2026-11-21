@@ -22,8 +22,8 @@ and the agent talk exactly as before (no job more, no key more in a job):
                            service on the server itself serves (its `probe local` - only where
                            the policy allows it already): "deployed, but the service still serves
                            the old certificate" (a reload forgotten) said on the deployment and
-                           the card. On by default only where the policy allows `probe local`;
-                           it takes no permission of the server's
+                           the card. Off by default as the others; switched on, only where the
+                           policy allows `probe local` already - it takes no permission
 
 What acme keeps (meta - in every backup, on every node; put back by a restore):
 
@@ -60,7 +60,7 @@ M_CMDBASE = 'agents:cmdbase'
 SENT = 'agentsent:%d:%s'
 
 DEFAULTS = {'audit': False, 'anomaly': False, 'rotate': False, 'rotate_days': 90,
-            'health': 'auto'}
+            'health': 'off'}
 ROTATE_DAYS = (7, 730)
 OVERLAP_S = 3 * 86400           # the agent takes the old command key this long after the change
 SENT_KEEP_S = 30 * 86400
@@ -159,7 +159,7 @@ def opts(store, tid):
             got.get('rotate_days') or DEFAULTS['rotate_days'])))
     except (TypeError, ValueError):
         pass
-    out['health'] = 'off' if got.get('health') == 'off' else 'auto'
+    out['health'] = 'on' if got.get('health') == 'on' else 'off'
     for k in ('at', 'by', 'audit_at', 'anomaly_at', 'rotate_at'):
         if got.get(k):
             out[k] = got[k]
@@ -172,6 +172,10 @@ WORDS_ON = {'audit': ('acme compares the audit chain of the agent of target %s (
             'anomaly': ('acme watches the agent of target %s for anomalies (switched on by %s)',
                         'acme no longer watches the agent of target %s for anomalies (switched '
                         'off by %s)'),
+            'health': ('acme asks what the services of the agent of target %s serve (switched on '
+                       'by %s)',
+                       'acme no longer asks what the services of the agent of target %s serve '
+                       '(switched off by %s)'),
             'rotate': ('the keys of the agent of target %s are changed on a schedule (switched '
                        'on by %s)',
                        'the keys of the agent of target %s are no longer changed on a schedule '
@@ -205,8 +209,10 @@ def set_opts(store, row, body, by):
             raise ValueError('the keys are changed every %d to %d days' % ROTATE_DAYS)
         have['rotate_days'] = d
     if 'health' in body:
-        if body['health'] not in ('auto', 'off'):
-            raise ValueError('health is auto or off')
+        if body['health'] not in ('on', 'off'):
+            raise ValueError('health is on or off')
+        if (have.get('health') == 'on') != (body['health'] == 'on'):
+            changed.append('health')
         have['health'] = body['health']
     have['at'], have['by'] = now, _txt(by, 120)
     _put(store, key, have)
@@ -220,12 +226,15 @@ def set_opts(store, row, body, by):
                                        ('agentq:%d:%%' % int(row['id']),)):
                     store.set_meta(SENT % (int(row['id']), r['k'].rsplit(':', 1)[1]),
                                    json.dumps({'op': '?', 'at': now, 'node': E.node_name()}))
+        if k == 'health' and have.get('health') != 'on':
+            store.db.run('DELETE FROM meta WHERE k = ?', (M_SERVED % int(row['id']),))
         if k == 'anomaly':
             store.db.run('DELETE FROM meta WHERE k = ?', (M_ANOM % int(row['id']),))
             if have[k]:
                 evaluate(store, row, _G().state(store, row['id']))
-        _event(store, WORDS_ON[k][0 if have[k] else 1] % (row['name'], by), who=by,
-               action='agent_guard', target=row['name'], what=k, on=1 if have[k] else 0)
+        on = have.get('health') == 'on' if k == 'health' else bool(have[k])
+        _event(store, WORDS_ON[k][0 if on else 1] % (row['name'], by), who=by,
+               action='agent_guard', target=row['name'], what=k, on=1 if on else 0)
     return opts(store, row['id'])
 
 
@@ -1081,10 +1090,10 @@ def _rotate_due(store, row, st):
 
 # ---- B6: what the service serves ----------------------------------------------------------------
 def served_on(store, row, st):
-    """Is what the service serves asked of this agent? Only where its policy allows `probe
-    local` already, and not switched off on its card."""
+    """Is what the service serves asked of this agent? Only when switched on on its card (off
+    by default) and only where its policy allows `probe local` already."""
     pol = st.get('policy') if isinstance(st.get('policy'), dict) else {}
-    return opts(store, row['id'])['health'] != 'off' and bool(pol.get('probe_local'))
+    return opts(store, row['id'])['health'] == 'on' and bool(pol.get('probe_local'))
 
 
 def _deploys(store, row):
