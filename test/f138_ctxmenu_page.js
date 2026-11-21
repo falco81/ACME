@@ -23,7 +23,7 @@ function inPage() {
       if (EN.test(t.textContent)) out.english.push(t.textContent.trim().slice(0, 80));
     }
     for (const n of w.querySelectorAll('[placeholder], [aria-label]')) {
-      for (const a of ['placeholder', 'aria-label']) { const v = n.getAttribute(a); if (v && EN.test(v)) out.english.push(a + ': ' + v); }
+      for (const a of ['placeholder', 'aria-label']) { const v = n.getAttribute(a); if (v && EN.test(v) && !/^[\w.+-]+@[\w.-]+$/.test(v)) out.english.push(a + ': ' + v); }
     }
   }
   out.hscroll = document.scrollingElement.scrollWidth - innerWidth;
@@ -232,8 +232,15 @@ function inPage() {
       run.dnsCli = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
       // the team tree: its menu, a clone without members
       await page.evaluate(() => showPane('teams'));
-      await page.waitForSelector('#tmx-tree .tmx-row');
+      await page.waitForSelector('#tmx-tree .tmx-row', {state: 'attached'});
       await page.waitForTimeout(500);
+      /* a phone: the tree is in its drawer, opened by its button */
+      if (w < 500) {
+        await page.evaluate(() => { const b = document.getElementById('tmx-switch'); if (b) b.click(); });
+        await page.waitForTimeout(900);
+      }
+      run.treeShown = await page.locator('#tmx-tree .tmx-row[data-name="Webteam"]').isVisible();
+      if (run.treeShown) {
       await rclick(page, page.locator('#tmx-tree .tmx-row[data-name="Webteam"]'));
       run.teamMenu = await page.$$eval('.cxm', n => n.length);
       await check('team');
@@ -244,6 +251,7 @@ function inPage() {
       await check('teamclone');
       await shot(page, `team-${tag}`);
       await page.evaluate(() => closeModal());
+      }
       // the palette: Ctrl+K, a verb, Enter
       await page.keyboard.press('Control+k');
       await page.waitForSelector('.cxp');

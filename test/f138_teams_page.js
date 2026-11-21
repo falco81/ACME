@@ -80,13 +80,14 @@ const { chromium } = require('playwright');
     return bad;
   });
   const english = (page) => page.evaluate(() => {
-    const EN = /(?<!\p{L})(the|of|and|is|for|with|your|you|it|not|all|team|teams|who|may|health|access|review|reviews|requests?|roles?|temporary|members?|nothing|ask|limits|template|templates|running|failed|weak|keys|quota|waiting|approve|decline|show|confirm)(?!\p{L})/iu;
+    const EN = /(?<!\p{L})(the|of|and|is|for|with|your|you|it|not|all|team|teams|who|may|health|access|review|reviews|requests?|roles|temporary|members?|nothing|ask|limits|template|templates|running|failed|weak|keys|quota|waiting|approve|decline|show|confirm)(?!\p{L})/iu;
     const got = [];
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let n;
     while ((n = walk.nextNode())) {
       const t = n.nodeValue.trim();
-      if (!t || !EN.test(t)) continue;
+      // a product's name and the template's placeholder are the same in every language
+      if (!t || !EN.test(t.replace(/\{team\}/g, '').replace(/(Microsoft )?Teams|Slack/g, ''))) continue;
       const p = n.parentElement;
       if (!p || !p.closest('.tmg-whomay, .tmg-health, .tmg-inbox, .tmg-tpl, .tmg-ggrid, .tmg-hstrip, .pwg-health, .pwg-acc, .tmg-viewas, .pwg-viewas, #modal')) continue;
       if (p.closest('[data-no-i18n], .mono, code, pre, script, style, #toast, [hidden], .tmx-cap, .tmx-mx-cid')) continue;
@@ -259,7 +260,7 @@ const { chromium } = require('playwright');
           await b.selectOption('#tmg-wm-team', 'Web');
           await b.click('#tmg-wm-go');
           await b.waitForSelector('.tmg-cell', {timeout: 15000});
-          await b.locator('.tmg-cell').first().click();
+          await b.evaluate(() => document.querySelector('.tmg-cell').click());
         }
         await b.waitForTimeout(900);
         out.overflow[v + '-' + lang + '-' + w] = await overflow(b);

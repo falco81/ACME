@@ -473,3 +473,191 @@ manager above it does the same on the portal: *Sub-teams & limits* → the team 
   only the modules the team needs (`target_kinds`) and keep acme's firewall (Settings → Firewall
   and access) and the outgoing proxy rules in mind.
 
+
+## Governance (1.0.138)
+
+What keeps the access of an organisation of thousands in order: who may do what and why, viewing
+the pages as a member, temporary roles, access reviews, separation of duties, templates and bulk
+import, the team's own channels with an escalation chain, and the teams' health. **Everything here
+is off and empty by default**: a team that sets none of it works exactly as before, no new
+capability exists (the managers of a team - `team.members` - are the ones who approve temporary
+roles and confirm members in reviews; nothing else is implied by an existing role).
+
+The code: `acmelib/certs/teamgov.py` (temporary roles, reviews, separation of duties, templates,
+CSV, channels, health, the tick), `acmelib/certs/teamaccess.py` (who may do what and why),
+`acmelib/certs/viewas.py` (view as), `acmelib/certs/api_teamgov.py` (the routes of the
+administration), the portal's routes at the end of `acmelib/certs/portal_teams.py`; the pages:
+`web/assets/teams.js` ("Governance" section, views *Who may*, *Health*, *Requests*,
+*Templates*, the team's tab *Governance*), `web/assets/portal-teams.js` (*Health*, *Access*).
+
+### Where it is kept
+
+| what | where |
+|---|---|
+| a team's reviews, temporary roles, separation of duties, channels | `cert_teams.extras` (JSON: `review`, `jit`, `sod`, `notify`; NULL - none) |
+| a team's webhook addresses | `cert_teams.hooks_sealed` - sealed (`cert_teams:<id>:hooks_sealed`), never returned to a page, left out of an export without the secrets |
+| templates | `cert_team_templates` (`name`, `description`, `config`) - configuration: backed up, exported, replicated (`CERT_CARRY_TABLES`) |
+| requests for a temporary role | `cert_team_elevations` (who, the names they are known by, team, role, hours, reason, state, who decided, until) |
+| access reviews and their answers | `cert_team_reviews` (team, started, due, state, `items`: each member with its answer, by whom, when) |
+
+An older database is given the columns and tables at its first start (empty: as before). Renaming
+a team takes its requests and reviews along; deleting it ends its waiting and granted roles and
+closes its open review.
+
+`teamgov.tick(store)` runs with the renewer's scan, on the node that leads (so once in a cluster),
+at most every four minutes: roles whose time is up end by themselves, requests nobody answered
+in a week end, reviews are opened on schedule and closed at their deadline, and the escalation
+chain sends what is due.
+
+### Who may do what - and why (T1)
+
+Settings → Owners and teams → **Who may** (a certificate administrator, as the access check):
+
+- **A person** - their teams (rows) × every capability (columns, grouped as Certificates,
+  Deployments, Devices, Tests, The team). Each dot says how it is held: on the team itself
+  (solid), inherited from a team above (a ring), a temporary role (a diamond); a red mark - held,
+  but the team's limits still narrow it (no key downloads, waits for an approval, only from a
+  request profile). A dot opens **why**: which membership (the person, or the group they are in),
+  which role or old right, on which team, inherited from where, ending when, and the reason of a
+  temporary role. Their account's role is said beside (a full administrator, or a certificate
+  administrator with *Certificate administrators manage every certificate* on, holds everything
+  whatever the teams say); a full administrator may open **View as** / **Open the portal as**
+  from here.
+- **A team** - everybody who holds anything on it: its members, those of the teams above, the
+  temporary roles in force, and the accounts that hold capabilities by their role (full
+  administrators; certificate administrators and read-only accounts while their settings give
+  every certificate), × the capabilities, each with its why.
+- **Who may…** - the reverse: `cap` on a team or on a certificate (its owner team) → everybody
+  who may, with the membership that gives it; a group can be opened (who is in it, from the
+  directory); a certificate without a team: only those who see every certificate.
+
+It is computed from the same tree, roles and per-version caches the guard uses (`teams.explain`,
+`person_caps`): what it says is what is enforced, and it stays fast with thousands of teams and
+people. Routes: `GET /api/teams/whomay?who=` | `?team=`, `GET /api/teams/whocan?cap=&team=|cert=`
+(certificate administrator; a scoped one sees only the teams it sees). On the portal a member with
+`team.members` sees *Who may do what* of that team (`GET /api/portal/whomay?team=`, without the
+administrators).
+
+### View as (T2)
+
+A **full administrator** sees the pages as a chosen member would, **read-only**:
+
+- **The administration** (`POST /api/teams/view_as {who}`; on a member's row the eye, then *The
+  administration*): the administrator's own sign-in then answers every route as the member's
+  account would - their role, name and groups (an account of acme's own, or a person of the
+  directory whose groups give a role here); `/api/auth/whoami` says their role, so the pages draw
+  what they would. A member who signs in to the portal only is refused here ("open the portal as
+  them").
+- **The portal** (`POST /api/teams/view_as_portal {who}` → a one-time link `/?viewas=CODE`, two
+  minutes, used once): a portal sign-in of the member's own is made (two hours at most) - the same
+  teams, caps and limits they have.
+
+While viewing as, **every write is refused on the server** before any route runs (`403`
+"read-only: you are viewing the pages as … - nothing is changed"), and so are the downloads of
+the database, a backup and the configuration; only *Stop viewing as* and *Sign out* go through.
+A banner on every page says whom you see as, with **Stop viewing as** (the portal's: Sign out).
+Starting, stopping and every write refused are events (naming the member's teams, so they are in
+each team's Activity too). A certificate administrator may not view as anybody.
+
+### Temporary roles - just-in-time elevation (T3)
+
+A team's **Governance → Temporary roles** (full administrator): the roles that may be asked for
+and the most hours (`extras.jit = {roles, max_hours}`). Set on a team, it holds for the teams below
+it too, unless one of them sets its own.
+
+- A **member** of the team (holding anything on it) asks on the portal (*Access → Ask for a role*)
+  or in the administration (*Requests*): a role of those allowed, for N hours, with a reason.
+  `POST /api/teams/elevate` / `POST /api/portal/elevate`.
+- It is approved or declined (a decline says why) by someone holding **`team.members`** on the
+  team (or a full administrator), **never by the one who asked**, and only for a role whose
+  capabilities the approver holds there. Separation of duties is checked when it is given.
+  `POST …/elevate_decide {id, ok, why}`.
+- Granted, it is a membership of its own with an `until` (now + the hours): the person holds the
+  role on that team and every team below it until then - in the guard, the portal and *Who may*
+  alike - and it **ends by itself**. The one who asked takes a waiting request back, or ends a
+  granted role early; a team manager can end it too (`…/elevate_end`).
+- Asked, given, declined and ended are events, and told on the team's channels (below).
+
+### Access reviews (T4)
+
+A team's **Governance → Access reviews** (full administrator): `extras.review = {every_days,
+answer_days, action}` - every N days (default 90) a review of the team's own members opens; its
+managers (`team.members`, inherited) confirm each member and their roles, or take them out (taken
+out at once). Nobody confirms their own membership (nor that of a group they are in). A review
+can also be started by hand. By the deadline (`answer_days`, default 14), what is not answered is
+`report` - the review becomes **overdue**, an event and the manager are told, it stays open for
+answers - or `expire` - those memberships get `until` = now (kept in the list, marked ended and
+"not confirmed in the access review") and the review closes. Every answer is kept (who, when, a
+note): the team's **History** and **Download the report (CSV)** for an audit.
+`GET /api/teams/reviews?team=` (none: the reviews open in the teams this account sees),
+`POST /api/teams/review_open {team}`, `POST /api/teams/review_answer {id, who, keep, note}`; the
+portal's `reviews`, `review_open`, `review_answer` the same.
+
+### Separation of duties (T5)
+
+A team's **Governance → Separation of duties** (full administrator), `extras.sod`:
+
+- `no_self_approval: true` - the one who asked never approves their own request, **whatever the
+  approval rule's `self` says** - certificate requests (portal and administration), actions waiting
+  for an approval (`approve_actions`), temporary roles (never self-approved anyway).
+- `exclusive: [[A, B], ...]` - two roles (or old rights, or capabilities) never held by the same
+  person on the team: a membership holding both is **refused when members are saved** (the
+  administration, the portal, the command line, a template), a temporary role that would make
+  someone hold both is refused when it is given, and an **approver holding both is refused** when
+  they approve (and not offered the request). A role is held when its distinctive capabilities
+  (those beyond a Viewer's) are; a Team owner holds every role.
+
+Rules of a team hold for the teams below it too (inherited; the refusal names the team whose rule
+it is). Members who already hold both when a rule is set are listed after the save (the rule holds
+for what is changed from then on).
+
+### Templates and bulk import (T6)
+
+Settings → Owners and teams → **Templates** (full administrator to change):
+
+- **Save a team as a template**: its kind, description, limits (with the request profiles they
+  name), contact addresses and governance (reviews, temporary roles, separation of duties, channels)
+  - optionally its members. A webhook's address is never copied (it is a secret).
+- A template can be edited as JSON (`kind, description, members, policy, contact_mail, extras`);
+  `{team}` in a member or the description is the new team's name (`group:{team}-Admins`).
+- **Make a team** from it: a name and where it stands (`POST /api/teams/from_template`).
+- **Import from CSV** (`POST /api/teams/import_csv {csv, dry_run}`): a header naming the columns
+  `name,parent,kind,template,description,contact_mail,members` (only `name` needed; `,` or `;`),
+  members as on the command line (`local:jan=Requester+Deployer; group:Web=view`). A parent may
+  come later in the file; the teams are made top-down. The preview marks each line new, there
+  already (left as it is) or wrong (why); nothing is made while a line is wrong.
+
+### Channels and escalation (T7)
+
+A team's **Governance → Notifications and escalation** (full administrator), `extras.notify`:
+the team's mail (empty: its contact addresses), the manager's, on-call's; Microsoft Teams and
+Slack incoming webhooks (sealed, write-only - the page shows only whether they are set; an
+address with a user or password is refused); and the chain:
+
+| when | who |
+|---|---|
+| a certificate of the team ends within `expiry_days` (14) | the team (and its webhooks) |
+| within `manager_days` (3) | the manager |
+| a deployment failed | `deploy_failed`: on-call (default), the manager, the team, or nobody |
+| temporary roles asked/given/ended, reviews opened/overdue | the team (switchable) |
+
+Set on a team, the channels hold for the teams below it unless they set their own. Each message
+goes once (per certificate and stage, per failed deployment and try), in the language of the
+alerts; failed deployments from before the channels were set are not told. Mail goes through the
+mail queue as every other notice (Settings → Mail); webhooks through the outgoing proxy rules.
+**Try every channel now** (`POST /api/teams/notify_test`) sends a test and says what went. Without
+channels nothing changes: the team's contact addresses are told as before (Notices).
+
+### Health (T8)
+
+Settings → Owners and teams → **Health**, the team's Overview, and the portal's **Health**: per
+team (with the teams below it) - certificates running out (within the notice days), expired,
+failed renewals, failed deployments, **outside the team's limits** (a source, validation or pair
+not allowed, a name outside the suffixes, a wildcard where forbidden, a validity longer than
+`max_days`), **weak keys** (RSA under 2048 bits, EC under 256, DSA) and the **quota** (`max_certs`
+of the team that set it, with the teams below it). A score of 100 minus capped penalties
+(expired/expiring 30, failed renewals 25, failed deployments 20, outside 15, weak 15, quota at
+80/90/100 % 3/8/15) - good ≥ 90, fair ≥ 70, else poor; for the leadership the score of all teams
+together (weighted by their certificates). A card opens the certificates behind each number.
+`GET /api/teams/health[?team=]` (the teams this account sees), `GET /api/portal/health` (the teams
+whose certificates the person sees). Computed in one pass, kept a minute.

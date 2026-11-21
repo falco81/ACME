@@ -541,6 +541,8 @@ class Pages(unittest.TestCase):
             self.assertFalse(one['secretShown'], tag)
             self.assertGreaterEqual(one['secretChanged'], 1, tag)
             self.assertEqual(one['versionBack'], 'a:first', tag)
+            self.assertEqual(one['overForm'], 1, tag)
+            self.assertTrue(one['formBack'], tag)
             self.assertEqual(one['viewName'], 'Soon %s%s' % (one['lang'], one['w']), tag)
             self.assertEqual(one['cleared'], '', tag)
             self.assertEqual(one['picked'], 'expiring', tag)

@@ -785,13 +785,14 @@ that would allow it, and the card shows how to install the package by hand.
   **its policy blocks a deployment** - until a deployment there goes through; (1.0.120) **the
   server's clock more than 120 s from acme's**. 1.0.138, as chosen on the card: its **audit chain not
   agreeing**, its **anomalies**; and a deployment whose service **still serves the old
-  certificate** (where `allow probe local` is there).
+  certificate** (switched on, where `allow probe local` is there).
 
 ## Watching an agent (1.0.138)
 
 The card of every agent target has **Watching this agent**: four things acme can do to watch it
 more closely. Each is chosen **for that agent alone** (a full administrator switches it; anybody
-who sees the card sees it) and three of them are **off by default** - with them off, acme and the
+who sees the card sees it) and all four are **off by default** - an agent after the upgrade too;
+with them off, acme and the
 agent talk exactly as before: no job more, no key more in a job or an answer. An agent before
 1.0.138 keeps working with this acme; a new agent with an acme before it is as before too.
 
@@ -895,8 +896,9 @@ Events: `agent_cmdkey_new`, `agent_cmdkey_moved`, `agent_enckey_new`, `agent_cmd
 
 ### What the service serves (B6)
 
-Where the agent's policy **already** allows `allow probe local` (nothing else is ever asked - no
-permission is taken) acme asks the agent, after a deployment (20 s after it) and every six hours,
+Switched on on the card (*What the service serves*; off by default) and only where the agent's
+policy **already** allows `allow probe local` (nothing else is ever asked - no permission is
+taken; the card says the line when it is not there), acme asks the agent, after a deployment (20 s after it) and every six hours,
 what the service on the server itself serves: the job `probe` at 127.0.0.1 on the deployment's
 port (its preset's - as the tests of a deployment do), the certificate's name as SNI. The leaf
 served against the deployed certificate (`checks.expected`): **as deployed**; **the old one** (a
@@ -904,13 +906,13 @@ version before - *deployed, but the service still serves the old certificate*: a
 an event `action=agent_serves_old` and an alert, amber); **another certificate**; **does not
 answer**. Shown on the card (*What the service serves*, *Ask it now*), on the deployment's row of
 the certificate and the target (`served` of each deployment of `GET /api/deploys`,
-`/api/certs/one`), and as a badge on the tile. On by default where `allow probe local` is there; the
-card's switch turns it off for that agent. Up to ten deployments are asked at a time.
+`/api/certs/one`), and as a badge on the tile. Switched off, nothing is asked, kept or shown (what
+was kept is taken away). Up to ten deployments are asked at a time.
 
 ### Its routes
 
 `GET /api/agents/guard?id=` (everything of the four for the card), `POST /api/agents/guard {id,
-audit?, anomaly?, rotate?, rotate_days?, health: auto|off}` (a full administrator), `POST
+audit?, anomaly?, rotate?, rotate_days?, health: on|off}` (a full administrator), `POST
 /api/agents/guard/verify {id}` (the chain read and checked now - a certificate administrator),
 `POST /api/agents/guard/ack {id, what: audit|anomaly}` (a full administrator), `POST
 /api/agents/guard/rotate {id, what: command|seal|both}` (a full administrator), `POST

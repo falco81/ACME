@@ -38,12 +38,32 @@ E, G, S, STORE = T.E, T.G, T.S, T.STORE
 from acmelib.certs import agent_guard as AG  # noqa: E402
 
 
+def need_account():
+    """The agent's account (acmeagt) there: other agent tests running beside this one take it
+    away when they end (userdel) - made again here rather than failing for it."""
+    import pwd
+    import subprocess
+    if not T.CAN:
+        return
+    try:
+        pwd.getpwnam(T.USER)
+    except KeyError:
+        subprocess.run(['useradd', '--system', '--no-create-home', '--shell',
+                        '/usr/sbin/nologin', T.USER], capture_output=True)
+
+
 def setUpModule():
     T.setUpModule()
 
 
 def tearDownModule():
-    T.tearDownModule()
+    # as test_target_agent's, but the account is left (another agent test may be using it)
+    import shutil
+    for a in list(T.Agent.ALL):
+        a.stop()
+    for w in list(T.Wire.ALL):
+        w.stop()
+    shutil.rmtree(T.TMP, ignore_errors=True)
 
 
 class Wire(object):
@@ -158,6 +178,7 @@ class ChainFile(unittest.TestCase):
 class Live(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        need_account()
         cls.port = T.free_port()
         cls.row, cls.ag = T.join_passive(cls(), 'f138web', cls.port)
         T.www_policy(cls.ag)
@@ -423,6 +444,7 @@ class Live(unittest.TestCase):
         try:
             T.www_policy(self.ag)
             G.call(STORE, row, 'hello', {})
+            route('POST', '/api/agents/guard', 'fulladmin', {'id': row['id'], 'health': 'on'})
             self.assertEqual(AG.served_check(STORE, row), {})       # no allow probe local
             T.www_policy(self.ag, 'allow probe local')
             G.call(STORE, row, 'hello', {})
@@ -440,7 +462,8 @@ class Live(unittest.TestCase):
             # switched off on the card: not asked
             route('POST', '/api/agents/guard', 'fulladmin', {'id': row['id'], 'health': 'off'})
             self.assertFalse(AG.served_on(STORE, row, G.state(STORE, row['id'])))
-            route('POST', '/api/agents/guard', 'fulladmin', {'id': row['id'], 'health': 'auto'})
+            self.assertFalse([a for a in G.alerts(STORE) if a['key'] == 'agent-served:9138'])
+            route('POST', '/api/agents/guard', 'fulladmin', {'id': row['id'], 'health': 'on'})
             # the right one served now: ok
             checks.expected = lambda store, c: {'current': {fa: ('main', 2)}, 'old': {}}
             got = AG.served_check(STORE, row, force=True)
@@ -452,7 +475,45 @@ class Live(unittest.TestCase):
             stop.set()
             ls.close()
             STORE.db.run('DELETE FROM meta WHERE k = ?', (AG.M_SERVED % row['id'],))
+            route('POST', '/api/agents/guard', 'fulladmin', {'id': row['id'], 'health': 'off'})
             T.www_policy(self.ag)
+
+    def test_6_served_off_by_default(self):
+        """B6 off (the default): probe local allowed, a deployment there - no probe job, no
+        event, no alert, nothing on the deployment."""
+        row = self.row_now()
+        self.assertEqual(AG.opts(STORE, row['id'])['health'], 'off')
+        T.www_policy(self.ag, 'allow probe local')
+        G.call(STORE, row, 'hello', {})
+        sent = []
+        was = G.call
+
+        def spy(store, r, op, *a, **k):
+            sent.append(op)
+            return was(store, r, op, *a, **k)
+        G.call = spy
+        saved = AG._deploys
+        AG._deploys = lambda store, r: [{'id': 9139, 'cert_id': 1, 'target': 'f138web',
+                                         'state': 'ok', 'deployed_fp': 'AB',
+                                         'last_ok': time.time() - 60}]
+        try:
+            st = G.state(STORE, row['id'])
+            self.assertFalse(AG.served_on(STORE, row, st))
+            AG.tick(STORE, row, st)
+            self.assertEqual(AG.served_check(STORE, row, force=True), {})
+            settled(row)
+        finally:
+            G.call = was
+            AG._deploys = saved
+            T.www_policy(self.ag)
+        self.assertNotIn('probe', sent)
+        self.assertFalse(STORE.get_meta(AG.M_SERVED % row['id']))
+        self.assertFalse([a for a in G.alerts(STORE) if a['key'].startswith('agent-served:')])
+        self.assertIsNone(AG.served_of_deploy(STORE, {'id': 9139, 'target': 'f138web',
+                                                      'deployed_fp': 'AB'}))
+        self.assertFalse(G.info(STORE, row)['guard']['served']['on'])
+        with self.assertRaises(ValueError):
+            route('POST', '/api/agents/guard/served', 'certadmin', {'id': row['id']})
 
 
 class OldData(unittest.TestCase):
@@ -467,9 +528,9 @@ class OldData(unittest.TestCase):
         self.assertEqual(g['opts'], AG.DEFAULTS)
         self.assertEqual(g['audit']['state'], 'off')
         self.assertIsNone(g['anomalies'])
-        self.assertEqual(g['served'], {'on': True, 'old': 0, 'items': []})
+        self.assertEqual(g['served'], {'on': False, 'old': 0, 'items': []})     # off: the default
         self.assertIsNone(AG.seed_for(STORE, st) if not STORE.get_meta(AG.M_CMDBASE) else None)
-        self.assertEqual(AG.opts(STORE, row['id'])['health'], 'auto')
+        self.assertEqual(AG.opts(STORE, row['id'])['health'], 'off')
         self.assertFalse([a for a in AG.alerts(STORE, row, st)])
         G.target_gone(STORE, row)
 

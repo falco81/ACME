@@ -139,6 +139,20 @@ function checks(where) {
       }, made);
       await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
+      // ---- the History button in the head of the target's form, over it ----
+      await page.evaluate(() => document.querySelector('.tabs button[data-tab="targets"]').click());
+      await page.waitForSelector('#tg-list :text("ui-' + tag + '")', {timeout: 15000});
+      await page.click('#tg-list :text("ui-' + tag + '")');
+      await page.waitForSelector('#modal .hs-hbtn', {timeout: 15000});
+      if (SHOTS) await page.screenshot({path: path.join(SHOTS, `form-button-${w}-${lang}.png`)});
+      await page.click('#modal .hs-hbtn');
+      await page.waitForSelector('#modal-body .hs-ent', {timeout: 15000});
+      run.overForm = await page.evaluate(() => document.querySelectorAll('.modal.under').length);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+      run.formBack = await page.evaluate(() => !document.getElementById('modal').hidden && !!document.querySelector('#modal .hs-hbtn'));
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
       // ---- saved views by the certificates ----
       await page.evaluate(() => document.querySelector('.tabs button[data-tab="certs"]').click());
       await page.waitForSelector('#tab-certs .sv-btn', {timeout: 15000});

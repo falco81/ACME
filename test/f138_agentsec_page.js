@@ -53,7 +53,7 @@ const path = require('path');
         : (ops[i % ops.length] === 'deploy' ? '3 files written, reloaded' : 'acme-agent 1.0.138 here')), mark: mark});
   }
   const GUARD_ON = {id: 1, name: 'web1', joined: true, features: ['audit-chain', 'cmdkey', 'enckey'], platform: 'linux', overlap_h: 72, rotate_range: [7, 730],
-    opts: {audit: true, anomaly: true, rotate: true, rotate_days: 90, health: 'auto', at: now - 86400, by: 'admin'},
+    opts: {audit: true, anomaly: true, rotate: true, rotate_days: 90, health: 'on', at: now - 86400, by: 'admin'},
     audit: {on: true, state: 'mismatch', agent_on: true, supported: true, n: 140, verified_n: 140, base_n: 12, verified_at: now - 120, read_at: now - 120,
       problems: 1, entries: entries, acked: null, read_said: '', head_h: 'ff'.repeat(32),
       problem_list: [{kind: 'unknown', words: 'the agent did a job acme never sent (job a1b2c3d4e5f61003abcdef00, hello, entry 137) - somebody else signed it with acme\'s command key', n: 137, at: now - 5400}]},
@@ -62,24 +62,24 @@ const path = require('path');
         {kind: 'network', level: 'warn', live: false, at: now - 7200, words: 'the agent of target web1 comes from a new network: 203.0.113.9 (its usual: 10.20.30.0/24)'},
         {kind: 'clock', level: 'warn', live: true, words: 'the clock of the server of target web1 is 74 s ahead of acme\'s'},
         {kind: 'version', level: 'warn', live: true, words: 'the agent of target web1 runs 1.0.137 - 1.0.138 is offered'}]},
-    served: {on: true, switch: 'auto', probe_local: true, old: 1, items: [
+    served: {on: true, switch: 'on', probe_local: true, old: 1, items: [
       {deploy_id: 7, cert: 'www.example.com', state: 'old', at: now - 600, places: [{host: '127.0.0.1', port: 443, state: 'old', version: 4}], want: 'AB'},
       {deploy_id: 8, cert: 'api.example.com', state: 'ok', at: now - 600, places: [{host: '127.0.0.1', port: 8443, state: 'ok'}]}]},
     keys: {cmd_fp: '7c'.repeat(32), cmd_current: false, cmd_at: now - 86400 * 120, cmd_age: 120, enc_at: now - 86400 * 97, enc_age: 97, tls_end: now + 86400 * 21,
       tls_renewed: now - 86400 * 9, key_fp: '3f'.repeat(32), joined_at: now - 86400 * 200, rotate: true, rotate_days: 90, can: true, said: '',
       prev_until: null, unknown: '', due: ['command', 'seal']}};
   const GUARD_OFF = {id: 2, name: 'mail-gw', joined: true, features: [], platform: 'linux', overlap_h: 72, rotate_range: [7, 730],
-    opts: {audit: false, anomaly: false, rotate: false, rotate_days: 90, health: 'auto'},
+    opts: {audit: false, anomaly: false, rotate: false, rotate_days: 90, health: 'off'},
     audit: {on: false, state: 'off', agent_on: false, supported: null, n: null, verified_n: null, problems: 0, entries: [], problem_list: []},
     anomaly: {on: false, items: []},
-    served: {on: false, switch: 'auto', probe_local: false, old: 0, items: []},
+    served: {on: false, switch: 'off', probe_local: false, old: 0, items: []},
     keys: {cmd_fp: '9d'.repeat(32), cmd_current: true, cmd_age: 41.2, enc_age: 41.2, tls_end: now + 86400 * 27, rotate: false, rotate_days: 90, can: false,
       said: '', due: [], unknown: ''}};
   const GUARDS = {1: GUARD_ON, 2: GUARD_OFF};
-  const SUM_ON = {audit: {on: true, state: 'mismatch'}, opts: {audit: true, anomaly: true, rotate: true, rotate_days: 90, health: 'auto'},
+  const SUM_ON = {audit: {on: true, state: 'mismatch'}, opts: {audit: true, anomaly: true, rotate: true, rotate_days: 90, health: 'on'},
     anomalies: GUARD_ON.anomaly.items.map((i) => ({kind: i.kind, level: i.level, words: i.words})),
     served: {on: true, old: 1, items: [{cert: 'www.example.com', state: 'old', deploy_id: 7}]}, keys: {due: ['command'], cmd_age: 120, enc_age: 97, rotate: true, unknown: false}};
-  const SUM_OK = {audit: {on: true, state: 'ok'}, opts: {audit: true, anomaly: false, rotate: false, rotate_days: 90, health: 'auto'},
+  const SUM_OK = {audit: {on: true, state: 'ok'}, opts: {audit: true, anomaly: false, rotate: false, rotate_days: 90, health: 'off'},
     anomalies: null, served: {on: false, old: 0, items: []}, keys: {due: [], cmd_age: 3, enc_age: 3, rotate: false, unknown: false}};
   const row = (o) => Object.assign({mode: 'passive', state: 'answers', joined: true, version: '1.0.138', code_hash: 'c0de', last_seen: now - 12,
     cert_end: now + 25 * 86400, policy_summary: {files: 1, units: 1, tests: 1, scripts: 0, from: 0, problems: 0}}, o);
@@ -268,7 +268,7 @@ const path = require('path');
         await card(2);
         out.checks[tag + 'card_off'] = await page.evaluate(() => {
           var g = document.querySelector('#card-host .ag-gd');
-          return !!g && g.querySelectorAll('.ag-gd-f.on').length === 0 && g.querySelectorAll('.ag-gd-f .sw input:checked').length === 1
+          return !!g && g.querySelectorAll('.ag-gd-f.on').length === 0 && g.querySelectorAll('.ag-gd-f .sw input:checked').length === 0
             && /acme-agent audit on/.test(g.querySelector('.ag-gd-f.audit').textContent)
             && /acme-agent allow probe local/.test(g.querySelector('.ag-gd-f.served').textContent)
             && !g.querySelector('.ag-tl') && !!g.querySelector('.ag-gd-f.keys .note');

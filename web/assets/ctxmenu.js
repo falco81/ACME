@@ -166,7 +166,8 @@ function itemNode(it, menu, depth) {
     if (!OPEN) return;
     focusItem(menu, b);
     clearTimeout(menu.subTimer);
-    if (it.sub && !it.off) menu.subTimer = setTimeout(function () { openSub(b, menu, depth); }, 160);
+    /* on a phone a sub-menu takes the menu's place: opened by a tap, never by the pointer passing */
+    if (it.sub && !it.off && !narrow()) menu.subTimer = setTimeout(function () { openSub(b, menu, depth); }, 160);
     else menu.subTimer = setTimeout(function () { closeDeeper(depth); }, 220);
   });
   return b;

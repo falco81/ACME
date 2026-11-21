@@ -36,8 +36,6 @@ import tempfile
 import threading
 import time
 import unittest
-import urllib.error
-import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)

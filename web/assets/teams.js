@@ -3187,7 +3187,7 @@
     w.appendChild(el('span', '', 'You see the pages as'));
     w.appendChild(document.createTextNode(' '));
     w.appendChild(data('b', '', va.display || va.name || va.who || '?'));
-    if (va.role) { w.appendChild(document.createTextNode(' ')); w.appendChild(chip({fulladmin: 'full administrator', certadmin: 'certificate administrator', readonly: 'read-only'}[va.role] || va.role, 'dim')); }
+    if (va.role) { w.appendChild(document.createTextNode(' ')); w.appendChild(chip({fulladmin: 'full administrator', certadmin: 'certificate administrator', readonly: 'read-only account'}[va.role] || va.role, 'dim')); }
     w.appendChild(document.createTextNode(' '));
     w.appendChild(el('span', 'tmg-viewas-ro', '- read-only: nothing is changed'));
     b.appendChild(w);
@@ -4526,8 +4526,21 @@
     /* notifications */
     var nc = govCard('bell', 'Notifications and escalation', null);
     nc.id = 'tmg-g-notify';
-    var nt = g.notify;
+    var nt = g.notify, ntFrom = null, ntHooks = g.hooks || {};
+    if (!nt) {
+      chainOf(T, n.name).slice(0, -1).reverse().some(function (a) {
+        var an = (a.t.gov || {}).notify;
+        if (an) { nt = an; ntFrom = a.name; ntHooks = (a.t.gov || {}).hooks || {}; }
+        return !!an;
+      });
+    }
     if (nt) {
+      if (ntFrom) {
+        var nf = el('div', 'tmx-mroles');
+        var fr = el('span', 'tmx-from'); fr.appendChild(el('span', '', 'from')); fr.appendChild(data('b', '', ntFrom));
+        nf.appendChild(fr);
+        nc.appendChild(nf);
+      }
       var chain = el('div', 'tmg-chain');
       var stepN = function (icon, when, who, tone) {
         var s = el('div', 'tmg-step ' + (tone || ''));
@@ -4550,15 +4563,15 @@
       if (nt.deploy_failed) chain.appendChild(stepN('router', tr('a failed deployment'), mails(nt.deploy_failed === 'oncall' ? nt.oncall_mail : nt.deploy_failed === 'manager' ? nt.manager_mail : (nt.mail || t.contact_mail), tr('nobody (no address)')), 'crit'));
       nc.appendChild(chain);
       var hk = el('div', 'tmx-mroles tmg-hooks');
-      hk.appendChild(chip((g.hooks || {}).teams ? 'Teams webhook set' : 'no Teams webhook', (g.hooks || {}).teams ? 'ok' : 'dim', 'tmg_chain'));
-      hk.appendChild(chip((g.hooks || {}).slack ? 'Slack webhook set' : 'no Slack webhook', (g.hooks || {}).slack ? 'ok' : 'dim', 'tmg_chain'));
+      hk.appendChild(chip(ntHooks.teams ? 'Teams webhook set' : 'no Teams webhook', ntHooks.teams ? 'ok' : 'dim', 'tmg_chain'));
+      hk.appendChild(chip(ntHooks.slack ? 'Slack webhook set' : 'no Slack webhook', ntHooks.slack ? 'ok' : 'dim', 'tmg_chain'));
       nc.appendChild(hk);
     } else nc.appendChild(el('p', 'muted small tmx-none', 'Off - as before: the team\'s contact addresses are told of failures and certificates running out (Settings → Notifications). Set channels to escalate.'));
     if (fullAdmin()) {
       var ne = headButton(nc, iconButton('edit', 'Set the channels and the escalation'));
       ne.id = 'tmg-g-notify-edit';
       ne.onclick = function () { editNotify(t); };
-      if (nt) {
+      if (nt && !ntFrom) {
         var tryB = headButton(nc, iconButton('play', 'Try every channel now'));
         tryB.id = 'tmg-g-notify-try';
         tryB.onclick = function () {
