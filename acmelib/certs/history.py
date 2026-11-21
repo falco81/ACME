@@ -184,7 +184,9 @@ def _note_before(db, ctx, table, verb, sql, args):
             return
         where = m.group(1)
         wargs = args
-    q = 'SELECT * FROM %s' % table + ((' WHERE ' + where) if where else '')
+    # at most the 5000 noted (hunt f1): a source renamed under 50 000 certificates read every
+    # one of them whole - their PEMs too - into the request's memory, to keep 5000
+    q = 'SELECT * FROM %s' % table + ((' WHERE ' + where) if where else '') + ' LIMIT 5000'
     rows = _ORIG['query'](db, q, tuple(wargs), True)[0] or []
     for r in rows[:5000]:
         if r.get('id') is None:
@@ -520,6 +522,14 @@ def purge(store, force=False):
     t = _now()
     if not force and t - _PURGE['at'] < 300:
         return 0
+    if not force:
+        # by the node that leads only (hunt f1): a look at the trash or the history on the other
+        # node of a pair deleted there too - each node its own deletes, replicated both ways
+        try:
+            if not E.ha_lead(store):
+                return 0
+        except Exception:                               # noqa: BLE001
+            return 0
     _PURGE['at'] = t
     n = 0
     tdays, kdays = trash_days(), keep_days()
@@ -575,13 +585,37 @@ def full(s):
     return str((s or {}).get('role') or '') == 'fulladmin' or bool((s or {}).get('cli'))
 
 
-def may_see(store, s, otype, owner):
+def may_see(store, s, otype, owner, team=None):
     if full(s):
         return True
     if otype in CERT_BOUND:
         T = _teams()
         return T.owner_in(T.scope(store, s, 'view'), owner)
+    if otype == 'team':
+        # a team's members and addresses only to who sees the team (as /api/teams shows them)
+        T = _teams()
+        return T.owner_in(T.scope(store, s, 'view'), team)
     return True
+
+
+def _team_of(store, r, cache=None):
+    """The name a team's entry of the history is seen under: the team's name now (renamed
+    since), else the name it had then."""
+    if (r or {}).get('otype') != 'team':
+        return None
+    oid = r.get('oid')
+    if cache is not None and oid in cache:
+        return cache[oid]
+    got = None
+    try:
+        row = store.db.row('SELECT name FROM cert_teams WHERE id = ?', (int(oid or 0),))
+        got = (row or {}).get('name')
+    except Exception:                                   # noqa: BLE001
+        got = None
+    got = got or r.get('oname') or None
+    if cache is not None:
+        cache[oid] = got
+    return got
 
 
 def may_restore_trash(store, s, otype, owner):
@@ -766,9 +800,9 @@ def history(store, s, otype, oid=None, name=None, limit=200):
     rows = store.db.rows('SELECT * FROM %s WHERE otable = ? AND oid = ? ORDER BY ts DESC, id DESC'
                          % HIST, (table, int(oid)))[:max(1, min(1000, int(limit)))]
     owner = _owner_of(store, table, row) if row else (rows[0].get('owner') if rows else None)
-    if not may_see(store, s, otype, owner):
-        raise E.ApiError(403, 'you may not see the history of that %s' % WORDS.get(otype, otype))
     name_now = _name_of(store, table, row) if row else (rows[0].get('oname') if rows else '')
+    if not may_see(store, s, otype, owner, team=name_now):
+        raise E.ApiError(403, 'you may not see the history of that %s' % WORDS.get(otype, otype))
     in_trash = store.db.value('SELECT id FROM %s WHERE otable = ? AND oid = ? ORDER BY id DESC'
                               % TRASH, (table, int(oid))) if not row else None
     return {'object': {'type': otype, 'id': int(oid), 'name': name_now or '', 'exists': bool(row),
@@ -796,7 +830,9 @@ def feed(store, s, otype='', who='', since=0, q='', limit=100, offset=0):
     sql = 'SELECT * FROM %s%s ORDER BY ts DESC, id DESC' % (
         HIST, (' WHERE ' + ' AND '.join(where)) if where else '')
     rows = store.db.rows(sql, tuple(args))
-    seen = [r for r in rows[:5000] if may_see(store, s, r.get('otype'), r.get('owner'))
+    names = {}
+    seen = [r for r in rows[:5000] if may_see(store, s, r.get('otype'), r.get('owner'),
+                                              team=_team_of(store, r, names))
             and (not q or _low(q) in _low(r.get('oname')))]
     out = []
     for r in seen[offset:offset + max(1, min(500, limit))]:
@@ -1013,7 +1049,7 @@ def restore_version(store, h, s, entry_id, secrets=False):
     if not r:
         raise LookupError('there is no such entry of the history')
     table, otype = r['otable'], r['otype']
-    if not may_see(store, s, otype, r.get('owner')):
+    if not may_see(store, s, otype, r.get('owner'), team=_team_of(store, r)):
         raise E.ApiError(403, 'you may not see the history of that %s' % WORDS.get(otype, otype))
     if r.get('action') == 'delete' or not r.get('now_v'):
         raise ValueError('that was a deletion - what was deleted is in the trash')
@@ -1046,9 +1082,14 @@ def preview_version(store, s, entry_id):
     r = store.db.row('SELECT * FROM %s WHERE id = ?' % HIST, (int(entry_id),))
     if not r:
         raise LookupError('there is no such entry of the history')
-    if not may_see(store, s, r['otype'], r.get('owner')):
+    if not may_see(store, s, r['otype'], r.get('owner'), team=_team_of(store, r)):
         raise E.ApiError(403, 'you may not see that')
     current = store.db.row('SELECT * FROM %s WHERE id = ?' % r['otable'], (int(r['oid']),))
+    # what it is now is shown too: only to who may see it as it is now (a certificate given to
+    # another team since)
+    if current and not may_see(store, s, r['otype'], _owner_of(store, r['otable'], current),
+                               team=_team_of(store, r)):
+        raise E.ApiError(403, 'you may not see that')
     want = _snap(r.get('now_v'))
     if not current or want is None:
         return {'changes': [], 'exists': bool(current)}
@@ -1248,6 +1289,11 @@ def _restore_one(store, h, s, r, name=None, cert_map=None):
                                                                             'agent_windows')):
         # the module's own memory (an account at its CA), as it was
         store.db.update(table, int(new), {'state': row['state']})
+    if table == 'cert_teams' and new and (row.get('extras') or row.get('hooks_sealed')):
+        # its governance (separation of duties, reviews, temporary roles, channels) and its
+        # webhooks sealed again for its new number (hunt f1): the route saving a team takes
+        # neither, and a team came back without its rules
+        _team_extras_back(store, int(new), int(r['oid']), row)
     if table == 'cert_checks' and new and int(row.get('enabled', 1) or 0) == 0:
         call_route(h, '/api/checks/switch', {'id': new, 'enabled': False})
     meta = _snap(r.get('meta'))
@@ -1263,6 +1309,26 @@ def _restore_one(store, h, s, r, name=None, cert_map=None):
         store.db.run('UPDATE %s SET oid = ? WHERE otable = ? AND oid = ?' % HIST,
                      (int(new), table, int(r['oid'])))
     return new, said
+
+
+def _team_extras_back(store, new, old, row):
+    ch = {}
+    if row.get('extras'):
+        ch['extras'] = row['extras']
+    raw = row.get('hooks_sealed')
+    if raw:
+        place = 'cert_teams:%s:hooks_sealed'
+        plain = E.unseal_secret(raw, place % old) if str(raw).startswith(E.SEALED2) else \
+            E.unseal_secret(raw)
+        if plain:
+            ch['hooks_sealed'] = E.seal_secret(plain, place % new)
+    if ch:
+        store.db.update('cert_teams', new, ch)
+        try:
+            from acmelib.certs import teams as T
+            T.changed()
+        except Exception:                               # noqa: BLE001
+            pass
 
 
 def trash_restore(store, h, s, ident, name=None, with_needs=False):
@@ -1318,8 +1384,14 @@ def trash_restore(store, h, s, ident, name=None, with_needs=False):
             store.db.run('DELETE FROM %s WHERE id = ?' % TRASH, (k['id'],))
         except (ValueError, LookupError, E.ApiError) as e:
             left.append('%s: %s' % (k.get('oname') or WORDS.get(k['otype']), _err(e)))
-            # left in the trash on its own
-            store.db.update(TRASH, k['id'], {'parent': None})
+            # left in the trash on its own - naming the certificate by its number now (hunt
+            # f1): with the old one it could never come back ("its certificate is not here")
+            upd = {'parent': None}
+            if k['otable'] in ('cert_deploys', 'cert_checks') and \
+                    str(kr.get('cert_id')) in cert_map:
+                upd['row_v'] = json.dumps(dict(kr, cert_id=cert_map[str(kr['cert_id'])]),
+                                          default=str)
+            store.db.update(TRASH, k['id'], upd)
     store.db.run('DELETE FROM %s WHERE id = ?' % TRASH, (r['id'],))
     who = str(s.get('name') or '?')
     store.add_event('certificates', 'the %s %s restored from the trash by %s%s' % (

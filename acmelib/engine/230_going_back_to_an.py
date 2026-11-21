@@ -92,6 +92,51 @@ def downgrade_signin_lost(version):
     return ''
 
 
+def downgrade_new_use(store, version):
+    """[] or the words for what is in use here that acme `version` would drop or misread
+    (1.0.138): a request profile on a base profile stores only what it overrides, so an older
+    version reads it without the base's source and keys and stops offering it; a team's
+    governance (separation of duties, temporary roles, access reviews, its notification
+    channels) is not known before 1.0.138 - "never approve your own request" would be dropped
+    without a word. Without them in use, going back is as before."""
+    if _ver_tuple(version) >= (1, 0, 138):
+        return []
+    based, governed = [], []
+
+    def blob(v):
+        if isinstance(v, (bytes, bytearray, memoryview)):
+            v = bytes(v).decode('utf-8', 'replace')
+        try:
+            v = json.loads(v or '{}') or {}
+        except (ValueError, TypeError):
+            return {}
+        return v if isinstance(v, dict) else {}
+    try:
+        for r in store.db.rows('SELECT name, config FROM cert_req_profiles'):
+            cfg = blob(dict(r).get('config'))
+            if str(cfg.get('base') or '').strip():
+                based.append(str(dict(r).get('name')))
+    except Exception:                                   # noqa: BLE001 - no such table yet
+        pass
+    try:
+        for r in store.db.rows('SELECT name, extras FROM cert_teams'):
+            ex = blob(dict(r).get('extras'))
+            if any(ex.get(k) for k in ('sod', 'jit', 'review', 'notify')):
+                governed.append(str(dict(r).get('name')))
+    except Exception:                                   # noqa: BLE001 - no such column yet
+        pass
+    words = []
+    if based:
+        words.append('acme %s does not know request profiles on a base profile (%s) - it reads '
+                     'them without what they inherit: let them stand alone first'
+                     % (version, ', '.join(sorted(based)[:10])))
+    if governed:
+        words.append('acme %s does not know the governance of teams (%s) - separation of duties, '
+                     'temporary roles, access reviews and team channels would be dropped without '
+                     'a word: switch it off first' % (version, ', '.join(sorted(governed)[:10])))
+    return words
+
+
 def downgrade_why_not(store, version):
     """What stands in the way of going back to `version` - before the package
     is fetched: [] when nothing does."""
@@ -115,6 +160,7 @@ def downgrade_why_not(store, version):
     lost = downgrade_signin_lost(version)
     if lost:
         why.append(lost)
+    why.extend(downgrade_new_use(store, version))
     floor, by = downgrade_db_floor(store)
     if v < _ver_tuple(floor):
         why.append('older than %s: acme %s, which ran on this database, wrote what older '

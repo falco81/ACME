@@ -501,8 +501,15 @@ def chain_add(kw, force=False):
                     entry.pop('needs', None)
                     entry['h'] = _sha(chain_canon(entry))
                     line = chain_text(entry)
-                os.lseek(fd, 0, os.SEEK_END)
-                os.write(fd, (line + '\n').encode('ascii'))
+                # hunt R f1: a last line cut by a crash (no newline at its end) - the entry on
+                # a line of its own, not glued to it (it was lost, unreadable, with it)
+                size = os.lseek(fd, 0, os.SEEK_END)
+                cut = False
+                if size:
+                    os.lseek(fd, size - 1, os.SEEK_SET)
+                    cut = os.read(fd, 1) != b'\n'
+                    os.lseek(fd, 0, os.SEEK_END)
+                os.write(fd, (('\n' if cut else '') + line + '\n').encode('ascii'))
                 try:
                     os.fsync(fd)
                 except OSError:

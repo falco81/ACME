@@ -247,17 +247,41 @@ def forget(store, row, gone=False):
     store.db.run('DELETE FROM meta WHERE k LIKE ?', ('agentsent:%d:%%' % tid,))
 
 
+def joined_anew(store, row):
+    """hunt R f1: an agent joined (again) on the target - a new identity, often a new install
+    with a new, empty chain: acme's record of the chain before starts again (its first head is
+    taken as known), or it said "entries were taken away" / "written anew" of every reinstall."""
+    tid = int(row['id'])
+    if opts(store, tid)['audit']:
+        _put(store, M_AUDIT % tid, {'enabled_at': time.time()})
+    else:
+        store.db.run('DELETE FROM meta WHERE k = ?', (M_AUDIT % tid,))
+
+
 # ---- what the agent says of itself (hello) ------------------------------------------------------
-def seen_hello(st, got):
+def seen_hello(st, got, store=None):
     """1.0.138: what it can do, the command key it pins, when its key for secrets was made."""
+    could = can(st, 'cmdkey')
     feats = got.get('features')
     if isinstance(feats, list):
         st['features'] = [_txt(x, 30) for x in feats[:20] if isinstance(x, str)]
     else:
         st['features'] = []
+    if st.get('key_said') and not could and can(st, 'cmdkey'):
+        # hunt R f1: "too old to change keys" was never tried again once it was updated
+        st['key_said'] = ''
     fp = got.get('cmd_fp')
     if isinstance(fp, str) and HEX64.match(fp):
         st['agent_cmd_fp'] = fp
+        if store is not None:
+            # hunt R f1: the answer of `cmdkey` lost (a failover, a timeout) after the agent took
+            # the new key - acme went on signing with the old one, refused for good once the
+            # overlap was over. The key it says it pins, when acme has it, is the one to sign with.
+            try:
+                if fp != pinned_fp(store, st) and fp in known_fps(store):
+                    st['cmd_fp'] = fp
+            except Exception:                           # noqa: BLE001
+                pass
     if isinstance(got.get('enc_at'), (int, float)) and got['enc_at'] > 0:
         st['enc_at'] = float(got['enc_at'])
 
@@ -884,7 +908,7 @@ def cmd_move(store, row, by):
     if not got.get('ok'):
         said = _txt(got.get('said'), 300)
         if 'not an operation' in said:
-            said = 'the agent is too old to change keys (update it to 1.0.138 or later)'
+            said = TOO_OLD
         st = G.state(store, row['id'])
         st['key_said'] = said
         G.state_put(store, row['id'], st)
@@ -907,7 +931,7 @@ def enc_new(store, row, by):
     if not got.get('ok') or not isinstance(pub, str):
         said = _txt(got.get('said'), 300)
         if 'not an operation' in said:
-            said = 'the agent is too old to change keys (update it to 1.0.138 or later)'
+            said = TOO_OLD
         raise PluginError(said or 'the agent made no new key', retry=False)
     try:
         if len(base64.b64decode(pub)) != 32:
@@ -934,6 +958,10 @@ def rotate_now(store, row, what, by):
         raise PluginError('the agent of %s has not joined' % row['name'], retry=False)
     out = {}
     if what in ('command', 'both'):
+        if _too_old(st, 'cmdkey'):
+            # hunt R f1: asked of an agent before 1.0.138, acme made itself a new command key
+            # first (one an acme downgraded later signs with) and then failed
+            raise PluginError(TOO_OLD, retry=False)
         if pinned_fp(store, st) == _cmd_current(store)[0]['fp']:
             age = time.time() - _cmd_current(store)[1]
             if age < 3600:
@@ -942,9 +970,19 @@ def rotate_now(store, row, what, by):
             cmd_new(store, by)
         out['cmd_fp'] = cmd_move(store, row, by)
     if what in ('seal', 'both'):
+        if _too_old(st, 'enckey'):
+            raise PluginError(TOO_OLD, retry=False)
         enc_new(store, row, by)
         out['enc'] = True
     return out
+
+
+TOO_OLD = 'the agent is too old to change keys (update it to 1.0.138 or later)'
+
+
+def _too_old(st, feature):
+    """The agent said what it can do (a hello since acme 1.0.138) and this is not of it."""
+    return isinstance(st.get('features'), list) and not can(st, feature)
 
 
 def retire(store):
@@ -1078,10 +1116,13 @@ def _rotate_due(store, row, st):
         return
     cur, cur_at = _cmd_current(store)
     lim = o['rotate_days'] * 86400
-    if cur_at and time.time() - cur_at > lim:
-        cmd_new(store, 'the schedule')
-    if pinned_fp(store, st) != _cmd_current(store)[0]['fp'] and not st.get('key_said'):
-        cmd_move(store, row, 'the schedule')
+    # hunt R f1: an agent that cannot take a new command key made acme a new one all the same
+    # every N days (never taken by it, signed with by an acme downgraded later)
+    if not _too_old(st, 'cmdkey'):
+        if cur_at and time.time() - cur_at > lim:
+            cmd_new(store, 'the schedule')
+        if pinned_fp(store, st) != _cmd_current(store)[0]['fp'] and not st.get('key_said'):
+            cmd_move(store, row, 'the schedule')
     st = _G().state(store, row['id'])
     enc_at = float(st.get('enc_at') or st.get('joined_at') or 0)
     if enc_at and time.time() - enc_at > lim and can(st, 'enckey'):

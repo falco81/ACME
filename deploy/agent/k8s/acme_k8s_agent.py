@@ -379,6 +379,9 @@ class K8sRoot(A.Root):
     def op_hello(self, args, job, msg):
         out = super(K8sRoot, self).op_hello(args, job, msg)
         out['policy'] = self.status()['policy']
+        # hunt R f1: no audit chain in a pod (its policy has no `audit chain` line) - it said it
+        # had one, and acme's card asked for `acme-agent audit on` there
+        out['features'] = [f for f in out.get('features') or [] if f != 'audit-chain']
         ver = KUBE.version()
         ns = ''
         try:

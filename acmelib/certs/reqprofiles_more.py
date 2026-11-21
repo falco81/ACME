@@ -113,7 +113,9 @@ def record(store, before, name, by, why=''):
     have = _vrows(store, name) or (_vrows(store, before['name']) if before else [])
     nxt = max([int(v.get('version') or 0) for v in have] or [0]) + 1
     if not have and before:
-        _insert(store, before['name'], 1, snapshot(before), [], 'as it was before versions were '
+        # filed under its name now (hunt f1): renamed at its first change, version 1 stayed
+        # under the old name - the profile began at 2, and one made later under that name got it
+        _insert(store, now['name'], 1, snapshot(before), [], 'as it was before versions were '
                 'kept', before.get('updated') or before.get('created') or time.time(),
                 before.get('updated_by') or before.get('created_by') or '')
         have = [{'version': 1}]

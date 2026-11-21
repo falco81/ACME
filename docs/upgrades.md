@@ -294,6 +294,14 @@ Going back is refused below the highest of these
   server back to a version with a hole a later one fixed. An older version's
   install.sh leaves it as it is.
 
+**What is in use here** (1.0.138). Below 1.0.138 going back is also refused
+while a request profile stands on a base profile (an older version reads it
+without what it inherits and stops offering it - let it stand alone first)
+or a team has governance switched on (separation of duties, temporary roles,
+access reviews, team channels - an older version would drop them without a
+word, "never approve your own request" among them). Each is named; with
+neither in use, going back is as before.
+
 **The package against the database.** Fetched or given, the older package is
 checked like an upgrade's (signed, every file) and then against this
 database: a column the database has as NOT NULL with no default that the

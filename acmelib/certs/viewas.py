@@ -107,6 +107,10 @@ def admin_session(h, s):
     if time.time() - float(va.get('since') or 0) > MOST_H * 3600:
         stop(h.store, s, 'its time ran out')
         return s
+    if s.get('role') != 'fulladmin':
+        # no longer a full administrator (another role given meanwhile): seen as themselves
+        stop(h.store, s, 'they are no longer a full administrator')
+        return s
     acc = None
     if va.get('account'):
         try:
@@ -130,6 +134,10 @@ def whoami(h, s, got):
     `view_as` for the banner."""
     va = ((s or {}).get('data') or {}).get(KEY) if s else None
     if not isinstance(va, dict) or not isinstance((got or {}).get('who'), dict):
+        return got
+    if got['who'].get('role') != 'fulladmin':
+        # their own role now: no longer a full administrator - not viewing as anybody
+        stop(h.store, s, 'they are no longer a full administrator')
         return got
     acc = (va.get('acc') or {})
     if va.get('account'):

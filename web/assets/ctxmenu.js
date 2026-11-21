@@ -277,7 +277,8 @@ function goBack(depth) {
 function place(node, x, y, flipX) {
   node.style.left = '0px';
   node.style.top = '0px';
-  var r = node.getBoundingClientRect();
+  /* its laid-out size: the opening animation scales it down a little while it is measured */
+  var r = {width: node.offsetWidth, height: node.offsetHeight};
   var W = window.innerWidth, H = window.innerHeight;
   var left = x;
   if (left + r.width > W - 8) left = flipX !== null && flipX !== undefined ? flipX - r.width : W - r.width - 8;

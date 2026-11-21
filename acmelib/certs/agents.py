@@ -833,6 +833,11 @@ def _install_identity(store, row, st, pend, cert):
     st['policy'] = None
     state_put(store, row['id'], st)
     store.set_meta(M_ID(aid), str(row['id']))
+    try:
+        from acmelib.certs import agent_guard
+        agent_guard.joined_anew(store, row)     # hunt R f1: its audit chain read anew
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def finish_passive(store, row, st):
@@ -1816,6 +1821,8 @@ def clean_policy(p):
         out['adcs'] = adcs
     if p.get('adcs_read'):
         out['adcs_read'] = True
+    if p.get('audit_chain'):
+        out['audit_chain'] = True               # 1.0.138 (A6; hunt R f1: it was left out)
     # hunt R t2: what a Windows agent allows besides (the machine store, IIS sites, Remote
     # Desktop, its roles, read on the key) and the roles it knows - left out, a deployment with
     # a Windows role was refused as if the agent knew none, the pages said none of them
@@ -2044,7 +2051,7 @@ def call(store, row, op, args=None, timeout=900, step=None):
         from acmelib.certs import agent_system
         agent_system.seen_hello(st, got, t0, time.time())
         if got.get('ok'):
-            agent_guard.seen_hello(st, got)     # 1.0.138: what it can do, the key it pins
+            agent_guard.seen_hello(st, got, store)  # 1.0.138: what it can do, its key
     if got.get('code'):
         st['code_hash'] = _txt(got['code'], 64)
     st['took_ms'] = int((time.time() - t0) * 1000)

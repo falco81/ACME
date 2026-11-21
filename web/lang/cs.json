@@ -105341,6 +105341,14 @@
   "pz_823": {
    "source": "{0} - left in the trash: {1}",
    "text": "{0} – zůstalo v koši: {1}"
+  },
+  "pz_824": {
+   "source": "acme {0} does not know request profiles on a base profile ({1}) - it reads them without what they inherit: let them stand alone first",
+   "text": "acme {0} nezná profily žádostí postavené na základním profilu ({1}) – přečetla by je bez toho, co dědí: nejdřív je osamostatněte"
+  },
+  "pz_825": {
+   "source": "acme {0} does not know the governance of teams ({1}) - separation of duties, temporary roles, access reviews and team channels would be dropped without a word: switch it off first",
+   "text": "acme {0} nezná správu týmů ({1}) – oddělení povinností, dočasné role, revize přístupů a kanály týmů by bez varování zahodila: nejdřív ji vypněte"
   }
  },
  "rich": {

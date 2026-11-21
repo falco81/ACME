@@ -922,6 +922,11 @@ def rollout_start(store, b, by):
     if not plan['canary'] and not plan['rest']:
         raise ValueError('no agent can be updated now (%s)' % (
             plan['skipped'][0]['why'] if plan['skipped'] else 'every one runs the newest'))
+    if b.get('canary') and not plan['canary']:
+        # hunt R f1: a canary group none of whose agents can be updated now updated every
+        # other agent at once - the rollout without its canary
+        raise ValueError('no agent of the canary group can be updated now - the rest is not '
+                         'updated without its canary ring (choose another group, or none)')
     import acmelib
     try:
         pkg = _G().package(build=False)

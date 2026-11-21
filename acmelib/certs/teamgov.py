@@ -761,6 +761,18 @@ def review_answer(store, rid, who, keep, actor, note=''):
         raise LookupError('%s is not in this review' % str(who)[:120])
     if it.get('state') != 'pending':
         raise E.ApiError(409, '%s was answered already (%s)' % (it['who'], it['state']))
+    if not keep and not actor.get('all'):
+        # taken out only by one who holds no less than they do (as removing a member on the
+        # portal): a manager of the members does not take out the team's owner
+        t = T.team_get(store, team)
+        cur = next((m for m in S.jload((t or {}).get('members'), []) or []
+                    if isinstance(m, dict) and _low(m.get('who')) == _low(who)), None)
+        more = _norm(T.member_caps(cur, T.role_catalog(store), now=0)) - \
+            _norm(_caps_on(actor, team)) if cur else frozenset()
+        if more:
+            raise E.ApiError(403, '%s holds more on the team %s than you do (%s) - another '
+                                  'manager of the team takes them out' % (
+                                      it['who'], team, ', '.join(sorted(more))))
     now = _now()
     it.update(state='kept' if keep else 'removed', by=_who_by(actor.get('by')), at=now,
               note=str(note or '').strip()[:300])
