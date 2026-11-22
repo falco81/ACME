@@ -496,6 +496,20 @@ class Gov(unittest.TestCase):
         self.assertIn('read-only', e['error'])
         st, e = self.call('POST', '/api/portal/logout', {}, ps)
         self.assertEqual(st, 200, e)
+        # 1.0.139: the portal viewed as jan ends once its full administrator is one no longer
+        self.must('POST', '/api/users', {'action': 'add', 'name': 'boss2', 'role': 'fulladmin',
+                                         'password': self.pw, 'must_change': 0})
+        boss2 = self.login('boss2')
+        got = self.must('POST', '/api/teams/view_as_portal', {'who': 'local:jan'}, session=boss2)
+        st, tok = self.call('POST', '/api/portal/view_as_enter', {'code': got['url'].split('=', 1)[1]})
+        self.assertEqual(st, 200, tok)
+        ps2 = tok['token']
+        self.must('GET', '/api/portal/teams', session=ps2)
+        self.must('POST', '/api/users', {'action': 'role', 'name': 'boss2', 'role': 'readonly'})
+        st, e = self.call('GET', '/api/portal/teams', None, ps2)
+        self.assertEqual(st, 401, e)
+        st, e = self.call('GET', '/api/portal/teams', None, ps2)
+        self.assertEqual(st, 401, e)
 
 
 class OldDatabase(unittest.TestCase):

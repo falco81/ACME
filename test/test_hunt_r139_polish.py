@@ -8,6 +8,7 @@ import sys
 import os
 import shutil
 import subprocess
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +46,44 @@ class Czech(unittest.TestCase):
                 'it was decided meanwhile', 'you may not see that', 'that is you',
                 'only a full administrator views the pages as somebody else', 'you may not see the team Web']:
             self.assertIsNotNone(say(words)[words], words)
+
+
+class RotateSchedule(unittest.TestCase):
+    """An agent that refused acme's new command key once is tried again a day later (1.0.139)."""
+    def run_due(self, st):
+        from unittest import mock
+        from acmelib.certs import agent_guard as AG
+        moved = []
+
+        class FakeG:
+            QUIET_S = 3600
+
+            @staticmethod
+            def state(store, i):
+                return st
+        with mock.patch.object(AG, 'opts', lambda s, i: {'rotate': True, 'rotate_days': 90}), \
+                mock.patch.object(AG, '_G', lambda: FakeG), \
+                mock.patch.object(AG, '_cmd_current', lambda s: ({'fp': 'b' * 64}, time.time())), \
+                mock.patch.object(AG, 'pinned_fp', lambda s, x: 'a' * 64), \
+                mock.patch.object(AG, 'can', lambda x, w: True), \
+                mock.patch.object(AG, 'cmd_move', lambda s, r, by: moved.append(by)):
+            AG._rotate_due(None, {'id': 1, 'name': 'x'}, st)
+        return moved
+
+    def base(self, **kw):
+        st = {'cert_fp': 'f', 'last_seen': time.time(), 'features': ['cmdkey']}
+        st.update(kw)
+        return st
+
+    def test_retried_after_a_day(self):
+        from acmelib.certs import agent_guard as AG
+        self.assertEqual(self.run_due(self.base()), ['the schedule'])
+        self.assertEqual(self.run_due(self.base(key_said='busy', key_said_at=time.time())), [])
+        self.assertEqual(self.run_due(self.base(key_said='busy', key_said_at=time.time() - AG.RETRY_S - 5)),
+                         ['the schedule'])
+        # set before 1.0.139 (no time kept): tried again too
+        self.assertEqual(self.run_due(self.base(key_said='busy')), ['the schedule'])
+        self.assertEqual(self.run_due(self.base(key_said=AG.TOO_OLD)), [])
 
 
 class Source(unittest.TestCase):

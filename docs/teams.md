@@ -550,7 +550,8 @@ A **full administrator** sees the pages as a chosen member would, **read-only**:
   them").
 - **The portal** (`POST /api/teams/view_as_portal {who}` → a one-time link `/?viewas=CODE`, two
   minutes, used once): a portal sign-in of the member's own is made (two hours at most) - the same
-  teams, caps and limits they have.
+  teams, caps and limits they have. It ends at once when the full administrator who opened it is
+  one no longer (another role, disabled or deleted).
 
 While viewing as, **every write is refused on the server** before any route runs (`403`
 "read-only: you are viewing the pages as … - nothing is changed"), and so are the downloads of

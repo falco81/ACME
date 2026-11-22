@@ -63,6 +63,7 @@ DEFAULTS = {'audit': False, 'anomaly': False, 'rotate': False, 'rotate_days': 90
             'health': 'off'}
 ROTATE_DAYS = (7, 730)
 OVERLAP_S = 3 * 86400           # the agent takes the old command key this long after the change
+RETRY_S = 86400                 # the schedule tries an agent that refused the key again after this (1.0.139)
 SENT_KEEP_S = 30 * 86400
 TIMELINE = 200                  # entries of the chain kept for the card
 PROBLEMS = 50
@@ -911,11 +912,12 @@ def cmd_move(store, row, by):
             said = TOO_OLD
         st = G.state(store, row['id'])
         st['key_said'] = said
+        st['key_said_at'] = time.time()
         G.state_put(store, row['id'], st)
         raise PluginError(said or 'the agent refused the new command key', retry=False)
     st = G.state(store, row['id'])
     st.update(cmd_fp=cur['fp'], cmd_prev_fp=old, cmd_moved_at=time.time(),
-              cmd_prev_until=time.time() + OVERLAP_S, key_said='')
+              cmd_prev_until=time.time() + OVERLAP_S, key_said='', key_said_at=0)
     G.state_put(store, row['id'], st)
     _event(store, 'the agent of target %s now takes acme\'s command key %s… (by %s; the one before '
            'for %d h yet)' % (row['name'], cur['fp'][:16], by, OVERLAP_S // 3600), who=by,
@@ -1140,8 +1142,18 @@ def _rotate_due(store, row, st):
     if not _too_old(st, 'cmdkey'):
         if cur_at and time.time() - cur_at > lim:
             cmd_new(store, 'the schedule')
-        if pinned_fp(store, st) != _cmd_current(store)[0]['fp'] and not st.get('key_said'):
-            cmd_move(store, row, 'the schedule')
+        # 1.0.139: a refusal ("changed less than an hour ago", the agent busy) stopped the
+        # schedule for this agent for good - it is tried again a day later; "too old" waits
+        # for the update (seen_hello clears it)
+        said = st.get('key_said') or ''
+        if pinned_fp(store, st) != _cmd_current(store)[0]['fp'] and (
+                not said or (said != TOO_OLD
+                             and time.time() - float(st.get('key_said_at') or 0) > RETRY_S)):
+            try:
+                cmd_move(store, row, 'the schedule')
+            except PluginError:
+                if not said:
+                    raise
     st = _G().state(store, row['id'])
     enc_at = float(st.get('enc_at') or st.get('joined_at') or 0)
     if enc_at and time.time() - enc_at > lim and can(st, 'enckey'):

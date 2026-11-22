@@ -826,8 +826,8 @@ def _install_identity(store, row, st, pend, cert):
               os=pend.get('os') or st.get('os') or '')
     # 1.0.138 (A8): the command key it pinned at the join, the age of its key for secrets
     st['cmd_fp'] = pend.get('cmd_fp') or ''
-    for k in ('cmd_prev_fp', 'cmd_prev_until', 'cmd_moved_at', 'key_said', 'agent_cmd_fp',
-              'features'):
+    for k in ('cmd_prev_fp', 'cmd_prev_until', 'cmd_moved_at', 'key_said', 'key_said_at',
+              'agent_cmd_fp', 'features'):
         st.pop(k, None)
     st['enc_at'] = time.time()
     st['policy'] = None

@@ -884,6 +884,9 @@ current one), of its key for secrets, the end of its certificate; **Change on a 
 default) every 30-365 days (a key older than that is changed by the node that leads: a new command
 key when the current one is that old, the agent moved to it, its key for secrets made anew);
 **Rotate now…** (a full administrator: both keys, the command key or the key for secrets).
+An agent that refuses the new command key (changed less than an hour ago, busy) shows why on
+the card, and the schedule tries it again a day later; an agent too old to change keys waits for
+its update.
 Settings → Target agents → **Keys and their age**: the authority, acme's own certificate, every
 command key with the agents that pin it, and each agent's keys; **Change acme's command key…** (a
 full administrator) makes a new one and moves the agents whose keys change on a schedule.

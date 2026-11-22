@@ -29,6 +29,12 @@ def portal_me(h, gate_ok=False):
     s = h.session('portal')
     if not s:
         raise ApiError(401, 'not signed in, or the sign-in has run out')
+    # Viewing as a member, opened by a full administrator who is one no longer (1.0.139): it ends.
+    if isinstance((s.get('data') or {}).get('view_as'), dict):
+        from acmelib.certs import viewas as _viewas
+        if _viewas.portal_opener_gone(h.store, s):
+            h.store.session_end(h.headers.get('X-Acme-Session'))
+            raise ApiError(401, 'not signed in, or the sign-in has run out')
     # Switched off while somebody was signed in, it is off for them too (1.0.33).
     if not CONFIG.get('portal'):
         h.store.session_end(h.headers.get('X-Acme-Session'))

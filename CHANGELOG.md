@@ -8,6 +8,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 - **Czech: the built-in roles by their Czech names in events.** "roli Schvalovatel", not "roli Approver", where an event or a message names a built-in role (Approver, Viewer, Requester, Renewer, Deployer); a role of your own keeps its name.
 - **Czech: the team rules' refusals in Czech.** A temporary-role request or an access review decided already, a team you may not see, viewing as yourself: whole Czech sentences instead of English or half-English words ("už je granted").
+- **Viewing the portal as a member ends with the administrator's role.** A portal sign-in opened with *Open the portal as…* ends at once when the full administrator who opened it is one no longer (another role, disabled, deleted) - it no longer stays for its two hours.
+- **Target agents: the key schedule tries a refusing agent again.** An agent that refused acme's new command key once (changed less than an hour ago, busy) was left out of *Change on a schedule* until *Rotate now…*; it is tried again a day later.
 - **Settings → DNS at phone width.** The row's buttons (Test, Edit) stay at the right edge with their column's header, as in every other table, instead of covering the Timeout column.
 
 ## 1.0.138 - 2026-11-21

@@ -321,6 +321,19 @@ def portal_enter(h, code):
     return {'token': token, 'who': rec.get('who'), 'by': rec.get('by')}
 
 
+def portal_opener_gone(store, s):
+    """A portal sign-in viewing as somebody, whose full administrator is one no longer (another
+    role, disabled, deleted) - it ends (1.0.139): it was theirs, opened by their role."""
+    va = (s.get('data') or {}).get(KEY)
+    if not isinstance(va, dict):
+        return False
+    try:
+        acc = store.account(str(va.get('by') or ''), checked=True)
+    except Exception:                                   # noqa: BLE001
+        acc = None
+    return not acc or bool(acc.get('disabled')) or acc.get('role') != 'fulladmin'
+
+
 def portal_public(h):
     row = _session_row(h)
     va = _va_of(row) if row and row.get('kind') == 'portal' else None
