@@ -1989,9 +1989,13 @@ def test_14_kit4_waiting_policy_held(self):
             st, got = self.call(method, path, body, tok7)
             self.assertEqual((st, got.get('code')), (423, 'card'), (path, got))
         # F5 during the countdown: the page goes on from the server's clock.
-        self.session_set(tok7, card_out=time.time() - 12)
+        # (the time it takes to set it - a python started, the engine loaded - counted: 2 s on a
+        # slow machine made it 16)
+        began = time.time()
+        self.session_set(tok7, card_out=began - 12)
         st, me = self.call('GET', '/api/auth/whoami', None, tok7)
-        self.assertIn(me['who']['card']['left'], (17, 18, 19), me)
+        took = int(time.time() - began + 0.999)
+        self.assertTrue(17 - took <= me['who']['card']['left'] <= 19, (took, me))
         # Held as its page stopped checking: the same.
         self.assertEqual(self.alive(tok7, 'nested')[1]['state'], 'ok')
         self.session_set(tok7, card_seen=time.time() - 3600)
