@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.140 - not released
+
 ## 1.0.139 - 2026-11-22
 
 - **Czech: the built-in roles by their Czech names in events.** "roli Schvalovatel", not "roli Approver", where an event or a message names a built-in role (Approver, Viewer, Requester, Renewer, Deployer); a role of your own keeps its name.
