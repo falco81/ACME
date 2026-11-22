@@ -137,6 +137,26 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   test line to isemon and to the syslog servers, the proxy tried, SNMPv3
   asked, and the rest of those pages; isemon's **first full sync** (1.0.77).
 
+- **History, trash, request profiles, the agent fleet** (`h`, 1.0.140 - what the pages got in
+  1.0.138): the latest changes (Enter: the whole history of that object, or that version again),
+  the trash (bring it back, under another name, delete it for good), the request profiles (show,
+  versions, compare a version with now, restore one, a dry run for some names, end it with a
+  successor or take that back, delete), their compliance check, the agent fleet, the
+  certificates found on the servers that acme does not manage (Enter: take over), the drift of
+  the agents from their templates, an update in rings (plan, start, go on, stop) and the keys of
+  the agents - `acme --history`, `--trash...`, `--profile-...`, `--fleet...`
+  ([command-line.md](command-line.md)). A target's agent menu has **Watching it** (the audit
+  chain, anomalies, what it serves, its keys; switched on and off in a form), *Read and check its
+  audit chain now*, *Ask what its services serve now*, *Looked at* and *Change its keys now*
+  (`acme --target-agent NAME watch|watch-set|audit-verify|served|ack|rotate`).
+- **Owners and teams** (`o`) has, since 1.0.140, the teams' health (`7`), the requests for a
+  temporary role to decide (`8`: approve, or decline with why), the access reviews open now
+  (`9`), *Who may do what, and why* (`w`) and the team templates (`m`); a team's own menu its
+  health, its governance, its access reviews (show, open one, confirm or take out a member),
+  its requests for a temporary role and *Try its channels now* - `acme --team-health`,
+  `--team-gov`, `--reviews`, `--review-open`, `--review-answer`, `--elevations`,
+  `--elevation-approve`, `--who-may`, `--team-templates`, `--team-notify-test`.
+
 - **Reports and team digests** (`p`, 1.0.140): the reports (show, run now, run and mail,
   their runs, save a run's CSV or PDF on this machine, change - with the runs kept, the days
   ahead and a paused schedule - delete; add one) and each team's digest (show, set - with the

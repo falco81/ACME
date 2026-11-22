@@ -281,6 +281,82 @@ profiles from a template ([request-profiles.md](request-profiles.md) "From a tem
 `--from`, `--weeks`, `--team`, `--target` go only with `--calendar` and `--calendar-ics`, `--lang`
 only with `--calendar-ics`; beside another option they are refused, nothing done.
 
+## History and trash, request profiles, the agent fleet, the governance of teams (1.0.138)
+
+What 1.0.138 added to the pages has its options too (since 1.0.140, `acmelib/certs/cli_138.py`)
+- each runs the page's own route as `command line`, a full administrator; `--json` answers
+JSON. What deletes, restores or changes many asks first (`--yes`).
+
+**History and trash** ([history-and-trash.md](history-and-trash.md)):
+
+| | |
+|---|---|
+| `acme --history [--limit N]` | the latest changes of everything: the entry, when, what, its name, created / changed / deleted, by whom, the fields |
+| `acme --history TYPE NAME` | one object's history, field by field (TYPE: `cert`, `target`, `source`, `validation`, `test`, `deploy`, `check`, `profile`, `team`, `role`, `tag`, `dnsset`, `dnsrecord`) |
+| `acme --history-restore ENTRY [--yes]` | that version saved again by its own route - what changes is said first |
+| `acme --trash` | what was deleted and can be restored (30 days), with what went with it |
+| `acme --trash-restore ID [--name NEW]` | brought back, with what went with it (under another name when its name is taken) |
+| `acme --trash-purge ID\|all [--yes]` | gone for good |
+
+Since 1.0.140 what `--team-*`, `--tag-*`, `--role-*` and `--dns-set-*` change is in the history
+and what they delete in the trash, as on the pages (they were left out), and `acme --api GET
+/api/history`, `/api/trash` answer (*the pages have no ...* before).
+
+**Request profiles** ([request-profiles.md](request-profiles.md)) - made on the command line
+from a template (above) or `acme --api POST /api/reqprofiles/save -` with the body on stdin:
+
+| | |
+|---|---|
+| `acme --profiles` | every request profile: on the portal, its source, its base, its version, whether it ends (and its successor), how many certificates were asked for from it, what is wrong |
+| `acme --profile-show NAME` | one whole |
+| `acme --profile-versions NAME` | its versions: who, when, what changed and why, the certificates asked for from each |
+| `acme --profile-diff NAME A [B]` | two versions field by field (B left out: as it is now) |
+| `acme --profile-restore NAME N [--yes]` | as version N said - saved as a new version |
+| `acme --profile-compliance [YYYY-MM-DD]` | every profile and certificate against the CA/Browser Forum's schedule and the company's rules (on a day to come); exit 1 when one does not comply |
+| `acme --profile-dry-run NAME --names D,D` | what it would issue - the subject, names, key, usages, validity, source, whether it waits - or each reason it would refuse; nothing is issued; exit 1 when refused |
+| `acme --profile-end NAME SUCCESSOR [--note TEXT] [--yes]` | it ends: the certificates asked for from it said first (moves or stays), they take the successor's settings at their next renewal; `acme --profile-end NAME -`: it no longer ends |
+| `acme --profile-del NAME [--yes]` | deleted (to the trash); what was asked for from it stays |
+
+**The agent fleet** ([agent-fleet.md](agent-fleet.md)):
+
+| | |
+|---|---|
+| `acme --fleet` | every agent: kind, version, health and why, its groups, its template and drift; the groups; the update rollout; how many certificates found are not managed |
+| `acme --fleet-unmanaged` | the certificates found on the servers acme does not manage, the most urgent first |
+| `acme --fleet-takeover TARGET SERVICE [--issuer SOURCE] [--yes]` | take one over: what is made and the policy lines it needs said first, then the certificate and its deployment made (`acme --renew NAME` issues it) |
+| `acme --fleet-templates` | the policy templates, built in and your own |
+| `acme --fleet-assign TEMPLATE\|- AGENT...` | the template these agents follow (`-`: none of their own) |
+| `acme --fleet-drift [AGENT...]` | each agent's policy against its template: the lines missing on the server, those there besides; exit 1 when one differs |
+| `acme --fleet-group-save NAME [--fleet-members A,B\|-] [--fleet-template REF\|-] [--fleet-canary yes\|no]` · `acme --fleet-group-del NAME` | a group made, changed, deleted |
+| `acme --fleet-ask AGENT...\|all` · `acme --fleet-update AGENT...\|all` | asked now / updated, a job followed here |
+| `acme --fleet-rollout plan [GROUP]` · `start [GROUP] [--rollout-wait MIN] [--yes]` · `continue` · `stop` · `forget` | an update in rings |
+
+**Watching an agent** ([target-agent.md](target-agent.md)) - beside `--target-agent NAME`:
+`watch` (the audit chain, anomalies, what it serves, its keys and their age), `watch-set
+audit=on|off anomaly=on|off health=on|off rotate=on|off rotate_days=N`, `audit-verify` (exit 1
+when the chain does not agree), `ack audit|anomaly`, `rotate [command|seal|both] [--yes]`,
+`served` (exit 1 when a service still serves the old certificate); `acme --target-agent all keys`
+(every key's age) and `acme --target-agent all keys-rotate [--yes]` (a new command key).
+
+**The governance of teams** ([teams.md](teams.md) "Governance"):
+
+| | |
+|---|---|
+| `acme --team-health [TEAM]` | every team's health (running out, expired, failed renewals and deployments, outside its limits, weak keys) and one score |
+| `acme --team-gov TEAM` | its access reviews, temporary roles, separation of duties, channels - its own and those in force from above |
+| `acme --team-gov-set TEAM JSON\|-` | changed: `{"review": {"every_days": 90, "answer_days": 14, "action": "report"}, "jit": {"roles": ["Requester"], "max_hours": 8}, "sod": {"no_self_approval": true, "exclusive": [["Requester", "Approver"]]}, "notify": {"mail": "web@example.com", "oncall_mail": "..."}}` - a key `null`: off; the members already holding both sides of a pair are said |
+| `acme --team-notify-test TEAM` | every channel tried now; exit 1 when one failed |
+| `acme --who-may WHO` · `acme --who-may team:NAME` | a person against every capability in every team, each with why (role, right, inherited, temporary, until when) - or a team's people |
+| `acme --who-can CAP TEAM\|cert:NAME` | who may CAP (`cert.key`, `cert.renew`...) there, and why |
+| `acme --elevations [TEAM]` · `--elevation-approve ID [--why TEXT]` · `--elevation-decline ID --why TEXT` · `--elevation-end ID` | the requests for a temporary role (the command line never asks for one) |
+| `acme --reviews [TEAM]` · `--review-open TEAM` · `--review-answer ID WHO keep\|out [--note TEXT]` | access reviews |
+| `acme --team-templates` · `--team-template-save TEAM NAME` · `--team-from-template TEMPLATE NAME [--parent TEAM]` | the templates of teams |
+| `acme --teams-import-csv FILE\|- [--yes]` | teams from a CSV file: each row said first (new, there already, wrong), then made |
+
+A team's webhooks are kept sealed: `acme --api POST /api/teams/hooks -` with the body on stdin.
+*View as* is a sign-in of the pages and the saved views are the pages' lists - neither has a
+command line.
+
 ## Signing in with Windows - Kerberos (1.0.99)
 
 The engine's own options (group **WHAT THE PAGES DO, HERE TOO**), as the card on *Settings →

@@ -413,7 +413,7 @@ def _profile_diff(c, words):
     if _json(c, got):
         return 0
     rows = [[r['key'], _short(r.get('a'), 45), _short(r.get('b'), 45)]
-            for r in got.get('rows') or [] if r.get('changed')]
+            for r in got.get('rows') or [] if not r.get('same')]
     if not rows:
         print('%s: version %s and %s say the same' % (got.get('profile'), got.get('a'),
                                                        got.get('b')))
@@ -795,9 +795,9 @@ def _team_gov_set(c, pair):
     except ValueError as e:
         raise SystemExit('acme: --team-gov-set TEAM JSON: %s' % e)
     if not isinstance(b, dict) or not b or any(k not in GOV_KEYS for k in b):
-        raise SystemExit('acme: --team-gov-set TEAM JSON: an object of %s' % ', '.join(GOV_KEYS))
-    if 'hooks' in raw and 'http' in raw:
-        raise SystemExit('acme: the webhooks are kept sealed - not here')
+        raise SystemExit('acme: --team-gov-set TEAM JSON: an object of %s (the webhooks are '
+                         'kept sealed: acme --api POST /api/teams/hooks - with the body on stdin)'
+                         % ', '.join(GOV_KEYS))
     b['team'] = name
     got = c.api('POST', '/api/teams/governance', body=b)
     for x in got.get('clash') or []:
@@ -833,17 +833,55 @@ def _sent(r):
     return bool(r)
 
 
+def _via_words(v):
+    """Why: a right or a role, on which team, inherited, a temporary role and until when."""
+    what = ', '.join(list(v.get('roles') or []) + list(v.get('rights') or [])) or '?'
+    out = '%s on %s' % (what, v.get('team') or '?')
+    if v.get('group'):
+        out += ' (through the group %s)' % v['group']
+    elif v.get('who'):
+        out += ' (as %s)' % v['who']
+    if v.get('inherited'):
+        out += ', inherited'
+    if v.get('jit'):
+        out += ', a temporary role'
+    if v.get('until'):
+        out += ', until %s' % _when(v['until'])
+    if v.get('expired'):
+        out += ' - ended'
+    return out
+
+
 def _who_may(c, who):
     args = {'team': who[5:]} if who.lower().startswith('team:') else {'who': who}
     got = c.api('GET', '/api/teams/whomay', args=args)
     if _json(c, got):
         return 0
-    print(json.dumps({k: v for k, v in got.items() if k not in ('settings',)}, indent=1,
-                     ensure_ascii=False, default=str)[:20000] if not got.get('rows') else '')
-    if got.get('rows'):
-        for r in got['rows']:
-            print('  %-28s %s' % (r.get('team') or r.get('who') or '',
-                                  _short(r.get('caps') or r.get('words') or r, 120)))
+    if got.get('mode') == 'team':
+        print('the people of %s (%s)' % (got.get('team'), ' → '.join(got.get('chain') or [])))
+        for p in got.get('people') or []:
+            print('  %s: %s' % (p.get('who'), ', '.join(p.get('caps') or []) or 'nothing'))
+            for v in p.get('via') or []:
+                print('      %s' % _via_words(v))
+        if not got.get('people'):
+            print('  nobody but those who see every certificate')
+        return 0
+    acc = got.get('account') or {}
+    found = got.get('who')
+    if isinstance(found, dict):
+        found = found.get('name') or found.get('dn') or who
+    print('%s%s%s' % (found or who, (' - an account of the administration: %s%s' % (
+        acc.get('role'), ', switched off' if acc.get('disabled') else '')) if acc else '',
+        (' - in %d group(s)' % got['groups_count']) if got.get('groups_count') else ''))
+    for t in got.get('teams') or []:
+        print('  %s%s: %s' % ('  ' * int(t.get('depth') or 0), t.get('team'),
+                              ', '.join(t.get('caps') or []) or 'nothing'))
+        for v in t.get('via') or []:
+            print('      %s' % _via_words(v))
+        if t.get('limits'):
+            print('      its limits: %s' % _short(t['limits'], 100))
+    if not got.get('teams'):
+        print('  no team gives them anything')
     return 0
 
 
@@ -857,13 +895,20 @@ def _who_can(c, pair):
     got = c.api('GET', '/api/teams/whocan', args=args)
     if _json(c, got):
         return 0
-    rows = got.get('rows') or got.get('people') or []
-    if not rows:
-        print('nobody but the full administrators may %s there' % cap)
-        return 0
-    for r in rows:
-        print('  %-30s %s' % (r.get('who') or r.get('name') or '', _short(
-            r.get('why') or r.get('words') or '', 120)))
+    print('who may %s (%s) in %s%s' % (got.get('cap'), got.get('words') or '',
+                                       got.get('team') or 'no team',
+                                       (' - the certificate %s' % got['cert'])
+                                       if got.get('cert') else ''))
+    for p in got.get('people') or []:
+        why = p.get('why_here') or p.get('via') or []
+        print('  %s%s' % (p.get('who') or p.get('name') or '', '' if why else
+                          (' (%s)' % (p.get('role') or 'sees every certificate'))))
+        for v in why:
+            print('      %s' % _via_words(v))
+    if not got.get('people'):
+        print('  nobody but the full administrators')
+    if got.get('limit'):
+        print('  the team\'s limits: %s' % _short(got['limit'], 100))
     return 0
 
 
@@ -989,14 +1034,18 @@ def _teams_import_csv(c, path):
         text = c._read(path, 4 << 20).decode('utf-8-sig', 'replace')
     pre = c.api('POST', '/api/teams/import_csv', body={'csv': text, 'dry_run': True})
     if not c.json:
-        for r in pre.get('rows') or pre.get('plan') or []:
-            print('  %s %s%s' % ('✘' if r.get('error') else '+', r.get('name') or '',
-                                 (' - %s' % r['error']) if r.get('error') else (
-                                     (' under %s' % r['parent']) if r.get('parent') else '')))
-    if pre.get('errors') or any(r.get('error') for r in pre.get('rows') or []):
+        for r in pre.get('rows') or []:
+            mark = {'new': '+', 'exists': '=', 'error': '✘'}.get(r.get('state'), '?')
+            print('  %s %s%s' % (mark, r.get('name') or '', (' - %s' % r['error'])
+                                 if r.get('error') else (' - there already'
+                                                         if r.get('state') == 'exists' else (
+                                     (' under %s' % r['parent']) if r.get('parent') else ''))))
+    if pre.get('errors'):
         if c.json:
             c.out(pre)
         raise SystemExit('acme: the file has errors - nothing was made')
+    if not pre.get('new'):
+        return c.done('every team of the file is there already - nothing to make', pre)
     _sure(c, 'the teams of the file are made')
     got = c.api('POST', '/api/teams/import_csv', body={'csv': text, 'dry_run': False})
     return c.done(got.get('message') or 'made', got)

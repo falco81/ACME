@@ -21,6 +21,7 @@ and what the pages can do, it can do.
          d acme's DNS server (its records: add, delete)
          0 Modules (Enter: what one takes)
          f Find anything   y The expiry calendar   p Request profiles from a template
+    h  History, trash, request profiles, the agent fleet (1.0.138; acmelib/certs/cli_138.py)
     o  Owners and teams (1.0.126): the tree (Enter: show, members and their roles, change,
        limits, move, a team below, activity, delete; + add one), roles, the access check
        of a person, what happened in a team
@@ -51,7 +52,10 @@ def main_items(con):
              lambda: teams_menu(con)),
             # 1.0.140: Settings → Reports and a team's digest (acme --reports, --team-digest)
             ('p', 'Reports and team digests: periodic reports, digests by mail',
-             lambda: __import__('acmelib.certs.reports_cli', fromlist=['x']).console_menu(con))]
+             lambda: __import__('acmelib.certs.reports_cli', fromlist=['x']).console_menu(con)),
+            # 1.0.138's pages: Trash and history, request profiles, the agent fleet (cli_138.py)
+            ('h', 'History, trash, request profiles, the agent fleet',
+             lambda: __import__('acmelib.certs.cli_138', fromlist=['x']).console_menu(con))]
 
 
 def _when(ts, fmt='%Y-%m-%d'):
@@ -1147,7 +1151,14 @@ def target_agent(con, name, kind=None):
         ('discover-kinds', 'The same, only some kinds of services'),
         ('discover-cached', 'What the last discovery found (its agent not asked)'),
         # 1.0.140 (A1): allow issuer, allow names, require key local - each deployment judged
-        ('guard', 'What it checks of what it deploys (issuers, names, its own key)')] + (
+        ('guard', 'What it checks of what it deploys (issuers, names, its own key)'),
+        # 1.0.138: watched more closely - the audit chain, anomalies, what it serves, its keys
+        ('watch', 'Watching it: the audit chain, anomalies, what it serves, its keys'),
+        ('watch-set', 'Watching it: switch each on or off'),
+        ('audit-verify', 'Read and check its audit chain now'),
+        ('served', 'Ask what its services serve now'),
+        ('ack', 'Looked at: what did not agree / the anomalies are its usual now'),
+        ('rotate', 'Change its keys now')] + (
         # a Windows member server's agent reads the Microsoft CAs (1.0.125)
         [('adcs', 'The Microsoft CAs and their templates, as its agent reads them'),
          ('adcs-one', 'The templates of one Microsoft CA (HOST\\CA)')]
@@ -1183,6 +1194,34 @@ def target_agent(con, name, kind=None):
         con.act(flag, name, 'discover', 'cached')
     elif what == 'guard':
         con.act('--agent-guard', name)
+    elif what == 'watch-set':
+        cur = ((con.out(flag, name, 'watch') or {}).get('guard') or {}).get('opts') or {}
+        now = {k: ('on' if cur.get(k) in (True, 'on') else 'off')
+               for k in ('audit', 'anomaly', 'health', 'rotate')}
+        got = con.form('Watching the agent of %s' % name, [
+            {'key': k, 'label': words, 'kind': 'choice', 'value': now[k],
+             'options': [('off', 'off'), ('on', 'on')]} for k, words in (
+                ('audit', 'compare its audit chain'), ('anomaly', 'anomaly alerts'),
+                ('health', 'ask what its services serve'),
+                ('rotate', 'change its keys on a schedule'))] + [
+            {'key': 'rotate_days', 'label': 'every (days)', 'kind': 'number',
+             'value': str(cur.get('rotate_days') or 90),
+             'range': (7, 730)}])
+        if got:
+            con.act(flag, name, 'watch-set', *['%s=%s' % (k, got[k]) for k in (
+                'audit', 'anomaly', 'health', 'rotate', 'rotate_days')])
+    elif what == 'ack':
+        which = con.choose('Looked at', [('audit', 'What did not agree in its audit chain'),
+                                         ('anomaly', 'Its anomalies')])
+        if which:
+            con.act(flag, name, 'ack', which)
+    elif what == 'rotate':
+        which = con.choose('Change the keys of %s' % name, [
+            ('both', 'Both: acme\'s command key and its key for secrets'),
+            ('command', 'acme\'s command key'), ('seal', 'Its key for secrets')])
+        if which and con.confirm('Change the keys', 'The keys of the agent of %s are changed '
+                                 'now (%s)?' % (name, which), 'Change them'):
+            con.act(flag, name, 'rotate', which, '--yes')
     elif what == 'adcs':
         con.live(lambda: (con.cmd(flag, name, 'adcs-templates'), con.pause()))
     elif what == 'adcs-one':
@@ -1561,7 +1600,7 @@ def teams_menu(con):
          lambda: team_access(con)),
         ('5', 'What happened in a team', lambda: team_activity(con)),
         ('6', 'The owners and the tags, as acme --teams says them', lambda: con.act('--teams')),
-    ])
+    ] + __import__('acmelib.certs.cli_138', fromlist=['x']).gov_menu_items(con))
 
 
 def teams_tree(con):
@@ -1622,7 +1661,7 @@ def team_do(con, r):
         ('limits', 'Its limits (profiles, days, approval ...)'),
         ('move', 'Move it under another team (now: %s)' % (r.get('parent') or 'the top level')),
         ('below', 'Add a team below it'),
-        ('activity', 'What happened in it'),
+        ('activity', 'What happened in it')] + _gov().team_items(con, name) + [
         ('del', 'Delete it')],
         '%s, %d member(s), %d certificate(s)' % (r.get('kind') or 'team',
                                                  len(r.get('members') or []),
@@ -1651,7 +1690,14 @@ def team_do(con, r):
         team_activity(con, name)
     elif what == 'del':
         team_del(con, r, teams)
+    elif what:
+        _gov().team_do(con, name, what)     # its health, governance, reviews ... (1.0.138)
     return None
+
+
+def _gov():
+    from acmelib.certs import cli_138
+    return cli_138
 
 
 def team_edit(con, r):
