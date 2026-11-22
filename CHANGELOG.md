@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.139 - not released
+
 ## 1.0.138 - 2026-11-21
 
 - **Target agents: a tamper-evident audit chain.** With the new policy line `audit chain` (`sudo acme-agent audit on` - root decides) the agent writes every job it takes, does or refuses into an append-only log in which each entry holds the hash of the one before, and each entry also goes to the journal (Windows: the Application event log); `acme-agent audit show | verify` on the server. Switched on per agent on its card (*Watching this agent → Audit chain*), acme compares the chain with the jobs it sent and raises an event and an alert for a job it never sent, a gap or a chain written anew, until a full administrator has looked at it; the card shows the audit timeline with verified marks. Off by default - nothing changes until it is switched on.
