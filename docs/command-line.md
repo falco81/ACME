@@ -246,7 +246,7 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 
 ## Reports and digests (1.0.140)
 
-Settings → Reports and a team's Digest ([monitoring.md](monitoring.md#periodic-reports-for-management-and-audit-settings--reports-10140),
+Settings → Reports and a team's Digest ([reports.md](reports.md),
 [teams.md](teams.md#the-digest-by-mail-t12-10140)); each with `--json`:
 
 | | |

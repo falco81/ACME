@@ -76007,6 +76007,1546 @@
   "z_2698": {
    "source": "between a backup and its restore",
    "text": "mezi zálohou a její obnovou"
+  },
+  "z_2699": {
+   "source": "guards what it deploys",
+   "text": "hlídá, co nasazuje"
+  },
+  "z_2700": {
+   "source": "Guards what it deploys",
+   "text": "Hlídá, co nasazuje"
+  },
+  "z_2701": {
+   "source": "1 issuer",
+   "text": "1 vydavatel"
+  },
+  "z_2702": {
+   "source": "own key",
+   "text": "vlastní klíč"
+  },
+  "z_2703": {
+   "source": "only a key the agent made on the server (require key local)",
+   "text": "jen klíč, který agent vytvořil na serveru (require key local)"
+  },
+  "z_2704": {
+   "source": "The agent checks every certificate itself before it writes anything - its issuer, its names, its key. A deployment it would refuse is not sent: acme says why.",
+   "text": "Agent si každý certifikát sám zkontroluje dřív, než cokoli zapíše – jeho vydavatele, jména i klíč. Nasazení, které by odmítl, se vůbec neodešle a acme řekne proč."
+  },
+  "z_2705": {
+   "source": "Where keys are made",
+   "text": "Kde vznikají klíče"
+  },
+  "z_2706": {
+   "source": "For each server with an agent: the certificates whose key the agent makes there - it never leaves the server - and those with acme’s key. A certificate deployed to one server alone can switch.",
+   "text": "U každého serveru s agentem: certifikáty, jejichž klíč vytváří agent přímo tam – server nikdy neopustí – a certifikáty s klíčem acme. Certifikát nasazený jen na jeden server může přejít."
+  },
+  "z_2707": {
+   "source": "made on the server",
+   "text": "vytvořen na serveru"
+  },
+  "z_2708": {
+   "source": "made by another device",
+   "text": "vytváří jiné zařízení"
+  },
+  "z_2709": {
+   "source": "switches at its next renewal",
+   "text": "přejde při příští obnově"
+  },
+  "z_2710": {
+   "source": "refused by its policy - could switch",
+   "text": "politika ho odmítne – může přejít"
+  },
+  "z_2711": {
+   "source": "could switch",
+   "text": "může přejít"
+  },
+  "z_2712": {
+   "source": "refused by its policy",
+   "text": "politika ho odmítne"
+  },
+  "z_2713": {
+   "source": "stays with acme",
+   "text": "zůstává u acme"
+  },
+  "z_2714": {
+   "source": "at the next renewal",
+   "text": "při příští obnově"
+  },
+  "z_2715": {
+   "source": "refused by require key local",
+   "text": "odmítnuté kvůli require key local"
+  },
+  "z_2716": {
+   "source": "No certificate is deployed to a server with an agent yet.",
+   "text": "Na žádný server s agentem zatím není nasazen žádný certifikát."
+  },
+  "z_2717": {
+   "source": "1 certificate picked",
+   "text": "vybrán 1 certifikát"
+  },
+  "z_2718": {
+   "source": "Pick the certificates that could switch.",
+   "text": "Vyberte certifikáty, které mohou přejít."
+  },
+  "z_2719": {
+   "source": "Switch to a key made on the server…",
+   "text": "Přejít na klíč vytvořený na serveru…"
+  },
+  "z_2720": {
+   "source": "Its policy takes only a key the agent made: a certificate with acme’s key is refused there.",
+   "text": "Jeho politika přijme jen klíč, který vytvořil agent: certifikát s klíčem acme tam bude odmítnut."
+  },
+  "z_2721": {
+   "source": "1 made on the server",
+   "text": "1 vytvořený na serveru"
+  },
+  "z_2722": {
+   "source": "1 with acme’s key",
+   "text": "1 s klíčem acme"
+  },
+  "z_2723": {
+   "source": "Pick",
+   "text": "Vybrat"
+  },
+  "z_2724": {
+   "source": "Pick none of them",
+   "text": "Nevybrat žádný"
+  },
+  "z_2725": {
+   "source": "Pick all that could switch",
+   "text": "Vybrat všechny, které mohou přejít"
+  },
+  "z_2726": {
+   "source": "1 certificate you may not see",
+   "text": "1 certifikát, který nesmíte vidět"
+  },
+  "z_2727": {
+   "source": "Switch to a key made on the server",
+   "text": "Přejít na klíč vytvořený na serveru"
+  },
+  "z_2728": {
+   "source": "makes the key today",
+   "text": "dnes vytváří klíč"
+  },
+  "z_2729": {
+   "source": "its agent makes the key - it never leaves it",
+   "text": "klíč vytvoří jeho agent – server nikdy neopustí"
+  },
+  "z_2730": {
+   "source": "The agent on the server makes a new key and sends acme only its CSR. acme never holds that key.",
+   "text": "Agent na serveru vytvoří nový klíč a acme pošle jen jeho CSR. acme tento klíč nikdy nemá."
+  },
+  "z_2731": {
+   "source": "The certificate is issued for that key - at its next renewal, or now.",
+   "text": "Certifikát se vydá pro tento klíč – při příští obnově, nebo hned teď."
+  },
+  "z_2732": {
+   "source": "Its deployment puts the key into the files there: the agent builds the key file, a combined PEM or a PFX itself.",
+   "text": "Nasazení pak klíč uloží do souborů na serveru: soubor s klíčem, spojený PEM nebo PFX si agent sestaví sám."
+  },
+  "z_2733": {
+   "source": "Until then nothing changes: the certificate deployed now stays, with acme’s key.",
+   "text": "Do té doby se nic nemění: nasazený certifikát s klíčem acme zůstává."
+  },
+  "z_2734": {
+   "source": "A day before it is due, acme switches it; the renewal then makes the key on the server. Nothing happens before.",
+   "text": "Den předtím, než bude na řadě, ho acme přepne a obnova pak vytvoří klíč na serveru. Do té doby se nic neděje."
+  },
+  "z_2735": {
+   "source": "Now - and renew it now",
+   "text": "Hned – a hned ho obnovit"
+  },
+  "z_2736": {
+   "source": "Switched and renewed at once: the new certificate, with a key made on the server, is deployed in a few minutes.",
+   "text": "Přepne se a ihned obnoví: nový certifikát s klíčem vytvořeným na serveru se nasadí během několika minut."
+  },
+  "z_2737": {
+   "source": "The certificates",
+   "text": "Certifikáty"
+  },
+  "z_2738": {
+   "source": "Each certificate is checked as its form checks “Key made by the device”: deployed to that server alone, a source that signs a CSR, no twin. Those that cannot are said, and stay as they are.",
+   "text": "Každý certifikát se zkontroluje stejně jako ve formuláři u volby „Klíč vytváří zařízení“: nasazený jen na tento server, zdroj, který podepisuje CSR, žádné dvojče. Ty, které to nesplní, se vypíšou a zůstanou, jak jsou."
+  },
+  "z_2739": {
+   "source": "Switch",
+   "text": "Přepnout"
+  },
+  "z_2740": {
+   "source": "you may not change it",
+   "text": "nesmíte ho měnit"
+  },
+  "z_2741": {
+   "source": "you may not renew it",
+   "text": "nesmíte ho obnovit"
+  },
+  "z_2742": {
+   "source": "it is not deployed to a server with acme-agent",
+   "text": "není nasazen na server s acme-agentem"
+  },
+  "z_2743": {
+   "source": "What it deploys",
+   "text": "Co nasazuje"
+  },
+  "z_2744": {
+   "source": "The agent looks at the certificate itself before it writes anything: who issued it, every name in it, whose key it is. Nothing of it is checked until you choose it here - then a running acme in the wrong hands cannot slip in a certificate of its own.",
+   "text": "Agent se na certifikát sám podívá dřív, než cokoli zapíše: kdo ho vydal, každé jméno v něm a čí je klíč. Nic z toho se nekontroluje, dokud to tady nezvolíte – pak běžící acme v nesprávných rukou nemůže podstrčit certifikát vlastní výroby."
+  },
+  "z_2745": {
+   "source": "The agent looks at the certificate itself before it imports or writes anything: who issued it, every name in it, whose key it is. Nothing of it is checked until you choose it here - then a running acme in the wrong hands cannot slip in a certificate of its own.",
+   "text": "Agent se na certifikát sám podívá dřív, než cokoli naimportuje nebo zapíše: kdo ho vydal, každé jméno v něm a čí je klíč. Nic z toho se nekontroluje, dokud to tady nezvolíte – pak běžící acme v nesprávných rukou nemůže podstrčit certifikát vlastní výroby."
+  },
+  "z_2746": {
+   "source": "Allowed issuers",
+   "text": "Povolení vydavatelé"
+  },
+  "z_2747": {
+   "source": "Every certificate written must chain to one of these CAs - the agent checks the signatures with openssl itself; the chain acme sends is never trusted.",
+   "text": "Každý zapsaný certifikát musí vést k jedné z těchto CA – podpisy si agent ověří sám pomocí openssl; řetězu, který pošle acme, nikdy nevěří."
+  },
+  "z_2748": {
+   "source": "Only certificates of these CAs",
+   "text": "Jen certifikáty těchto CA"
+  },
+  "z_2749": {
+   "source": "acme’s authority",
+   "text": "autorita acme"
+  },
+  "z_2750": {
+   "source": "used here",
+   "text": "použitá zde"
+  },
+  "z_2751": {
+   "source": "acme knows no CA yet (no certificate issued, no authority of its own) - give the SHA-256 of a CA’s certificate below.",
+   "text": "acme zatím nezná žádnou CA (nevydal žádný certifikát a nemá vlastní autoritu) – zadejte níže SHA-256 certifikátu CA."
+  },
+  "z_2752": {
+   "source": "64 hex digits of the CA’s certificate",
+   "text": "64 hexadecimálních číslic certifikátu CA"
+  },
+  "z_2753": {
+   "source": "SHA-256 of a CA’s certificate",
+   "text": "SHA-256 certifikátu CA"
+  },
+  "z_2754": {
+   "source": "A CA acme does not know…",
+   "text": "CA, kterou acme nezná…"
+  },
+  "z_2755": {
+   "source": "Allowed names",
+   "text": "Povolená jména"
+  },
+  "z_2756": {
+   "source": "Every name in the certificate (its alternative names, a common name that is a name) must be one of these. *.example.com takes one label more: www.example.com, not example.com, not a.b.example.com.",
+   "text": "Každé jméno v certifikátu (alternativní jména a common name, pokud je to jméno) musí být jedno z těchto. *.example.com pokryje o jednu úroveň víc: www.example.com, ne example.com ani a.b.example.com."
+  },
+  "z_2757": {
+   "source": "Only these names",
+   "text": "Jen tato jména"
+  },
+  "z_2758": {
+   "source": "A name",
+   "text": "Jméno"
+  },
+  "z_2759": {
+   "source": "Deployed here, not allowed",
+   "text": "Nasazené zde, nepovolené"
+  },
+  "z_2760": {
+   "source": "Key only from this server",
+   "text": "Klíč jen z tohoto serveru"
+  },
+  "z_2761": {
+   "source": "The key must be one the agent made on this server (Key made by the device) - a certificate with acme’s key, or a file holding another key, is refused.",
+   "text": "Klíč musí být ten, který agent vytvořil na tomto serveru (Klíč vytváří zařízení) – certifikát s klíčem acme nebo soubor s jiným klíčem bude odmítnut."
+  },
+  "z_2762": {
+   "source": "The key must be one the agent made on this server (Key made by the device) - a certificate with acme’s key, or a PKCS#12 holding another key, is refused.",
+   "text": "Klíč musí být ten, který agent vytvořil na tomto serveru (Klíč vytváří zařízení) – certifikát s klíčem acme nebo PKCS#12 s jiným klíčem bude odmítnut."
+  },
+  "z_2763": {
+   "source": "Only a key made on the server (require key local)",
+   "text": "Jen klíč vytvořený na serveru (require key local)"
+  },
+  "z_2764": {
+   "source": "1 certificate: the key made here",
+   "text": "1 certifikát: klíč vytvořený zde"
+  },
+  "z_2765": {
+   "source": "1 certificate: acme’s key",
+   "text": "1 certifikát: klíč acme"
+  },
+  "z_2766": {
+   "source": "The agent would refuse the certificate deployed here with acme’s key - let its key be made on the server first.",
+   "text": "Agent by odmítl certifikát, který je sem nasazený s klíčem acme – nejdřív nechte jeho klíč vytvořit na serveru."
+  },
+  "z_2767": {
+   "source": "allow issuer sha256=HEX (the SHA-256 of a CA's certificate)",
+   "text": "allow issuer sha256=HEX (SHA-256 certifikátu CA)"
+  },
+  "z_2768": {
+   "source": "allow names without allow issuer: a certificate of any CA for these names is deployed - name the CAs too (allow issuer sha256=...)",
+   "text": "allow names bez allow issuer: nasadí se certifikát pro tato jména od jakékoli CA – uveďte i CA (allow issuer sha256=...)"
+  },
+  "z_2769": {
+   "source": "the issuer",
+   "text": "vydavatel"
+  },
+  "z_2770": {
+   "source": "the names",
+   "text": "jména"
+  },
+  "z_2771": {
+   "source": "only a key made on the server",
+   "text": "jen klíč vytvořený na serveru"
+  },
+  "z_2772": {
+   "source": "the key of this certificate is acme's - let the key be made on the server (\"Key made by the device\")",
+   "text": "klíč tohoto certifikátu je klíč acme – nechte klíč vytvořit na serveru („Klíč vytváří zařízení“)"
+  },
+  "z_2773": {
+   "source": "every certificate chains to a CA the policy allows",
+   "text": "každý certifikát vede k CA, kterou politika povoluje"
+  },
+  "z_2774": {
+   "source": "every name is one the policy allows",
+   "text": "každé jméno politika povoluje"
+  },
+  "z_2775": {
+   "source": "every key is one this agent made",
+   "text": "každý klíč vytvořil tento agent"
+  },
+  "z_2776": {
+   "source": "allow issuer taken away: a certificate of any CA",
+   "text": "allow issuer odebráno: certifikát od jakékoli CA"
+  },
+  "z_2777": {
+   "source": "allow names taken away: any name",
+   "text": "allow names odebráno: jakékoli jméno"
+  },
+  "z_2778": {
+   "source": "require key local taken away: acme's key too",
+   "text": "require key local odebráno: i klíč acme"
+  },
+  "z_2779": {
+   "source": "chains to one of 1 CA the policy allows",
+   "text": "vede k jediné CA, kterou politika povoluje"
+  },
+  "z_2780": {
+   "source": "Reports",
+   "text": "Reporty"
+  },
+  "z_2781": {
+   "source": "Reports for management and audit: the certificate inventory, what ends soon, compliance with the CA/B rules, the agents' health, teams and access - as CSV and PDF, made by hand or on a schedule and mailed.",
+   "text": "Reporty pro vedení a audit: inventura certifikátů, co brzy končí, soulad s pravidly CA/B, zdraví agentů, týmy a přístupy – jako CSV a PDF, vytvářené ručně nebo podle plánu a posílané e-mailem."
+  },
+  "z_2782": {
+   "source": "Reports for management and audit - the certificate inventory, what ends soon, compliance with the CA/B rules, the agents and their health, teams and access - for every team or chosen ones, as CSV and PDF. Each is made by hand or on its day and mailed to whom you choose; the runs are kept to download again. Nothing is made until a report is defined.",
+   "text": "Reporty pro vedení a audit – inventura certifikátů, co brzy končí, soulad s pravidly CA/B, agenti a jejich zdraví, týmy a přístupy – za všechny týmy nebo jen vybrané, jako CSV a PDF. Každý se vytvoří ručně nebo ve svůj den a odejde e-mailem, komu určíte; jednotlivá spuštění zůstávají uložená ke stažení. Dokud žádný report nedefinujete, nic se nevytváří."
+  },
+  "z_2783": {
+   "source": "Certificate inventory",
+   "text": "Inventura certifikátů"
+  },
+  "z_2784": {
+   "source": "Expiry outlook",
+   "text": "Výhled konců platnosti"
+  },
+  "z_2785": {
+   "source": "Compliance with the CA/B rules",
+   "text": "Soulad s pravidly CA/B"
+  },
+  "z_2786": {
+   "source": "Agents and their health",
+   "text": "Agenti a jejich zdraví"
+  },
+  "z_2787": {
+   "source": "Teams and access",
+   "text": "Týmy a přístupy"
+  },
+  "z_2788": {
+   "source": "Every certificate in scope: its team, names, source, key, state and end.",
+   "text": "Každý certifikát v rozsahu: jeho tým, jména, zdroj, klíč, stav a konec platnosti."
+  },
+  "z_2789": {
+   "source": "What ends within the days chosen - soonest first, with how each is renewed.",
+   "text": "Co skončí do zvoleného počtu dní – nejdřívější první, i s tím, jak se který obnovuje."
+  },
+  "z_2790": {
+   "source": "Each certificate checked against the CA/Browser Forum's rules and the company's own, as the request profiles' compliance check does.",
+   "text": "Každý certifikát zkontrolovaný proti pravidlům CA/Browser Fóra a vlastním pravidlům firmy – stejně jako kontrola souladu profilů žádostí."
+  },
+  "z_2791": {
+   "source": "The target agents of the teams: whether each answers, its version and what needs a look.",
+   "text": "Cíloví agenti týmů: zda odpovídají, jejich verze a co vyžaduje pozornost."
+  },
+  "z_2792": {
+   "source": "The members of each team with their roles and ends, and the last access review.",
+   "text": "Členové každého týmu s rolemi a konci členství a poslední revize přístupů."
+  },
+  "z_2793": {
+   "source": "Mail is switched off: nothing is mailed. Reports are still made and kept here.",
+   "text": "Odesílání pošty je vypnuté: nic se neodešle. Reporty se přesto vytvářejí a ukládají zde."
+  },
+  "z_2794": {
+   "source": "The reports could not be read.",
+   "text": "Reporty se nepodařilo načíst."
+  },
+  "z_2795": {
+   "source": "1 report",
+   "text": "1 report"
+  },
+  "z_2796": {
+   "source": "None is made by itself - each by hand",
+   "text": "Žádný se nevytváří sám – každý ručně"
+  },
+  "z_2797": {
+   "source": "Nothing is made until a report is defined",
+   "text": "Dokud není report definován, nic se nevytváří"
+  },
+  "z_2798": {
+   "source": "New report",
+   "text": "Nový report"
+  },
+  "z_2799": {
+   "source": "No report yet",
+   "text": "Zatím žádný report"
+  },
+  "z_2800": {
+   "source": "No report of your teams",
+   "text": "Žádný report vašich týmů"
+  },
+  "z_2801": {
+   "source": "Pick what the report says to start - you choose its teams, formats, schedule and recipients next. Nothing is made or mailed until you save it.",
+   "text": "Na začátek vyberte, o čem report bude – týmy, formáty, plán a příjemce zvolíte vzápětí. Dokud ho neuložíte, nic se nevytvoří ani neodešle."
+  },
+  "z_2802": {
+   "source": "A full administrator defines the reports. Those of the teams you manage show here, to preview and download.",
+   "text": "Reporty definuje úplný správce. Ty, které se týkají vámi spravovaných týmů, se zobrazí zde k náhledu a stažení."
+  },
+  "z_2803": {
+   "source": "Change this report",
+   "text": "Upravit tento report"
+  },
+  "z_2804": {
+   "source": "Delete this report and its runs",
+   "text": "Smazat tento report i jeho spuštění"
+  },
+  "z_2805": {
+   "source": "Every team",
+   "text": "Všechny týmy"
+  },
+  "z_2806": {
+   "source": "Chosen teams",
+   "text": "Vybrané týmy"
+  },
+  "z_2807": {
+   "source": "Paused",
+   "text": "Pozastaveno"
+  },
+  "z_2808": {
+   "source": "Mailed to 1 address",
+   "text": "Posílá se na 1 adresu"
+  },
+  "z_2809": {
+   "source": "By hand only",
+   "text": "Jen ručně"
+  },
+  "z_2810": {
+   "source": "Next run",
+   "text": "Příští spuštění"
+  },
+  "z_2811": {
+   "source": "1 row",
+   "text": "1 řádek"
+  },
+  "z_2812": {
+   "source": "Mailed",
+   "text": "Odesláno"
+  },
+  "z_2813": {
+   "source": "Not mailed",
+   "text": "Neodesláno"
+  },
+  "z_2814": {
+   "source": "Run now",
+   "text": "Spustit teď"
+  },
+  "z_2815": {
+   "source": "Runs",
+   "text": "Spuštění"
+  },
+  "z_2816": {
+   "source": "The report's rows",
+   "text": "Řádky reportu"
+  },
+  "z_2817": {
+   "source": "Nothing to report.",
+   "text": "Není co hlásit."
+  },
+  "z_2818": {
+   "source": "What the report says now - nothing is kept or mailed.",
+   "text": "Co report říká právě teď – nic se neukládá ani neodesílá."
+  },
+  "z_2819": {
+   "source": "The report's language",
+   "text": "Jazyk reportu"
+  },
+  "z_2820": {
+   "source": "The report is made now from what acme holds, kept with its other runs and ready to download.",
+   "text": "Report se vytvoří hned z toho, co acme drží, uloží se k ostatním spuštěním a bude připravený ke stažení."
+  },
+  "z_2821": {
+   "source": "Also mail it to its recipients",
+   "text": "Poslat ho i příjemcům"
+  },
+  "z_2822": {
+   "source": "Mail is switched off (Settings → Mail).",
+   "text": "Odesílání pošty je vypnuté (Nastavení → Pošta)."
+  },
+  "z_2823": {
+   "source": "It has no recipients - add them in its settings.",
+   "text": "Nemá žádné příjemce – doplňte je v jeho nastavení."
+  },
+  "z_2824": {
+   "source": "No run kept yet - Run now makes one, and so does its schedule.",
+   "text": "Zatím žádné uložené spuštění – vytvoří ho Spustit teď i jeho plán."
+  },
+  "z_2825": {
+   "source": "The newest are kept - how many is in the report's settings.",
+   "text": "Ukládají se nejnovější – kolik, to určuje nastavení reportu."
+  },
+  "z_2826": {
+   "source": "e.g. Monthly certificate inventory",
+   "text": "např. Měsíční inventura certifikátů"
+  },
+  "z_2827": {
+   "source": "What the report says",
+   "text": "O čem report je"
+  },
+  "z_2828": {
+   "source": "Days ahead",
+   "text": "Dní dopředu"
+  },
+  "z_2829": {
+   "source": "What ends within this many days is in it - those already ended too.",
+   "text": "Obsahuje, co skončí během tolika dní – i to, co už skončilo."
+  },
+  "z_2830": {
+   "source": "No team is defined yet (Owners and teams).",
+   "text": "Zatím není definován žádný tým (Vlastníci a týmy)."
+  },
+  "z_2831": {
+   "source": "Chosen teams take the teams below them too. Every team also takes the certificates and agents that have no team.",
+   "text": "Vybrané týmy zahrnují i týmy pod nimi. Všechny týmy zahrnují i certifikáty a agenty bez týmu."
+  },
+  "z_2832": {
+   "source": "PDF - for reading and printing",
+   "text": "PDF – ke čtení a tisku"
+  },
+  "z_2833": {
+   "source": "CSV - for a spreadsheet",
+   "text": "CSV – pro tabulkový procesor"
+  },
+  "z_2834": {
+   "source": "Formats",
+   "text": "Formáty"
+  },
+  "z_2835": {
+   "source": "Weekly",
+   "text": "Týdně"
+  },
+  "z_2836": {
+   "source": "Monthly",
+   "text": "Měsíčně"
+  },
+  "z_2837": {
+   "source": "Day",
+   "text": "Den"
+  },
+  "z_2838": {
+   "source": "Hour",
+   "text": "Hodina"
+  },
+  "z_2839": {
+   "source": "Made by itself",
+   "text": "Vytváří se sám"
+  },
+  "z_2840": {
+   "source": "On the node that leads the cluster, once a week or a month - and mailed to the recipients below.",
+   "text": "Na uzlu, který vede cluster, jednou týdně nebo měsíčně – a odejde příjemcům níže."
+  },
+  "z_2841": {
+   "source": "Mailed to",
+   "text": "Posílá se na"
+  },
+  "z_2842": {
+   "source": "Addresses, comma between them. Empty: kept here only.",
+   "text": "Adresy oddělené čárkou. Prázdné: jen se uloží zde."
+  },
+  "z_2843": {
+   "source": "Mail is switched off - kept here only until it is switched on.",
+   "text": "Odesílání pošty je vypnuté – dokud ho nezapnete, report se jen ukládá zde."
+  },
+  "z_2844": {
+   "source": "The mails' language",
+   "text": "Jazyk pošty"
+  },
+  "z_2845": {
+   "source": "Runs kept",
+   "text": "Uložených spuštění"
+  },
+  "z_2846": {
+   "source": "Schedule active",
+   "text": "Plán aktivní"
+  },
+  "z_2847": {
+   "source": "Digest",
+   "text": "Souhrn"
+  },
+  "z_2848": {
+   "source": "Daily digest",
+   "text": "Denní souhrn"
+  },
+  "z_2849": {
+   "source": "Weekly digest",
+   "text": "Týdenní souhrn"
+  },
+  "z_2850": {
+   "source": "The digest could not be read.",
+   "text": "Souhrn se nepodařilo načíst."
+  },
+  "z_2851": {
+   "source": "The team gets no digest. Switched on, it gets one mail a week (or a day) with what needs it.",
+   "text": "Tým žádný souhrn nedostává. Po zapnutí dostane jednou týdně (nebo denně) e-mail s tím, co potřebuje jeho pozornost."
+  },
+  "z_2852": {
+   "source": "Show the preview",
+   "text": "Zobrazit náhled"
+  },
+  "z_2853": {
+   "source": "Send a preview to me",
+   "text": "Poslat mi náhled"
+  },
+  "z_2854": {
+   "source": "Send now",
+   "text": "Odeslat teď"
+  },
+  "z_2855": {
+   "source": "It goes to its recipients now, an empty one too. The next one by the schedule covers what comes after.",
+   "text": "Odejde příjemcům hned, i když je prázdný. Další podle plánu pokryje to, co přijde potom."
+  },
+  "z_2856": {
+   "source": "What goes in",
+   "text": "Co v něm je"
+  },
+  "z_2857": {
+   "source": "and those that already ended",
+   "text": "i ty, které už skončily"
+  },
+  "z_2858": {
+   "source": "Renewals and deployments that failed",
+   "text": "Obnovy a nasazení, které selhaly"
+  },
+  "z_2859": {
+   "source": "since the last digest",
+   "text": "od posledního souhrnu"
+  },
+  "z_2860": {
+   "source": "What waits",
+   "text": "Co čeká"
+  },
+  "z_2861": {
+   "source": "approvals, requests for a temporary role, access reviews",
+   "text": "schválení, žádosti o dočasnou roli, revize přístupů"
+  },
+  "z_2862": {
+   "source": "granted, ending soon, ended",
+   "text": "udělené, brzy končící, skončené"
+  },
+  "z_2863": {
+   "source": "Agents that need a look",
+   "text": "Agenti, kteří potřebují pozornost"
+  },
+  "z_2864": {
+   "source": "quiet, refused, waiting for confirmation",
+   "text": "mlčící, odmítnutí, čekající na potvrzení"
+  },
+  "z_2865": {
+   "source": "Of this team and every team below it.",
+   "text": "Tohoto týmu a všech týmů pod ním."
+  },
+  "z_2866": {
+   "source": "Of this team only.",
+   "text": "Jen tohoto týmu."
+  },
+  "z_2867": {
+   "source": "When nothing needs the team, nothing is sent.",
+   "text": "Když tým nic nepotřebuje, nic se neposílá."
+  },
+  "z_2868": {
+   "source": "Who gets it",
+   "text": "Kdo ho dostává"
+  },
+  "z_2869": {
+   "source": "The team's address",
+   "text": "Adresa týmu"
+  },
+  "z_2870": {
+   "source": "as the team says",
+   "text": "podle nastavení týmu"
+  },
+  "z_2871": {
+   "source": "the team has no address - set it under Edit",
+   "text": "tým nemá adresu – nastavte ji v Upravit"
+  },
+  "z_2872": {
+   "source": "1 address",
+   "text": "1 adresa"
+  },
+  "z_2873": {
+   "source": "no address in acme",
+   "text": "v acme bez adresy"
+  },
+  "z_2874": {
+   "source": "Nobody yet.",
+   "text": "Zatím nikdo."
+  },
+  "z_2875": {
+   "source": "In Czech.",
+   "text": "Česky."
+  },
+  "z_2876": {
+   "source": "In English.",
+   "text": "Anglicky."
+  },
+  "z_2877": {
+   "source": "Each in their own language where acme knows it.",
+   "text": "Každý ve svém jazyce, pokud ho acme zná."
+  },
+  "z_2878": {
+   "source": "To 1 recipient",
+   "text": "1 příjemci"
+  },
+  "z_2879": {
+   "source": "Nothing needs the team: it would not be sent",
+   "text": "Tým nic nepotřebuje: neodešel by"
+  },
+  "z_2880": {
+   "source": "Mail is switched off",
+   "text": "Odesílání pošty je vypnuté"
+  },
+  "z_2881": {
+   "source": "Send the team a digest by mail",
+   "text": "Posílat týmu souhrn e-mailem"
+  },
+  "z_2882": {
+   "source": "One mail with what needs the team: what ends soon, what failed, what waits, temporary roles, agents to look at.",
+   "text": "Jeden e-mail s tím, co tým potřebuje: co brzy končí, co selhalo, co čeká, dočasné role a agenti k prohlédnutí."
+  },
+  "z_2883": {
+   "source": "Every day",
+   "text": "Každý den"
+  },
+  "z_2884": {
+   "source": "The first one goes at the next moment chosen - never at once.",
+   "text": "První odejde v nejbližším zvoleném okamžiku – nikdy hned."
+  },
+  "z_2885": {
+   "source": "Certificates ending within (days)",
+   "text": "Certifikáty končící do (dní)"
+  },
+  "z_2886": {
+   "source": "To the team's address",
+   "text": "Na adresu týmu"
+  },
+  "z_2887": {
+   "source": "The team has no address yet (Edit on the team's page).",
+   "text": "Tým zatím nemá adresu (Upravit na stránce týmu)."
+  },
+  "z_2888": {
+   "source": "No address in acme for this member - it would get nothing.",
+   "text": "Tento člen nemá v acme adresu – nedostal by nic."
+  },
+  "z_2889": {
+   "source": "The team has no members.",
+   "text": "Tým nemá žádné členy."
+  },
+  "z_2890": {
+   "source": "To members",
+   "text": "Členům"
+  },
+  "z_2891": {
+   "source": "Each gets it at the address of their account, in their own language. A group: every member of it who signed in with an address.",
+   "text": "Každý ho dostane na adresu svého účtu a ve svém jazyce. Skupina: každý její člen, který se přihlásil a má adresu."
+  },
+  "z_2892": {
+   "source": "Not sent when empty",
+   "text": "Prázdný se neposílá"
+  },
+  "z_2893": {
+   "source": "With the teams below",
+   "text": "Včetně týmů pod ním"
+  },
+  "z_2894": {
+   "source": "Each recipient's own",
+   "text": "Jazyk každého příjemce"
+  },
+  "z_2895": {
+   "source": "Čeština",
+   "text": "Čeština"
+  },
+  "z_2896": {
+   "source": "A preview - nothing was sent.",
+   "text": "Náhled – nic nebylo odesláno."
+  },
+  "z_2897": {
+   "source": "By month",
+   "text": "Po měsících"
+  },
+  "z_2898": {
+   "source": "Deployments failing now",
+   "text": "Nasazení, která teď selhávají"
+  },
+  "z_2899": {
+   "source": "Last said",
+   "text": "Naposledy hlášeno"
+  },
+  "z_2900": {
+   "source": "Last tried",
+   "text": "Naposledy zkoušeno"
+  },
+  "z_2901": {
+   "source": "Left",
+   "text": "Zbývá"
+  },
+  "z_2902": {
+   "source": "Nothing needs the team now",
+   "text": "Tým teď nic nepotřebuje"
+  },
+  "z_2903": {
+   "source": "No certificate ends soon, nothing failed, nothing waits and every agent answers.",
+   "text": "Žádný certifikát brzy nekončí, nic neselhalo, nic nečeká a všichni agenti odpovídají."
+  },
+  "z_2904": {
+   "source": "Open the agents in acme",
+   "text": "Otevřít agenty v acme"
+  },
+  "z_2905": {
+   "source": "Open the certificates in acme",
+   "text": "Otevřít certifikáty v acme"
+  },
+  "z_2906": {
+   "source": "Open the jobs in acme",
+   "text": "Otevřít úlohy v acme"
+  },
+  "z_2907": {
+   "source": "Open the reports in acme",
+   "text": "Otevřít reporty v acme"
+  },
+  "z_2908": {
+   "source": "Open the team in acme",
+   "text": "Otevřít tým v acme"
+  },
+  "z_2909": {
+   "source": "The teams",
+   "text": "Týmy"
+  },
+  "z_2910": {
+   "source": "Times",
+   "text": "Kolikrát"
+  },
+  "z_2911": {
+   "source": "What failed since the last digest",
+   "text": "Co selhalo od posledního souhrnu"
+  },
+  "z_2912": {
+   "source": "agents to look at",
+   "text": "agentů k prohlédnutí"
+  },
+  "z_2913": {
+   "source": "answer",
+   "text": "odpovídá"
+  },
+  "z_2914": {
+   "source": "comply",
+   "text": "v souladu"
+  },
+  "z_2915": {
+   "source": "do not comply",
+   "text": "v nesouladu"
+  },
+  "z_2916": {
+   "source": "ending within 30 days",
+   "text": "končí do 30 dní"
+  },
+  "z_2917": {
+   "source": "ends soon",
+   "text": "brzy končí"
+  },
+  "z_2918": {
+   "source": "every team",
+   "text": "všechny týmy"
+  },
+  "z_2919": {
+   "source": "failed or expired",
+   "text": "selhalo nebo prošlo"
+  },
+  "z_2920": {
+   "source": "longest validity now (days)",
+   "text": "nejdelší platnost teď (dní)"
+  },
+  "z_2921": {
+   "source": "memberships",
+   "text": "členství"
+  },
+  "z_2922": {
+   "source": "need a look",
+   "text": "potřebuje pozornost"
+  },
+  "z_2923": {
+   "source": "nothing needs attention",
+   "text": "nic nevyžaduje pozornost"
+  },
+  "z_2924": {
+   "source": "preview",
+   "text": "náhled"
+  },
+  "z_2925": {
+   "source": "reviews overdue",
+   "text": "revizí po termínu"
+  },
+  "z_2926": {
+   "source": "temporary role",
+   "text": "dočasná role"
+  },
+  "z_2927": {
+   "source": "temporary roles now",
+   "text": "dočasných rolí teď"
+  },
+  "z_2928": {
+   "source": "until a rule changes",
+   "text": "do změny pravidla"
+  },
+  "z_2929": {
+   "source": "wait for confirmation",
+   "text": "čeká na potvrzení"
+  },
+  "z_2930": {
+   "source": "within 7 days",
+   "text": "do 7 dní"
+  },
+  "z_2931": {
+   "source": "complies until a rule changes",
+   "text": "v souladu do změny pravidla"
+  },
+  "z_2932": {
+   "source": "The CA/Browser Forum's longest validity of a public TLS certificate and the company's own rules (Settings → Request profiles), checked on each certificate.",
+   "text": "Nejdelší platnost veřejného TLS certifikátu podle CA/Browser Fóra a vlastní pravidla firmy (Nastavení → Profily žádostí), zkontrolované u každého certifikátu."
+  },
+  "z_2933": {
+   "source": "Days left",
+   "text": "Zbývá dní"
+  },
+  "z_2934": {
+   "source": "Renews itself",
+   "text": "Obnovuje se sám"
+  },
+  "z_2935": {
+   "source": "Agent (target)",
+   "text": "Agent (cíl)"
+  },
+  "z_2936": {
+   "source": "Platform",
+   "text": "Platforma"
+  },
+  "z_2937": {
+   "source": "Last heard from",
+   "text": "Naposledy se ozval"
+  },
+  "z_2938": {
+   "source": "Needs a look",
+   "text": "Potřebuje pozornost"
+  },
+  "z_2939": {
+   "source": "Roles or rights",
+   "text": "Role nebo práva"
+  },
+  "z_2940": {
+   "source": "Last access review",
+   "text": "Poslední revize přístupů"
+  },
+  "z_2941": {
+   "source": "Month",
+   "text": "Měsíc"
+  },
+  "z_2942": {
+   "source": "Findings",
+   "text": "Zjištění"
+  },
+  "z_2943": {
+   "source": "held",
+   "text": "pozdržený"
+  },
+  "z_2944": {
+   "source": "waiting for a certificate",
+   "text": "čeká na certifikát"
+  },
+  "z_2945": {
+   "source": "quiet",
+   "text": "mlčí"
+  },
+  "z_2946": {
+   "source": "waits for confirmation",
+   "text": "čeká na potvrzení"
+  },
+  "z_2947": {
+   "source": "refused by acme",
+   "text": "odmítnut v acme"
+  },
+  "z_2948": {
+   "source": "its policy blocked a job",
+   "text": "jeho politika zablokovala úlohu"
+  },
+  "z_2949": {
+   "source": "its own certificate ends soon",
+   "text": "jeho vlastní certifikát brzy končí"
+  },
+  "z_2950": {
+   "source": "not heard from since it joined",
+   "text": "od připojení se neozval"
+  },
+  "z_2951": {
+   "source": "local",
+   "text": "místní"
+  },
+  "z_2952": {
+   "source": "mail is switched off (Settings → Mail) - nothing can be sent",
+   "text": "odesílání pošty je vypnuté (Nastavení → Pošta) – nic nelze odeslat"
+  },
+  "z_2953": {
+   "source": "your account has no mail address (Accounts, or your directory) - nowhere to send the preview",
+   "text": "váš účet nemá e-mailovou adresu (Účty nebo váš adresář) – náhled není kam poslat"
+  },
+  "z_2954": {
+   "source": "a preview went to you a moment ago - wait a little",
+   "text": "náhled vám odešel před chvílí – chvíli počkejte"
+  },
+  "z_2955": {
+   "source": "only a full administrator defines reports",
+   "text": "reporty definuje jen úplný správce"
+  },
+  "z_2956": {
+   "source": "a report needs a name (at most 80 characters, no < >)",
+   "text": "report potřebuje název (nejvýš 80 znaků, bez < >)"
+  },
+  "z_2957": {
+   "source": "a report is made as CSV, PDF or both",
+   "text": "report se vytváří jako CSV, PDF nebo obojí"
+  },
+  "z_2958": {
+   "source": "the digest goes nowhere: the team has no contact address - choose members, or give the team its address first",
+   "text": "souhrn nemá kam jít: tým nemá kontaktní adresu – vyberte členy, nebo týmu nejdřív adresu nastavte"
+  },
+  "z_2959": {
+   "source": "nothing to tell - not sent",
+   "text": "nebylo co hlásit – neodesláno"
+  },
+  "z_2960": {
+   "source": "mail is switched off (Settings → Mail) - nothing was sent",
+   "text": "odesílání pošty je vypnuté (Nastavení → Pošta) – nic nebylo odesláno"
+  },
+  "z_2961": {
+   "source": "nobody to send it to",
+   "text": "není komu ho poslat"
+  },
+  "z_2962": {
+   "source": "Reports and team digests: periodic reports, digests by mail",
+   "text": "Reporty a souhrny týmů: pravidelné reporty, souhrny e-mailem"
+  },
+  "z_2963": {
+   "source": "Settings → Mail",
+   "text": "Nastavení → Pošta"
+  },
+  "z_2964": {
+   "source": "Calendar",
+   "text": "Kalendář"
+  },
+  "z_2965": {
+   "source": "Certificates as",
+   "text": "Certifikáty jako"
+  },
+  "z_2966": {
+   "source": "Year",
+   "text": "Rok"
+  },
+  "z_2967": {
+   "source": "Today",
+   "text": "Dnes"
+  },
+  "z_2968": {
+   "source": "The calendar shows",
+   "text": "Kalendář ukazuje"
+  },
+  "z_2969": {
+   "source": "The month before",
+   "text": "Předchozí měsíc"
+  },
+  "z_2970": {
+   "source": "The month after",
+   "text": "Následující měsíc"
+  },
+  "z_2971": {
+   "source": "Download .ics",
+   "text": "Stáhnout .ics"
+  },
+  "z_2972": {
+   "source": "Subscribe…",
+   "text": "Odebírat…"
+  },
+  "z_2973": {
+   "source": "The certificates of this calendar as a file for Outlook, Google Calendar or Thunderbird.",
+   "text": "Certifikáty z tohoto kalendáře jako soubor pro Outlook, Kalendář Google nebo Thunderbird."
+  },
+  "z_2974": {
+   "source": "A private link your calendar program asks by itself, so the dates stay current.",
+   "text": "Soukromý odkaz, který si váš kalendář načítá sám, takže data jsou vždy aktuální."
+  },
+  "z_2975": {
+   "source": "Only the certificates of",
+   "text": "Jen certifikáty"
+  },
+  "z_2976": {
+   "source": "every target",
+   "text": "každý cíl"
+  },
+  "z_2977": {
+   "source": "Only mine",
+   "text": "Jen moje"
+  },
+  "z_2978": {
+   "source": "Only the certificates you own or added yourself.",
+   "text": "Jen certifikáty, které vlastníte nebo jste sami přidali."
+  },
+  "z_2979": {
+   "source": "Only the first 5000 certificates of this window are shown - narrow it with the filters.",
+   "text": "Zobrazeno je jen prvních 5000 certifikátů tohoto období – zužte je filtry."
+  },
+  "z_2980": {
+   "source": "run out within 7 days",
+   "text": "vyprší do 7 dní"
+  },
+  "z_2981": {
+   "source": "run out within 30 days",
+   "text": "vyprší do 30 dní"
+  },
+  "z_2982": {
+   "source": "run out within 60 days",
+   "text": "vyprší do 60 dní"
+  },
+  "z_2983": {
+   "source": "renewals planned in 30 days",
+   "text": "plánovaných obnov do 30 dní"
+  },
+  "z_2984": {
+   "source": "have run out",
+   "text": "už vypršely"
+  },
+  "z_2985": {
+   "source": "Within 7 days",
+   "text": "Do 7 dní"
+  },
+  "z_2986": {
+   "source": "Within 30 days",
+   "text": "Do 30 dní"
+  },
+  "z_2987": {
+   "source": "Within 60 days",
+   "text": "Do 60 dní"
+  },
+  "z_2988": {
+   "source": "Renewals planned in 30 days",
+   "text": "Obnovy plánované do 30 dní"
+  },
+  "z_2989": {
+   "source": "Have run out",
+   "text": "Už vypršely"
+  },
+  "z_2990": {
+   "source": "A year of certificates running out",
+   "text": "Rok vypršení certifikátů"
+  },
+  "z_2991": {
+   "source": "nothing runs out",
+   "text": "nic nevyprší"
+  },
+  "z_2992": {
+   "source": "within 7 days or run out",
+   "text": "do 7 dní nebo vypršel"
+  },
+  "z_2993": {
+   "source": "within 60 days",
+   "text": "do 60 dní"
+  },
+  "z_2994": {
+   "source": "a renewal acme plans",
+   "text": "obnova, kterou acme plánuje"
+  },
+  "z_2995": {
+   "source": "Next to run out",
+   "text": "Nejbližší vypršení"
+  },
+  "z_2996": {
+   "source": "Back to the next ones",
+   "text": "Zpět na nejbližší"
+  },
+  "z_2997": {
+   "source": "Run out",
+   "text": "Vyprší"
+  },
+  "z_2998": {
+   "source": "The certificates that run out first",
+   "text": "Certifikáty, které vyprší nejdřív"
+  },
+  "z_2999": {
+   "source": "Renewed by acme",
+   "text": "Obnoví acme"
+  },
+  "z_3000": {
+   "source": "Only the first 200 are listed.",
+   "text": "Vypsáno je jen prvních 200."
+  },
+  "z_3001": {
+   "source": "Nothing runs out then",
+   "text": "Tehdy nic nevyprší"
+  },
+  "z_3002": {
+   "source": "Nothing runs out in this calendar",
+   "text": "V tomto kalendáři nic nevyprší"
+  },
+  "z_3003": {
+   "source": "Choose another day or week.",
+   "text": "Vyberte jiný den nebo týden."
+  },
+  "z_3004": {
+   "source": "Every certificate here is valid for longer than the calendar shows.",
+   "text": "Každý certifikát zde platí déle, než kalendář ukazuje."
+  },
+  "z_3005": {
+   "source": "renewed by acme",
+   "text": "obnoví acme"
+  },
+  "z_3006": {
+   "source": "runs out",
+   "text": "vyprší"
+  },
+  "z_3007": {
+   "source": "Subscribe to the calendar",
+   "text": "Odebírat kalendář"
+  },
+  "z_3008": {
+   "source": "Your certificates in your own calendar",
+   "text": "Vaše certifikáty ve vašem kalendáři"
+  },
+  "z_3009": {
+   "source": "Outlook, Google Calendar, Apple Calendar or Thunderbird asks this link by itself every few hours: each certificate on the day it runs out, a reminder a week before, and the renewals acme plans. It shows what your account may see - never more - and stops working when your account may no longer sign in.",
+   "text": "Outlook, Kalendář Google, Kalendář Apple nebo Thunderbird si tento odkaz sám načítá každých pár hodin: každý certifikát v den, kdy vyprší, připomínku týden předem a obnovy, které acme plánuje. Ukazuje to, co smí vidět váš účet – nikdy víc – a přestane fungovat, jakmile se váš účet už nesmí přihlásit."
+  },
+  "z_3010": {
+   "source": "The link to subscribe to",
+   "text": "Odkaz k odebírání"
+  },
+  "z_3011": {
+   "source": "Keep the link to yourself: whoever has it sees the names and dates of your certificates. It is shown only now - a new link replaces it.",
+   "text": "Odkaz si nechte pro sebe: kdo ho má, vidí jména a data vašich certifikátů. Zobrazí se jen teď – nový odkaz ho nahradí."
+  },
+  "z_3012": {
+   "source": "You have no link yet.",
+   "text": "Zatím nemáte žádný odkaz."
+  },
+  "z_3013": {
+   "source": "Make a link",
+   "text": "Vytvořit odkaz"
+  },
+  "z_3014": {
+   "source": "Make a new link",
+   "text": "Vytvořit nový odkaz"
+  },
+  "z_3015": {
+   "source": "The link no longer works",
+   "text": "Odkaz už nefunguje"
+  },
+  "z_3016": {
+   "source": "When your certificates run out",
+   "text": "Kdy vaše certifikáty vyprší"
+  },
+  "z_3017": {
+   "source": "When your certificates run out, as a calendar.",
+   "text": "Kdy vaše certifikáty vyprší, jako kalendář."
+  },
+  "z_3018": {
+   "source": "Find anything",
+   "text": "Najít cokoli"
+  },
+  "z_3019": {
+   "source": "Find anything…",
+   "text": "Najít cokoli…"
+  },
+  "z_3020": {
+   "source": "Searching every certificate, deployment and event…",
+   "text": "Hledám ve všech certifikátech, nasazeních a událostech…"
+  },
+  "z_3021": {
+   "source": "The expiry calendar",
+   "text": "Kalendář vypršení"
+  },
+  "z_3022": {
+   "source": "when certificates run out",
+   "text": "kdy certifikáty vyprší"
+  },
+  "z_3023": {
+   "source": "A request profile from a template",
+   "text": "Profil žádosti ze šablony"
+  },
+  "z_3024": {
+   "source": "A new profile from a ready start: a web server, a mail server, a VPN gateway, an internal service, a wildcard, code signing.",
+   "text": "Nový profil z připraveného základu: webový server, poštovní server, VPN brána, interní služba, wildcard, podepisování kódu."
+  },
+  "z_3025": {
+   "source": "A new profile from a template",
+   "text": "Nový profil ze šablony"
+  },
+  "z_3026": {
+   "source": "Start from what most services need",
+   "text": "Začněte tím, co potřebuje většina služeb"
+  },
+  "z_3027": {
+   "source": "A template fills in a new request profile: the key types, what the certificate is used for, how many names, approval - fitted to the source you choose and to the company’s rules. It makes a normal profile you can change as any other; profiles already there stay as they are.",
+   "text": "Šablona vyplní nový profil žádosti: typy klíčů, k čemu certifikát slouží, kolik jmen, schvalování – přizpůsobené zvolenému zdroji a firemním pravidlům. Vznikne běžný profil, který můžete měnit jako každý jiný; existující profily zůstanou, jak jsou."
+  },
+  "z_3028": {
+   "source": "Within the CA/B Forum’s limits",
+   "text": "V limitech CA/B Fóra"
+  },
+  "z_3029": {
+   "source": "Complies",
+   "text": "Vyhovuje"
+  },
+  "z_3030": {
+   "source": "Complies, with warnings",
+   "text": "Vyhovuje, s varováním"
+  },
+  "z_3031": {
+   "source": "Does not comply",
+   "text": "Nevyhovuje"
+  },
+  "z_3032": {
+   "source": "No source fits",
+   "text": "Žádný zdroj nevyhovuje"
+  },
+  "z_3033": {
+   "source": "Your own CA",
+   "text": "Vlastní CA"
+  },
+  "z_3034": {
+   "source": "Needs an authority of acme’s own (Certificates → Sources)",
+   "text": "Potřebuje vlastní autoritu acme (Certifikáty → Zdroje)"
+  },
+  "z_3035": {
+   "source": "Add a source that can give it (Certificates → Sources)",
+   "text": "Přidejte zdroj, který ho umí vydat (Certifikáty → Zdroje)"
+  },
+  "z_3036": {
+   "source": "Every template",
+   "text": "Všechny šablony"
+  },
+  "z_3037": {
+   "source": "Name of the new profile",
+   "text": "Název nového profilu"
+  },
+  "z_3038": {
+   "source": "Shown to people on the portal. A name taken is refused - a template never changes a profile that is there.",
+   "text": "Zobrazuje se lidem na portálu. Obsazený název se odmítne – šablona nikdy nemění existující profil."
+  },
+  "z_3039": {
+   "source": "A name asked for must be one of them or under it.",
+   "text": "Požadované jméno musí být jednou z nich nebo pod ní."
+  },
+  "z_3040": {
+   "source": "Only the sources that can give what the template asks for.",
+   "text": "Jen zdroje, které umí vydat to, co šablona žádá."
+  },
+  "z_3041": {
+   "source": "How the source checks the names (Certificates → Validation).",
+   "text": "Jak zdroj ověřuje jména (Certifikáty → Validace)."
+  },
+  "z_3042": {
+   "source": "The profile it will be",
+   "text": "Profil, který vznikne"
+  },
+  "z_3043": {
+   "source": "Within the CA/Browser Forum’s limits and the company’s rules.",
+   "text": "V limitech CA/Browser Fóra i firemních pravidel."
+  },
+  "z_3044": {
+   "source": "Within the company’s rules.",
+   "text": "V mezích firemních pravidel."
+  },
+  "z_3045": {
+   "source": "Open in the editor…",
+   "text": "Otevřít v editoru…"
+  },
+  "z_3046": {
+   "source": "Make the profile",
+   "text": "Vytvořit profil"
+  },
+  "z_3047": {
+   "source": "Choose a source that fits first",
+   "text": "Nejdřív vyberte vyhovující zdroj"
+  },
+  "z_3048": {
+   "source": "Give the new profile a name",
+   "text": "Pojmenujte nový profil"
+  },
+  "z_3049": {
+   "source": "Say under which domains names may be asked for",
+   "text": "Uveďte, pod kterými doménami se smí žádat o jména"
+  },
+  "z_3050": {
+   "source": "one name",
+   "text": "jedno jméno"
+  },
+  "z_3051": {
+   "source": "the key stays with the person",
+   "text": "klíč zůstává u žadatele"
+  },
+  "z_3052": {
+   "source": "key here or a CSR",
+   "text": "klíč zde nebo CSR"
+  },
+  "z_3053": {
+   "source": "VPN gateway",
+   "text": "VPN brána"
+  },
+  "z_3054": {
+   "source": "Internal service",
+   "text": "Interní služba"
+  },
+  "z_3055": {
+   "source": "Load balancer / wildcard",
+   "text": "Load balancer / wildcard"
+  },
+  "z_3056": {
+   "source": "Code signing",
+   "text": "Podepisování kódu"
+  },
+  "z_3057": {
+   "source": "Mail servers",
+   "text": "Poštovní servery"
+  },
+  "z_3058": {
+   "source": "VPN gateways",
+   "text": "VPN brány"
+  },
+  "z_3059": {
+   "source": "Internal services",
+   "text": "Interní služby"
+  },
+  "z_3060": {
+   "source": "Load balancers (wildcard)",
+   "text": "Load balancery (wildcard)"
+  },
+  "z_3061": {
+   "source": "HTTPS for web sites and APIs: a TLS server certificate browsers trust.",
+   "text": "HTTPS pro weby a API: certifikát TLS serveru, kterému prohlížeče důvěřují."
+  },
+  "z_3062": {
+   "source": "SMTP, IMAP and POP3 over TLS - mail., smtp., imap., autodiscover. in one certificate; a server and a client of other mail servers.",
+   "text": "SMTP, IMAP a POP3 přes TLS – mail., smtp., imap., autodiscover. v jednom certifikátu; server i klient vůči jiným poštovním serverům."
+  },
+  "z_3063": {
+   "source": "The certificate of a VPN concentrator or firewall (IPsec, SSL VPN): a stronger key, a CSR from the device or a PFX to import.",
+   "text": "Certifikát VPN koncentrátoru nebo firewallu (IPsec, SSL VPN): silnější klíč, CSR ze zařízení nebo PFX k importu."
+  },
+  "z_3064": {
+   "source": "Servers inside the company that trust your own CA - a longer validity, more names, a server and a client.",
+   "text": "Servery uvnitř firmy, které důvěřují vaší vlastní CA – delší platnost, více jmen, server i klient."
+  },
+  "z_3065": {
+   "source": "One wildcard certificate for a load balancer or reverse proxy in front of many sites - it waits for approval before it is issued.",
+   "text": "Jeden wildcard certifikát pro load balancer nebo reverzní proxy před mnoha weby – před vydáním čeká na schválení."
+  },
+  "z_3066": {
+   "source": "Signing scripts, packages and programs inside the company with your own CA: the key stays with the developer (a CSR), each one approved.",
+   "text": "Podepisování skriptů, balíčků a programů ve firmě vlastní CA: klíč zůstává u vývojáře (CSR), každý se schvaluje."
+  },
+  "z_3067": {
+   "source": "it is switched off",
+   "text": "je vypnutý"
+  },
+  "z_3068": {
+   "source": "it gives no wildcard certificates",
+   "text": "nevydává wildcard certifikáty"
+  },
+  "z_3069": {
+   "source": "it signs no key type",
+   "text": "nepodepisuje žádný typ klíče"
+  },
+  "z_3070": {
+   "source": "key types the company's rules forbid are left out",
+   "text": "typy klíčů, které firemní pravidla zakazují, jsou vynechány"
+  },
+  "z_3071": {
+   "source": "no PFX with the key: the company's rules forbid it",
+   "text": "žádné PFX s klíčem: firemní pravidla to zakazují"
+  },
+  "z_3072": {
+   "source": "give the new profile a name",
+   "text": "pojmenujte nový profil"
+  },
+  "z_3073": {
+   "source": "the end comes before the start",
+   "text": "konec je před začátkem"
+  },
+  "z_3074": {
+   "source": "new or revoke",
+   "text": "new, nebo revoke"
+  },
+  "z_3075": {
+   "source": "whose link?",
+   "text": "čí odkaz?"
+  },
+  "z_3076": {
+   "source": "a new link to subscribe to - the one before no longer works",
+   "text": "nový odkaz k odebírání – ten předchozí už nefunguje"
+  },
+  "z_3077": {
+   "source": "the link no longer works",
+   "text": "odkaz už nefunguje"
+  },
+  "z_3078": {
+   "source": "there was no link",
+   "text": "žádný odkaz nebyl"
+  },
+  "z_3079": {
+   "source": "viewing as a member changes nothing",
+   "text": "zobrazení jako člen nic nemění"
+  },
+  "z_3080": {
+   "source": "too many searches at once - wait a moment",
+   "text": "příliš mnoho hledání najednou – chvíli počkejte"
+  },
+  "z_3081": {
+   "source": "certificates running out",
+   "text": "vypršení certifikátů"
+  },
+  "z_3082": {
+   "source": "few",
+   "text": "málo"
+  },
+  "z_3083": {
+   "source": "many",
+   "text": "hodně"
   }
  },
  "patterns": {
@@ -105897,6 +107437,522 @@
   "pz_936": {
    "source": "you may not see the team {0}",
    "text": "tým {0} vidět nesmíte"
+  },
+  "pz_937": {
+   "source": "{0} issuers",
+   "text": "vydavatelé: {0}"
+  },
+  "pz_938": {
+   "source": "{0} certificates picked",
+   "text": "vybrané certifikáty: {0}"
+  },
+  "pz_939": {
+   "source": "{0} made on the server",
+   "text": "vytvořené na serveru: {0}"
+  },
+  "pz_940": {
+   "source": "{0} with acme’s key",
+   "text": "s klíčem acme: {0}"
+  },
+  "pz_941": {
+   "source": "{0} certificates you may not see",
+   "text": "certifikáty, které nesmíte vidět: {0}"
+  },
+  "pz_942": {
+   "source": "Switch {0} certificates to a key made on the server",
+   "text": "Přejít u {0} certifikátů na klíč vytvořený na serveru"
+  },
+  "pz_943": {
+   "source": "switched - renewing now: {0}",
+   "text": "přepnuto – právě se obnovuje: {0}"
+  },
+  "pz_944": {
+   "source": "switches at its next renewal: {0}",
+   "text": "přejde při příští obnově: {0}"
+  },
+  "pz_945": {
+   "source": "{0} certificates: the key made here",
+   "text": "certifikáty s klíčem vytvořeným zde: {0}"
+  },
+  "pz_946": {
+   "source": "{0} certificates: acme’s key",
+   "text": "certifikáty s klíčem acme: {0}"
+  },
+  "pz_947": {
+   "source": "The agent would refuse the {0} certificates deployed here with acme’s key - let their key be made on the server first.",
+   "text": "Agent by odmítl certifikáty, které jsou sem nasazené s klíčem acme ({0}) – nejdřív nechte jejich klíč vytvořit na serveru."
+  },
+  "pz_948": {
+   "source": "{0} is not a name of a certificate (www.example.com, *.example.com or an address)",
+   "text": "{0} není jméno certifikátu (www.example.com, *.example.com nebo adresa)"
+  },
+  "pz_949": {
+   "source": "{0} would allow every name under a top-level domain - name the domain (*.example.com)",
+   "text": "{0} by povolilo každé jméno pod doménou nejvyšší úrovně – uveďte doménu (*.example.com)"
+  },
+  "pz_950": {
+   "source": "chains to one of {0} CAs the policy allows",
+   "text": "vede k jedné z CA, které politika povoluje ({0})"
+  },
+  "pz_951": {
+   "source": "every name one of {0}",
+   "text": "každé jméno je jedno z: {0}"
+  },
+  "pz_952": {
+   "source": "the policy does not allow the name {0} - the agent would refuse the certificate",
+   "text": "politika nepovoluje jméno {0} – agent by certifikát odmítl"
+  },
+  "pz_953": {
+   "source": "its key is made by {0} already",
+   "text": "jeho klíč už vytváří {0}"
+  },
+  "pz_954": {
+   "source": "it is deployed to {0} too - a key made on the server goes to that server alone",
+   "text": "je nasazen i na {0} – klíč vytvořený na serveru patří jen tomu jednomu serveru"
+  },
+  "pz_955": {
+   "source": "the agent's policy checks what it deploys ({0}): acme checked this certificate against it before sending - allowed; the agent checks it again itself",
+   "text": "politika agenta hlídá, co nasazuje ({0}): acme tento certifikát před odesláním proti ní zkontroloval – povoleno; agent ho zkontroluje znovu sám"
+  },
+  "pz_956": {
+   "source": "not sent: the policy of the agent on {0} refuses it (require key local): the key of this certificate is acme's - the agent takes only a key it made itself: let the key be made on the server (\"Key made by the device\")",
+   "text": "neodesláno: politika agenta na {0} ho odmítá (require key local): klíč tohoto certifikátu je klíč acme – agent přijme jen klíč, který vytvořil sám: nechte klíč vytvořit na serveru („Klíč vytváří zařízení“)"
+  },
+  "pz_957": {
+   "source": "not sent: the policy of the agent on {0} refuses it (allow issuer): the certificate {1} in the deployment is not issued by a CA the policy allows (issued by {2})",
+   "text": "neodesláno: politika agenta na {0} ho odmítá (allow issuer): certifikát {1} v nasazení nevydala CA, kterou politika povoluje (vydala ho {2})"
+  },
+  "pz_958": {
+   "source": "not sent: the policy of the agent on {0} refuses it (allow issuer): the certificate {1} in the deployment is not issued by a CA the policy allows (issued by {2}) - the job holds none of the CAs the policy names",
+   "text": "neodesláno: politika agenta na {0} ho odmítá (allow issuer): certifikát {1} v nasazení nevydala CA, kterou politika povoluje (vydala ho {2}) – úloha neobsahuje žádnou z CA, které politika uvádí"
+  },
+  "pz_959": {
+   "source": "not sent: the policy of the agent on {0} refuses it (allow names): the certificate {1} in the deployment holds the name {2} - the policy allows {3}",
+   "text": "neodesláno: politika agenta na {0} ho odmítá (allow names): certifikát {1} v nasazení obsahuje jméno {2} – politika povoluje {3}"
+  },
+  "pz_960": {
+   "source": "not sent: the policy of the agent on {0} refuses it (allow names): the certificate {1} holds the name {2} - the policy allows {3}",
+   "text": "neodesláno: politika agenta na {0} ho odmítá (allow names): certifikát {1} obsahuje jméno {2} – politika povoluje {3}"
+  },
+  "pz_961": {
+   "source": "refused by the policy of this machine (allow issuer): the certificate {0} in {1} is not issued by a CA the policy allows (issued by {2})",
+   "text": "odmítnuto politikou tohoto stroje (allow issuer): certifikát {0} v {1} nevydala CA, kterou politika povoluje (vydala ho {2})"
+  },
+  "pz_962": {
+   "source": "refused by the policy of this machine (allow issuer): the certificate {0} in {1} is not issued by a CA the policy allows (issued by {2}) - the job holds none of the CAs the policy names",
+   "text": "odmítnuto politikou tohoto stroje (allow issuer): certifikát {0} v {1} nevydala CA, kterou politika povoluje (vydala ho {2}) – úloha neobsahuje žádnou z CA, které politika uvádí"
+  },
+  "pz_963": {
+   "source": "refused by the policy of this machine (allow names): the certificate {0} in {1} holds the name {2} - the policy allows {3}",
+   "text": "odmítnuto politikou tohoto stroje (allow names): certifikát {0} v {1} obsahuje jméno {2} – politika povoluje {3}"
+  },
+  "pz_964": {
+   "source": "refused by the policy of this machine (require key local): {0} holds a private key this agent did not make - it takes only its own (let the agent make the key: \"Key made by the device\")",
+   "text": "odmítnuto politikou tohoto stroje (require key local): {0} obsahuje soukromý klíč, který tento agent nevytvořil – přijme jen vlastní (nechte klíč vytvořit agenta: „Klíč vytváří zařízení“)"
+  },
+  "pz_965": {
+   "source": "refused by the policy of this machine (require key local): the certificate {0} in {1} is not for a key this agent made - it takes only its own (let the agent make the key: \"Key made by the device\")",
+   "text": "odmítnuto politikou tohoto stroje (require key local): certifikát {0} v {1} není pro klíč, který vytvořil tento agent – přijme jen vlastní (nechte klíč vytvořit agenta: „Klíč vytváří zařízení“)"
+  },
+  "pz_966": {
+   "source": "refused by the policy of this machine ({0}): {1} is a PKCS#12 it cannot open - with it the agent deploys only what it looks into itself",
+   "text": "odmítnuto politikou tohoto stroje ({0}): {1} je PKCS#12, který nedokáže otevřít – s touto politikou agent nasadí jen to, do čeho sám nahlédne"
+  },
+  "pz_967": {
+   "source": "refused by the policy of this machine ({0}): {1} is a Java keystore - with it the agent deploys only what it looks into itself",
+   "text": "odmítnuto politikou tohoto stroje ({0}): {1} je úložiště klíčů Java – s touto politikou agent nasadí jen to, do čeho sám nahlédne"
+  },
+  "pz_968": {
+   "source": "checked by the policy here ({0}): {1}",
+   "text": "zkontrolováno politikou tady ({0}): {1}"
+  },
+  "pz_969": {
+   "source": "the key of {0} will be made on {1} (its agent) from its next renewal on - asked by {2}",
+   "text": "klíč certifikátu {0} bude od příští obnovy vytvářet {1} (jeho agent) – požádal(a) {2}"
+  },
+  "pz_970": {
+   "source": "the key of {0} is made on {1} (its agent) from now on - switched by {2}, renewed now",
+   "text": "klíč certifikátu {0} od teď vytváří {1} (jeho agent) – přepnul(a) {2}, obnovuje se hned"
+  },
+  "pz_971": {
+   "source": "the switch of {0} to a key made on the server was taken back by {1}",
+   "text": "přechod certifikátu {0} na klíč vytvořený na serveru vzal(a) zpět {1}"
+  },
+  "pz_972": {
+   "source": "the key of {0} was not switched to {1} at its renewal: {2}",
+   "text": "klíč certifikátu {0} se při obnově nepřepnul na {1}: {2}"
+  },
+  "pz_973": {
+   "source": "the key of {0} is made on {1} (its agent) from this renewal on - asked by {2}",
+   "text": "klíč certifikátu {0} od této obnovy vytváří {1} (jeho agent) – požádal(a) {2}"
+  },
+  "pz_974": {
+   "source": "allow issuer sha256={0}… (a CA more)",
+   "text": "allow issuer sha256={0}… (CA navíc)"
+  },
+  "pz_975": {
+   "source": "allow names {0} (a name more)",
+   "text": "allow names {0} (jméno navíc)"
+  },
+  "pz_976": {
+   "source": "{0} reports",
+   "text": "{0} {0:report|reporty|reportů}"
+  },
+  "pz_977": {
+   "source": "The next one is made {0}",
+   "text": "Další se vytvoří {0}"
+  },
+  "pz_978": {
+   "source": "Mailed to {0} addresses",
+   "text": "Posílá se na {0} {0:adresu|adresy|adres}"
+  },
+  "pz_979": {
+   "source": "Weekly on {0} at {1}",
+   "text": "Týdně – {0} v {1}"
+  },
+  "pz_980": {
+   "source": "Monthly on day {0} at {1}",
+   "text": "Měsíčně – {0}. den v {1}"
+  },
+  "pz_981": {
+   "source": "{0} rows",
+   "text": "{0} {0:řádek|řádky|řádků}"
+  },
+  "pz_982": {
+   "source": "The first {0} rows of {1} - the files have every one.",
+   "text": "Prvních {0} řádků z {1} – soubory obsahují všechny."
+  },
+  "pz_983": {
+   "source": "Run {0} now",
+   "text": "Spustit {0} teď"
+  },
+  "pz_984": {
+   "source": "Runs of {0}",
+   "text": "Spuštění reportu {0}"
+  },
+  "pz_985": {
+   "source": "Made by {0}",
+   "text": "Vytvořil(a) {0}"
+  },
+  "pz_986": {
+   "source": "mailed to {0}",
+   "text": "odesláno na {0}"
+  },
+  "pz_987": {
+   "source": "Delete {0}",
+   "text": "Smazat {0}"
+  },
+  "pz_988": {
+   "source": "The report {0} and every run kept of it are deleted. Files already downloaded or mailed stay where they are.",
+   "text": "Report {0} i všechna jeho uložená spuštění se smažou. Soubory, které už byly staženy nebo odeslány, zůstanou, kde jsou."
+  },
+  "pz_989": {
+   "source": "Change {0}",
+   "text": "Upravit {0}"
+  },
+  "pz_990": {
+   "source": "Certificates ending within {0} days",
+   "text": "Certifikáty končící do {0} dní"
+  },
+  "pz_991": {
+   "source": "Every day at {0}",
+   "text": "Každý den v {0}"
+  },
+  "pz_992": {
+   "source": "Every {0} at {1}",
+   "text": "Každý týden – {0} v {1}"
+  },
+  "pz_993": {
+   "source": "Next: {0}",
+   "text": "Příště: {0}"
+  },
+  "pz_994": {
+   "source": "Last: nothing to tell, not sent {0}",
+   "text": "Naposledy: nebylo co hlásit, neodesláno {0}"
+  },
+  "pz_995": {
+   "source": "Last sent {0}",
+   "text": "Naposledy odesláno {0}"
+  },
+  "pz_996": {
+   "source": "Last not sent {0}",
+   "text": "Naposledy neodesláno {0}"
+  },
+  "pz_997": {
+   "source": "Send the digest of {0} now",
+   "text": "Odeslat souhrn týmu {0} teď"
+  },
+  "pz_998": {
+   "source": "Digest of {0}: preview",
+   "text": "Souhrn týmu {0}: náhled"
+  },
+  "pz_999": {
+   "source": "To {0} recipients",
+   "text": "{0} {0:příjemci|příjemcům|příjemcům}"
+  },
+  "pz_1000": {
+   "source": "Digest of {0}",
+   "text": "Souhrn týmu {0}"
+  },
+  "pz_1001": {
+   "source": "An access review of the team {0}",
+   "text": "Revize přístupů týmu {0}"
+  },
+  "pz_1002": {
+   "source": "Asked for by {0} on {1}",
+   "text": "Požádal(a) {0} dne {1}"
+  },
+  "pz_1003": {
+   "source": "Attached: {0}. The report is also kept in acme: Settings → Reports.",
+   "text": "V příloze: {0}. Report je uložený i v acme: Nastavení → Reporty."
+  },
+  "pz_1004": {
+   "source": "Certificates that end within {0} days, soonest first.",
+   "text": "Certifikáty, které skončí do {0} dní, nejdřívější první."
+  },
+  "pz_1005": {
+   "source": "For {0} h in the team {1}",
+   "text": "Na {0} h v týmu {1}"
+  },
+  "pz_1006": {
+   "source": "Made by acme on {0}, {1}.",
+   "text": "Vytvořilo acme na {0}, {1}."
+  },
+  "pz_1007": {
+   "source": "Page {0} of {1}",
+   "text": "Strana {0} z {1}"
+  },
+  "pz_1008": {
+   "source": "Sent by acme from {0} to the team {1}. Owners and teams → {1} → Digest says who gets it and when.",
+   "text": "Odeslalo acme z {0} týmu {1}. Kdo ho dostává a kdy, určuje Vlastníci a týmy → {1} → Souhrn."
+  },
+  "pz_1009": {
+   "source": "Since {0}, as of {1}.",
+   "text": "Od {0}, stav k {1}."
+  },
+  "pz_1010": {
+   "source": "The certificate {0} waits for approval",
+   "text": "Certifikát {0} čeká na schválení"
+  },
+  "pz_1011": {
+   "source": "The first {0} rows of {1} (the CSV file has every one)",
+   "text": "Prvních {0} řádků z {1} (soubor CSV obsahuje všechny)"
+  },
+  "pz_1012": {
+   "source": "The first {0} rows",
+   "text": "{0:První|První|Prvních} {0} {0:řádek|řádky|řádků}"
+  },
+  "pz_1013": {
+   "source": "What needs the team {0}",
+   "text": "Co potřebuje tým {0}"
+  },
+  "pz_1014": {
+   "source": "ending within {0} days",
+   "text": "končí do {0} dní"
+  },
+  "pz_1015": {
+   "source": "{0} asks for the role {1}",
+   "text": "{0} žádá o roli {1}"
+  },
+  "pz_1016": {
+   "source": "{0} ending",
+   "text": "{0} {0:končí|končí|končí}"
+  },
+  "pz_1017": {
+   "source": "{0} members to confirm by {1}",
+   "text": "{0} {0:člen|členové|členů} k potvrzení do {1}"
+  },
+  "pz_1018": {
+   "source": "{0} temporary roles",
+   "text": "{0} {0:dočasná role|dočasné role|dočasných rolí}"
+  },
+  "pz_1019": {
+   "source": "not heard from since {0}",
+   "text": "neozval se od {0}"
+  },
+  "pz_1020": {
+   "source": "last error: {0}",
+   "text": "poslední chyba: {0}"
+  },
+  "pz_1021": {
+   "source": "the report {0} was saved",
+   "text": "report {0} byl uložen"
+  },
+  "pz_1022": {
+   "source": "the report {0} was made",
+   "text": "report {0} byl vytvořen"
+  },
+  "pz_1023": {
+   "source": "the report {0} was made and sent",
+   "text": "report {0} byl vytvořen a odeslán"
+  },
+  "pz_1024": {
+   "source": "the report {0} was made - it was not sent: {1}",
+   "text": "report {0} byl vytvořen – neodešel: {1}"
+  },
+  "pz_1025": {
+   "source": "the report {0} was deleted",
+   "text": "report {0} byl smazán"
+  },
+  "pz_1026": {
+   "source": "the digest of the team {0} was saved",
+   "text": "souhrn týmu {0} byl uložen"
+  },
+  "pz_1027": {
+   "source": "a preview of the digest went to {0}",
+   "text": "náhled souhrnu odešel na {0}"
+  },
+  "pz_1028": {
+   "source": "you may not see the report {0}",
+   "text": "report {0} nesmíte vidět"
+  },
+  "pz_1029": {
+   "source": "there is a report {0} already",
+   "text": "report {0} už existuje"
+  },
+  "pz_1030": {
+   "source": "{0} is not a member of the team {1}",
+   "text": "{0} není členem týmu {1}"
+  },
+  "pz_1031": {
+   "source": "the digest of the team {0} goes to nobody: its contact address or members with an address",
+   "text": "souhrn týmu {0} nemá komu jít: chybí kontaktní adresa týmu nebo členové s adresou"
+  },
+  "pz_1032": {
+   "source": "{0} run out",
+   "text": "{0} {0:vyprší|vyprší|vyprší}"
+  },
+  "pz_1033": {
+   "source": "{0} renewed by acme",
+   "text": "{0} {0:obnoví|obnoví|obnoví} acme"
+  },
+  "pz_1034": {
+   "source": "The week of {0}: {1} run out",
+   "text": "Týden od {0}: {1} {1:vyprší|vyprší|vyprší}"
+  },
+  "pz_1035": {
+   "source": "The week of {0}",
+   "text": "Týden od {0}"
+  },
+  "pz_1036": {
+   "source": "in {0} days",
+   "text": "za {0} {0:den|dny|dní}"
+  },
+  "pz_1037": {
+   "source": "{0} certificate(s) in the file",
+   "text": "{0} {0:certifikát|certifikáty|certifikátů} v souboru"
+  },
+  "pz_1038": {
+   "source": "You have a link, made {0}.",
+   "text": "Odkaz máte, vytvořen {0}."
+  },
+  "pz_1039": {
+   "source": "Last asked {0}.",
+   "text": "Naposledy načten {0}."
+  },
+  "pz_1040": {
+   "source": "up to {0} names",
+   "text": "až {0} {0:jméno|jména|jmen}"
+  },
+  "pz_1041": {
+   "source": "valid for {0} days",
+   "text": "platnost {0} {0:den|dny|dní}"
+  },
+  "pz_1042": {
+   "source": "The request profile {0} is made - change anything in it",
+   "text": "Profil žádosti {0} je vytvořen – změňte v něm cokoli"
+  },
+  "pz_1043": {
+   "source": "ran out {0} days ago",
+   "text": "vypršel před {0} {0:dnem|dny|dny}"
+  },
+  "pz_1044": {
+   "source": "Certificates by name, SAN or serial, targets, agents, teams, settings, events - and actions. Also {0}.",
+   "text": "Certifikáty podle jména, SAN nebo sériového čísla, cíle, agenti, týmy, nastavení, události – a akce. Také {0}."
+  },
+  "pz_1045": {
+   "source": "it does not put the extended key usage {0} into what it signs",
+   "text": "do podepsaného nevkládá rozšířené použití klíče {0}"
+  },
+  "pz_1046": {
+   "source": "{0} signs only a key acme makes - no CSR",
+   "text": "{0} podepisuje jen klíč, který vytvoří acme – bez CSR"
+  },
+  "pz_1047": {
+   "source": "acme makes the key: {0} takes no CSR",
+   "text": "klíč vytvoří acme: {0} nepřijímá CSR"
+  },
+  "pz_1048": {
+   "source": "the validity is the company's longest: {0} days",
+   "text": "platnost je nejdelší firemní: {0} {0:den|dny|dní}"
+  },
+  "pz_1049": {
+   "source": "there is no template {0} ({1})",
+   "text": "šablona {0} neexistuje ({1})"
+  },
+  "pz_1050": {
+   "source": "the source {0} does not fit the template {1}: {2}",
+   "text": "zdroj {0} nevyhovuje šabloně {1}: {2}"
+  },
+  "pz_1051": {
+   "source": "no source here fits the template {0}",
+   "text": "šabloně {0} tu nevyhovuje žádný zdroj"
+  },
+  "pz_1052": {
+   "source": "no source here fits the template {0} - it needs an authority of acme's own (Certificates → Sources)",
+   "text": "šabloně {0} tu nevyhovuje žádný zdroj – potřebuje vlastní autoritu acme (Certifikáty → Zdroje)"
+  },
+  "pz_1053": {
+   "source": "there is a request profile called {0} already - a template never changes one; choose another name",
+   "text": "profil žádosti {0} už existuje – šablona nikdy nemění existující; zvolte jiný název"
+  },
+  "pz_1054": {
+   "source": "{0} proves names: add a validation first (Certificates → Validation)",
+   "text": "{0} ověřuje jména: nejdřív přidejte validaci (Certifikáty → Validace)"
+  },
+  "pz_1055": {
+   "source": "the request profile {0} was made from the template {1}",
+   "text": "profil žádosti {0} byl vytvořen ze šablony {1}"
+  },
+  "pz_1056": {
+   "source": "made from the template {0}",
+   "text": "vytvořen ze šablony {0}"
+  },
+  "pz_1057": {
+   "source": "at most {0} days at once",
+   "text": "nejvýš {0} {0:den|dny|dní} najednou"
+  },
+  "pz_1058": {
+   "source": "at most {0} characters are searched for",
+   "text": "hledá se nejvýš {0} {0:znak|znaky|znaků}"
+  },
+  "pz_1059": {
+   "source": "{0} has no calendar link",
+   "text": "{0} nemá odkaz na kalendář"
+  },
+  "pz_1060": {
+   "source": "the calendar link of {0} no longer works",
+   "text": "odkaz na kalendář účtu {0} už nefunguje"
+  },
+  "pz_1061": {
+   "source": "{0} calendar link(s) no longer work",
+   "text": "{0} {0:odkaz|odkazy|odkazů} na kalendář už {0:nefunguje|nefungují|nefunguje}"
+  },
+  "pz_1062": {
+   "source": "{0} made a link to subscribe to the calendar of their certificates",
+   "text": "{0} vytvořil(a) odkaz k odebírání kalendáře svých certifikátů"
+  },
+  "pz_1063": {
+   "source": "the calendar link of {0} was taken back by {1}",
+   "text": "odkaz na kalendář účtu {0} zrušil(a) {1}"
+  },
+  "pz_1064": {
+   "source": "The certificate {0} runs out",
+   "text": "Certifikát {0} vyprší"
+  },
+  "pz_1065": {
+   "source": "acme renews the certificate {0}",
+   "text": "acme obnoví certifikát {0}"
   }
  },
  "rich": {
