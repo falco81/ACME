@@ -89,10 +89,14 @@ def certs(store, s, q, n):
                  "LOWER(COALESCE(fingerprint, '')) LIKE ? ESCAPE '!'"]
         args += [E.like_pattern(serial) + '%', E.like_pattern(serial) + '%']
     sw, sa = T.where(store, s, 'view')
+    # the name itself, then a name that starts with it, before the rest - ranked in SQL, before
+    # the LIMIT: an exact name went missing behind 24 others holding the words (hunt v1)
+    first = ("CASE WHEN LOWER(name) = ? THEN 0 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 1 "
+             "WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END")
     rows = store.db.rows('SELECT id, name, cn, names, serial, owner, issuer, state, not_after FROM '
-                         'certs WHERE (%s)%s ORDER BY %s LIMIT %d' % (
-                             ' OR '.join(cond), sw, store.db.name_order(), n * 3),
-                         tuple(args) + tuple(sa))
+                         'certs WHERE (%s)%s ORDER BY %s, %s LIMIT %d' % (
+                             ' OR '.join(cond), sw, first, store.db.name_order(), n * 3),
+                         tuple(args) + tuple(sa) + (ql, E.like_pattern(ql) + '%', like))
 
     def rank(r):
         nm = str(r['name'] or '').lower()
@@ -129,11 +133,23 @@ def targets(store, s, q, n):
     from acmelib.certs import teams as T
     like = _like(q)
     sc = T.scope(store, s, 'view')
+    # kept to the session's teams in SQL, before the LIMIT (hunt v1): other teams' targets
+    # holding the words filled it, and a member found none of their own
+    own, oargs = '', ()
+    if sc is not None:
+        part = sorted(sc)
+        own = " AND (TRIM(COALESCE(owner, '')) = ''%s)" % (
+            " OR LOWER(TRIM(owner)) IN (%s)" % ', '.join('?' * len(part)) if part else '')
+        oargs = tuple(part)
+    ql0 = q.lower()
     rows = store.db.rows("SELECT id, name, kind, config, tags, owner, enabled FROM cert_targets "
-                         "WHERE LOWER(name) LIKE ? ESCAPE '!' OR LOWER(COALESCE(kind, '')) LIKE ? "
+                         "WHERE (LOWER(name) LIKE ? ESCAPE '!' OR LOWER(COALESCE(kind, '')) LIKE ? "
                          "ESCAPE '!' OR LOWER(COALESCE(tags, '')) LIKE ? ESCAPE '!' OR "
-                         "LOWER(COALESCE(config, '')) LIKE ? ESCAPE '!' ORDER BY name LIMIT %d"
-                         % (n * 6), (like, like, like, like))
+                         "LOWER(COALESCE(config, '')) LIKE ? ESCAPE '!')%s ORDER BY CASE WHEN "
+                         "LOWER(name) = ? THEN 0 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 1 WHEN "
+                         "LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END, %s LIMIT %d"
+                         % (own, store.db.name_order(), n * 6),
+                         (like, like, like, like) + oargs + (ql0, E.like_pattern(ql0) + '%', like))
     out = {'target': [], 'agent': []}
     ql = q.lower()
     for r in rows:

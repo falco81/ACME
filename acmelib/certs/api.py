@@ -3770,3 +3770,4 @@ from acmelib.certs import api_search  # noqa: E402,F401  (the global search of C
 from acmelib.certs import expirycal  # noqa: E402,F401  (the expiry calendar, its iCalendar, 1.0.140)
 from acmelib.certs import reqprofiles_templates  # noqa: E402,F401  (request profiles from a template, 1.0.140)
 from acmelib.certs import api_reports  # noqa: E402,F401  (Settings → Reports, a team's digest, 1.0.140)
+from acmelib.certs import api_history  # noqa: E402,F401  (history, trash, saved views - on the command line too, 1.0.140)

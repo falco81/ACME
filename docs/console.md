@@ -138,7 +138,9 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   asked, and the rest of those pages; isemon's **first full sync** (1.0.77).
 
 - **Reports and team digests** (`p`, 1.0.140): the reports (show, run now, run and mail,
-  their runs, change, delete; add one) and each team's digest (show, set, preview, send now) -
+  their runs, save a run's CSV or PDF on this machine, change - with the runs kept, the days
+  ahead and a paused schedule - delete; add one) and each team's digest (show, set - with the
+  teams below and the language - preview, mail a preview to an address, send now) -
   `acme --reports`, `--report-...`, `--team-digest...` ([command-line.md](command-line.md)).
 
 ## The live views

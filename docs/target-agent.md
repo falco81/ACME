@@ -726,9 +726,12 @@ require key local                # its key must be one this agent made - acme's 
   allowed CA - the same key - counts too). The CA may be the root or an intermediate. acme sends,
   besides, the certificates of the allowed CAs it knows (the top of a path the chain leaves out).
 * **allow names**: every name of every end certificate (its DNS and IP subjectAltNames, a common
-  name that is a name) must match one of the patterns - the same name, or `*.example.com` for
-  exactly one label more (`www.example.com`; not `example.com`, not `a.b.example.com`); a
-  wildcard certificate only by the same wildcard. A pattern over a whole top-level domain
+  name that is a name - every one of them, a second common name too) must match one of the
+  patterns - the same name, or `*.example.com` for exactly one label more (`www.example.com`;
+  not `example.com`, not `a.b.example.com`); a wildcard certificate only by the same wildcard.
+  A CA certificate counts as one of the chain (its names not judged) only when it signed another
+  certificate written (its signature checked), has no subjectAltName and its key is not written
+  with it - a self-signed `CA:TRUE` certificate for a name is an end certificate. A pattern over a whole top-level domain
   (`*.com`) is not read. `allow names` without `allow issuer` is a warning of `policy check`:
   name the CAs too.
 * **require key local**: every private key written - in a key file, a combined PEM, a PKCS#12 -

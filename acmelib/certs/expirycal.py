@@ -341,7 +341,15 @@ def feed_new(store, who, lang='en'):
     tok = secrets.token_urlsafe(32)
     h = _hash(tok)
     lang = lang if re.fullmatch(r'[a-z]{2}', str(lang or '')) else 'en'
-    store.set_meta(META_FEED + h, json.dumps({'who': str(who), 'made': time.time(), 'lang': lang}))
+    rec = {'who': str(who), 'made': time.time(), 'lang': lang}
+    # which account it is (hunt v1): a new account of the same name - somebody else, made after
+    # this one was deleted, or a directory name given to another person - gets nothing from it
+    acc = store.account(who) or {}
+    if acc.get('created'):
+        rec['acc_created'] = acc['created']
+    if acc.get('dn'):
+        rec['acc_dn'] = str(acc['dn']).lower()
+    store.set_meta(META_FEED + h, json.dumps(rec))
     store.set_meta(META_FEED_OF + str(who).lower(), h)
     store.add_event('accounts', '%s made a link to subscribe to the calendar of their '
                                 'certificates' % who, who=str(who))
@@ -388,8 +396,40 @@ def feed_session(store, token):
     acc = store.account(got['who'], checked=True)
     if not acc or acc.get('disabled') or not E.ROLE_RANK.get(acc.get('role') or ''):
         return None, None
+    if not same_account(got, acc):
+        return None, None
     return {'id': 0, 'name': acc['name'], 'role': acc['role'], 'kind': 'admin', 'account': acc,
             'feed': True}, got
+
+
+def same_account(got, acc):
+    """Whether the account is the one the link was made for (a link from before 1.0.140's hunt
+    v1, without the mark: as it was)."""
+    if got.get('acc_created') is not None:
+        try:
+            if abs(float(acc.get('created') or 0) - float(got['acc_created'])) > 0.001:
+                return False
+        except (TypeError, ValueError):
+            return False
+    if got.get('acc_dn') and str(acc.get('dn') or '').lower() != got['acc_dn']:
+        return False
+    return True
+
+
+def _directory_now(h, s):
+    """A directory account asked about again, as a sign-in is (engine directory_recheck, every
+    ten minutes): out of the directory, or of every group that gives it a role here - None."""
+    acc = s.get('account') or {}
+    check = getattr(h, 'directory_recheck', None)
+    if acc.get('source') != 'directory' or check is None:
+        return s
+    try:
+        acc = check(acc)
+    except E.ApiError:
+        return None
+    if not acc or acc.get('disabled') or not E.ROLE_RANK.get(acc.get('role') or ''):
+        return None
+    return dict(s, role=acc['role'], account=acc)
 
 
 def _view_as(s):
@@ -478,6 +518,8 @@ def _feed(h):
     """What calendar.php asks with the secret of the link - not a session."""
     tok = str(h.headers.get('X-Acme-Calfeed') or '')
     s, got = feed_session(h.store, tok)
+    if s:
+        s = _directory_now(h, s)
     if not s:
         raise E.ApiError(404, 'no such calendar - the link was taken back, or its account '
                               'may no longer sign in')

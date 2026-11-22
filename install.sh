@@ -1101,6 +1101,7 @@ if 'location = /calendar.ics' not in text and 'location /assets/' in text:
         include        fastcgi_params;
         fastcgi_read_timeout 15s;
         access_log off;
+        limit_req_log_level info;
     }
 
 """ % (('        limit_req zone=%s burst=10 nodelay;\n        limit_req_status 429;\n' % zone.group(1)) if zone else '',

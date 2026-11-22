@@ -1425,7 +1425,39 @@ GUARD_CERTS_MOST = 64           # certificates looked at in one job
 GUARD_NAMES_MOST = 500          # names in the policy
 GUARD_ISSUERS_MOST = 64
 NAME_PAT_RE = re.compile(r'(\*\.)?[a-z0-9_]([a-z0-9_-]{0,62})(\.[a-z0-9_]([a-z0-9_-]{0,62}))*\Z')
-PEM_BLOCK_RE = re.compile(rb'-----BEGIN ([A-Z0-9 ]{1,40})-----\r?\n.*?-----END \1-----', re.S)
+# (openssl reads a block whose BEGIN line ends in spaces, tabs or a CR too - so does the guard)
+PEM_BLOCK_RE = re.compile(rb'-----BEGIN ([A-Z0-9 ]{1,40})-----[ \t\r]*\n.*?-----END \1-----', re.S)
+
+
+def _dn_values(dn, key='CN'):
+    """Every value of `key` in a name as openssl prints it with -nameopt RFC2253 - a second
+    common name, one of a multi-valued RDN (CN=a+CN=b) too."""
+    parts, cur, esc = [], [], False
+    for ch in str(dn or ''):
+        if esc:
+            cur.append('\\' + ch)
+            esc = False
+        elif ch == '\\':
+            esc = True
+        elif ch in ',+':
+            parts.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    parts.append(''.join(cur))
+    out = []
+    for p in parts:
+        k, eq, v = p.partition('=')
+        if not eq or k.strip().upper() != key:
+            continue
+        raw = bytearray()
+        for m in re.finditer(r'\\([0-9A-Fa-f]{2})|\\(.)|(.)', v.strip(), re.S):
+            if m.group(1):
+                raw.append(int(m.group(1), 16))
+            else:
+                raw += (m.group(2) or m.group(3)).encode('utf-8')
+        out.append(raw.decode('utf-8', 'replace'))
+    return out
 
 
 def name_pattern(word):
@@ -1545,6 +1577,8 @@ class _Guard(object):
         for m in PEM_BLOCK_RE.finditer(data):
             label = m.group(1).decode('ascii', 'replace')
             block = m.group(0).decode('ascii', 'replace').replace('\r\n', '\n') + '\n'
+            # the BEGIN line as Python's PEM reader takes it (openssl takes it with spaces too)
+            block = re.sub(r'\A(-----BEGIN [A-Z0-9 ]+-----)[ \t\r]*\n', r'\1\n', block)
             if label in ('CERTIFICATE', 'X509 CERTIFICATE', 'TRUSTED CERTIFICATE'):
                 if label != 'CERTIFICATE':
                     ok, out = self.run(['x509', '-in', self.file(block)])
@@ -1587,7 +1621,48 @@ class _Guard(object):
             return out
         if b'-----BEGIN ' in data[:65536] or b'-----BEGIN ' in data:
             out['certs'], out['keys'], _other = self.pem_blocks(data)
+            # every certificate openssl itself reads from the file (what a server loads) -
+            # one the blocks above did not see is looked at all the same
+            have = set()
+            for c in out['certs']:
+                try:
+                    have.add(fp_of_pem(c))
+                except (ValueError, TypeError):
+                    pass
+            ok, p7 = self.run(['crl2pkcs7', '-nocrl', '-certfile', self.file(data)])
+            if ok and 'BEGIN PKCS7' in p7:
+                ok, txt = self.run(['pkcs7', '-print_certs', '-in', self.file(p7)])
+                if ok:
+                    for b in PEM_BLOCK_RE.finditer(txt.encode('utf-8')):
+                        if b.group(1) != b'CERTIFICATE':
+                            continue
+                        c = b.group(0).decode('ascii') + '\n'
+                        try:
+                            if fp_of_pem(c) not in have:
+                                have.add(fp_of_pem(c))
+                                out['certs'].append(c)
+                        except (ValueError, TypeError):
+                            continue
+            if data.lstrip()[:11] == b'-----BEGIN ':
+                return out
+            # binary (a DER certificate, a PKCS#12) with the bytes of a BEGIN line in it - a
+            # name of it: read as what it is too, every certificate and key of both looked at
+            more = self.binary(label, data, fmt, password)
+            if more['unread']:
+                if fmt in ('pfx', 'p12', 'p12-legacy', 'jks', 'der', 'cert-der',
+                           'key-der') or password is not None:
+                    return more
+                return out
+            for c in more['certs']:
+                if c not in out['certs']:
+                    out['certs'].append(c)
+            out['keys'] += [k for k in more['keys'] if k not in out['keys']]
             return out
+        return self.binary(label, data, fmt, password)
+
+    def binary(self, label, data, fmt='', password=None):
+        """What a file that is no PEM holds (DER, PKCS#7, a key, PKCS#12)."""
+        out = {'label': label, 'certs': [], 'keys': [], 'unread': ''}
         if fmt == 'jks':
             out['unread'] = 'a Java keystore'
             return out
@@ -1626,13 +1701,15 @@ class _Guard(object):
         if fp in self.looked:
             return self.looked[fp]
         fn = self.file(pem)
+        # basicConstraints apart from subjectAltName: a name of the certificate (a DNS name may
+        # hold "CA:TRUE", even a new line) never reads as what the certificate is
         ok, txt = self.run(['x509', '-in', fn, '-noout', '-subject', '-issuer', '-nameopt',
-                            'RFC2253', '-ext', 'subjectAltName,basicConstraints'])
-        if not ok:
+                            'RFC2253', '-ext', 'basicConstraints'])
+        ok2, san = self.run(['x509', '-in', fn, '-noout', '-ext', 'subjectAltName'])
+        if not ok or not ok2:
             raise Refused('a certificate of the job cannot be read by openssl')
         f = {'fp': fp, 'ca': False, 'names': [], 'subject': '', 'issuer': '', 'file': fn}
-        lines = txt.splitlines()
-        for i, line in enumerate(lines):
+        for line in txt.splitlines():
             s = line.strip()
             if s.startswith('subject='):
                 f['subject'] = s[8:].strip()
@@ -1640,28 +1717,42 @@ class _Guard(object):
                 f['issuer'] = s[7:].strip()
             elif 'CA:TRUE' in s.replace(' ', ''):
                 f['ca'] = True
-            elif 'Subject Alternative Name' in s and i + 1 < len(lines):
-                for part in lines[i + 1].split(','):
+        lines = san.splitlines()
+        if lines and 'Subject Alternative Name' in lines[0]:
+            for line in lines[1:]:
+                for part in line.split(','):
                     part = part.strip()
                     if part.startswith('DNS:'):
                         f['names'].append(part[4:].strip())
                     elif part.startswith('IP Address:'):
                         f['names'].append(part[11:].strip())
-        m = re.search(r'(?:^|,)CN=((?:[^,\\]|\\.)+)', f['subject'])
-        cn = m.group(1).strip() if m else ''
-        try:
-            cn_ok = bool(cn) and (bool(ipaddress.ip_address(cn)) or True)
-        except ValueError:
-            cn_ok = bool(DNS_RE.match(cn)) and '.' in cn
-        if cn_ok and cn.lower() not in [x.lower() for x in f['names']]:
-            f['names'].append(cn)
-        f['cn'] = cn
+        f['san'] = bool(f['names'])
+        # every common name (a second one, CN=a+CN=b) - a client that reads the name from it
+        # may take any of them
+        cns = [c.strip() for c in _dn_values(f['subject'], 'CN')]
+        for cn in cns:
+            bare = cn.rstrip('.')
+            try:
+                cn_ok = bool(bare) and (bool(ipaddress.ip_address(bare)) or True)
+            except ValueError:
+                cn_ok = bool(DNS_RE.match(bare)) and '.' in bare
+            if cn_ok and bare.lower() not in [x.lower().rstrip('.') for x in f['names']]:
+                f['names'].append(cn)
+        f['cn'] = cns[0] if cns else ''
         try:
             f['spki'] = spki_fp(pem)
         except (Refused, ValueError):
             f['spki'] = ''
         self.looked[fp] = f
         return f
+
+    def issued(self, ca, child):
+        """Whether the CA (a look) signed `child` (a look) - its signature checked."""
+        if not ca['ca'] or ca['fp'] == child['fp'] or child['issuer'] != ca['subject']:
+            return False
+        ok, out = self.run(['verify', '-no_check_time', '-partial_chain', '-trusted', ca['file'],
+                            child['file']])
+        return ok and out.strip().endswith('OK')
 
     def chains_to(self, pem, anchors, pool):
         """Whether openssl builds a path from `pem` to one of `anchors` (PEM, the allowed CAs
@@ -1791,9 +1882,20 @@ def guard_check(pol, mats, pool=(), own=None, top=None):
                 said.append('every certificate chains to a CA the policy allows')
         # allow names: every name of every end certificate allowed
         if pol.get('names'):
-            subjects = {f['issuer'] for _l, _c, f in seen}
+            # a CA of the chain (no end certificate, its names not judged): a CA certificate
+            # with no name of a server (subjectAltName) that signed another certificate written
+            # - its signature checked, not only its name - and whose key is not written with
+            # it; any other (a self-signed CA:TRUE certificate for www.example.com) is judged
+            # as an end certificate
+            key_fps = set()
+            for _l, k in keys:
+                try:
+                    key_fps.add(spki_fp(k))
+                except (Refused, ValueError):
+                    pass
             for label, c, f in seen:
-                if f['ca'] and (f['subject'] in subjects or f['subject'] == f['issuer']):
+                if f['ca'] and not f['san'] and not (f['spki'] and f['spki'] in key_fps) and \
+                        any(g.issued(f, o) for _l2, _c2, o in seen):
                     continue        # a CA of the chain: no name of a server
                 for n in f['names'] or []:
                     if not name_allowed(pol['names'], n):

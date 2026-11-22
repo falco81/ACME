@@ -691,7 +691,9 @@ default). The first one goes at the next moment chosen after it was switched on 
 preview to me** mails it to one's own account address only. A full administrator **sets** it
 and may **Send now** (to its recipients at once, an empty one too). The node that leads the
 cluster sends it, once per period (`meta` `digest:period:<team id>`); with mail switched off
-nothing is sent and the event says so. Every sending (and every one not sent) is an event naming
+nothing is sent and the event says so; a digest that did not go (mail off, the mail server
+refused it) leaves its time to the next one, so nothing that failed in between is left out.
+Every sending (and every one not sent) is an event naming
 the team - its Activity shows it. The settings are kept in the team's `extras` (`digest`), so
 they go with the team into backups, the configuration's export and replication.
 

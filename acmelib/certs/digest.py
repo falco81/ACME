@@ -557,6 +557,10 @@ def build(store, team, cfg, lang, since, now=None, preview=False):
 def _since(store, t, cfg, now=None):
     now = now or _now()
     lt = last(store, t)
+    if lt.get('ok') is False and lt.get('since'):
+        # the last one did not go (mail off, the mail server refused): the next covers its
+        # time too - what failed then was in no mail at all
+        return float(lt['since'])
     if lt.get('at'):
         return float(lt['at'])
     return now - (86400 if cfg.get('every') == 'daily' else 7 * 86400)

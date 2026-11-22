@@ -82,7 +82,9 @@ ZEBRA = (0.976, 0.980, 0.984)
 def encode(text):
     """Bytes of the fonts' encoding for `text`."""
     out = bytearray()
-    for ch in str(text if text is not None else ''):
+    # composed first: a name written decomposed (c + a combining caron, as macOS and some
+    # directories keep it) came out as "c?" - the mark alone has no glyph
+    for ch in unicodedata.normalize('NFC', str(text if text is not None else '')):
         ch = _SAY.get(ch, ch)
         for c in ch:
             o = ord(c)

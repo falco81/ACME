@@ -120,8 +120,10 @@ def _sched(raw):
     s = S.jload(raw, {}) if not isinstance(raw, dict) else raw
     s = s if isinstance(s, dict) else {}
     every = s.get('every') if s.get('every') in EVERY else 'off'
-    return {'every': every, 'day': int(s.get('day') or 1), 'hour': int(s.get('hour') or 7),
-            'since': float(s.get('since') or 0)}
+    # hour 0 (midnight) is an hour: `or 7` made a report set for 00:00 come at 07:00
+    hour = s.get('hour')
+    return {'every': every, 'day': int(s.get('day') or 1),
+            'hour': 7 if hour in (None, '') else int(hour), 'since': float(s.get('since') or 0)}
 
 
 def public(r):
@@ -312,6 +314,42 @@ def may_see(store, s, rep):
         return True
     teams = [_low(t) for t in public(rep)['teams']]
     return bool(teams) and all(t in sc for t in teams)
+
+
+def may_see_run(store, s, rep, run):
+    """A run is seen by whom its report is - and, by a certificate administrator, only when the
+    teams it was made of are theirs too: a report whose teams were narrowed (every team -> Web)
+    kept the runs made of every team, downloadable by the Web's administrator."""
+    if _full(s):
+        return True
+    if not may_see(store, s, rep):
+        return False
+    sc = T.scope(store, s, 'manage')
+    if sc is None:
+        return True
+    raw = run.get('teams')
+    teams = S.jload(raw, None) if raw not in (None, '') else None
+    if not isinstance(teams, list):
+        teams = public(rep)['teams']
+    teams = [_low(t) for t in teams if t]
+    return bool(teams) and all(t in sc for t in teams)
+
+
+def runs_for(store, s, rep, limit=100):
+    """The runs as the session may see them: a certificate administrator's without the
+    addresses they went to (the recipients are a full administrator's) nor the runs made of
+    teams that are not theirs."""
+    if _full(s):
+        return runs(store, rep, limit)
+    got = store.db.rows('SELECT id, teams FROM cert_report_runs WHERE report_id = ?',
+                        (rep['id'],))
+    ok = {r['id'] for r in got if may_see_run(store, s, rep, r)}
+    out = []
+    for r in runs(store, rep, max(int(limit), 100)):
+        if r['id'] in ok:
+            r['sent_to'] = ['…'] * len(r['sent_to'])
+            out.append(r)
+    return out[:int(limit)]
 
 
 def need_see(store, s, ref):
@@ -711,7 +749,8 @@ def _access(store, p, lang, sc, tr, now):
     tiles = [(L(lang, 'teams'), n_teams, 'info'), (L(lang, 'memberships'), n_members, 'info'),
              (L(lang, 'temporary roles now'), len([g for g in grants
                                                     if sc is None or _low(g.get('team')) in sc]),
-              'warn' if grants else 'good'),
+              'warn' if [g for g in grants if sc is None or _low(g.get('team')) in sc]
+              else 'good'),
              (L(lang, 'reviews overdue'), n_late, 'bad' if n_late else 'good')]
     return {'tiles': tiles, 'columns': cols, 'rows': out_rows, 'tones': tones,
             'sections': [{'heading': L(lang, 'The teams'),
@@ -830,7 +869,7 @@ def _run_public(r, with_files=False):
     files = S.jload(r.get('files'), []) or []
     out = {'id': r['id'], 'report': r.get('report') or '', 'report_id': r.get('report_id'),
            'ts': r.get('ts'), 'by': r.get('by_who') or '', 'kind': r.get('kind') or '',
-           'rows': int(r.get('rows') or 0), 'ok': bool(int(r.get('ok') or 0)),
+           'rows': int(r.get('row_count') or 0), 'ok': bool(int(r.get('ok') or 0)),
            'said': r.get('said') or '', 'sent_to': [m for m in str(r.get('sent_to') or '').split(
                ', ') if m], 'took_ms': int(r.get('took_ms') or 0), 'scope': r.get('scope') or '',
            'files': [{'format': f.get('format'), 'filename': f.get('filename'),
@@ -843,8 +882,8 @@ def _run_public(r, with_files=False):
 
 def runs(store, rep, limit=100):
     return [_run_public(r) for r in store.db.rows(
-        'SELECT id, report, report_id, ts, by_who, kind, rows, ok, said, sent_to, took_ms, '
-        'scope, files FROM cert_report_runs WHERE report_id = ? ORDER BY ts DESC, id DESC '
+        'SELECT id, report, report_id, ts, by_who, kind, row_count, ok, said, sent_to, '
+        'took_ms, scope, files FROM cert_report_runs WHERE report_id = ? ORDER BY ts DESC, id DESC '
         'LIMIT ?', (rep['id'], int(limit)))]
 
 
@@ -962,9 +1001,10 @@ def run(store, ref, by, send=False, to=None):
     took = int((time.monotonic() - t0) * 1000)
     rid = store.db.insert('cert_report_runs', {
         'report': p['name'], 'report_id': rep['id'], 'ts': data['made'], 'by_who': str(by)[:190],
-        'kind': p['kind'], 'rows': len(data['rows']), 'ok': 0 if sent is False else 1,
+        'kind': p['kind'], 'row_count': len(data['rows']), 'ok': 0 if sent is False else 1,
         'said': said or 'made', 'sent_to': ', '.join(to) if sent else '', 'took_ms': took,
-        'scope': data['scope'][:500], 'files': json.dumps(files)})
+        'scope': data['scope'][:500], 'files': json.dumps(files),
+        'teams': json.dumps(p['teams'])})
     store.db.update('cert_reports', rep['id'], {'last_run': data['made'],
                                                 'last_ok': data['made'] if sent is not False
                                                 else (rep.get('last_ok') or None),
@@ -1056,3 +1096,21 @@ def tick(store, force=False, wait=False):
 def _digest_tick(store):
     from acmelib.certs import digest
     digest.tick(store)
+
+
+def follow_rename(store, old, new):
+    """A team renamed (teams._follow_rename, 1.0.140): the reports and the runs made of it follow -
+    a report scoped to it became empty, and could no longer be saved ("there is no team")."""
+    lo = _low(old)
+    for table in ('cert_reports', 'cert_report_runs'):
+        try:
+            rows = store.db.rows('SELECT id, teams FROM %s' % table)
+        except Exception:                               # noqa: BLE001
+            continue
+        for r in rows:
+            got = S.jload(r.get('teams'), None)
+            if not isinstance(got, list) or not any(_low(x) == lo for x in got):
+                continue
+            moved = [new if _low(x) == lo else x for x in got]
+            store.db.run('UPDATE %s SET teams = ? WHERE id = ?' % table,
+                         (json.dumps(moved), r['id']))

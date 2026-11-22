@@ -1689,6 +1689,9 @@ def _follow_rename(store, old_name, name):
     TP.actions_follow(store, old_name, name)
     from acmelib.certs import teamgov
     teamgov.follow_rename(store, old_name, name)
+    # the periodic reports scoped to it (1.0.140)
+    from acmelib.certs import reports as _reports
+    _reports.follow_rename(store, old_name, name)
 
 
 def _enroll_follow(store, old, new):

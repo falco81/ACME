@@ -19,10 +19,12 @@ _RP_SCHEMA = [
         created_by {K}, updated {N}, updated_by {K}, last_run {N}, last_ok {N},
         last_said {T})'''),
     # One run of a report: when, by whom, how many rows, whether it was mailed and to whom,
-    # and its files (JSON [{format, filename, mime, size, data_b64}]) - the newest `keep`.
+    # and its files (JSON [{format, filename, mime, size, data_b64}]) - the newest `keep`;
+    # teams: the report's teams when it was made (JSON names, [] every team) - who may see it.
+    # (row_count, not "rows": a word MariaDB keeps for itself - the table was not made there.)
     ('cert_report_runs', '''CREATE TABLE IF NOT EXISTS cert_report_runs (
-        id {ID}, report {K}, report_id {I}, ts {N}, by_who {K}, kind {K}, rows {I}, ok {I},
-        said {T}, sent_to {T}, took_ms {I}, scope {T}, files {B})'''),
+        id {ID}, report {K}, report_id {I}, ts {N}, by_who {K}, kind {K}, row_count {I}, ok {I},
+        said {T}, sent_to {T}, took_ms {I}, scope {T}, files {B}, teams {T})'''),
 ]
 for _rp_name, _rp_ddl in _RP_SCHEMA:
     if _rp_name not in TABLES:

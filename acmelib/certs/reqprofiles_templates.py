@@ -211,7 +211,11 @@ def build(store, tid, issuer='', challenge='', suffixes=None, name='', descripti
                (_rsa_bits(k) is None or _rsa_bits(k) >= rl['min_rsa'])]
     if allowed != kts:
         notes.append('key types the company\'s rules forbid are left out')
-    kts = allowed or [k for k in info['key_types'] if k not in rl['forbid_keys']][:1] or \
+    # none left: a key type of the source's the rules allow (the shortest RSA too - hunt v1: an
+    # RSA 2048 key was taken under "RSA 3072 at least" while the source signed EC P-256)
+    kts = allowed or [k for k in info['key_types'] if k not in rl['forbid_keys'] and
+                      (_rsa_bits(k) is None or _rsa_bits(k) >= rl['min_rsa'])][:1] or \
+        [k for k in info['key_types'] if k not in rl['forbid_keys']][:1] or \
         info['key_types'][:1]
     kd = cfg['key_default'] if cfg['key_default'] in kts else kts[0]
     csr = bool(cfg['csr'] and info.get('csr'))

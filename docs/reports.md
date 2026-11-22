@@ -40,8 +40,10 @@ first 5 000 rows, the CSV every row (at most 50 000).
 - Each save, run, mailing, download and deletion is an event (kind *certificates*).
 - **Who may**: a full administrator everything; a certificate administrator sees, previews and
   downloads the reports whose teams are all teams they manage (every report while *Certificate
-  administrators manage every certificate* is on) - no recipients shown, nothing changed or
-  run; a read-only account nothing (the pane is not shown).
+  administrators manage every certificate* is on) - no recipients shown (nor the addresses a
+  run went to), nothing changed or run, and only the runs made of teams they manage (a report
+  whose teams were narrowed keeps its older runs from the full administrator alone); a
+  read-only account nothing (the pane is not shown).
 - `cert_reports` (the definitions) is in the configuration's export and import; with
   `cert_report_runs` (the runs and their files) in every backup and replicated like every other
   table. An older database gets both, empty, when the new version starts.

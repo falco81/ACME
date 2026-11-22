@@ -64,7 +64,7 @@ def _reports(h, s):
         if not RP.may_see(h.store, s, r):
             continue
         one = RP.public(r)
-        last = RP.runs(h.store, r, 1)
+        last = RP.runs_for(h.store, s, r, 1)
         one['last'] = last[0] if last else None
         one['next_at'] = _next(r)
         if not _full(s):
@@ -112,7 +112,7 @@ def _report_one(h, s):
     one['next_at'] = _next(r)
     if not _full(s):
         one['recipients'] = []
-    return {'report': one, 'runs': RP.runs(h.store, r), 'may_change': _full(s)}
+    return {'report': one, 'runs': RP.runs_for(h.store, s, r), 'may_change': _full(s)}
 
 
 @A.api('POST', '/api/reports/save', 'fulladmin')
@@ -163,7 +163,7 @@ def _report_run(h, s):
 @A.api('GET', '/api/reports/runs', 'certadmin')
 def _report_runs(h, s):
     r = _id(h, s)
-    return {'report': r['name'], 'runs': RP.runs(h.store, r)}
+    return {'report': r['name'], 'runs': RP.runs_for(h.store, s, r)}
 
 
 @A.api('GET', '/api/reports/download', 'certadmin')
@@ -173,7 +173,7 @@ def _report_download(h, s):
         raise ValueError('a report is downloaded as csv or pdf')
     run = RP.run_get(h.store, h.arg('run'))
     rep = RP.get_row(h.store, run.get('report_id'))
-    if not rep or not RP.may_see(h.store, s, rep):
+    if not rep or not RP.may_see_run(h.store, s, rep, run):
         raise E.ApiError(403, 'you may not see that report')
     got = RP.run_file(h.store, run['id'], fmt)
     got.pop('report_id', None)

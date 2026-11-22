@@ -262,7 +262,11 @@ def add_args(p):
                         '"enroll new" '
                         '(a company enrollment code: --title, --mode passive|active, --port, '
                         '--days, --most, --auto-confirm), "enroll list", "enroll revoke ID"; '
-                        '"waiting" (every agent asking to join)')
+                        '"waiting" (every agent asking to join); 1.0.138: watch (its audit '
+                        'chain, anomalies, what it serves, its keys), watch-set audit=on|off '
+                        'anomaly=on|off health=on|off rotate=on|off rotate_days=N, audit-verify, '
+                        'ack audit|anomaly, rotate [command|seal|both] (--yes), served; "all '
+                        'keys" (every key\'s age), "all keys-rotate" (a new command key; --yes)')
     g.add_argument('--title', metavar='TEXT', default=None,
                    help='with --target-agent enroll new: what the enrollment code is called')
     g.add_argument('--mode', choices=('passive', 'active'), default=None,
@@ -702,6 +706,14 @@ class Cli(object):
         cfg.pop('__secret_set__', None)
         return cfg
 
+    def noted(self, path):
+        """What an option that saves without a route changes, written down as a route's change
+        is - the history and the trash (1.0.140: --team-del, --tag-del, --role-del and
+        --dns-set-del were gone for good, and no change of them was in the history)."""
+        from acmelib.certs import history as H
+        h = self.E.CliApiHandler(self.d, self.WHO, {}, {}, path)
+        return H.acting(h, h.me(), 'POST', path)
+
     # ---- the options -------------------------------------------------------------------
     def run(self):
         a = self.args
@@ -711,13 +723,15 @@ class Cli(object):
                 'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test',
                 'dns_assign')):
             from acmelib.certs import api_dnssets
-            return api_dnssets.cli(self)
+            with self.noted('/api/dnssets/save'):
+                return api_dnssets.cli(self)
         if any(getattr(a, k, None) not in (None, False, '') for k in (
                 'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del',
                 'teams_adopt', 'roles', 'role_add', 'role_del', 'team_access',
                 'team_activity', 'teams_from_groups', 'team_show')):
             from acmelib.certs import api_teams
-            return api_teams.cli(self)
+            with self.noted('/api/teams/save'):
+                return api_teams.cli(self)
         from acmelib.certs import cli_ui
         if any(getattr(a, k, None) not in (None, False, '') for k in cli_ui.KEYS):
             return cli_ui.cli(self)
@@ -2188,6 +2202,9 @@ class Cli(object):
             return self.target_agents_update()
         if name == 'enroll' and what in ('new', 'list', 'revoke'):
             return self.target_agents_enroll(what, rest)
+        from acmelib.certs import cli_138          # watched more closely (1.0.138)
+        if name == 'all' and what in ('keys', 'keys-rotate'):
+            return cli_138.agent_all(self, what)
         try:
             row = G.target_row(self.store, name)
         except LookupError as e:
@@ -2236,9 +2253,12 @@ class Cli(object):
                 return self.target_agent_adcs(row, rest)
             elif what == 'discover':
                 return self.target_agent_discover(row, rest)
+            elif what in cli_138.AGENT_VERBS:
+                return cli_138.agent_verb(self, row, what, rest)
             else:
                 raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'system|renew|update|forget|design|adcs-templates|discover')
+                                 'system|renew|update|forget|design|adcs-templates|discover|'
+                                 'watch|watch-set|audit-verify|ack|rotate|served')
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
         if what == 'system':

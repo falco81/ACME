@@ -519,6 +519,7 @@ def _con_reports(con):
             ('run', 'Make it now (kept, to download)'),
             ('send', 'Make it now and mail it to its recipients'),
             ('runs', 'Its runs kept'),
+            ('get', 'Save a run\'s file (CSV or PDF) on this machine'),
             ('edit', 'Change it'),
             ('del', 'Delete it')], '%s · %s' % (r.get('kind_words') or r.get('kind'),
                                                 _sched_words(r)))
@@ -532,6 +533,8 @@ def _con_reports(con):
                 con.act('--report-run', r['name'], '--report-send')
         elif what == 'runs':
             con.act('--report-runs', r['name'])
+        elif what == 'get':
+            _con_report_get(con, r)
         elif what == 'edit':
             _con_report_form(con, r)
         elif what == 'del':
@@ -567,17 +570,48 @@ def _con_report_form(con, r):
         {'key': 'to', 'label': 'mailed to (comma)', 'value': ', '.join(
             r.get('recipients') or []) if r else ''},
         {'key': 'lang', 'label': 'language', 'kind': 'choice', 'value': r.get('lang') or '-',
-         'options': [('-', 'the mails\' own'), ('cs', 'Czech'), ('en', 'English')]}])
+         'options': [('-', 'the mails\' own'), ('cs', 'Czech'), ('en', 'English')]},
+        {'key': 'keep', 'label': 'runs kept', 'kind': 'number', 'value': str(r.get('keep') or 12),
+         'range': (1, 100)},
+        {'key': 'days', 'label': 'days ahead (expiry)', 'kind': 'number',
+         'value': str((r.get('options') or {}).get('days') or 90), 'range': (1, 3650),
+         'when': lambda v: v.get('kind') == 'expiry'},
+        {'key': 'off', 'label': 'schedule', 'kind': 'choice',
+         'value': 'yes' if r and r.get('enabled') is False else 'no',
+         'options': [('no', 'active'), ('yes', 'paused')]}])
     if not got:
         return
     args = ['--report-edit' if r else '--report-add', r.get('name') or got['name'].strip(),
             '--report-kind', got['kind'], '--report-teams', got['teams'].strip() or '-',
             '--report-formats', got['formats'], '--report-every', got['every'],
             '--report-day', got['day'] or '1', '--report-hour', got['hour'] or '7',
-            '--report-recipients', got['to'].strip() or '-', '--report-lang', got['lang']]
+            '--report-recipients', got['to'].strip() or '-', '--report-lang', got['lang'],
+            '--report-keep', got['keep'] or '12', '--report-off', got['off']]
+    if got['kind'] == 'expiry':
+        args += ['--report-days', got['days'] or '90']
     if r and got['name'].strip() != r['name']:
         args += ['--report-name', got['name'].strip()]
     con.act(*args)
+
+
+def _con_report_get(con, r):
+    """A run's file saved on this machine (acme --report-get), as the page downloads it."""
+    runs = con._rows(con.out('--report-runs', r['name']), 'runs')
+    if not runs:
+        con.note(r['name'], 'No run kept yet - make it now first.')
+        return
+    got = con.form('Save a run of %s' % r['name'], [
+        {'key': 'run', 'label': 'run', 'kind': 'choice', 'value': str(runs[0]['id']),
+         'options': [(str(x['id']), '%s  %s' % (_when(x['ts']), ', '.join(
+             f['format'] for f in x.get('files') or []))) for x in runs[:30]]},
+        {'key': 'format', 'label': 'format', 'kind': 'choice', 'value': 'pdf',
+         'options': [('pdf', 'PDF'), ('csv', 'CSV')]},
+        {'key': 'path', 'label': 'into the file', 'need': True,
+         'value': os.path.join(os.getcwd(), 'report.pdf')}])
+    if not got:
+        return
+    con.act('--report-get', got['run'], '--report-format', got['format'], '--report-out',
+            got['path'].strip())
 
 
 def _con_teams(con):
@@ -594,6 +628,7 @@ def _con_teams(con):
             ('show', 'Show its digest: on, when, to whom, the last one'),
             ('set', 'Set it (on / off, when, to whom)'),
             ('preview', 'Preview it (what it says now)'),
+            ('mail', 'Mail a preview to an address'),
             ('send', 'Send it now to its recipients')], 'the team\'s digest by mail')
         if what == 'show':
             con.act('--team-digest', r['name'])
@@ -601,6 +636,11 @@ def _con_teams(con):
             _con_digest_form(con, r['name'])
         elif what == 'preview':
             con.act('--team-digest-preview', r['name'])
+        elif what == 'mail':
+            got = con.form('A preview of the digest of %s' % r['name'], [
+                {'key': 'to', 'label': 'to the address', 'need': True, 'value': ''}])
+            if got and got['to'].strip():
+                con.act('--team-digest-preview', r['name'], '--digest-mail', got['to'].strip())
         elif what == 'send':
             if con.confirm('Send it', 'Send the digest of %s to its recipients now?' % r['name'],
                            'Send it'):
@@ -631,13 +671,19 @@ def _con_digest_form(con, team):
             cur.get('members') or [])},
         {'key': 'skip', 'label': 'when nothing needs the team', 'kind': 'choice',
          'value': 'yes' if cur.get('skip_empty', True) else 'no',
-         'options': [('yes', 'not sent'), ('no', 'sent all the same')]}])
+         'options': [('yes', 'not sent'), ('no', 'sent all the same')]},
+        {'key': 'below', 'label': 'with the teams below', 'kind': 'choice',
+         'value': 'yes' if cur.get('below', True) else 'no', 'options': [('yes', 'yes'),
+                                                                         ('no', 'no')]},
+        {'key': 'lang', 'label': 'language', 'kind': 'choice', 'value': cur.get('lang') or '-',
+         'options': [('-', 'each recipient\'s own'), ('cs', 'Czech'), ('en', 'English')]}])
     if not got:
         return
     con.act('--team-digest-set', team, '--digest', got['on'], '--digest-every', got['every'],
             '--digest-day', got['day'] or '1', '--digest-hour', got['hour'] or '7',
             '--digest-days', got['days'] or '30', '--digest-contact', got['contact'],
-            '--digest-members', got['members'].strip() or '-', '--digest-skip-empty', got['skip'])
+            '--digest-members', got['members'].strip() or '-', '--digest-skip-empty', got['skip'],
+            '--digest-below', got['below'], '--digest-lang', got['lang'])
 
 
 if __name__ == '__main__':                              # pragma: no cover
