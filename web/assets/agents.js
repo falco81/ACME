@@ -2586,7 +2586,8 @@ function discoverBox(row, a, opts) {
 var G_MARK = {
   acme: ['acme’s job', 'ok', 'check'], server: ['on the server', 'info', 'terminal'],
   refused: ['refused', 'warn', 'ban'], unknown: ['not sent by acme', 'bad', 'flag'],
-  before: ['before acme compared', 'dim', 'clock']
+  before: ['before acme compared', 'dim', 'clock'],
+  restore: ['between a backup and its restore', 'warn', 'clock']
 };
 var G_AUDIT = {
   off: ['off', 'dim'], waiting: ['waiting for its first answer', 'info'], ok: ['verified', 'ok'],
@@ -3015,7 +3016,7 @@ function guardBox(row, a, reload) {
       clear(more);
       var shown = entries.filter(function (e) {
         if (keep.filter === 'acme') return e.mark === 'acme';
-        if (keep.filter === 'server') return e.mark === 'server' || e.mark === 'refused' || e.mark === 'before';
+        if (keep.filter === 'server') return e.mark === 'server' || e.mark === 'refused' || e.mark === 'before' || e.mark === 'restore';
         if (keep.filter === 'bad') return e.mark === 'unknown';
         return true;
       });

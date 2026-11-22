@@ -85,7 +85,9 @@ MOMENT = ('sessions', 'events')                 # not carried / written by the r
 META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial', 'sig:',
                'host:rootkey:again:', 'host:users:before:', 'host:sshkeys:before:',
                # every secret sealed for its place, marked when a copy is put back (1.0.102)
-               'seal:bound')
+               'seal:bound',
+               # when backups were put back, for the agents' audit chains (1.0.139)
+               'agents:restored')
 
 
 def forgotten(r):

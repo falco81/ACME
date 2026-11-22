@@ -86,6 +86,50 @@ class RotateSchedule(unittest.TestCase):
         self.assertEqual(self.run_due(self.base(key_said=AG.TOO_OLD)), [])
 
 
+class RestoreGap(unittest.TestCase):
+    """The jobs sent between a backup and its restore are no stranger's in the chain (1.0.139)."""
+    class Store:
+        def __init__(self, newest):
+            self.meta = {}
+            self.newest = newest
+            outer = self
+
+            class Db:
+                @staticmethod
+                def row(sql, args=()):
+                    return {'ts': outer.newest if outer.newest < args[0] else None}
+            self.db = Db
+
+        def get_meta(self, k):
+            return self.meta.get(k)
+
+        def set_meta(self, k, v):
+            self.meta[k] = v
+
+    def test_gap(self):
+        from unittest import mock
+        from acmelib.certs import agent_guard as AG
+        now = time.time()
+        store = self.Store(now - 3 * 86400)
+        AG.restore_mark(store, now - 5)
+        problems = []
+        st = {'enabled_at': now - 30 * 86400}
+        with mock.patch.object(AG, '_problem', lambda *a, **k: problems.append(a[4])):
+            self.assertEqual(AG._mark(store, {'id': 1, 'name': 'x'}, st,
+                                      {'job': 'j1', 'ts': now - 86400, 'op': 'deploy', 'n': 4}),
+                             'restore')
+            self.assertEqual(problems, [])
+            # older than the backup: still a stranger's
+            self.assertEqual(AG._mark(store, {'id': 1, 'name': 'x'}, st,
+                                      {'job': 'j2', 'ts': now - 10 * 86400, 'op': 'deploy', 'n': 3}),
+                             'unknown')
+            self.assertEqual(len(problems), 1)
+        self.assertIn("restore: ['between a backup and its restore'",
+                      open(os.path.join(ROOT, 'web/assets/agents.js'), encoding='utf-8').read())
+        self.assertEqual(say('between a backup and its restore')['between a backup and its restore'],
+                         'mezi zálohou a její obnovou')
+
+
 class Source(unittest.TestCase):
     def test_dnssets_tools_header(self):
         with open(os.path.join(ROOT, 'web/assets/dnssets.js'), encoding='utf-8') as f:

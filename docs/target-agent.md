@@ -826,7 +826,9 @@ agree is kept, an **event** (`action=agent_audit_mismatch`, `what=unknown|gap|re
 shorter|unreadable|broken`) and an **alert** (bad) until a full administrator presses *I have
 looked at it…*:
 
-* **an entry of a job acme never sent** - signed with acme's command key by somebody else;
+* **an entry of a job acme never sent** - signed with acme's command key by somebody else (a job
+  done between the moment a backup was made and its restore is not one: its record of being sent
+  went with the database replaced - such entries are marked *between a backup and its restore*);
 * **a gap** (entries missing), **a chain written anew** (an entry acme read is another now, or
   does not follow the one before), **an entry changed** (not what its hash says), **a chain
   shorter** than acme read.

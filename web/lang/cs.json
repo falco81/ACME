@@ -76003,6 +76003,10 @@
   "z_2697": {
    "source": "that is you",
    "text": "to jste vy"
+  },
+  "z_2698": {
+   "source": "between a backup and its restore",
+   "text": "mezi zálohou a její obnovou"
   }
  },
  "patterns": {

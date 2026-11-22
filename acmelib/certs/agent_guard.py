@@ -53,6 +53,7 @@ from acmelib.plugins.base import PluginError
 
 M_OPT = 'agents:guard:%d'
 M_AUDIT = 'agents:audit:%d'
+M_RESTORED = 'agents:restored'   # 1.0.139: when backups were put back, and how old each was
 M_ANOM = 'agents:anom:%d'
 M_SERVED = 'agents:served:%d'
 M_CMDKEY = 'agents:cmdkey:%s'
@@ -392,9 +393,37 @@ def answered(store, row, op, got):
         _later('audit', int(row['id']), read_chain, store, row)
 
 
+def restore_mark(store, began=None):
+    """A backup put back (1.0.139): the jobs sent between the moment it was made (its newest
+    event) and now are not in it - their "sent" records went with the database replaced, and
+    the chain showed every one of them as a job acme never sent. The gap is kept (the last 10)."""
+    now = time.time()
+    began = float(began or now)
+    row = store.db.row('SELECT MAX(ts) AS ts FROM events WHERE ts < ?', (began,))
+    made = float((row or {}).get('ts') or 0)
+    if not made or made > now:
+        return
+    try:
+        lst = json.loads(store.get_meta(M_RESTORED) or '[]')
+    except ValueError:
+        lst = []
+    lst = [x for x in lst if isinstance(x, dict)][-9:] + [{'from': made, 'at': now}]
+    store.set_meta(M_RESTORED, json.dumps(lst))
+
+
+def _in_restore_gap(store, ts):
+    try:
+        lst = json.loads(store.get_meta(M_RESTORED) or '[]')
+    except ValueError:
+        return False
+    return any(isinstance(x, dict) and float(x.get('from') or 0) - 60 <= ts <= float(x.get('at') or 0) + 60
+               for x in lst)
+
+
 def _mark(store, row, st, e):
     """Whose an entry is: acme's job, done on the server itself, a job refused before it was
-    read, a job from before acme compared - or a job acme never sent."""
+    read, a job from before acme compared, one sent between a backup and its restore (1.0.139)
+    - or a job acme never sent."""
     jid = str(e.get('job') or '')
     if jid:
         if store.get_meta(SENT % (int(row['id']), jid)):
@@ -402,6 +431,8 @@ def _mark(store, row, st, e):
         if float(e.get('ts') or 0) < float(st.get('enabled_at') or st.get('base_at') or 0) + \
                 BEFORE_S:
             return 'before'
+        if _in_restore_gap(store, float(e.get('ts') or 0)):
+            return 'restore'
         _problem(store, row, st, 'unknown', 'the agent did a job acme never sent (job %s, %s, '
                  'entry %d) - somebody else signed it with acme\'s command key' % (
                      jid[:24], _txt(e.get('op'), 40), e['n']), e['n'])

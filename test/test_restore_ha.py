@@ -53,7 +53,8 @@ META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial
                'lockouts:', 'power:', 'health', 'host:health', 'alerts:', 'alert', 'certs:',
                'cert_', 'job', 'mail', 'sms', 'last_', 'backup', 'dumps', 'guard',
                'custom-modules:', 'schema:', 'downgrade:', 'host:rootkey:again:', 'acme:host:',
-               'seal:bound')       # every secret sealed for its place, marked at a put back (1.0.102)
+               'seal:bound',       # every secret sealed for its place, marked at a put back (1.0.102)
+               'agents:restored')  # when backups were put back, for the agents' audit chains (1.0.139)
 OLD_MACHINE = 'the-old-machine-0123456789abcdef'
 ROOT_PUB = ('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMbn6v1d7Y0dvd0Ac8Pw2l4xQ5gq3p8yYb6i3m2lKx9T '
             'acme@pages')

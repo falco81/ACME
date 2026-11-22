@@ -732,7 +732,16 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
         RESTORE_WHY[0] = 'a backup is being put back'
         RESTORE_RUNNING.set()
         try:
+            began = time.time()
             got = _db_file_restore(store, path, by, key_file, from_name, kind)
+            # the agents' audit chains (1.0.139): the jobs sent after the backup was made are
+            # not a stranger's
+            try:
+                from acmelib.certs import agent_guard as _ag
+                _ag.restore_mark(store, began)
+            except Exception as e:                      # noqa: BLE001
+                log('the gap of the backup put back could not be kept for the agents: %s' % e,
+                    'warn')
             # A copy made while a job ran (1.0.51 - only the remote backup's restore tidied it):
             # put back from the pages or acme --restore its certificate stayed "renewing" for
             # good, its job "running" on this node, and nothing renewed it again.
