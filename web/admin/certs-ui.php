@@ -248,6 +248,7 @@ function acme_certs_settings_nav(): void
     <button type="button" data-pane="modules" data-icon="list" data-cicon="module" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
     <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
     <button type="button" data-pane="reqprofiles" data-icon="list" title="What people may ask for on the portal with everything set beforehand - the source, the validation, the names allowed, the key or their CSR, the subject, approval and owner: they give only the names.">Request profiles</button>
+    <button type="button" data-pane="reports" data-icon="chart" class="ct-manage" title="Reports for management and audit: the certificate inventory, what ends soon, compliance with the CA/B rules, the agents' health, teams and access - as CSV and PDF, made by hand or on a schedule and mailed.">Reports</button>
     <button type="button" data-pane="trash" data-icon="history" title="What was deleted - kept for a while and restored with what went with it - and every change of the targets, deployments, tests, sources, validations, profiles, owners, roles, tags and DNS sets: who, when, what.">Trash and history</button>
 <?php
 }
@@ -281,6 +282,16 @@ function acme_certs_settings_panes(): void
         own CSR, the subject, renewal, approval and whose it is. They give only its names and what a
         profile leaves to them. With none defined, the portal asks as before.</p></div>
     <div id="rp-host"></div>
+  </div>
+
+  <div class="ctl-pane" id="pane-reports" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Reports</h2>
+      <p class="ctl-lede">Reports for management and audit - the certificate inventory, what ends
+        soon, compliance with the CA/B rules, the agents and their health, teams and access - for
+        every team or chosen ones, as CSV and PDF. Each is made by hand or on its day and mailed to
+        whom you choose; the runs are kept to download again. Nothing is made until a report is
+        defined.</p></div>
+    <div id="rpt-host"></div>
   </div>
 
   <div class="ctl-pane" id="pane-trash" hidden>

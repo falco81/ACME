@@ -32,6 +32,9 @@ sudo acme-agent allow probe local                             # tests of what th
 sudo acme-agent allow probe www.example.com:443               # ...or of exactly that place
 sudo acme-agent allow connect 10.0.5.21:22                    # acme reaches it through this agent
 sudo acme-agent allow self-update                             # acme may send a newer agent (signed)
+sudo acme-agent allow issuer /etc/ssl/our-ca.pem              # what is deployed chains to this CA
+sudo acme-agent allow names *.example.com www.example.net      # ...and holds only these names
+sudo acme-agent require key local                             # ...and only a key made here
 sudo acme-agent deny unit nginx restart
 acme-agent policy show
 ```

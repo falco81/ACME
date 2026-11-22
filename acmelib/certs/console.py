@@ -20,6 +20,7 @@ and what the pages can do, it can do.
                         new intermediate, import)
          d acme's DNS server (its records: add, delete)
          0 Modules (Enter: what one takes)
+         f Find anything   y The expiry calendar   p Request profiles from a template
     o  Owners and teams (1.0.126): the tree (Enter: show, members and their roles, change,
        limits, move, a team below, activity, delete; + add one), roles, the access check
        of a person, what happened in a team
@@ -47,7 +48,10 @@ def main_items(con):
     return [('c', 'Certificates: renewing, deploying, authorities, DNS', lambda: menu(con)),
             # 1.0.126: Settings → Owners and teams of the pages (acme --teams, --roles, ...)
             ('o', 'Owners and teams: the tree, members, roles, limits, access',
-             lambda: teams_menu(con))]
+             lambda: teams_menu(con)),
+            # 1.0.140: Settings → Reports and a team's digest (acme --reports, --team-digest)
+            ('p', 'Reports and team digests: periodic reports, digests by mail',
+             lambda: __import__('acmelib.certs.reports_cli', fromlist=['x']).console_menu(con))]
 
 
 def _when(ts, fmt='%Y-%m-%d'):
@@ -105,7 +109,13 @@ def menu(con):
         ('n', 'DNS sets: which DNS servers each function asks (Settings → DNS)',
          lambda: con.act('--dns-sets')),
         ('0', 'Modules (Enter: what one takes)', lambda: modules(con)),
-    ])
+    ] + _ui_items(con))
+
+
+def _ui_items(con):
+    """Find anything, the expiry calendar, profiles from a template (1.0.140, console_ui.py)."""
+    from acmelib.certs import console_ui
+    return console_ui.items(con)
 
 
 def live_log(con):
@@ -1135,7 +1145,9 @@ def target_agent(con, name, kind=None):
         ('design', 'The policy designed for it in acme (never sent)'),
         ('discover', 'What its server runs that takes certificates (discovery: allow discover)'),
         ('discover-kinds', 'The same, only some kinds of services'),
-        ('discover-cached', 'What the last discovery found (its agent not asked)')] + (
+        ('discover-cached', 'What the last discovery found (its agent not asked)'),
+        # 1.0.140 (A1): allow issuer, allow names, require key local - each deployment judged
+        ('guard', 'What it checks of what it deploys (issuers, names, its own key)')] + (
         # a Windows member server's agent reads the Microsoft CAs (1.0.125)
         [('adcs', 'The Microsoft CAs and their templates, as its agent reads them'),
          ('adcs-one', 'The templates of one Microsoft CA (HOST\\CA)')]
@@ -1169,6 +1181,8 @@ def target_agent(con, name, kind=None):
             con.live(lambda: (con.cmd(flag, name, 'discover', '--kind', kinds), con.pause()))
     elif what == 'discover-cached':
         con.act(flag, name, 'discover', 'cached')
+    elif what == 'guard':
+        con.act('--agent-guard', name)
     elif what == 'adcs':
         con.live(lambda: (con.cmd(flag, name, 'adcs-templates'), con.pause()))
     elif what == 'adcs-one':
@@ -1196,7 +1210,65 @@ def agents_menu(con):
          lambda: con.act(flag, 'waiting')),
         # as Update all agents… of the pages (1.0.118; in the console 1.0.124)
         ('6', 'Update all agents: every one a newer agent is offered to and its policy allows',
-         lambda: agents_update_all(con))])
+         lambda: agents_update_all(con)),
+        # 1.0.140 (B7): the card "Where keys are made" of the pages - and its switch
+        ('7', 'Where keys are made: on the server or acme\'s (Enter: switch one to a key made '
+              'on the server)', lambda: agent_keys(con)),
+        # 1.0.140 (A1): the CAs acme knows - what `allow issuer sha256=...` names
+        ('8', 'The CAs acme knows, with their SHA-256 (for allow issuer)',
+         lambda: con.act('--agent-cas'))])
+
+
+def agent_keys(con):
+    """Settings → Target agents → Where keys are made (1.0.140): acme --agent-keys, and
+    acme --agent-keys-switch CERT [--now] / --agent-keys-cancel CERT for one."""
+    def load():
+        out = []
+        for t in con._rows(con.out('--agent-keys'), 'targets'):
+            for c in t.get('certs') or []:
+                out.append(dict(c, target=t.get('name'), key_local=t.get('key_local')))
+        return out
+
+    def how(r):
+        if r.get('key') == 'agent':
+            return 'made on the server'
+        if r.get('key') == 'elsewhere':
+            return 'made by %s' % r.get('key_by')
+        return 'acme\'s'
+
+    def state(r):
+        if r.get('pending'):
+            return 'at its next renewal'
+        if r.get('switchable'):
+            return 'could switch' + (' - refused by require key local' if r.get('refused') else '')
+        return (r.get('why') or '') if r.get('key') == 'acme' else ''
+
+    cols = [('target', lambda r: r.get('target'), 18, None),
+            ('certificate', lambda r: r.get('name'), 28, None),
+            ('key', how, 20, lambda r: 'ok' if r.get('key') == 'agent' else 'dim'),
+            ('', state, 40, lambda r: 'bad' if r.get('refused') else (
+                'warn' if r.get('switchable') else 'dim'))]
+
+    def do(r):
+        if r.get('pending'):
+            if con.confirm('Take the switch back', 'The key of %s stays acme\'s: the switch '
+                           'waiting for its next renewal is taken back.' % r['name'], 'Take it back'):
+                con.act('--agent-keys-cancel', str(r['id']))
+            return
+        if not r.get('switchable'):
+            con.note('Where its key is made', '%s: %s' % (r['name'], state(r) or how(r)))
+            return
+        when = con.choose('Switch %s to a key made on %s' % (r['name'], r.get('target')), [
+            ('next', 'At its next renewal - nothing happens before (a day before it is due, acme '
+                     'switches it)'),
+            ('now', 'Now - switched and renewed at once')],
+            'The agent on the server makes the key and sends acme only its CSR: acme never holds '
+            'that key. Its deployment then puts the key into the files there.')
+        if when:
+            con.act('--agent-keys-switch', str(r['id']), *(['--now'] if when == 'now' else []),
+                    '--yes')
+    return con.pick('Where keys are made', load, cols, do,
+                    'no certificate is deployed to a server with an agent yet')
 
 
 def agents_update_all(con):

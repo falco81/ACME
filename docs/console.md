@@ -98,8 +98,26 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   environment, never on a command line - a PEM read from a file, and a value
   of several lines shown on one line with ⏎ between them. The fields under
   *More* that depend on a main one (a DNS server's flavour) are asked too.
+  Since 1.0.140 also: **Find anything** (`f`, `acme --find`: a certificate by
+  its name, a SAN or its serial, a deployment, a target, an agent, a source,
+  an authority, a profile, a team, an account, an event; Enter shows it),
+  **the expiry calendar** (`y`: what runs out week by week, optionally of one
+  team, `acme --calendar`; a file for a calendar program, `acme
+  --calendar-ics`; who has a link to subscribe, and taking one back) and
+  **request profiles from a template** (`p`: the templates with their
+  compliance; Enter asks the name, the domains and the source and makes the
+  profile, `acme --profile-from-template`).
   Each item runs the `acme` option of [command-line.md](command-line.md) it
   says.
+- **Target agents** (`c` → *Target agents*, 1.0.140 too): **Where keys are made**
+  (`7`) - every certificate deployed to a server with an agent, its key made on
+  the server or acme's, which could switch and why the others cannot; Enter on
+  one that could switch offers *At its next renewal* or *Now* (`acme
+  --agent-keys-switch CERT [--now]`), on one waiting for its renewal *Take the
+  switch back* (`--agent-keys-cancel`); **The CAs acme knows** (`8`, `acme
+  --agent-cas`: what `allow issuer sha256=...` names). A target's agent menu has
+  **What it checks of what it deploys** (`acme --agent-guard NAME`: its `allow
+  issuer`, `allow names`, `require key local` and each deployment there judged).
 - **Directories**: a directory added or changed in a form (its servers, where
   to look, the account it reads with, LDAPS / StartTLS; its password asked,
   shown as stars; whether its certificate is checked, old weak certificates,
@@ -118,6 +136,10 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   encryption to the database server and to isemon looked at and tried, a
   test line to isemon and to the syslog servers, the proxy tried, SNMPv3
   asked, and the rest of those pages; isemon's **first full sync** (1.0.77).
+
+- **Reports and team digests** (`p`, 1.0.140): the reports (show, run now, run and mail,
+  their runs, change, delete; add one) and each team's digest (show, set, preview, send now) -
+  `acme --reports`, `--report-...`, `--team-digest...` ([command-line.md](command-line.md)).
 
 ## The live views
 

@@ -1823,6 +1823,9 @@ def clean_policy(p):
         out['adcs_read'] = True
     if p.get('audit_chain'):
         out['audit_chain'] = True               # 1.0.138 (A6; hunt R f1: it was left out)
+    # 1.0.140 (A1): what a deployment may deploy (allow issuer, allow names, require key local)
+    from acmelib.certs import agent_deployguard
+    out.update(agent_deployguard.clean_policy_part(p))
     # hunt R t2: what a Windows agent allows besides (the machine store, IIS sites, Remote
     # Desktop, its roles, read on the key) and the roles it knows - left out, a deployment with
     # a Windows role was refused as if the agent knew none, the pages said none of them
@@ -2534,6 +2537,13 @@ def tick(store):
         agent_guard.sweep(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('agent-guard-sweep', 'the agents\' keys and chains: %s' % e, 'warn',
+                      every=3600)
+    try:
+        # 1.0.140 (B7): a switch to a key made on the server, waiting for the renewal
+        from acmelib.certs import agent_keyplace
+        agent_keyplace.sweep(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('agent-keyplace-sweep', 'the keys made on the servers: %s' % e, 'warn',
                       every=3600)
 
 

@@ -156,6 +156,9 @@ Change it with the command line (as root) or by hand, one entry a line:
 | `allow discover [KIND,KIND]` | `acme-agent allow discover nginx,apache` | acme may list the services here that take certificates and the certificates there - read-only (1.0.125, *Discovery* below); no KIND: every kind |
 | `limit files N` / `limit size BYTES` | `acme-agent limit files 30` | files in one deployment (20), bytes of one file (1 MiB) |
 | `audit chain` | `acme-agent audit on` (`off` takes it away) | nothing more for acme: every operation is also written into the hash-chained audit log and its head told acme (1.0.138, *Watching an agent* below). Without the line the policy's hash is what it was |
+| `allow issuer sha256=HEX` | `acme-agent allow issuer CA.pem` (or `sha256=HEX`) | nothing more for acme - it narrows: every certificate a deployment writes must chain to one of these CAs (1.0.140, *What the agent deploys* below); repeatable |
+| `allow names NAME [NAME...]` | `acme-agent allow names *.example.com www.example.net` | narrows: every name of every end certificate deployed must be one of these (`*.example.com` takes one label more); repeatable |
+| `require key local` | `acme-agent require key local` (`require key any` takes it away) | narrows: the key must be one this agent made (*Keys made by the agent*) - acme's key is refused |
 
 `acme-agent deny ...` takes an entry away (the same words); `acme-agent policy show [--json]`
 says what is allowed, and which lines could not be read.
@@ -699,6 +702,103 @@ chosen. A certificate deployed to several targets keeps acme's key, sealed to ea
   key in use (`<slot>.key`); until then the service keeps its old key and certificate.
 * **Renewal**: a new key each time; with *Keep the key* the agent makes a CSR of the key in use.
 * acme never holds the key: not in its database, its backups, its logs or its jobs.
+
+## What the agent deploys (1.0.140)
+
+Whoever controls a running acme holds its command key - and with it everything the policies of
+its agents allow: a folder for certificates is a folder for *any* certificate. Three optional
+lines of the policy (root's, as every line; acme can never add them) let the agent check **what**
+it deploys, itself, before it writes anything:
+
+```
+allow issuer sha256=<hex>        # every certificate must chain to one of these CAs (repeatable)
+allow names *.example.com www.example.net   # every name of it must be one of these (repeatable)
+require key local                # its key must be one this agent made - acme's key is refused
+```
+
+* **allow issuer**: the SHA-256 of a CA's certificate (its fingerprint, colons allowed;
+  `acme-agent allow issuer CA.pem` takes it from the file). Every certificate the job writes - in
+  a PEM file, a DER file, a PKCS#7, a PKCS#12, the machine store's PKCS#12 on Windows, a
+  Kubernetes Secret - must chain to one of them. The **root side verifies it itself** with
+  openssl (`openssl verify -partial_chain -no_check_time`: every signature, every CA a CA): the
+  chain the job carries is untrusted input - only what the path is built from; a CA certificate
+  counts as the allowed one only when its SHA-256 is the one written (a cross-signed copy of an
+  allowed CA - the same key - counts too). The CA may be the root or an intermediate. acme sends,
+  besides, the certificates of the allowed CAs it knows (the top of a path the chain leaves out).
+* **allow names**: every name of every end certificate (its DNS and IP subjectAltNames, a common
+  name that is a name) must match one of the patterns - the same name, or `*.example.com` for
+  exactly one label more (`www.example.com`; not `example.com`, not `a.b.example.com`); a
+  wildcard certificate only by the same wildcard. A pattern over a whole top-level domain
+  (`*.com`) is not read. `allow names` without `allow issuer` is a warning of `policy check`:
+  name the CAs too.
+* **require key local**: every private key written - in a key file, a combined PEM, a PKCS#12 -
+  and the key of every end certificate must be one this agent made (`keygen`: its pending or
+  current key, *Keys made by the agent* above). A certificate with acme's key is refused; let its
+  key be made on the server (*Where keys are made* below). The Kubernetes agent makes no key: it
+  does not take the line.
+* The agent deploys only what it can look into: with any of the lines, a file it cannot read (a
+  Java keystore, a PKCS#12 it cannot open) is refused. acme's PKCS#12 is opened with its password,
+  sealed to the agent (`guard.pass_sealed`); one the agent builds itself (its own key) it knows.
+* **A refusal**: the job is refused whole before anything is written - the words say which line
+  and which certificate ("refused by the policy of this machine (allow names): the certificate
+  www.example.com in /etc/nginx/ssl/site.crt holds the name evil.example.org - the policy allows
+  *.example.com"), the agent's audit log (and its audit chain, when kept) has the entry, the
+  deployment fails with those words. Allowed: a step says what was checked.
+* **acme checks it first.** With the policy the agent last said, acme checks the certificate of a
+  deployment against the lines **before it sends the job** (the agent's own check, run in acme)
+  and does not send what would be refused - the deployment's error and *What happens* say why
+  ("not sent: the policy of the agent on web1 refuses it (allow issuer): ..."); the needs card of
+  the deployment's form has an item for each line (the issuer, the names, the key).
+* **Older agents**: an agent before 1.0.140 does not know the lines (they are lines it would not
+  read). acme sends the new part of a job (`guard`) only to an agent whose hello says the feature
+  `deploy-guard`. Without the lines nothing of this runs: the behaviour, the policy's hash and its
+  report are what they were.
+* **The card** of an agent whose policy has any of the lines shows the pill *Guards what it
+  deploys: 2 issuers, 3 names, own key* (and Settings → Target agents its tile).
+* **The policy builder** offers them in *What it deploys*: **Allowed issuers** - the CAs acme
+  knows (its own authorities, every CA in the chains of its certificates, the ones of the
+  certificates deployed to this target first and ticked when switched on), their fingerprints
+  filled in, or one by its SHA-256; **Allowed names** - filled with the names of the certificates
+  deployed to this target, *Deployed here, not allowed* offering the missing ones; **Key only from
+  this server** - with how many certificates deployed here have acme's key (they would be
+  refused) and *Switch to a key made on the server…*. Fleet templates ([agent-fleet.md](agent-fleet.md))
+  hold them as any line.
+* The command line: `acme --agent-guard TARGET [--json]` (the lines, whether the agent knows them,
+  each deployment there judged; exit 1 when one would be refused), `acme --agent-cas [TARGET]
+  [--json]` (the CAs acme knows with their SHA-256); the console: the agent's menu *What it
+  checks of what it deploys*, Target agents → *The CAs acme knows*.
+* The route: `GET /api/agents/deployguard?id=` (the same as `--agent-guard`, and the CAs).
+
+## Where keys are made (1.0.140)
+
+Settings → Target agents, the card **Where keys are made**: for every target with an agent, how
+many of the certificates deployed there have the key **made on the server** (the agent's own,
+*Keys made by the agent*) and how many **acme's key**, a bar of both, and each certificate: made
+on the server, acme's key - *could switch* (deployed to that server alone and nothing else in
+the way: the very check of the certificate's form, `devicekey.save_problem` - a twin, *Keep the
+key*, a CSR sent in, a source that signs no CSR, another target) or why it stays with acme -,
+*switches at its next renewal*. A target whose policy says `require key local` is marked, and its
+certificates with acme's key are said **refused by its policy**. Only the certificates the
+session may see are listed (the others counted).
+
+**Switch to a key made on the server…** (a certificate administrator - each certificate checked
+against what the session may: change it, and renew it for *now*): pick one or many that could
+switch; the dialog says what happens and offers
+
+* **At its next renewal** (the default): nothing changes now - the certificate is marked
+  (`agentkeys:switch:<id>`, in meta: in every backup, on every node); a day before it would be
+  renewed acme switches where its key is made (as the certificate's form does: *Key made by the
+  device* = the target) and the renewal makes the key on the server. *Take back* removes the mark.
+* **Now - and renew it now**: switched at once, and renewed now.
+
+Until the new certificate is deployed the one there stays, with acme's key. An event says each
+switch. Nothing happens until a switch is asked.
+
+The command line: `acme --agent-keys [TARGET] [--json]`, `acme --agent-keys-switch CERT...
+[--now] [--yes]`, `acme --agent-keys-cancel CERT...`; the console: Target agents → *Where keys are
+made* (Enter on one: switch it, at its next renewal or now; take a switch back). The routes:
+`GET /api/agents/keyplace`, `POST /api/agents/keyplace/switch {ids, when: next|now}`
+(certificate administrator), `POST /api/agents/keyplace/cancel {ids}`.
 
 ## Tests through the agent (phase 3)
 

@@ -921,7 +921,8 @@ function viewCerts(main) {
     askB.onclick = askCert;
   }
   var head = pageHead('cert', 'Certificates', WS.team === '*' ? 'Every certificate of your teams. Click one for everything about it.'
-    : 'The certificates of the team. Each is renewed by itself before it runs out - click one for everything about it.', [askB]);
+    : 'The certificates of the team. Each is renewed by itself before it runs out - click one for everything about it.',
+    [window.ACME_CAL && ACME_CAL.portalButtonEl ? ACME_CAL.portalButtonEl() : null, askB]);   /* the calendar (1.0.140) */
   main.appendChild(head);
   var bar = el('div', 'pw-bar');
   bar.appendChild(searchBox(WS.certQ.q, tr('Search names, owners, serials'), function (q) {

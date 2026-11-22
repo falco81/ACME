@@ -399,6 +399,8 @@ function drawList(box, d) {
   var sv = serversTable(rows);    /* 1.0.120: every server at a glance */
   if (sv) box.appendChild(sv);
   if (rows.some(function (a) { return a.joined; })) box.appendChild(keysReport());   /* 1.0.138 */
+  /* 1.0.140 (agentkeys.js): where the keys of their certificates are made */
+  if (window.ACME_AGENTKEYS && rows.some(function (a) { return a.joined; })) box.appendChild(window.ACME_AGENTKEYS.card({reload: function () { pane(true); }}));
 }
 function tile(a, d) {
   var t = el('div', 'dbs-tile ag-tile ' + (a.state === 'refused' ? 'bad' : ''));
@@ -448,6 +450,7 @@ function tile(a, d) {
     flags.appendChild(kf);
   }
   guardFlags(a, flags);          /* 1.0.138: the watching's flags */
+  if (window.ACME_AGENTKEYS) window.ACME_AGENTKEYS.flag(a, flags);   /* 1.0.140: what it deploys */
   if (flags.firstChild) t.appendChild(flags);
   if (a.design) {
     var df = el('span', 'ag-flag ' + (a.design.state === 'matches' ? 'ok' : (a.design.state === 'differs' ? 'warn' : 'info')));
@@ -1037,6 +1040,9 @@ function card(row, opts) {
       k.appendChild(kv('Its key', kf));
     }
     box.appendChild(k);
+    /* 1.0.140 (agentkeys.js): what its policy lets it deploy - a pill, when it says any */
+    var gp = window.ACME_AGENTKEYS && a.joined ? window.ACME_AGENTKEYS.pill(a) : null;
+    if (gp) box.appendChild(gp);
     /* 1.0.120: what the agent tells about its server */
     if (a.joined) box.appendChild(sysPanel(row, a, function (b) { load(true, b); }));
     /* 1.0.125: what the server runs that takes certificates (only where its policy allows it) */

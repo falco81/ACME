@@ -344,6 +344,49 @@ function discCheck(s, R) {
   R.discover.push(verdict([msg('info', 'read-only', 'read-only: acme lists what the server runs and the certificates there - nothing is changed')]));
   return k;
 }
+/* 1.0.140 (A1): what a deployment may deploy - allow issuer sha256=HEX, allow names, require key
+   local - as the agent's guard_entry reads them; their lines after discovery, before the limits */
+var NAME_PAT = /^(\*\.)?[a-z0-9_]([a-z0-9_-]{0,62})(\.[a-z0-9_]([a-z0-9_-]{0,62}))*$/;
+function namePattern(w) {
+  w = String(w || '').trim().toLowerCase().replace(/\.$/, '');
+  var ip = ipAddress(w);
+  if (ip) return ip;
+  if (!NAME_PAT.test(w) || w.length > 253) throw new Bad(JSON.stringify(w.slice(0, 80)) + ' is not a name of a certificate (www.example.com, *.example.com or an address)');
+  if (w.indexOf('*.') === 0 && w.slice(2).indexOf('.') < 0) throw new Bad(w + ' would allow every name under a top-level domain - name the domain (*.example.com)');
+  return w;
+}
+function fpOf(x) { return String(x || '').replace(/[\s:]/g, '').toLowerCase(); }
+function guardCheck(s, R, L) {
+  var iss = [], names = [];
+  R.issuers = [];
+  R.names = [];
+  R.guardMsg = null;
+  arr(s.issuers).forEach(function (x) {
+    var fp = fpOf(x);
+    if (!HEX64.test(fp)) { R.issuers.push(verdict([msg('bad', 'unread', 'allow issuer sha256=HEX (the SHA-256 of a CA\'s certificate)')])); return; }
+    if (iss.indexOf(fp) < 0) iss.push(fp);
+    R.issuers.push(verdict([]));
+  });
+  arr(s.names).forEach(function (x) {
+    if (String(x).trim() === '') return;          /* the one being typed */
+    try {
+      var n = namePattern(x);
+      if (names.indexOf(n) < 0) names.push(n);
+      R.names.push(verdict([]));
+    } catch (e) { if (!(e instanceof Bad)) throw e; R.names.push(verdict([msg('bad', 'unread', e.words)])); }
+  });
+  if (names.length && !iss.length) R.guardMsg = msg('warn', 'names-alone', 'allow names without allow issuer: a certificate of any CA for these names is deployed - name the CAs too (allow issuer sha256=...)');
+  iss.forEach(function (fp) { L.push('allow issuer sha256=' + fp); });
+  for (var i = 0; i < names.length; i += 8) L.push('allow names ' + names.slice(i, i + 8).join(' '));
+  if (s.key_local) L.push('require key local');
+  return {issuers: iss, names: names, key_local: !!s.key_local};
+}
+function guardLine(l) { return l.indexOf('allow issuer ') === 0 || l.indexOf('allow names ') === 0 || l === 'require key local'; }
+function guardState(s, p) {
+  if (arr(p.issuers).length) s.issuers = arr(p.issuers).map(String);
+  if (arr(p.names).length) s.names = arr(p.names).map(String);
+  if (p.key_local) s.key_local = true;
+}
 /* a Microsoft CA asked through the agent (1.0.125): [{ca, templates: [names] | ['*']}] */
 function adcsRows(x) {
   return arr(x).filter(function (r) { return r && typeof r === 'object'; }).map(function (r) {
@@ -381,6 +424,7 @@ function fromPolicy(p) {
   s.connect_on = s.connect.length > 0;
   s.self_update = !!p.self_update;
   s.discover = discRows(p.discover);
+  guardState(s, p);
   if (p.limits) s.limits = {files: Number(p.limits.files) || F.limits.files, size: Number(p.limits.size) || F.limits.size};
   return s;
 }
@@ -400,6 +444,7 @@ function fromSaved(x) {
   s.self_update = !!x.self_update;
   s.discover = discRows(x.discover);
   s.connect_on = !!x.connect_on || s.connect.length > 0;
+  guardState(s, x);
   if (x.limits && typeof x.limits === 'object') s.limits = {files: Number(x.limits.files) || F.limits.files, size: Number(x.limits.size) || F.limits.size};
   return s;
 }
@@ -566,12 +611,13 @@ function check(s) {
   if (s.self_update) L.push('allow self-update');
   pol.discover = discCheck(s, R);
   if (pol.discover.length) L.push(discLine(pol.discover));
+  pol.guard = guardCheck(s, R, L);
   if (R.limits.files.level === 'ok' && Number(s.limits.files) !== F.limits.files) L.push('limit files ' + Number(s.limits.files));
   if (R.limits.size.level === 'ok' && Number(s.limits.size) !== F.limits.size) L.push('limit size ' + Number(s.limits.size));
   R.lines = L;
   R.pol = pol;
-  var counts = {entries: L.length, warn: 0, bad: 0};
-  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'discover'].forEach(function (k) {
+  var counts = {entries: L.length, warn: R.guardMsg ? 1 : 0, bad: 0};
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'discover', 'issuers', 'names'].forEach(function (k) {
     R[k].forEach(function (v) { if (v.level === 'bad') counts.bad++; else if (v.level === 'warn') counts.warn++; });
   });
   ['files', 'size'].forEach(function (k) { if (R.limits[k].level === 'bad') counts.bad++; });
@@ -785,6 +831,7 @@ function checkWin(s) {
   pol.key_read.forEach(function (a) { L.push('allow key-read ' + siteLine(a)); });
   pol.discover = discCheck(s, R);
   if (pol.discover.length) L.push(discLine(pol.discover));
+  pol.guard = guardCheck(s, R, L);
   /* template names with a space or brackets quoted, as the agent's adcs_names_word (hunt R t2:
      unquoted, the agent refused the whole line) */
   pol.adcs.forEach(function (x) { var n = x.templates.join(','); L.push('allow adcs "' + x.ca + '" template=' + (/[^A-Za-z0-9_.,*-]/.test(n) ? '"' + n + '"' : n)); });
@@ -793,8 +840,8 @@ function checkWin(s) {
   if (R.limits.size.level === 'ok' && Number(s.limits.size) !== F.limits.size) L.push('limit size ' + Number(s.limits.size));
   R.lines = L;
   R.pol = pol;
-  var counts = {entries: L.length, warn: R.storeMsg ? 1 : 0, bad: 0};
-  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read', 'adcs', 'discover'].forEach(function (k) {
+  var counts = {entries: L.length, warn: (R.storeMsg ? 1 : 0) + (R.guardMsg ? 1 : 0), bad: 0};
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read', 'adcs', 'discover', 'issuers', 'names'].forEach(function (k) {
     R[k].forEach(function (v) { if (v.level === 'bad') counts.bad++; else if (v.level === 'warn') counts.warn++; });
   });
   ['files', 'size'].forEach(function (k) { if (R.limits[k].level === 'bad') counts.bad++; });
@@ -815,6 +862,7 @@ function allowLines(R) {
   p.from.forEach(function (f) { out.push('sudo acme-agent allow from ' + f); });
   R.lines.forEach(function (l) {
     if (l.indexOf('allow probe ') === 0 || l.indexOf('allow connect ') === 0 || l === 'allow self-update' || l.indexOf('allow discover') === 0) out.push('sudo acme-agent ' + l);
+    if (guardLine(l)) out.push('sudo acme-agent ' + l);
     if (l.indexOf('limit ') === 0) out.push('sudo acme-agent ' + l);
   });
   return out;
@@ -832,7 +880,7 @@ function allowLinesWin(R) {
     if (l.indexOf('allow probe ') === 0 || l.indexOf('allow connect ') === 0 || l === 'allow self-update' || l === 'allow store' ||
         l.indexOf('allow iis ') === 0 || l === 'allow rdp' || l.indexOf('allow role ') === 0 || l.indexOf('allow key-read ') === 0 ||
         l.indexOf('allow adcs ') === 0 || l === 'allow adcs-read' || l.indexOf('allow discover') === 0 ||
-        l.indexOf('limit ') === 0) out.push(A + l);
+        guardLine(l) || l.indexOf('limit ') === 0) out.push(A + l);
   });
   return out;
 }
@@ -1071,7 +1119,8 @@ var CORE = {setFacts: setFacts, facts: function () { return F; }, discKinds: dis
   wq: wq, splitWin: splitWin, normWin: normWin, protectedWhyWin: protectedWhyWin,
   ipNetwork: ipNetwork, normHostport: normHostport, protectedWhy: protectedWhy, empty: empty, fromPolicy: fromPolicy,
   fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, oneShot: oneShot, diff: diff, covers: covers,
-  addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, mergeState: mergeState, oct4: oct4, Bad: Bad};
+  addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, mergeState: mergeState, oct4: oct4, Bad: Bad,
+  namePattern: namePattern};
 if (typeof module === 'object' && module.exports) { module.exports = CORE; return; }
 root.ACME_POLICY_CORE = CORE;
 
@@ -1092,7 +1141,9 @@ var SVG = {
   wand: '<path d="M4 20L15 9"/><path d="M14 5v3M18.5 9.5h-3M17 6l-2 2"/><path d="M19 3l.6 1.4L21 5l-1.4.6L19 7l-.6-1.4L17 5l1.4-.6z"/>',
   hash: '<path d="M9 4L7 20M17 4l-2 16M4.5 9h16M3.5 15h16"/>',
   gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/>',
-  screen: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/>'
+  screen: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/>',
+  /* 1.0.140: a certificate with its seal - what the agent deploys */
+  cert: '<rect x="3.5" y="4" width="17" height="12" rx="2"/><path d="M7.5 8h9M7.5 11h4"/><circle cx="16" cy="15.5" r="2.5"/><path d="M14.8 17.6l-.8 3 2-1 2 1-.8-3"/>'
 };
 function icon(key, size) {
   var s = noI18n(el('span', 'ag-ic'));
@@ -1187,6 +1238,10 @@ function build(row, d, opts) {
       if (!l || l[0] === '#') return;
       try {
         var w = W() ? splitWin(l) : split(l);
+        /* 1.0.140 (A1): the same words on both platforms */
+        if (w[0] === 'require' && w[1] === 'key' && w[2] === 'local') { s.key_local = true; return; }
+        if (w[0] === 'allow' && w[1] === 'issuer') { var im = String(w[2] || '').match(/^sha256=(.*)$/); if (im) (s.issuers = arr(s.issuers)).push(fpOf(im[1])); return; }
+        if (w[0] === 'allow' && w[1] === 'names') { s.names = arr(s.names).concat(w.slice(2)); return; }
         if (W()) {
           var wkv = {}, wr = [];
           w.slice(2).forEach(function (x) { var m = x.match(/^([a-z0-9_-]+)=(.*)$/); if (m) wkv[m[1]] = m[2]; else wr.push(x); });
@@ -1286,7 +1341,7 @@ function build(row, d, opts) {
     ['tpl', 'Templates', 'wand'], ['needs', 'What the deployments need', 'check'], ['files', 'Folders', 'folder'],
     ['units', 'Units', 'refresh'], ['tests', 'Tests and commands', 'terminal'], ['scripts', 'Scripts', 'key'],
     ['hashes', 'Script hashes', 'hash'], ['from', 'Allow from', 'in'], ['probe', 'Tests from here', 'pulse'],
-    ['connect', 'Connections for acme', 'plug'], ['discover', 'Discovery', 'search'], ['update', 'Updates from acme', 'up'], ['limits', 'Limits', 'gauge']
+    ['connect', 'Connections for acme', 'plug'], ['discover', 'Discovery', 'search'], ['guard', 'What it deploys', 'cert'], ['update', 'Updates from acme', 'up'], ['limits', 'Limits', 'gauge']
   ];
   /* 1.0.125: what the last discovery found on the server, with the lines each needs */
   var FOUND = arr(d.discovered && !d.discovered.refused && d.discovered.found).filter(function (f) { return arr(f.items).length; });
@@ -1340,8 +1395,8 @@ function build(row, d, opts) {
   function drawAll() {
     Object.keys(sec).forEach(function (k) { if (sec[k].parentNode) sec[k].remove(); });
     refs.rows = {};
-    (W() ? [drawTemplates, drawNeeds, drawFound, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawRoles, drawKeyRead, drawAdcs, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawDiscover, drawUpdate, drawLimits]
-      : [drawTemplates, drawNeeds, drawFound, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawDiscover, drawUpdate, drawLimits])
+    (W() ? [drawTemplates, drawNeeds, drawFound, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawRoles, drawKeyRead, drawAdcs, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawDiscover, drawGuard, drawUpdate, drawLimits]
+      : [drawTemplates, drawNeeds, drawFound, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawDiscover, drawGuard, drawUpdate, drawLimits])
       .forEach(function (f) { var n = f(); if (n) refs.main.appendChild(n); });
   }
   function redraw(key, fn) {
@@ -2111,6 +2166,217 @@ function build(row, d, opts) {
     }
     return s.node;
   }
+  /* ---- 1.0.140 (A1): what a deployment may deploy - checked by the agent itself ------------- */
+  var GD = d.guard || {cas: [], names: [], keys: null};
+  function grouped4(fp) { return String(fp || '').toUpperCase().replace(/(.{4})(?=.)/g, '$1 '); }
+  function gcard(ic, title, hint, on, words, change) {
+    var c = el('div', 'pb-gcard' + (on ? ' on' : ''));
+    var h = el('div', 'pb-gcard-h');
+    var i = noI18n(el('span', 'pb-gcard-ic'));
+    i.appendChild(icon(ic, 16));
+    h.appendChild(i);
+    var w = el('div', 'pb-gcard-w');
+    w.appendChild(el('b', '', title));
+    w.appendChild(el('span', 'pb-sec-hint', hint));
+    h.appendChild(w);
+    c.appendChild(h);
+    var sw = switcher(on, words, change);
+    sw.classList.add('pb-gcard-sw');
+    c.appendChild(sw);
+    var body = el('div', 'pb-gcard-b');
+    c.appendChild(body);
+    return {node: c, body: body};
+  }
+  function suggestedIssuers() {
+    var here = arr(GD.cas).filter(function (c) { return c.here; });
+    var roots = here.filter(function (c) { return c.root; });
+    return (roots.length ? roots : here).map(function (c) { return c.fp; });
+  }
+  function drawGuard() {
+    var s = section('guard', 'What it deploys', 'cert', W() ? 'The agent looks at the certificate itself before it imports or writes anything: who issued it, every name in it, whose key it is. Nothing of it is checked until you choose it here - then a running acme in the wrong hands cannot slip in a certificate of its own.'
+      : 'The agent looks at the certificate itself before it writes anything: who issued it, every name in it, whose key it is. Nothing of it is checked until you choose it here - then a running acme in the wrong hands cannot slip in a certificate of its own.');
+    var box = el('div', 'pb-guard');
+    s.body.appendChild(box);
+    refs.rows.issuers = [];
+    refs.rows.names = [];
+    /* allowed issuers */
+    var isOn = arr(S.issuers).length > 0;
+    var ci = gcard('shield', 'Allowed issuers', 'Every certificate written must chain to one of these CAs - the agent checks the signatures with openssl itself; the chain acme sends is never trusted.',
+      isOn, 'Only certificates of these CAs', function (on) {
+        S.issuers = on ? suggestedIssuers() : [];
+        if (on && !S.issuers.length && arr(GD.cas).length) S.issuers = [GD.cas[0].fp];
+        redraw('guard', drawGuard);
+      });
+    box.appendChild(ci.node);
+    if (isOn) {
+      var known = {};
+      var list = el('div', 'pb-cas');
+      list.setAttribute('role', 'group');
+      list.setAttribute('aria-label', tr('Allowed issuers'));
+      arr(GD.cas).forEach(function (c) {
+        known[c.fp] = true;
+        var on = S.issuers.map(fpOf).indexOf(c.fp) >= 0;
+        var b = el('button', 'pb-ca' + (on ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        var mk = noI18n(el('span', 'pb-ca-mk', on ? '✓' : ''));
+        b.appendChild(mk);
+        var w = el('span', 'pb-ca-w');
+        var t = el('span', 'pb-ca-t');
+        t.appendChild(noI18n(el('b', '', c.title)));
+        var tags = el('span', 'pb-ca-tags');
+        tags.appendChild(el('span', 'pb-ca-tag ' + (c.root ? 'root' : 'int'), c.root ? 'root CA' : 'intermediate CA'));
+        if (c.kind === 'authority') tags.appendChild(el('span', 'pb-ca-tag own', 'acme’s authority'));
+        if (c.here) tags.appendChild(el('span', 'pb-ca-tag here', 'used here'));
+        t.appendChild(tags);
+        w.appendChild(t);
+        var sub = el('span', 'pb-ca-s');
+        sub.appendChild(mono(grouped4(c.fp.slice(0, 24)) + '\u00a0…'));
+        var bits = [];
+        if (arr(c.sources).length) bits.push(arr(c.sources).join(', '));
+        if (c.certs) bits.push(c.certs === 1 ? '1 certificate' : c.certs + ' certificates');
+        if (bits.length) sub.appendChild(el('span', 'pb-ca-src', bits.join(' · ')));
+        w.appendChild(sub);
+        b.appendChild(w);
+        b.title = c.subject || c.title;
+        b.onclick = function () {
+          var cur = S.issuers.map(fpOf), at = cur.indexOf(c.fp);
+          if (at >= 0) S.issuers.splice(at, 1); else S.issuers.push(c.fp);
+          if (!S.issuers.length) S.issuers.push(c.fp);      /* switched off by the switch only */
+          redraw('guard', drawGuard);
+        };
+        list.appendChild(b);
+      });
+      if (!arr(GD.cas).length) ci.body.appendChild(el('p', 'pb-empty', 'acme knows no CA yet (no certificate issued, no authority of its own) - give the SHA-256 of a CA’s certificate below.'));
+      else ci.body.appendChild(list);
+      /* one acme does not know: by its SHA-256 */
+      S.issuers.forEach(function (x, i) {
+        if (known[fpOf(x)]) return;
+        var o = rowShell(S.issuers, 'issuers', i, function () { S.issuers.splice(i, 1); redraw('guard', drawGuard); });
+        o.top.appendChild(el('span', 'pb-k', 'SHA-256'));
+        var v = input(x, '64 hex digits of the CA’s certificate', 'mono pb-hash');
+        v.setAttribute('aria-label', tr('SHA-256 of a CA’s certificate'));
+        v.oninput = function () { S.issuers[i] = v.value.trim(); refresh(); };
+        o.top.appendChild(v);
+        o.top.appendChild(o.x);
+        ci.body.appendChild(o.row);
+      });
+      var more = cmdButton('A CA acme does not know…', 'add', 'small');
+      more.onclick = function () { S.issuers.push(''); redraw('guard', drawGuard); focusLast('issuers'); };
+      var br = el('div', 'btnrow');
+      br.appendChild(more);
+      ci.body.appendChild(br);
+    }
+    /* allowed names */
+    var nOn = arr(S.names).length > 0;
+    var cn = gcard('globe', 'Allowed names', 'Every name in the certificate (its alternative names, a common name that is a name) must be one of these. *.example.com takes one label more: www.example.com, not example.com, not a.b.example.com.',
+      nOn, 'Only these names', function (on) {
+        S.names = on ? arr(GD.names).slice() : [];
+        if (on && !S.names.length) S.names = [''];
+        redraw('guard', drawGuard);
+      });
+    box.appendChild(cn.node);
+    if (nOn) {
+      var chips = el('div', 'pb-gnames');
+      S.names.forEach(function (x, i) {
+        var ch = el('span', 'pb-gname');
+        if (x === '') {
+          var fi = input('', 'www.example.com, *.example.com …', 'mono pb-gname-in');
+          fi.setAttribute('aria-label', tr('A name'));
+          fi.onkeydown = function (e) {
+            if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+              e.preventDefault();
+              var words = fi.value.split(/[\s,]+/).filter(Boolean);
+              if (!words.length) return;
+              S.names.splice.apply(S.names, [i, 1].concat(words));
+              S.names.push('');
+              redraw('guard', drawGuard);
+              focusName();
+            }
+          };
+          fi.onblur = function () {
+            var words = fi.value.split(/[\s,]+/).filter(Boolean);
+            if (!words.length) return;
+            S.names.splice.apply(S.names, [i, 1].concat(words));
+            redraw('guard', drawGuard);
+          };
+          chips.appendChild(fi);
+          return;
+        }
+        ch.appendChild(mono(x));
+        var bad = (function () { try { namePattern(x); return ''; } catch (e) { return e.words || String(e); } }());
+        if (bad) { ch.classList.add('bad'); ch.title = bad; }
+        var rm = el('button', 'pb-gname-x');
+        rm.type = 'button';
+        rm.setAttribute('aria-label', tr('Take it away') + ': ' + x);
+        rm.textContent = '×';
+        rm.onclick = function () { S.names.splice(i, 1); if (!S.names.length) S.names.push(''); redraw('guard', drawGuard); };
+        ch.appendChild(rm);
+        chips.appendChild(ch);
+      });
+      if (S.names.indexOf('') < 0) {
+        var addn = el('button', 'pb-gname add');
+        addn.type = 'button';
+        addn.appendChild(noI18n(el('span', 'pb-chip-p', '+')));
+        addn.appendChild(el('span', '', 'a name'));
+        addn.onclick = function () { S.names.push(''); redraw('guard', drawGuard); focusName(); };
+        chips.appendChild(addn);
+      }
+      cn.body.appendChild(chips);
+      var missing = arr(GD.names).filter(function (n) { return S.names.indexOf(n) < 0 && !S.names.some(function (p) { return p.indexOf('*.') === 0 && n.split('.').slice(1).join('.') === p.slice(2) && n.indexOf('*.') !== 0; }); });
+      if (missing.length) {
+        var off = el('div', 'pb-offer');
+        off.appendChild(el('span', 'pb-k', 'Deployed here, not allowed'));
+        missing.slice(0, 12).forEach(function (n) {
+          var b = el('button', 'pb-chip-add');
+          b.type = 'button';
+          b.appendChild(noI18n(el('span', 'pb-chip-p', '+')));
+          b.appendChild(mono(n));
+          b.onclick = function () { S.names = S.names.filter(Boolean); S.names.push(n); redraw('guard', drawGuard); };
+          off.appendChild(b);
+        });
+        cn.body.appendChild(off);
+      }
+      refs.guardSaid = said();
+      cn.body.appendChild(refs.guardSaid);
+    } else refs.guardSaid = null;
+    /* the key */
+    var kOn = !!S.key_local;
+    var ck = gcard('key', 'Key only from this server', W() ? 'The key must be one the agent made on this server (Key made by the device) - a certificate with acme’s key, or a PKCS#12 holding another key, is refused.'
+      : 'The key must be one the agent made on this server (Key made by the device) - a certificate with acme’s key, or a file holding another key, is refused.',
+      kOn, 'Only a key made on the server (require key local)', function (on) { S.key_local = on; redraw('guard', drawGuard); });
+    box.appendChild(ck.node);
+    var K = GD.keys;
+    if (K && (K.agent || K.acme)) {
+      var kst = el('div', 'pb-gkeys');
+      var a1 = el('span', 'pb-ns ok');
+      a1.textContent = K.agent === 1 ? '1 certificate: the key made here' : K.agent + ' certificates: the key made here';
+      kst.appendChild(a1);
+      if (K.acme) {
+        var a2 = el('span', 'pb-ns ' + (kOn ? 'never' : 'no'));
+        a2.textContent = K.acme === 1 ? '1 certificate: acme’s key' : K.acme + ' certificates: acme’s key';
+        kst.appendChild(a2);
+      }
+      ck.body.appendChild(kst);
+      if (kOn && K.acme) {
+        var wn = el('div', 'note warn small');
+        wn.appendChild(el('span', '', K.acme === 1 ? 'The agent would refuse the certificate deployed here with acme’s key - let its key be made on the server first.'
+          : 'The agent would refuse the ' + K.acme + ' certificates deployed here with acme’s key - let their key be made on the server first.'));
+        ck.body.appendChild(wn);
+        if (root.ACME_AGENTKEYS && root.ACME_AGENTKEYS.switchDialog && K.switchable) {
+          var sb = cmdButton('Switch to a key made on the server…', 'key', 'small');
+          sb.onclick = function () { root.ACME_AGENTKEYS.switchDialog({target: row.name, ids: arr(K.switch_ids)}); };
+          var sbr = el('div', 'btnrow');
+          sbr.appendChild(sb);
+          ck.body.appendChild(sbr);
+        }
+      }
+    }
+    return s.node;
+  }
+  function focusName() {
+    setTimeout(function () { var x = sec.guard && sec.guard.querySelector('.pb-gname-in'); if (x) x.focus(); }, 0);
+  }
   function drawUpdate() {
     var s = section('update', 'Updates from acme', 'up', 'acme may send a newer agent: only the package signed by the release key the agent was installed with, only a newer version - acme’s own package, never one from the internet.');
     s.body.appendChild(switcher(S.self_update, 'acme may update this agent', function (on) { S.self_update = on; refresh(); }));
@@ -2318,7 +2584,7 @@ function build(row, d, opts) {
   /* ---- everything checked again, in place -------------------------------------------------- */
   function refresh() {
     R = check(S);
-    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read', 'adcs'].forEach(function (k) {
+    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read', 'adcs', 'issuers'].forEach(function (k) {
       arr(refs.rows[k]).forEach(function (r, i) {
         if (!r || !R[k] || !R[k][i]) return;
         var hint = '';
@@ -2339,6 +2605,13 @@ function build(row, d, opts) {
       clear(refs.storeSaid);
       if (R.storeMsg) { var sm = el('div', 'pb-msg warn'); sm.appendChild(noI18n(el('span', 'pb-msg-mk', '!'))); sm.appendChild(el('span', '', R.storeMsg.words)); refs.storeSaid.appendChild(sm); }
     }
+    if (refs.guardSaid) {
+      clear(refs.guardSaid);
+      var gm = [];
+      arr(R.names).forEach(function (v) { v.msgs.forEach(function (m) { gm.push(m); }); });
+      if (R.guardMsg) gm.push(R.guardMsg);
+      gm.forEach(function (m) { var x = el('div', 'pb-msg ' + m.level); x.appendChild(noI18n(el('span', 'pb-msg-mk', m.level === 'bad' ? '✕' : '!'))); x.appendChild(el('span', '', m.words)); refs.guardSaid.appendChild(x); });
+    }
     paintTemplates();
     paintNeeds();
     /* the hero and the nav */
@@ -2358,10 +2631,11 @@ function build(row, d, opts) {
       from: S.from.length, probe: S.probe.length + (S.probe_local ? 1 : 0), connect: S.connect_on ? S.connect.length : 0, update: S.self_update ? '✓' : '', limits: '',
       store: S.store ? '✓' : '', iis: arr(S.iis).length, rdp: S.rdp ? '✓' : '', roles: arr(S.roles).length, key_read: arr(S.key_read).length,
       adcs: arr(S.adcs).length + (S.adcs_read ? 1 : 0),
-      discover: discRows(S.discover)[0] === '*' ? '✓' : discRows(S.discover).length, found: ''};
+      discover: discRows(S.discover)[0] === '*' ? '✓' : discRows(S.discover).length, found: '',
+      guard: (arr(S.issuers).length ? 1 : 0) + (arr(S.names).filter(Boolean).length ? 1 : 0) + (S.key_local ? 1 : 0)};
     var lv = {files: R.files, units: R.units, tests: R.tests, scripts: R.scripts, hashes: R.hashes, from: R.from, probe: R.probe, connect: R.connect,
       limits: [R.limits.files, R.limits.size], iis: R.iis || [], store: R.storeMsg ? [{level: 'warn'}] : [], roles: R.roles || [], key_read: R.key_read || [],
-      adcs: R.adcs || [], discover: R.discover || []};
+      adcs: R.adcs || [], discover: R.discover || [], guard: arr(R.issuers).concat(arr(R.names), R.guardMsg ? [{level: 'warn'}] : [])};
     Object.keys(refs.nav).forEach(function (k) {
       var x = refs.nav[k];
       x.n.textContent = N[k] === '' || N[k] === 0 ? '' : String(N[k]);

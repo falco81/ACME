@@ -54,6 +54,10 @@ Two processes:
                                          (read-only; no KIND: every kind it knows)
   acme-agent discover [--kind K] [--json]   what such a discovery finds here (as root)
   acme-agent limit files N | limit size BYTES
+  acme-agent allow issuer sha256=HEX | CA.pem   what is deployed must chain to this CA (1.0.140)
+  acme-agent allow names NAME [NAME...]  every name of what is deployed one of these
+                                         (*.example.com: one label more)
+  acme-agent require key local | any     its key only one this agent made (any: taken away)
   acme-agent deny ...                    the same words: that entry taken away
   acme-agent audit on | off              the hash-chained audit log kept (the policy's line
                                          `audit chain`) - each entry holds the hash of the one
@@ -118,7 +122,8 @@ ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'upd
             'discover', 'audit', 'cmdkey', 'enckey')
 # 1.0.138: what this agent can do beyond 1.0.137 - told acme with every hello (A6 the audit
 # chain, A8 acme's command key and this agent's key for secrets changed over the channel)
-FEATURES = ('audit-chain', 'cmdkey', 'enckey')
+FEATURES = ('audit-chain', 'cmdkey', 'enckey',
+            'deploy-guard')     # 1.0.140 (A1): allow issuer / allow names / require key local
 KEY_OVERLAP_S = 3 * 86400       # an old key still taken this long after a new one (A8)
 KEY_OVERLAP_MOST = 30 * 86400
 KEY_CHANGE_EVERY_S = 3600       # one key changed at most this often (a flapping acme)
@@ -976,6 +981,9 @@ POLICY_HEAD = """# /etc/acme-agent/policy - what acme may do on this machine (do
 #                                               certificates (read-only; no KIND: every kind)
 #   limit files 20                              files in one deployment
 #   limit size 1048576                          bytes of one file
+#   allow issuer sha256=HEX                     what is deployed chains to this CA (repeatable)
+#   allow names *.example.com www.example.net   every name of it is one of these (repeatable)
+#   require key local                           its key is one this agent made (keygen)
 """
 
 
@@ -1158,9 +1166,19 @@ def _policy_line(pol, words):
             raise Refused('audit chain (the only audit entry)')
         pol['audit_chain'] = True
         return
+    if head == 'require':
+        # 1.0.140 (A1): the key of what is deployed only one this agent made (keygen)
+        if words[1:] != ['key', 'local']:
+            raise Refused('require key local (the only require entry)')
+        pol['key_local'] = True
+        return
     if head != 'allow' or len(words) < 2:
         raise Refused('an entry begins with "allow" or "limit"')
     what, rest = words[1], words[2:]
+    if what in ('issuer', 'names'):
+        # 1.0.140 (A1): what a deployment deploys, checked here before anything is written
+        guard_entry(pol, what, rest)
+        return
     if what == 'file':
         kv, rest = _kv(rest, ('owner', 'mode'))
         if len(rest) != 1:
@@ -1293,7 +1311,9 @@ def policy_canon(pol):
     # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
     # ...and what Windows adds (the machine store, IIS, Remote Desktop): never on Linux
     for k in ('probe', 'probe_local', 'store', 'iis', 'rdp', 'roles', 'key_read', 'adcs',
-              'adcs_read', 'discover', 'audit_chain'):
+              'adcs_read', 'discover', 'audit_chain',
+              # 1.0.140 (A1): what a deployment deploys - only when used (the hash as before)
+              'issuers', 'names', 'key_local'):
         if pol.get(k):
             keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
@@ -1359,6 +1379,7 @@ def policy_lines(pol):
         out.append(discover_line(pol['discover']))
     if pol.get('audit_chain'):
         out.append('audit chain')               # 1.0.138 (A6)
+    out += guard_lines(pol)                     # 1.0.140 (A1)
     if pol['limits']['files'] != FILES_MOST:
         out.append('limit files %d' % pol['limits']['files'])
     if pol['limits']['size'] != FILE_MOST:
@@ -1380,10 +1401,413 @@ def policy_report(pol, h):
         out['discover'] = list(pol['discover'])     # 1.0.125: discovery (read-only)
     if pol.get('audit_chain'):
         out['audit_chain'] = True                   # 1.0.138 (A6): the hash chain kept
+    # 1.0.140 (A1): what a deployment may deploy - an acme before it ignores the keys
+    for k in ('issuers', 'names'):
+        if pol.get(k):
+            out[k] = list(pol[k])
+    if pol.get('key_local'):
+        out['key_local'] = True
     if WINDOWS:
         # what this agent knows of the Windows roles: acme sends none to an agent without it
         out['roles_known'] = [r[0] for r in _winroles().ROLES]
     return out
+
+
+# ---- what a deployment deploys, checked by root itself (1.0.140, A1) ---------------------------
+# Three optional lines (root's, as every line): `allow issuer sha256=HEX` (repeatable) - every
+# certificate written chains to one of these CAs (its signatures checked here by openssl: the
+# chain the job carries is only what the path is built from); `allow names PATTERN...`
+# (repeatable) - every name (subjectAltName, a common name that is a name) of every end
+# certificate is one of these; `require key local` - every private key written, and the key of
+# every end certificate, is one this agent made (keygen): acme's key is refused. Checked before
+# anything is written; without these lines nothing of it runs (the behaviour as before).
+GUARD_CERTS_MOST = 64           # certificates looked at in one job
+GUARD_NAMES_MOST = 500          # names in the policy
+GUARD_ISSUERS_MOST = 64
+NAME_PAT_RE = re.compile(r'(\*\.)?[a-z0-9_]([a-z0-9_-]{0,62})(\.[a-z0-9_]([a-z0-9_-]{0,62}))*\Z')
+PEM_BLOCK_RE = re.compile(rb'-----BEGIN ([A-Z0-9 ]{1,40})-----\r?\n.*?-----END \1-----', re.S)
+
+
+def name_pattern(word):
+    """A word of `allow names` as kept: a DNS name or *.name (lower case, no end dot), or an
+    address - else Refused."""
+    w = str(word or '').strip().lower().rstrip('.')
+    try:
+        return str(ipaddress.ip_address(w))
+    except ValueError:
+        pass
+    if not NAME_PAT_RE.match(w) or len(w) > 253:
+        raise Refused('%r is not a name of a certificate (www.example.com, *.example.com or an '
+                      'address)' % w[:80])
+    if w.startswith('*.') and '.' not in w[2:]:
+        raise Refused('%s would allow every name under a top-level domain - name the domain '
+                      '(*.example.com)' % w)
+    return w
+
+
+def guard_entry(pol, what, rest):
+    if what == 'issuer':
+        kv, rest = _kv(rest, ('sha256',))
+        fp = re.sub(r'[\s:]', '', str(kv.get('sha256') or '')).lower()
+        if rest or not HEX64.match(fp):
+            raise Refused('allow issuer sha256=HEX (the SHA-256 of a CA\'s certificate - '
+                          'acme-agent allow issuer FILE.pem takes it from the file)')
+        have = pol.setdefault('issuers', [])
+        if fp not in have:
+            if len(have) >= GUARD_ISSUERS_MOST:
+                raise Refused('%d issuers at most' % GUARD_ISSUERS_MOST)
+            have.append(fp)
+        return
+    if not rest:
+        raise Refused('allow names NAME [NAME...] (www.example.com, *.example.com, an address)')
+    have = pol.setdefault('names', [])
+    for w in rest:
+        p = name_pattern(w)
+        if p not in have:
+            if len(have) >= GUARD_NAMES_MOST:
+                raise Refused('%d names at most' % GUARD_NAMES_MOST)
+            have.append(p)
+
+
+def guard_lines(pol):
+    """The lines of what a deployment may deploy, as `acme-agent allow` writes them."""
+    out = ['allow issuer sha256=%s' % fp for fp in pol.get('issuers') or []]
+    names = list(pol.get('names') or [])
+    for i in range(0, len(names), 8):
+        out.append('allow names %s' % ' '.join(names[i:i + 8]))
+    if pol.get('key_local'):
+        out.append('require key local')
+    return out
+
+
+def guard_on(pol):
+    return bool((pol or {}).get('issuers') or (pol or {}).get('names') or
+                (pol or {}).get('key_local'))
+
+
+def name_allowed(patterns, name):
+    """Whether the certificate's `name` is one of `patterns`: the same name; *.example.com
+    takes one label more (a.example.com - not example.com, not a.b.example.com); a wildcard
+    name of the certificate only the same wildcard."""
+    n = str(name or '').strip().lower().rstrip('.')
+    try:
+        n = str(ipaddress.ip_address(n))
+    except ValueError:
+        pass
+    for p in patterns or []:
+        if n == p:
+            return True
+        if p.startswith('*.') and not n.startswith('*.') and '.' in n:
+            first, rest = n.split('.', 1)
+            if rest == p[2:] and first:
+                return True
+    return False
+
+
+class _Guard(object):
+    """One check: its files in a folder of root's own (stage), openssl run on them."""
+
+    def __init__(self, top=None):
+        top = top or os.path.join(ROOT_STATE, 'stage')
+        os.makedirs(top, mode=0o700, exist_ok=True)
+        self.d = tempfile.mkdtemp(dir=top, prefix='guard-')
+        self.n = 0
+        self.looked = {}
+
+    def file(self, data):
+        self.n += 1
+        fn = os.path.join(self.d, 'g%d' % self.n)
+        fd = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data if isinstance(data, bytes) else data.encode('utf-8'))
+        return fn
+
+    def run(self, args, env=None):
+        """(ok, stdout as text)."""
+        got = subprocess.run([OPENSSL] + args, capture_output=True,
+                             env=env if env is not None else None)
+        return got.returncode == 0, got.stdout.decode('utf-8', 'replace')
+
+    def close(self):
+        for fn in os.listdir(self.d):
+            try:
+                os.unlink(os.path.join(self.d, fn))
+            except OSError:
+                pass
+        try:
+            os.rmdir(self.d)
+        except OSError:
+            pass
+
+    # -- what a file holds -------------------------------------------------------------
+    def pem_blocks(self, data):
+        certs, keys, other = [], [], []
+        for m in PEM_BLOCK_RE.finditer(data):
+            label = m.group(1).decode('ascii', 'replace')
+            block = m.group(0).decode('ascii', 'replace').replace('\r\n', '\n') + '\n'
+            if label in ('CERTIFICATE', 'X509 CERTIFICATE', 'TRUSTED CERTIFICATE'):
+                if label != 'CERTIFICATE':
+                    ok, out = self.run(['x509', '-in', self.file(block)])
+                    if not ok:
+                        other.append(label)
+                        continue
+                    block = out
+                certs.append(block)
+            elif label.endswith('PRIVATE KEY'):
+                keys.append(block)
+            elif label == 'PKCS7':
+                ok, out = self.run(['pkcs7', '-print_certs', '-in', self.file(block)])
+                if not ok:
+                    other.append(label)
+                    continue
+                certs += [b.group(0).decode('ascii') + '\n' for b in PEM_BLOCK_RE.finditer(
+                    out.encode('utf-8')) if b.group(1) == b'CERTIFICATE']
+            else:
+                other.append(label)
+        return certs, keys, other
+
+    def p12(self, data, password):
+        fn = self.file(data)
+        env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'ACME_AGENT_P12': password or ''}
+        for k in ('OPENSSL_CONF', 'OPENSSL_MODULES', 'SYSTEMROOT'):
+            if os.environ.get(k):
+                env[k] = os.environ[k]
+        for more in ([], ['-legacy']):
+            ok, out = self.run(['pkcs12', '-in', fn, '-nodes', '-passin', 'env:ACME_AGENT_P12']
+                               + more, env)
+            if ok and '-----BEGIN' in out:
+                return out.encode('utf-8')
+        return None
+
+    def material(self, label, data, fmt='', password=None):
+        """What one file (or the store's PKCS#12) holds: {label, certs, keys, unread}."""
+        fmt = str(fmt or '')
+        out = {'label': label, 'certs': [], 'keys': [], 'unread': ''}
+        if not data:
+            return out
+        if b'-----BEGIN ' in data[:65536] or b'-----BEGIN ' in data:
+            out['certs'], out['keys'], _other = self.pem_blocks(data)
+            return out
+        if fmt == 'jks':
+            out['unread'] = 'a Java keystore'
+            return out
+        if fmt in ('pfx', 'p12', 'p12-legacy') or password is not None:
+            got = self.p12(data, password)
+            if got is None:
+                out['unread'] = 'a PKCS#12 it cannot open'
+                return out
+            out['certs'], out['keys'], _o = self.pem_blocks(got)
+            return out
+        fn = self.file(data)
+        ok, txt = self.run(['x509', '-inform', 'DER', '-in', fn])
+        if ok:
+            out['certs'] = [txt]
+            return out
+        ok, txt = self.run(['pkcs7', '-inform', 'DER', '-print_certs', '-in', fn])
+        if ok and 'BEGIN CERTIFICATE' in txt:
+            out['certs'], _k, _o = self.pem_blocks(txt.encode('utf-8'))
+            return out
+        ok, txt = self.run(['pkey', '-inform', 'DER', '-in', fn])
+        if ok and 'PRIVATE KEY' in txt:
+            out['keys'] = [txt]
+            return out
+        got = self.p12(data, '')
+        if got is not None:
+            out['certs'], out['keys'], _o = self.pem_blocks(got)
+            return out
+        out['unread'] = 'a file of %d bytes that is no certificate, key or PKCS#12 it reads' % (
+            len(data))
+        return out
+
+    # -- one certificate ----------------------------------------------------------------
+    def look(self, pem):
+        """{fp, spki, ca, names, subject, issuer} of a certificate (PEM)."""
+        fp = fp_of_pem(pem)
+        if fp in self.looked:
+            return self.looked[fp]
+        fn = self.file(pem)
+        ok, txt = self.run(['x509', '-in', fn, '-noout', '-subject', '-issuer', '-nameopt',
+                            'RFC2253', '-ext', 'subjectAltName,basicConstraints'])
+        if not ok:
+            raise Refused('a certificate of the job cannot be read by openssl')
+        f = {'fp': fp, 'ca': False, 'names': [], 'subject': '', 'issuer': '', 'file': fn}
+        lines = txt.splitlines()
+        for i, line in enumerate(lines):
+            s = line.strip()
+            if s.startswith('subject='):
+                f['subject'] = s[8:].strip()
+            elif s.startswith('issuer='):
+                f['issuer'] = s[7:].strip()
+            elif 'CA:TRUE' in s.replace(' ', ''):
+                f['ca'] = True
+            elif 'Subject Alternative Name' in s and i + 1 < len(lines):
+                for part in lines[i + 1].split(','):
+                    part = part.strip()
+                    if part.startswith('DNS:'):
+                        f['names'].append(part[4:].strip())
+                    elif part.startswith('IP Address:'):
+                        f['names'].append(part[11:].strip())
+        m = re.search(r'(?:^|,)CN=((?:[^,\\]|\\.)+)', f['subject'])
+        cn = m.group(1).strip() if m else ''
+        try:
+            cn_ok = bool(cn) and (bool(ipaddress.ip_address(cn)) or True)
+        except ValueError:
+            cn_ok = bool(DNS_RE.match(cn)) and '.' in cn
+        if cn_ok and cn.lower() not in [x.lower() for x in f['names']]:
+            f['names'].append(cn)
+        f['cn'] = cn
+        try:
+            f['spki'] = spki_fp(pem)
+        except (Refused, ValueError):
+            f['spki'] = ''
+        self.looked[fp] = f
+        return f
+
+    def chains_to(self, pem, anchors, pool):
+        """Whether openssl builds a path from `pem` to one of `anchors` (PEM, the allowed CAs
+        as the job holds them) with the certificates of `pool` between - every signature
+        checked, each one between a CA (its time not judged: that is acme's)."""
+        if not anchors:
+            return False
+        a = self.file(''.join(anchors))
+        args = ['verify', '-no_check_time', '-partial_chain', '-trusted', a]
+        if pool:
+            args += ['-untrusted', self.file(''.join(pool))]
+        ok, out = self.run(args + [self.file(pem)])
+        return ok and out.strip().endswith('OK')
+
+
+def own_key_fps(slot=''):
+    """The SHA-256 of the public key of each key this agent made (keygen): of the deployment's
+    slot when it says one, else of every one it keeps."""
+    d = keys_dir()
+    out = []
+    names = sorted(os.listdir(d))
+    if slot and SLOT_RE.match(str(slot)):
+        names = [n for n in names if n in (slot + '.key', slot + '.pending')]
+    for n in names:
+        if not n.endswith(('.key', '.pending')):
+            continue
+        pem = _read(os.path.join(d, n), '') or ''
+        try:
+            out.append(spki_fp(pem))
+        except (Refused, ValueError):
+            continue
+    return out
+
+
+def guard_words(pol):
+    """What the policy's guard says, in short: '2 issuers, 3 names, own key'."""
+    bits = []
+    n = len(pol.get('issuers') or [])
+    if n:
+        bits.append('%d issuer%s' % (n, '' if n == 1 else 's'))
+    n = len(pol.get('names') or [])
+    if n:
+        bits.append('%d name%s' % (n, '' if n == 1 else 's'))
+    if pol.get('key_local'):
+        bits.append('own key')
+    return ', '.join(bits)
+
+
+def guard_check(pol, mats, pool=(), own=None, top=None):
+    """What a deployment deploys against the policy's guard (allow issuer, allow names,
+    require key local) - before anything is written. `mats`: [(label, bytes, format,
+    password or None)] - each file as written, the PKCS#12 for the machine store, the
+    certificates a key this agent made goes with; `pool`: more certificates (PEM, the job's
+    chain - untrusted: only what a path is built from); `own`: the public keys of the keys
+    this agent made (None: read). -> the words of what was checked, or Refused."""
+    if not guard_on(pol):
+        return ''
+    g = _Guard(top)
+    try:
+        seen = []                   # (label, pem, look)
+        keys = []                   # (label, pem)
+        for label, data, fmt, pw in mats:
+            m = g.material(label, data if isinstance(data, bytes) else
+                           str(data or '').encode('utf-8'), fmt, pw)
+            if m['unread']:
+                raise Refused('refused by the policy of this machine (%s): %s is %s - with it '
+                              'the agent deploys only what it looks into itself' % (
+                                  guard_words(pol), label, m['unread']))
+            for c in m['certs']:
+                if len(seen) >= GUARD_CERTS_MOST:
+                    raise Refused('refused by the policy of this machine: more than %d '
+                                  'certificates in one deployment' % GUARD_CERTS_MOST)
+                seen.append((label, c, g.look(c)))
+            keys += [(label, k) for k in m['keys']]
+        extra = []
+        for p in list(pool or [])[:GUARD_CERTS_MOST]:
+            try:
+                g.look(p)
+                extra.append(p)
+            except (Refused, ValueError):
+                continue
+        said = []
+        # require key local: every key written, and the key of every end certificate, is one
+        # this agent made
+        if pol.get('key_local'):
+            mine = set(own if own is not None else own_key_fps())
+            for label, k in keys:
+                try:
+                    fp = spki_fp(k)
+                except (Refused, ValueError):
+                    fp = ''
+                if fp not in mine:
+                    raise Refused('refused by the policy of this machine (require key local): '
+                                  '%s holds a private key this agent did not make - it takes '
+                                  'only its own (let the agent make the key: "Key made by the '
+                                  'device")' % label)
+            for label, c, f in seen:
+                if not f['ca'] and f['spki'] not in mine:
+                    raise Refused('refused by the policy of this machine (require key local): '
+                                  'the certificate %s in %s is not for a key this agent made - '
+                                  'it takes only its own (let the agent make the key: "Key made '
+                                  'by the device")' % (f['cn'] or f['fp'][:16], label))
+            said.append('every key is one this agent made')
+        # allow issuer: every certificate chains to an allowed CA
+        if pol.get('issuers'):
+            allowed = set(pol['issuers'])
+            every = [c for _l, c, _f in seen] + extra
+            anchors = [c for c in every if fp_of_pem(c) in allowed]
+            anchor_keys = {g.look(c)['spki'] for c in anchors}
+            uniq = []
+            for c in every:
+                if c not in uniq:
+                    uniq.append(c)
+            for label, c, f in seen:
+                if f['fp'] in allowed:
+                    continue
+                if f['ca'] and f['spki'] and f['spki'] in anchor_keys:
+                    continue        # the same CA (its key) - a cross-signed copy of it
+                if not g.chains_to(c, anchors, [x for x in uniq if x != c]):
+                    raise Refused('refused by the policy of this machine (allow issuer): the '
+                                  'certificate %s in %s is not issued by a CA the policy allows '
+                                  '(issued by %s)%s' % (
+                                      f['cn'] or f['fp'][:16], label, f['issuer'] or '?',
+                                      '' if anchors else ' - the job holds none of the CAs '
+                                      'the policy names'))
+            if seen:
+                said.append('every certificate chains to a CA the policy allows')
+        # allow names: every name of every end certificate allowed
+        if pol.get('names'):
+            subjects = {f['issuer'] for _l, _c, f in seen}
+            for label, c, f in seen:
+                if f['ca'] and (f['subject'] in subjects or f['subject'] == f['issuer']):
+                    continue        # a CA of the chain: no name of a server
+                for n in f['names'] or []:
+                    if not name_allowed(pol['names'], n):
+                        raise Refused('refused by the policy of this machine (allow names): '
+                                      'the certificate %s in %s holds the name %s - the policy '
+                                      'allows %s' % (f['cn'] or f['fp'][:16], label, n,
+                                                     ', '.join(pol['names'][:6]) + (
+                                                         ' …' if len(pol['names']) > 6 else '')))
+            if seen:
+                said.append('every name is one the policy allows')
+        return 'checked by the policy here (%s): %s' % (guard_words(pol), '; '.join(said) or
+                                                        'nothing to check')
+    finally:
+        g.close()
 
 
 # ---- a whole policy checked before it is written (1.0.118: acme-agent policy check / apply,
@@ -1518,6 +1942,11 @@ def policy_check(text, machine=False):
         for c in one['connect']:
             warn(n, 'connect', 'acme may reach %s through this server (a connector of SSH '
                                'targets)' % c)
+    # 1.0.140 (A1): names without issuers - a certificate of any CA for them is taken
+    first = next((n for n, one in entries if one.get('names')), None)
+    if first and not pol.get('issuers'):
+        warn(first, 'names-alone', 'allow names without allow issuer: a certificate of any CA '
+             'for these names is deployed - name the CAs too (allow issuer sha256=...)')
     return {'pol': pol, 'lines': policy_lines(pol), 'errors': errors, 'warnings': warnings}
 
 
@@ -4290,7 +4719,9 @@ class Deploy(object):
         datas = []
         ak = self.args.get('agent_key') if isinstance(self.args.get('agent_key'), dict) else None
         key_pem, kt, pw = None, '', None
+        fmts = []
         for f, p in zip(self.args.get('files') or [], plan['files']):
+            fmts.append((str(f.get('format') or ''), bool(f.get('agent_key'))))
             if f.get('agent_key'):
                 # the key this agent made for this deployment: root's own, put in here
                 if ak is None:
@@ -4350,6 +4781,10 @@ class Deploy(object):
         if plan.get('win'):
             # Windows: the machine store, IIS, the Remote Desktop listener (acme_agent_wincert)
             win = self.win = _wincert().WinJob(_Here(), self, plan['win'], priv, datas, ak)
+        if guard_on(pol):
+            # 1.0.140 (A1): what is deployed checked against the policy's guard (allow issuer,
+            # allow names, require key local) - by this side itself, before anything is written
+            self.guard(pol, plan, datas, fmts, pw, priv, ak, win)
         # the files there now, each compared
         same, olds = [], []
         for p, data in zip(plan['files'], datas):
@@ -4480,6 +4915,36 @@ class Deploy(object):
                     else 's', win.words() if win is not None else '',
                     ', the script ran' if plan['script'] else '',
                     ', reloaded' if plan['reload'] else '')}
+
+    def guard(self, pol, plan, datas, fmts, pw, priv, ak, win):
+        """Every file as it would be written (and the machine store's PKCS#12) against the
+        policy's guard - Refused (said, in the audit log) and nothing written, or a step."""
+        gd = self.args.get('guard') if isinstance(self.args.get('guard'), dict) else {}
+        gpw = None
+        if gd.get('pass_sealed') and priv is not None:
+            gpw = unseal(gd['pass_sealed'], priv, self.agent_id, 'guard pfx').decode('utf-8')
+        mats = []
+        for p, data, (fmt, mine) in zip(plan['files'], datas, fmts):
+            p12 = fmt in ('pfx', 'p12', 'p12-legacy')
+            mats.append((p['path'], data, fmt, (pw if mine else gpw) if p12 else None))
+        pool = [str(x) for x in (gd.get('chain') or [])[:GUARD_CERTS_MOST]
+                if isinstance(x, str) and len(x) < 20000]
+        if isinstance(ak, dict) and isinstance(ak.get('cert_pem'), str):
+            pool.append(ak['cert_pem'])
+        if win is not None:
+            if getattr(win, 'pfx', None):
+                mats.append(('the PKCS#12 for the machine store', win.pfx, 'pfx',
+                             win.password or ''))
+            st = getattr(win, 'st', None) or {}
+            if st.get('cert_pem'):
+                mats.append(('the certificate for the machine store', st['cert_pem'], '', None))
+            if (getattr(win, 'w', None) or {}).get('ccs'):
+                data, cpw = win._ccs_pfx()
+                mats.append(('the PKCS#12 of the IIS Central Certificate Store', data, 'pfx',
+                             cpw or ''))
+        slot = str((ak or {}).get('slot') or '') if isinstance(ak, dict) else ''
+        own = own_key_fps(slot) if pol.get('key_local') else []
+        self.step(guard_check(pol, mats, pool, own), 'ok')
 
     def agent_key(self, ak):
         """(the key this agent made that the certificate is for, its type): the one waiting
@@ -6042,6 +6507,27 @@ def policy_edit(add, words):
         out = keep + ([discover_line(now)] if now else [])
         said = ('allowed: %s' % discover_line(now)) if add else (
             ('now: %s' % discover_line(now)) if now else 'taken away: discover')
+    elif line.startswith('allow names '):
+        # 1.0.140 (A1): the names added to (or taken from) the ones allowed - their lines
+        # written anew, together
+        have, keep = [], []
+        for x in lines:
+            e = entry(x)
+            if e and e.get('names'):
+                have += [n for n in e['names'] if n not in have]
+            else:
+                keep.append(x)
+        asked = probe['names']
+        if add:
+            now = have + [n for n in asked if n not in have]
+        else:
+            now = [n for n in have if n not in asked]
+            if now == have:
+                raise SystemExit('acme-agent: no such entry in the policy: names %s'
+                                 % ' '.join(asked))
+        out = keep + guard_lines({'names': now})
+        said = ('allowed: names %s' % ' '.join(now)) if add else (
+            ('now: names %s' % ' '.join(now)) if now else 'taken away: names (any name)')
     elif line.startswith('limit '):
         k = line.split()[1]
         out = [x for x in lines if not (x.strip().startswith('limit %s ' % k))]
@@ -6124,6 +6610,25 @@ def policy_words(words):
         return 'allow probe %s' % (rest[0] if rest else '')
     if what == 'limit':
         return 'limit %s' % ' '.join(rest)
+    if what == 'issuer':
+        # 1.0.140 (A1): sha256=HEX, or the CA's certificate (a PEM file) it is taken from
+        if len(rest) != 1:
+            raise SystemExit('acme-agent allow issuer sha256=HEX | CA.pem')
+        if not rest[0].startswith('sha256=') and os.path.isfile(rest[0]):
+            text = _read(rest[0], '') or ''
+            m = re.search(r'-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----', text, re.S)
+            if not m:
+                raise SystemExit('acme-agent: %s holds no certificate (PEM)' % rest[0])
+            fp = fp_of_pem(m.group(0))
+            print('note: %s is %s (SHA-256 %s)' % (rest[0], cert_cn(m.group(0)) or '?', fp))
+            return 'allow issuer sha256=%s' % fp
+        return 'allow issuer %s' % rest[0]
+    if what == 'names':
+        if not rest:
+            raise SystemExit('acme-agent allow names NAME [NAME...]')
+        return 'allow names %s' % ' '.join(shlex.quote(x) for x in rest)
+    if what == 'require':
+        return 'require %s' % ' '.join(rest)
     if what == 'discover':
         if len(rest) > 1:
             raise SystemExit('acme-agent allow discover [KIND,KIND] (%s)' % ','.join(
@@ -6261,6 +6766,13 @@ def main(argv):
         return policy_edit(False, rest)
     if cmd == 'limit':
         return policy_edit(True, ['limit'] + rest)
+    if cmd == 'require':
+        # 1.0.140 (A1): require key local (any: the entry taken away)
+        if rest == ['key', 'any']:
+            return policy_edit(False, ['require', 'key', 'local'])
+        if rest != ['key', 'local']:
+            raise SystemExit('acme-agent require key local | require key any')
+        return policy_edit(True, ['require'] + rest)
     if cmd == 'version':
         print(VERSION)
         return 0

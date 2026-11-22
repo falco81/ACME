@@ -1,0 +1,26 @@
+/* search.css - the global search (1.0.140): the search box in the header that opens Ctrl+K, and
+   what the palette (palette.js, ctxmenu.css's .cxp) adds for what the server finds - its
+   "still searching" line and an account's row shown where it is. Scoped to .hsearch* and the
+   palette's new .cxp-busy / .cxp-spin / .cxp-flash only. */
+.hsearch{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:9px;height:var(--h-s,32px);min-width:220px;max-width:320px;
+  padding:0 8px 0 11px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--tx-mut);cursor:pointer;font-size:13.5px;
+  transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
+.hsearch:hover{color:var(--tx-dim);border-color:color-mix(in srgb,var(--info) 45%,var(--line));background:var(--panel2)}
+.hsearch:focus-visible{outline:0;border-color:var(--info);box-shadow:0 0 0 3px color-mix(in srgb,var(--info) 25%,transparent)}
+.hsearch-ic{display:grid;place-items:center;color:var(--info);flex:none}
+.hsearch-w{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hsearch-k{flex:none;font-size:10.5px;padding:1px 6px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--tx-dim)}
+@media (max-width:980px){.hsearch{min-width:0;max-width:200px}}
+@media (max-width:700px){
+  .hsearch{width:var(--h-s,32px);min-width:0;padding:0;justify-content:center}
+  .hsearch-w,.hsearch-k{display:none}
+}
+
+.cxp-busy{display:flex;align-items:center;gap:10px;padding:10px 12px 8px;font-size:12px;color:var(--tx-mut)}
+.cxp-spin{width:13px;height:13px;border-radius:50%;border:2px solid color-mix(in srgb,var(--info) 30%,transparent);border-top-color:var(--info);
+  animation:cxp-spin .7s linear infinite;flex:none}
+@keyframes cxp-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.cxp-spin{animation:none}}
+.cxp-ic.dim{background:rgba(255,255,255,.05);color:var(--tx-dim)}
+tr.cxp-flash > td{animation:cxp-flash 2.2s ease-out}
+@keyframes cxp-flash{0%,30%{background:var(--info-bg)}100%{background:transparent}}

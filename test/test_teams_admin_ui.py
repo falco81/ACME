@@ -277,7 +277,7 @@ class Pages(unittest.TestCase):
         self.assertEqual(seen['tiles']['waiting'], '1', seen)
         self.assertEqual(seen['tiles']['devices'], '2', seen)
         self.assertEqual(seen['tabs'], ['overview', 'members', 'limits', 'devices', 'certs',
-                                        'activity', 'gov'], seen)      # gov: 1.0.138
+                                        'activity', 'gov', 'digest'], seen)      # gov: 1.0.138, digest: 1.0.140
         # a team made under the chosen one, a member added through the directory
         self.assertTrue(seen['made'], seen)
         made = self.must('GET', '/api/teams')

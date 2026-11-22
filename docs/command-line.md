@@ -160,6 +160,23 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --deploy-del ID [--yes]` | take one away (the device keeps what it has) |
 | `acme --deploy-run ID` | run that one now (forced) |
 
+## Target agents: what they deploy, where their keys are made (1.0.140)
+
+As Settings → Target agents and the policy builder ([target-agent.md](target-agent.md) *What the
+agent deploys*, *Where keys are made*):
+
+| | |
+|---|---|
+| `acme --agent-guard TARGET [--json]` | what the agent of TARGET checks of what it deploys (`allow issuer`, `allow names`, `require key local` of its policy, as it last said it), whether the agent knows these lines, and each deployment there judged by them as acme judges it before sending (exit code 1 when one would be refused) |
+| `acme --agent-cas [TARGET] [--json]` | the CAs acme knows - its own authorities, every CA in its certificates' chains - with their SHA-256: what `acme-agent allow issuer sha256=HEX` names (TARGET: the ones of its certificates first) |
+| `acme --agent-keys [TARGET] [--json]` | for each target with an agent: the certificates deployed there with the key made on the server, with acme's key, which could switch and why the others cannot, those waiting for their next renewal; `require key local` of its policy |
+| `acme --agent-keys-switch CERT... [--now] [--yes]` | "Switch to a key made on the server": each certificate's key made by the agent of the one target it is deployed to - from its next renewal on (a day before it is due), or `--now`: switched and renewed now. Each one that cannot is said; exit code 1 then |
+| `acme --agent-keys-cancel CERT...` | a switch waiting for the next renewal taken back |
+
+On the server, as root (the agent's own command line): `acme-agent allow issuer CA.pem` (or
+`sha256=HEX`), `acme-agent allow names NAME...` (added to the names allowed; `deny names NAME`
+takes them away), `acme-agent require key local` (`require key any` takes it away).
+
 ## Authorities of acme's own
 
 | | |
@@ -226,6 +243,43 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 | `acme --teams-from-groups FILTER [--member-role ROLE] [--parent TEAM] [--team-kind team\|unit] [--yes]` | a team of each directory group whose name fits (`PKI-*`), the group its member as ROLE (Viewer): shown first, made with `--yes`; `--group DN\|NAME` (again for more) adds groups picked from the directory, `FILTER` `-` takes only those |
 | `acme --target-add NAME --kind KIND ... --owner TEAM` · `acme --target-edit NAME --owner TEAM\|-` | a team's device (`-`: acme's own again) |
 | `acme --target-agent enroll new --owner TEAM [...]` | a team's enrollment code: the servers enrolling with it become that team's targets |
+
+## Reports and digests (1.0.140)
+
+Settings → Reports and a team's Digest ([monitoring.md](monitoring.md#periodic-reports-for-management-and-audit-settings--reports-10140),
+[teams.md](teams.md#the-digest-by-mail-t12-10140)); each with `--json`:
+
+| | |
+|---|---|
+| `acme --reports` | the reports defined: kind, scope, formats, schedule, recipients, the last run |
+| `acme --report-show NAME [--report-lang cs\|en]` | one: its settings, what it says now (its tiles and first rows), its runs |
+| `acme --report-add NAME --report-kind inventory\|expiry\|compliance\|agents\|access [--report-teams T1,T2\|-] [--report-formats csv,pdf] [--report-every off\|weekly\|monthly --report-day N --report-hour H] [--report-recipients A,B\|-] [--report-lang cs\|en\|-] [--report-keep N] [--report-days N] [--report-off yes\|no]` | a new report (`--report-days`: the expiry outlook's days ahead) |
+| `acme --report-edit NAME [the same] [--report-name NEW]` | change one |
+| `acme --report-del NAME [--yes]` | delete it and its runs |
+| `acme --report-run NAME [--report-send] [--report-out DIR]` | made now and kept; `--report-send` mails it to its recipients; `--report-out` saves its files there |
+| `acme --report-runs NAME` | its runs kept |
+| `acme --report-get RUN --report-format csv\|pdf --report-out FILE\|-` | a run's file (`-`: standard output) |
+| `acme --team-digest TEAM` | the team's digest: on or off, when, to whom, the last one |
+| `acme --team-digest-set TEAM [--digest on\|off] [--digest-every weekly\|daily] [--digest-day 1-7] [--digest-hour H] [--digest-days N] [--digest-contact yes\|no] [--digest-members W1,W2\|-] [--digest-skip-empty yes\|no] [--digest-below yes\|no] [--digest-lang cs\|en\|-]` | set it |
+| `acme --team-digest-preview TEAM [--digest-lang cs\|en] [--report-out FILE.html] [--digest-mail ADDR]` | what it says now (its text; the HTML into a file; a preview mailed to ADDR) - nothing else sent |
+| `acme --team-digest-send TEAM [--yes]` | to its recipients now |
+
+## Search, the expiry calendar, profiles from a template (1.0.140)
+
+What Ctrl+K finds, when certificates run out ([expiry-calendar.md](expiry-calendar.md)) and request
+profiles from a template ([request-profiles.md](request-profiles.md) "From a template"):
+
+| | |
+|---|---|
+| `acme --find TEXT [--limit N] [--json]` | certificates by name, SAN or serial, deployments, targets, agents, sources, authorities, validations, tests, request profiles, teams, accounts and the events of the last 30 days (`--limit` of each kind, 20 at most); exit 1 when nothing is found |
+| `acme --calendar [--from YYYY-MM-DD] [--weeks N] [--team TEAM] [--issuer SOURCE] [--target TARGET] [--json]` | what runs out and what acme renews, week by week (13 weeks), then each certificate |
+| `acme --calendar-ics FILE\|- [--lang cs] [the same filters]` | the same as an iCalendar file (104 weeks) |
+| `acme --calendar-feeds [--json]` · `acme --calendar-feed-revoke WHO\|all [--yes]` | who has a link to subscribe to their calendar; take one (or all) back |
+| `acme --profile-templates [--json]` | the templates of request profiles: what each sets, whether it complies, the sources that fit |
+| `acme --profile-from-template ID --name NAME --names DOMAIN,DOMAIN [--issuer SOURCE] [--challenge VALIDATION] [--note DESCRIPTION] [--json]` | a new request profile from the template ID (`web`, `mail`, `vpn`, `internal`, `wildcard`, `codesign`); a name taken is refused |
+
+`--from`, `--weeks`, `--team`, `--target` go only with `--calendar` and `--calendar-ics`, `--lang`
+only with `--calendar-ics`; beside another option they are refused, nothing done.
 
 ## Signing in with Windows - Kerberos (1.0.99)
 

@@ -2749,7 +2749,9 @@ def _policy_line(pol, words):
         if rest:
             raise Refused('allow adcs-read')
         pol['adcs_read'] = True
-    elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe', 'discover'):
+    elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe', 'discover',
+                  # 1.0.140 (A1): what a deployment deploys - the same words, the same check
+                  'issuer', 'names'):
         ORIG['_policy_line'](pol, words)
     else:
         raise Refused('allow file | service | test | script | script-hash | store | iis | rdp | '
@@ -2923,6 +2925,11 @@ def policy_check(text, machine=False):
         for c in one['connect']:
             warn(n, 'connect', 'acme may reach %s through this server (a connector of SSH '
                                'targets)' % c)
+    # 1.0.140 (A1): names without issuers - as on Linux
+    first = next((n for n, one in entries if one.get('names')), None)
+    if first and not pol.get('issuers'):
+        warn(first, 'names-alone', 'allow names without allow issuer: a certificate of any CA '
+             'for these names is deployed - name the CAs too (allow issuer sha256=...)')
     return {'pol': pol, 'lines': policy_lines(pol), 'errors': errors, 'warnings': warnings}
 
 

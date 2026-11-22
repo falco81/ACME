@@ -918,7 +918,8 @@
     tabs.setAttribute('role', 'tablist');
     var own = Object.keys(t.policy || {}).length;
     var devs = (UI.targets || []).filter(function (r) { return low(r.owner) === n.key; }).length;
-    TABS.forEach(function (x) {
+    /* a tab another file adds (window.ACME_TEAM_TABS: {name, title, icon, draw}, 1.0.140) */
+    TABS.concat((window.ACME_TEAM_TABS || []).map(function (x) { return [x.name, x.title, x.icon]; })).forEach(function (x) {
       var b = el('button', 'tmx-tab' + (UI.tab === x[0] ? ' on' : ''));
       b.type = 'button';
       b.dataset.tab = x[0];
@@ -948,7 +949,8 @@
     var inner = fade(el('div', 'tmx-tabbody'));
     body.appendChild(inner);
     var f = {overview: overview, members: membersTab, limits: limitsTab, devices: devicesTab,
-             certs: certsTab, activity: activityTab, gov: govTab}[UI.tab] || overview;
+             certs: certsTab, activity: activityTab, gov: govTab}[UI.tab] ||
+      (window.ACME_TEAM_TABS || []).filter(function (x) { return x.name === UI.tab; }).map(function (x) { return x.draw; })[0] || overview;
     f(inner, T, n);
     if (typeof explainWhatWasDrawn === 'function') { try { explainWhatWasDrawn(inner); } catch (e) { } }
   }

@@ -381,6 +381,9 @@ class AgentTarget(Base):
                               'with acme\'s key does not go with it', retry=False)
         datas = self.render(bundle, r, agent_key=ak)
         args = self.plan(bundle, options, r, datas, agent_key=ak)
+        # 1.0.140 (A1): checked against what the agent's policy lets it deploy before it is sent
+        from acmelib.certs import agent_deployguard
+        agent_deployguard.before_send(self, bundle, options, r, args, ak)
         self.mark_pending(bundle)
         if hasattr(self.ctx, 'agent_meta'):
             # What happens only (1.0.123): what the job's files are made with that the job
@@ -544,6 +547,10 @@ class AgentTarget(Base):
             out['items'].append({'kind': 'probe', 'label': 'test', 'what': hp, 'ok': ok,
                                  'allow': '' if ok else 'acme-agent allow probe %s' % (
                                      'local' if host in m_local() else hp)})
+        # 1.0.140 (A1): what the agent checks of what it deploys (allow issuer / names / key)
+        from acmelib.certs import agent_deployguard as DG
+        out['items'] += DG.needs_items(pol, bundle, ak, getattr(self.ctx, 'store', None),
+                                       getattr(self.ctx, 'target_name', '') or '')
         return out
 
     def _mod(self):

@@ -214,6 +214,8 @@
     /* 1.0.138: the compliance check (reqprofiles-more.js) */
     if (window.ACME_RP_MORE) ACME_RP_MORE.bar(right, d);
     if (full()) {
+      /* 1.0.140: a new profile from a template (rptemplates.js) */
+      if (window.ACME_RP_TPL) ACME_RP_TPL.bar(right, d);
       var add = cmdButton('Add a profile', 'add', 'small primary');
       add.id = 'rp-add';
       add.onclick = function () { editProfile(null); };
@@ -1158,6 +1160,10 @@
 
   window.ACME_EXTRA_PANES = window.ACME_EXTRA_PANES || {};
   window.ACME_EXTRA_PANES.reqprofiles = function () { drawPane(); };
+  /* for a profile made from a template (rptemplates.js, 1.0.140): the pane drawn again, a
+     profile's editor - of one saved, or of a new one filled in */
+  window.ACME_RP = {redraw: drawPane, edit: function (p, copy) { editProfile(p || null, copy); },
+                    data: function () { return RP.d; }};
   /* A page that opened on this pane drew it before this file came. */
   if (typeof PANE === 'string' && PANE === 'reqprofiles') drawPane();
 })();

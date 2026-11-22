@@ -662,3 +662,42 @@ of the team that set it, with the teams below it). A score of 100 minus capped p
 together (weighted by their certificates). A card opens the certificates behind each number.
 `GET /api/teams/health[?team=]` (the teams this account sees), `GET /api/portal/health` (the teams
 whose certificates the person sees). Computed in one pass, kept a minute.
+
+### The digest by mail (T12, 1.0.140)
+
+A team's page → **Digest**: off for every team until it is switched on. On the chosen day and
+hour (weekly, or every day) one mail goes to the team's contact address and/or the members
+chosen, with what needs the team - its own and that of the teams below it (unless *With the
+teams below* is off):
+
+- the certificates ending within N days (30), and those already ended;
+- the renewals and deployments that failed since the last digest, and the deployments failing
+  now;
+- what waits: certificates waiting for approval, requests for a temporary role, access reviews
+  open or overdue;
+- the temporary roles granted (new, ending soon) and ended;
+- the team's target agents that need a look (quiet, refused, waiting for confirmation, their
+  own certificate ending, a blocked job).
+
+The mail is HTML (tables and inline styles, as acme's other mails - Outlook draws it) with a
+plain-text copy and links into acme, in each recipient's language where acme knows it (their
+account's language; else the digest's; else the mails'), one mail per language. A member is
+reached at the address of their account (a group: each member of it who signed in and has an
+address; a membership that ended gets nothing). Nothing secret is in it: names, dates, states
+and what the jobs said. A digest with nothing in it is not sent (*Not sent when empty*, on by
+default). The first one goes at the next moment chosen after it was switched on - never at once.
+
+**Show the preview** (anybody who sees the team) shows the mail as it would go now; **Send a
+preview to me** mails it to one's own account address only. A full administrator **sets** it
+and may **Send now** (to its recipients at once, an empty one too). The node that leads the
+cluster sends it, once per period (`meta` `digest:period:<team id>`); with mail switched off
+nothing is sent and the event says so. Every sending (and every one not sent) is an event naming
+the team - its Activity shows it. The settings are kept in the team's `extras` (`digest`), so
+they go with the team into backups, the configuration's export and replication.
+
+`GET /api/teams/digest?team=` · `POST /api/teams/digest_save {team, digest{on, every
+weekly|daily, day 1-7, hour, contact, members[], days, skip_empty, below, lang}}` (full) ·
+`POST /api/teams/digest_preview {team, digest?, lang?}` · `POST /api/teams/digest_send_me
+{team}` · `POST /api/teams/digest_send {team}` (full). The command line: `acme --team-digest`,
+`--team-digest-set`, `--team-digest-preview`, `--team-digest-send`; the console: **p** → *A
+team's digest*.

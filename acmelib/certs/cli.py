@@ -61,7 +61,12 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign',
         'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
         'roles', 'role_add', 'role_del', 'team_access', 'team_activity', 'teams_from_groups',
-        'team_show', 'target_agent')
+        'team_show', 'target_agent',
+        # 1.0.140 (cli_ui.py): search, the expiry calendar, request profiles from a template
+        'find', 'calendar', 'calendar_ics', 'calendar_feeds', 'calendar_feed_revoke',
+        'profile_templates', 'profile_from_template',
+        # 1.0.140 (api_agentkeys.py): what target agents deploy, where their keys are made
+        'agent_keys', 'agent_keys_switch', 'agent_keys_cancel', 'agent_guard', 'agent_cas')
 
 # Options that only go with these (hunt R t10): beside any other, they were silently left out
 WITH_ONLY = {
@@ -418,6 +423,12 @@ def add_args(p):
     # Settings → Owners and teams (acmelib/certs/api_teams.py, docs/teams.md)
     from acmelib.certs import api_teams
     api_teams.add_args(p)
+    # Search, the expiry calendar, request profiles from a template (1.0.140, cli_ui.py)
+    from acmelib.certs import cli_ui
+    cli_ui.add_args(p)
+    # What target agents deploy, where their keys are made (1.0.140, api_agentkeys.py)
+    from acmelib.certs import api_agentkeys
+    api_agentkeys.add_args(p)
 
 
 def asked(args):
@@ -707,6 +718,12 @@ class Cli(object):
                 'team_activity', 'teams_from_groups', 'team_show')):
             from acmelib.certs import api_teams
             return api_teams.cli(self)
+        from acmelib.certs import cli_ui
+        if any(getattr(a, k, None) not in (None, False, '') for k in cli_ui.KEYS):
+            return cli_ui.cli(self)
+        from acmelib.certs import api_agentkeys
+        if any(getattr(a, k, None) not in (None, False, '') for k in api_agentkeys.KEYS):
+            return api_agentkeys.cli(self)
         if getattr(a, 'target_agent', None):
             return self.target_agent(a.target_agent)
         for fam, word in (('target', 'target'), ('challenge', 'validation'), ('check', 'check')):

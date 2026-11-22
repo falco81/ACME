@@ -953,4 +953,8 @@ class AgentWindowsTarget(AG.AgentTarget):
                 ok = False
             out['items'].append({'kind': 'probe', 'label': 'test', 'what': hp, 'ok': ok,
                                  'allow': '' if ok else 'acme-agent allow probe local'})
+        # 1.0.140 (A1): what the agent checks of what it deploys (allow issuer / names / key)
+        from acmelib.certs import agent_deployguard as DG
+        out['items'] += DG.needs_items(pol, bundle, ak, getattr(self.ctx, 'store', None),
+                                       getattr(self.ctx, 'target_name', '') or '')
         return out

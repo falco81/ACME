@@ -26,6 +26,8 @@ pod touch nothing else (deploy/agent/k8s/manifests.yaml):
     allow discover                  acme may list the TLS Secrets of the namespaces named above
                                     (read-only: only each certificate's facts - never a key)
     allow from ADDRESS[/BITS]       passive: acme only from there
+    allow issuer sha256=HEX         what goes into a Secret chains to this CA (1.0.140, repeatable)
+    allow names NAME [NAME...]      every name of it is one of these (*.example.com: one label)
     limit files N | limit size B    as acme-agent's
 
 acme is told this policy as acme-agent's own (a folder /k8s/NAMESPACE/NAME, a test line
@@ -110,7 +112,8 @@ def parse(text):
     """The policy file -> {secrets, restarts, discover, from, limits, problems}: a line not
     read is left out and said, as acme-agent's."""
     kp = {'secrets': [], 'restarts': [], 'discover': False, 'from': [],
-          'limits': {'files': A.FILES_MOST, 'size': A.FILE_MOST}, 'problems': []}
+          'limits': {'files': A.FILES_MOST, 'size': A.FILE_MOST}, 'problems': [],
+          'issuers': [], 'names': []}
     for n, raw in enumerate(str(text or '').splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith('#'):
@@ -127,6 +130,16 @@ def parse(text):
                     kp['restarts'].append(p)
             elif w == ['allow', 'discover']:
                 kp['discover'] = True
+            elif w[:2] in (['allow', 'issuer'], ['allow', 'names']):
+                # 1.0.140 (A1): what a deployment writes into a Secret, checked here first
+                one = A.parse_policy(line)
+                if one['problems']:
+                    raise A.Refused(one['problems'][0].split(': ', 1)[-1])
+                for k in ('issuers', 'names'):
+                    kp[k] += [x for x in one.get(k) or [] if x not in kp[k]]
+            elif w[:1] == ['require']:
+                raise A.Refused('the Kubernetes agent makes no key (every key comes from acme) - '
+                                'require key local cannot hold here')
             elif w[:2] == ['allow', 'from'] or w[:1] == ['limit']:
                 one = A.parse_policy(line)
                 if one['problems']:
@@ -192,13 +205,19 @@ def as_agent(kp):
     pol['limits'] = dict(kp['limits'])
     if kp['discover']:
         pol['discover'] = ['*']
+    for k in ('issuers', 'names'):                      # 1.0.140 (A1)
+        if kp.get(k):
+            pol[k] = list(kp[k])
     pol['problems'] = list(kp['problems'])
     return pol
 
 
 def canon(kp):
-    return json.dumps({k: kp[k] for k in ('secrets', 'restarts', 'discover', 'from', 'limits')},
-                      sort_keys=True, separators=(',', ':'))
+    keep = {k: kp[k] for k in ('secrets', 'restarts', 'discover', 'from', 'limits')}
+    for k in ('issuers', 'names'):                      # 1.0.140: only when used (its hash)
+        if kp.get(k):
+            keep[k] = kp[k]
+    return json.dumps(keep, sort_keys=True, separators=(',', ':'))
 
 
 def policy_load():
@@ -214,6 +233,7 @@ def lines(kp):
     if kp['discover']:
         out.append('allow discover')
     out += ['allow from %s' % x for x in kp['from']]
+    out += A.guard_lines({'issuers': kp.get('issuers'), 'names': kp.get('names')})
     if kp['limits']['files'] != A.FILES_MOST:
         out.append('limit files %d' % kp['limits']['files'])
     if kp['limits']['size'] != A.FILE_MOST:
@@ -558,6 +578,16 @@ class K8sDeploy(object):
         kp = load()
         h = policy_load()[1]
         plan = plan_of(kp, self.args, True, self.root.enc_key(), self.agent_id)
+        pol = as_agent(kp)
+        if A.guard_on(pol):
+            # 1.0.140 (A1): what goes into the Secrets checked against allow issuer / allow names
+            gd = self.args.get('guard') if isinstance(self.args.get('guard'), dict) else {}
+            mats = [('%s/%s/%s/%s' % (PREFIX, ns, name, k), v, '', None)
+                    for (ns, name), keys in sorted(plan['secrets'].items())
+                    for k, v in sorted(keys.items())]
+            pool = [str(x) for x in (gd.get('chain') or [])[:A.GUARD_CERTS_MOST]
+                    if isinstance(x, str) and len(x) < 20000]
+            self.step(A.guard_check(pol, mats, pool, own=[]), 'ok')
         # every Secret read first: one of another type is refused before anything is written
         have = {}
         for (ns, name) in sorted(plan['secrets']):

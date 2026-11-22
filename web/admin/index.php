@@ -544,7 +544,7 @@ if (isset($_GET['api'])) {
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
        write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|fleet|roles|dir|history|trash|views)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|fleet|roles|dir|history|trash|views|search|calendar|reports)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);
@@ -688,6 +688,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/fleet.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/fleet.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/fleet.css')) ?>">
 <?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/agentkeys.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/agentkeys.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agentkeys.css')) ?>">
+<?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/policybuilder.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/policybuilder.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/policybuilder.css')) ?>">
 <?php endif; ?>
@@ -705,6 +708,18 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/ctxmenu.css')): /* the right button's menu, Ctrl+K (1.0.138) */ ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/ctxmenu.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/ctxmenu.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/search.css')): /* the search of Ctrl+K and of the header (1.0.140) */ ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/search.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/search.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/calendar.css')): /* the expiry calendar (1.0.140) */ ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/calendar.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/calendar.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/rptemplates.css')): /* request profiles from a template (1.0.140) */ ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/rptemplates.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/rptemplates.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/reports.css')): /* Settings → Reports, a team's digest (1.0.140) */ ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/reports.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reports.css')) ?>">
 <?php endif; ?>
 </head>
 <body class="app-shell fold-words<?= $me ? ' framed' : '' ?>">
@@ -2088,6 +2103,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php if (is_file(dirname(__DIR__) . '/assets/agents.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/agents.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agents.js')) ?>"></script>
 <?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/agentkeys.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/agentkeys.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agentkeys.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/policybuilder.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/policybuilder.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/policybuilder.js')) ?>"></script>
 <?php endif; ?>
@@ -2117,6 +2135,15 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/palette.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/palette.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/palette.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/calendar.js')): /* the expiry calendar (1.0.140) */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/calendar.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/calendar.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/rptemplates.js')): /* request profiles from a template (1.0.140) */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/rptemplates.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/rptemplates.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/reports.js')): /* Settings → Reports, a team's digest (1.0.140) */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/reports.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reports.js')) ?>"></script>
 <?php endif; ?>
 </body>
 </html>

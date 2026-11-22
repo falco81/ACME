@@ -219,6 +219,7 @@ function oldPart(host, me) {
   ask.hidden = true;
   ask.onclick = function () { askStart(); };
   right.appendChild(ask);
+  if (window.ACME_CAL && ACME_CAL.portalButton) ACME_CAL.portalButton(right);   /* the calendar (1.0.140) */
   h.appendChild(right);
   card.appendChild(h);
   var lede = el('p', 'note cp-lede', me && me.sees_all ? 'Every certificate kept here - you are a certificate administrator (an account of acme’s own). Each is renewed by itself before it runs out. Click one for everything about it.' : 'The certificates that are yours, or a group’s you are in. Each is renewed by itself before it runs out - download it again after that. Click one for everything about it.');

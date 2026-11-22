@@ -223,6 +223,7 @@ def lines_of_state(platform, st):
                                             if r.get('extra') else ''))
     if st.get('probe_local'):
         out.append('allow probe local')
+    out += _mod(platform).guard_lines(st)       # 1.0.140 (A1): allow issuer / names, require key
     return out
 
 
@@ -250,6 +251,12 @@ def state_of_policy(pol, platform):
                   key_read=list(pol.get('key_read') or []),
                   adcs=[dict(x) for x in pol.get('adcs') or []],
                   adcs_read=bool(pol.get('adcs_read')))
+    # 1.0.140 (A1): what a deployment may deploy - only when the policy says it
+    for k in ('issuers', 'names'):
+        if pol.get(k):
+            st[k] = list(pol[k])
+    if pol.get('key_local'):
+        st['key_local'] = True
     return st
 
 

@@ -1090,6 +1090,23 @@ if 'location = /metrics' not in text and 'location /assets/' in text:
        re.search(r'fastcgi_pass\s+([^;]+);', text).group(1))
     text = text.replace('    location /assets/', block + '    location /assets/', 1)
     said.append('GET /metrics for Prometheus')
+# The expiry calendar a calendar program subscribes to, with a person's secret link (1.0.140).
+if 'location = /calendar.ics' not in text and 'location /assets/' in text:
+    zone = re.search(r'limit_req_zone\s+\$binary_remote_addr\s+zone=([A-Za-z0-9_]+):', text)
+    block = """    # the expiry calendar to subscribe to, with a person's secret link (acme 1.0.140)
+    location = /calendar.ics {
+%s        fastcgi_pass   %s;
+        fastcgi_param  SCRIPT_FILENAME $document_root/calendar.php;
+        fastcgi_param  HTTPS on;
+        include        fastcgi_params;
+        fastcgi_read_timeout 15s;
+        access_log off;
+    }
+
+""" % (('        limit_req zone=%s burst=10 nodelay;\n        limit_req_status 429;\n' % zone.group(1)) if zone else '',
+       re.search(r'fastcgi_pass\s+([^;]+);', text).group(1))
+    text = text.replace('    location /assets/', block + '    location /assets/', 1)
+    said.append('GET /calendar.ics for the expiry calendar')
 # The CAs' HTTP-01 challenge on port 80, to acme.php: put in
 # front of the redirect to HTTPS where it is missing.
 if '/.well-known/acme-challenge/' not in text:

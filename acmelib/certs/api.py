@@ -3765,3 +3765,8 @@ from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: 
 from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)
 from acmelib.certs import isemonsync  # noqa: E402,F401  (Settings → isemon: the first full sync)
 from acmelib.certs import api_ctxmenu  # noqa: E402,F401  (the right button's Clone: the same credentials, 1.0.138)
+from acmelib.certs import api_agentkeys  # noqa: E402,F401  (what target agents deploy, where their keys are made, 1.0.140)
+from acmelib.certs import api_search  # noqa: E402,F401  (the global search of Ctrl+K, 1.0.140)
+from acmelib.certs import expirycal  # noqa: E402,F401  (the expiry calendar, its iCalendar, 1.0.140)
+from acmelib.certs import reqprofiles_templates  # noqa: E402,F401  (request profiles from a template, 1.0.140)
+from acmelib.certs import api_reports  # noqa: E402,F401  (Settings → Reports, a team's digest, 1.0.140)

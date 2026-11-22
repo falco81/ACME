@@ -66,6 +66,14 @@ lines are all there is ticked. *Open in the builder…* on the Templates view st
 from that template (*Start from: the fleet template*) with an agent of its platform - the builder
 checks as that agent checks; nothing is sent.
 
+**What the agent deploys** (1.0.140, [target-agent.md](target-agent.md) *What the agent
+deploys*): a template holds `allow issuer sha256=HEX`, `allow names ...` and `require key local`
+as any line - clicked together in the builder's *What it deploys* (the CAs acme knows, the names)
+or written in its text; the template's state carries them (`issuers`, `names`, `key_local`), and
+an agent following it drifts when its policy lacks one of them. The built-in templates have none:
+the CAs and names are yours. A Kubernetes agent takes `allow issuer` and `allow names`, never
+`require key local` (it makes no key).
+
 Kept in `meta` (`fleet:tpl:<id>`): in every backup, on both nodes of a cluster, put back by a
 restore, as the agents' designs are. Deleting a template: the agents and groups that followed it
 follow none.
@@ -194,10 +202,14 @@ allow secret intranet/*         any Secret in intranet
 allow restart shop/web          the Deployment web in shop, after its Secret changed
 allow discover                  acme may list the TLS Secrets of those namespaces (read-only)
 allow from 192.0.2.10           passive: acme only from there
+allow issuer sha256=HEX         what goes into a Secret chains to this CA (1.0.140, repeatable)
+allow names *.shop.example.com  every name of it is one of these (1.0.140, repeatable)
 limit files 20                  as acme-agent's
 ```
 
-A line it cannot read is left out and said (`acme-k8s-agent policy`). A policy file the agent
+`allow issuer` and `allow names` are checked as acme-agent checks them (*What the agent deploys*
+in [target-agent.md](target-agent.md)) before any Secret is written; `require key local` is not
+read here - the pod makes no key. A line it cannot read is left out and said (`acme-k8s-agent policy`). A policy file the agent
 itself could write is not believed: nothing is allowed.
 
 acme is told it as acme-agent's own policy - a folder `/k8s/NAMESPACE/NAME` per Secret

@@ -41,6 +41,47 @@ is not offered on the portal.
 Renaming an owner or a tag in Owners and teams renames it in the profiles; a
 tag deleted is taken off them.
 
+## From a template (1.0.140)
+
+*From a template…* (beside *Add a profile*, a full administrator) starts a profile from a
+ready start for a usual service. The templates are acme's own (shown in the page's language)
+and change no profile there: each makes a **new, normal profile** - saved, checked and versioned as
+every other (its first version says *made from the template …*), then changed as any.
+
+| Template | What it sets |
+|---|---|
+| Web server | TLS server; EC P-256 (first) and RSA 2048; up to 10 names; acme makes the key or a CSR; issued at once; a public CA preferred |
+| Mail server | TLS server and client (SMTP relays); RSA 2048 first, EC P-256; up to 8 names (mail., smtp., imap., autodiscover.); a PFX with the key |
+| VPN gateway | TLS server and client; RSA 3072 first, EC P-384, RSA 2048; up to 3 names; a CSR from the device or a PFX to import |
+| Internal service | TLS server and client; EC P-256, RSA 2048, RSA 3072; up to 20 names; 730 days where the source lets the validity be chosen; your own CA preferred |
+| Load balancer / wildcard | TLS server; wildcards; up to 4 names; **waits for approval** |
+| Code signing | code signing only; RSA 3072 first, RSA 4096, EC P-384; one name; the key stays with the person (a CSR); waits for approval - **only with an authority of acme's own** (it puts the profile's extended key usages into what it signs); with none it is not offered |
+
+The picker shows each as a card - its icon, what it is for, what it sets, whether it complies
+(*Within the CA/B Forum's limits* for a public source, *Complies*, *Complies, with warnings*, *Does
+not comply* - the compliance check below, on the profile it would make), whether its source is a
+public CA or your own, and which source. One chosen asks the **name**, the **domains**, the
+**source** (only those that fit; the others say why) and, for a source that proves names, the
+validation - and shows *The profile it will be* as it is typed. *Make the profile* saves it and
+opens it in its editor; *Open in the editor…* opens the editor filled in, nothing saved yet.
+
+What a template sets is fitted, never forced:
+
+- the key types only those the source signs; a wildcard only where it gives them; a CSR only
+  where it takes one (else acme makes the key - said); a validity only where the source lets it
+  be chosen (an authority of acme's own) - for a public one never above the CA/B Forum's limit of
+  the day;
+- **the company's own rules** (below) win: key types forbidden and RSA under the shortest are
+  left out, the validity cut to the longest, no PFX where forbidden, a wildcard waits for approval
+  where the rules say so, the names cut to the most;
+- the source offered first is the default source when it is of the kind the template prefers
+  (public or your own), else the first that fits; a validation is the default one.
+
+A name taken is refused (*a template never changes one*). On the command line: `acme
+--profile-templates`, `acme --profile-from-template ID --name NAME --names DOMAIN,DOMAIN
+[--issuer SOURCE] [--challenge VALIDATION] [--note DESCRIPTION]`; in the console *Certificates →
+Request profiles from a template* (`p`).
+
 ## Versions
 
 Every saved change of a profile is a new version (table
@@ -231,6 +272,9 @@ other source that sends a CSR to its CA - not self-signed, CMP or SCEP.
 | `POST /api/portal/cert_request` | with `profile`: `{profile, names[], key_type, subject{F: value}, team, note}` or `{profile, csr \| csr_b64, team, note}` |
 | `POST /api/portal/csr_decode` | `{profile, csr \| csr_b64}` → `{csr, names, cn, key_type, checks[{what, ok, said}], subject[{field, csr, cert, how}], will, eku, fits}` - nothing kept |
 | `POST /api/portal/cert_csr` | `{id, csr \| csr_b64}` - a new CSR (right *manage*), issued again |
+| `GET /api/reqprofiles/templates` (1.0.140) | `{templates[{id, title, icon, about, name, sets[], cfg, sources[{name, title, kind, public, fits, why}], available, status, source, public, findings}], can_change}` |
+| `POST /api/reqprofiles/template_preview` | `{template, issuer?, challenge?, suffixes[]}` → `{body, source, public, findings, status, sets, notes}` - nothing kept |
+| `POST /api/reqprofiles/from_template` | `{template, name, suffixes[], issuer?, challenge?, description?}` (full administrator) → `{profile, findings, notes, status}` |
 
 The tables are `cert_req_profiles` (its own settings in `config`, JSON) and
 `cert_req_profile_versions` (1.0.138) - backed up, replicated and carried in the
@@ -238,7 +282,8 @@ configuration's export as every other; the company's rules are kept in `meta`
 (`certs:reqprofiles:rules`), the version a certificate was asked for from in its
 request (`certs:portal:<id>`: `profile_version`, `base_versions`, and
 `moved_from` once it moved to a successor). The code:
-`acmelib/certs/reqprofiles.py` (with the base), `reqprofiles_more.py` (versions,
+`acmelib/certs/reqprofiles.py` (with the base), `reqprofiles_templates.py` (the templates,
+1.0.140; `web/assets/rptemplates.js` their picker), `reqprofiles_more.py` (versions,
 compliance, dry run, ending - and `migrate_on_renew`, called by
 `renewer.renew_cert`), `api_reqprofiles.py`, `web/assets/reqprofiles.js` (the
 pane), `reqprofiles-more.js` (its history, compliance, dry run and ending

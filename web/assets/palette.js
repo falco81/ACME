@@ -4,7 +4,12 @@
    pane of Settings; the page's own buttons (Add a certificate, Import...); and, typed as a verb
    first, an action on an object - "renew web", "test fw1", "deploy mail". The last ones chosen
    come first. Keyboard only, if you like: ↑ ↓, Enter, Esc. Nothing is asked of the daemon
-   until it is opened. */
+   until it is opened.
+   1.0.140: what is typed is also asked of the server (GET /api/search - api_search.py): every
+   certificate by its names, SANs or serial, the deployments, agents, authorities, accounts (a
+   full administrator's) and the events of the last 30 days - each kept by the server to what
+   this account may see - grouped with the page's own; Enter opens the object's own card or page.
+   The search box in the header opens the same. */
 (function () {
 'use strict';
 if (window.ACME_PALETTE) return;
@@ -33,7 +38,10 @@ var KIND = {
   cert: ['Certificate', 'lock', 'ok'], target: ['Target', 'net', 'info'], agent: ['Agent', 'terminal', 'violet'],
   source: ['Source', 'download', 'info'], validation: ['Validation', 'check', 'info'], test: ['Test', 'pulse', 'info'],
   team: ['Team', 'people', 'violet'], profile: ['Request profile', 'list', 'warn'], pane: ['Settings', 'gear', 'dim'],
-  tab: ['Page', 'chart', 'dim'], action: ['Action', 'play', 'ok']
+  tab: ['Page', 'chart', 'dim'], action: ['Action', 'play', 'ok'],
+  /* found by the server (1.0.140) */
+  deploy: ['Deployment', 'upload', 'info'], ca: ['Authority', 'shield', 'violet'], account: ['Account', 'person', 'dim'],
+  event: ['Event', 'history', 'dim']
 };
 function shown(n) { return !!(n && (n.offsetParent !== null || n.closest('.panel, #ctl-nav'))) && !n.hidden && !(n.classList.contains('fulladmin-only') && !full()); }
 function staticItems() {
@@ -64,6 +72,15 @@ function staticItems() {
               ['ts-add', 'tests'], ['ca-root', 'cas'], ['ca-inter', 'cas'], ['ca-import', 'cas'], ['ca-sign', 'cas'], ['log-read', 'events']];
   if (window.acmeTrash && typeof window.acmeTrash.open === 'function' && document.querySelector('#ctl-nav [data-pane]')) {
     out.push({kind: 'action', key: 'act:trash', label: 'Open the trash', sub: '', icon: 'trash', go: function () { window.acmeTrash.open(); }});
+  }
+  /* 1.0.140: the expiry calendar, a request profile from a template */
+  if (window.ACME_CAL && typeof window.ACME_CAL.open === 'function' && document.getElementById('tab-certs')) {
+    out.push({kind: 'action', key: 'act:calendar', label: 'The expiry calendar', sub: '', icon: 'cal', about: 'when certificates run out',
+              go: function () { window.ACME_CAL.open(); }});
+  }
+  if (full() && window.ACME_RP_TPL && document.querySelector('#ctl-nav [data-pane="reqprofiles"]')) {
+    out.push({kind: 'action', key: 'act:rptemplate', label: 'A request profile from a template', sub: '', icon: 'add',
+              go: function () { goPane('reqprofiles', function () { if (!document.getElementById('rp-tpl')) return false; window.ACME_RP_TPL.open(); return true; }); }});
   }
   ACTS.forEach(function (a) {
     var b = document.getElementById(a[0]);
@@ -134,6 +151,22 @@ function objectItems() {
   });
   return CACHE.asking;
 }
+function openTeam(name) {
+  goPane('teams', function () {
+    var r = document.querySelector('#tmx-tree .tmx-row[data-name="' + String(name).replace(/["\\]/g, '\\$&') + '"]');
+    if (r) { r.click(); return true; }
+    return false;
+  });
+}
+function openProfile(name) {
+  goPane('reqprofiles', function () {
+    var r = document.querySelector('#rp-host .rp-row[data-name="' + String(name).replace(/["\\]/g, '\\$&') + '"]');
+    if (!r) return false;
+    var ed = r.querySelector('.rp-edit');
+    if (ed) ed.click(); else r.scrollIntoView({block: 'center'});
+    return true;
+  });
+}
 function goPane(name, then) {
   showTab('settings');
   setTimeout(function () {
@@ -144,8 +177,101 @@ function goPane(name, then) {
   }, 30);
 }
 
+/* ---- what the server finds (1.0.140): GET /api/search, kept there to what this account sees ---- */
+var REMOTE = {timer: null, ticket: 0};
+function rowIn(list, id) {
+  return capi(list).then(function (d) { return arr(d && d.rows).filter(function (x) { return String(x.id) === String(id); })[0] || null; });
+}
+function remoteGo(kind, r) {
+  var h = H();
+  if (kind === 'cert') { if (window.ACME_CERTS) window.ACME_CERTS.certPeek(r.id); return; }
+  if (kind === 'deploy') { if (window.ACME_CERTS) window.ACME_CERTS.certPeek(r.cert_id); return; }
+  if (kind === 'ca') { if (window.ACME_CERTS && window.ACME_CERTS.caPeek) window.ACME_CERTS.caPeek(r.id); return; }
+  if (kind === 'team') { openTeam(r.name); return; }
+  if (kind === 'profile') { openProfile(r.name); return; }
+  if (kind === 'target' || kind === 'agent' || kind === 'source' || kind === 'validation' || kind === 'test') {
+    var list = {target: 'targets', agent: 'targets', source: 'sources', validation: 'validations', test: 'tests'}[kind];
+    var key = {target: 'targets', agent: 'targets', source: 'sources', validation: 'validation', test: 'tests'}[kind];
+    rowIn(list, r.id).then(function (row) {
+      if (!row || !h) return;
+      if (key === 'targets') h.targetPeek(row); else h.modEdit(key, row);
+    }).catch(oops);
+    return;
+  }
+  if (kind === 'account') {
+    goPane('people', function () {
+      var host = document.getElementById('us-table');
+      if (!host || !host.querySelector('tr')) return false;
+      var hit = Array.prototype.filter.call(host.querySelectorAll('tr'), function (tr0) {
+        return Array.prototype.some.call(tr0.querySelectorAll('td'), function (td) { return td.textContent.trim() === r.name; });
+      })[0];
+      if (hit) {
+        hit.scrollIntoView({block: 'center'});
+        hit.classList.add('cxp-flash');
+        setTimeout(function () { hit.classList.remove('cxp-flash'); }, 2200);
+      }
+      return true;
+    });
+    return;
+  }
+  if (kind === 'event') {
+    showTab('events');
+    setTimeout(function () {
+      var q = document.getElementById('ev-q');
+      if (!q) return;
+      q.value = String(r.name || '').slice(0, 80);
+      try { q.dispatchEvent(new Event('input', {bubbles: true})); } catch (e) { }
+    }, 80);
+  }
+}
+function pat(s, a) { return tr(s).replace('{0}', a); }
+function remoteItems(groups) {
+  var out = [];
+  Object.keys(groups || {}).forEach(function (kind) {
+    if (!KIND[kind]) return;
+    arr(groups[kind]).forEach(function (r) {
+      var key = kind === 'team' || kind === 'profile' || kind === 'account' ? kind + ':' + r.name
+        : (kind === 'agent' ? 'target' : kind) + ':' + r.id;
+      var sub = r.sub || '';
+      if (kind === 'cert' && r.days_left !== null && r.days_left !== undefined) {
+        sub = (r.days_left < 0 ? pat('ran out {0} days ago', -r.days_left) : pat('{0} days left', r.days_left)) + (sub ? ' · ' + sub : '');
+      }
+      if (kind === 'event' && r.at && typeof stamp === 'function') sub = stamp(r.at) + (sub ? ' · ' + sub : '');
+      out.push({kind: kind, key: key, label: r.name, sub: sub, data: true, remote: true,
+                words: [r.sub || '', r.serial || '', r.owner || '', r.issuer || ''].join(' '),
+                go: function () { remoteGo(kind, r); }});
+    });
+  });
+  return out;
+}
+/* asked as one types (after a breath), never for a verb or a letter alone */
+function remoteAsk() {
+  if (!ST) return;
+  clearTimeout(REMOTE.timer);
+  var q = ST.input.value.trim();
+  if (q.length < 2 || q.length > 100 || verbOf(q)) { ST.remote = null; ST.remoteBusy = false; return; }
+  if (ST.remote && ST.remote.q === q) return;
+  ST.remoteBusy = true;
+  REMOTE.timer = setTimeout(function () {
+    var my = ++REMOTE.ticket;
+    var asked = window.ACME_CERTS && window.ACME_CERTS.api ? window.ACME_CERTS.api('search?q=' + encodeURIComponent(q))
+      : api('search&q=' + encodeURIComponent(q));
+    asked.then(function (d) {
+      if (!ST || my !== REMOTE.ticket) return;
+      ST.remote = {q: q, items: remoteItems(d && d.groups)};
+      ST.remoteBusy = false;
+      draw();
+    }).catch(function () {
+      if (!ST || my !== REMOTE.ticket) return;
+      ST.remote = {q: q, items: []};
+      ST.remoteBusy = false;
+      draw();
+    });
+  }, 160);
+}
+
 /* ---- verbs: "renew web" - an action on the objects found ---------------------------------- */
-var TYPE_OF = {cert: 'cert', target: 'target', agent: 'target', source: 'source', validation: 'validation', test: 'test', team: 'team', profile: 'reqprofile'};
+var TYPE_OF ={cert: 'cert', target: 'target', agent: 'target', source: 'source', validation: 'validation', test: 'test', team: 'team', profile: 'reqprofile'};
 var VERBS = [
   {words: ['renew', 'obnov', 'obnovit'], label: 'Renew', icon: 'refresh', kinds: ['cert'], may: function (o) { return manage() && !!o.issuer; },
    go: function (it) { var h = H(); if (h) h.certRenew(it.obj, null); }},
@@ -287,7 +413,7 @@ function open(initial) {
   document.body.appendChild(veil);
   ST = {veil: veil, box: box, input: input, list: list, at: 0, rows: [], items: [], back: document.activeElement, objs: null};
   veil.addEventListener('mousedown', function (e) { if (e.target === veil) close(); });
-  input.addEventListener('input', draw);
+  input.addEventListener('input', function () { remoteAsk(); draw(); });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); move(e.key === 'ArrowDown' ? 1 : -1); }
     else if (e.key === 'PageDown' || e.key === 'PageUp') { e.preventDefault(); move(e.key === 'PageDown' ? 6 : -6); }
@@ -296,6 +422,7 @@ function open(initial) {
     else if (e.key === 'Tab') { e.preventDefault(); move(e.shiftKey ? -1 : 1); }
   });
   if (initial) input.value = initial;
+  if (initial) remoteAsk();
   draw();
   setTimeout(function () { input.focus(); }, 0);
   objectItems().then(function (objs) { if (!ST) return; ST.objs = objs; draw(); });
@@ -345,14 +472,22 @@ function draw() {
       return {kind: x.kind, key: x.key, label: x.label, sub: x.sub, data: x.data, verb: v.verb, off: !ok, base: x, act: v.verb.go};
     })]);
   } else {
-    var ranked = rank(all, q).slice(0, 40);
-    var order = ['action', 'cert', 'target', 'agent', 'team', 'profile', 'pane', 'tab', 'source', 'validation', 'test'];
+    /* the server's finds (1.0.140) beside the page's own - an object once, the page's first */
+    var far = (ST.remote && ST.remote.q === q.trim()) ? ST.remote.items.filter(function (x) { return !byKey[x.key]; }) : [];
+    var ranked = rank(all.concat(far), q).slice(0, 60);
+    var seen = {};
+    ranked.forEach(function (x) { seen[x.key] = 1; });
+    /* what the server found by what the page does not hold (a SAN, a serial, an event's words) */
+    far.forEach(function (x) { if (!seen[x.key]) { ranked.push(x); seen[x.key] = 1; } });
+    var order = ['action', 'cert', 'deploy', 'target', 'agent', 'team', 'profile', 'pane', 'tab', 'source', 'ca', 'validation', 'test',
+                 'account', 'event'];
     var best = ranked.slice(0, 3);
     if (best.length) groups.push(['Best match', best]);
     order.forEach(function (k) {
       var g = ranked.slice(3).filter(function (x) { return x.kind === k; }).slice(0, 6);
       if (g.length) groups.push([({action: 'Actions', cert: 'Certificates', target: 'Targets', agent: 'Agents', team: 'Teams', profile: 'Request profiles',
-                                   pane: 'Settings', tab: 'Pages', source: 'Sources', validation: 'Validations', test: 'Tests'})[k], g]);
+                                   pane: 'Settings', tab: 'Pages', source: 'Sources', validation: 'Validations', test: 'Tests',
+                                   deploy: 'Deployments', ca: 'Authorities', account: 'Accounts', event: 'Events'})[k], g]);
     });
   }
   clear(ST.list);
@@ -400,9 +535,17 @@ function draw() {
   if (!n) {
     var e = el('div', 'cxp-none');
     e.appendChild(iconTile('action', 20));
-    e.appendChild(el('b', '', ST.objs ? 'Nothing found' : 'Looking…'));
-    if (ST.objs) e.appendChild(el('span', 'muted small', 'Try fewer letters, or a verb first: renew, deploy, test, edit, clone, history.'));
+    var still = !ST.objs || ST.remoteBusy;
+    e.appendChild(el('b', '', still ? 'Looking…' : 'Nothing found'));
+    if (!still) e.appendChild(el('span', 'muted small', 'Try fewer letters, or a verb first: renew, deploy, test, edit, clone, history.'));
     ST.list.appendChild(e);
+  } else if (ST.remoteBusy) {
+    /* the server is still being asked (1.0.140): said under what is found already */
+    var wb = el('div', 'cxp-busy');
+    wb.setAttribute('role', 'presentation');
+    wb.appendChild(el('span', 'cxp-spin'));
+    wb.appendChild(el('span', '', 'Searching every certificate, deployment and event…'));
+    ST.list.appendChild(wb);
   }
   ST.at = Math.min(ST.at, Math.max(0, n - 1));
   if (q !== ST.lastQ) { ST.at = 0; ST.lastQ = q; }
@@ -421,4 +564,26 @@ document.addEventListener('keydown', function (e) {
 /* the button in the header, where the page has one (none needed: the keys always work) */
 P.hint = (MAC ? '⌘' : 'Ctrl') + '+K';
 P.refresh = function () { CACHE.items = null; };
+/* A search box in the header (1.0.140) for those who reach for the mouse: it opens the palette
+   (what is typed into it goes with it). Only on the administration's own page. */
+function headerBox() {
+  var head = document.querySelector('body > .wrap > header');
+  if (!head || head.querySelector('.hsearch') || !document.querySelector('.tabs [role="tab"]')) return;
+  var b = el('button', 'hsearch');
+  b.type = 'button';
+  b.id = 'hsearch';
+  b.setAttribute('aria-label', tr('Find anything') + ' (' + P.hint + ')');
+  b.setAttribute('aria-haspopup', 'dialog');
+  b.title = pat('Certificates by name, SAN or serial, targets, agents, teams, settings, events - and actions. Also {0}.', P.hint);
+  var i = el('span', 'hsearch-ic');
+  i.innerHTML = iconMarkup('search', 16);
+  b.appendChild(i);
+  b.appendChild(el('span', 'hsearch-w', 'Find anything…'));
+  var k = noI18n(el('kbd', 'hsearch-k', P.hint.replace('+', ' ')));
+  b.appendChild(k);
+  b.onclick = function () { open(); };
+  var row = head.querySelector('.btnrow');
+  head.insertBefore(b, row || null);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', headerBox); else headerBox();
 }());

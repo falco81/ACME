@@ -160,6 +160,39 @@ web*, *history fw1*, *open …* - in Czech too (*obnov*, *nasaď*, *otestuj*, *u
 (kept in this browser), the pages and the actions. The lists are asked of the daemon only once
 the palette is opened, and kept for a minute.
 
+### Searching everything (1.0.140)
+
+What is typed (two characters or more, not a verb) is also asked of the server - `GET
+/api/search?q=` (`acmelib/certs/api_search.py`) - a breath after the last key. Its finds join the
+page's own in their groups, each object once:
+
+| | |
+|---|---|
+| Certificates | by name, any of its names (SANs), common name, serial (`5D:D2:A1` or `5dd2a1`), SHA-256 fingerprint - also those past the first 1000 the page holds |
+| Deployments | a certificate's deployment by the certificate's or the target's name (*intranet → fw1*) |
+| Targets, agents | by name, module, host, tags - never by what a secret holds |
+| Sources, authorities, validations, tests | by name and module; an authority by its subject |
+| Request profiles, teams | by name and description |
+| Accounts | by name - a full administrator only; never a mail, a phone or a group |
+| Events | the last 30 days, newest first, by their words |
+
+Enter opens the object's own card: a certificate's (a deployment's certificate), a target's,
+the source's form, an authority's, the profile in Settings → Request profiles, the team in Owners
+and teams, the account's row in Settings → Accounts, the Events page searched for that event.
+
+The server keeps every answer to what the account may see: a member kept to their teams finds only
+their teams' certificates, deployments and teams (`teams.where`, as the Certificates list), a
+target of another team not at all, and only the events the Events page would show them. At most
+100 characters are searched for, 8 of each kind (`limit`, 20 at most), and an account asking more
+than 30 times in 10 seconds is answered 429. While it is asked, *Searching every certificate,
+deployment and event…* is said under what is found already.
+
+Two actions are new: **The expiry calendar** (Certificates → Calendar, [expiry-calendar.md](expiry-calendar.md))
+and, for a full administrator, **A request profile from a template**.
+
+**The search box in the header** (*Find anything…*, with the keys beside it) opens the same palette
+for those who reach for the mouse; on a phone it is a magnifying glass.
+
 ## For the parts of the page (developers)
 
 `web/assets/ctxmenu.js` is the menu, the picking, the dock, the clipboard, the bulk dialog and

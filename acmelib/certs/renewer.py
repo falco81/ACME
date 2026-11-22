@@ -1198,6 +1198,13 @@ def scan(store, by='the renewer'):
         teamgov.tick(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-teamgov', 'the teams\' governance: %s' % e, 'warn', every=3600)
+    # The periodic reports and the teams' digests due (1.0.140, reports.tick) - nothing while
+    # none is defined or switched on.
+    try:
+        from acmelib.certs import reports
+        reports.tick(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-reports', 'the reports and digests: %s' % e, 'warn', every=3600)
     # The CRLs of acme's own authorities made again past half their life, so
     # one published on acme (publish.py) never runs out.
     try:

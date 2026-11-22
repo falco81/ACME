@@ -658,6 +658,9 @@ def _wider(base, pol):
             pass
     if base.get('from') and not (pol or {}).get('from'):
         added.append('from anywhere (was %s)' % ', '.join(base['from'][:3]))
+    # 1.0.140 (A1): what it may deploy loosened (a CA or a name more, a line taken away)
+    from acmelib.certs import agent_deployguard
+    added += agent_deployguard.loosened(base.get('guard'), pol)
     return added
 
 
@@ -677,6 +680,10 @@ def _base_of(st):
     if pol:
         out.update(hash=str(pol.get('hash') or ''), items=policy_items(pol),
                    limits=dict(pol.get('limits') or {}), **{'from': list(pol.get('from') or [])})
+        from acmelib.certs import agent_deployguard
+        g = agent_deployguard.guard_of(pol)
+        if g:
+            out['guard'] = g                    # 1.0.140 (A1): only when it says any
     net = network_of(st.get('last_ip') or '')
     out['nets'] = [net] if net else []
     return out

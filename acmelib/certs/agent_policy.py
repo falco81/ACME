@@ -583,7 +583,13 @@ def builder(store, row):
         found = agent_discover.cached(store, row)
     except Exception:                                   # noqa: BLE001
         found = None
-    return {'agent': a, 'facts': facts, 'discovered': found,
+    # 1.0.140 (A1): the CAs acme knows, the names deployed there, where the keys are made
+    try:
+        from acmelib.certs import agent_deployguard
+        guard = agent_deployguard.builder_facts(store, row)
+    except Exception:                                   # noqa: BLE001
+        guard = None
+    return {'agent': a, 'facts': facts, 'discovered': found, 'guard': guard,
             'templates': templates_windows() if windows else templates(),
             'platform': 'windows' if windows else 'linux',
             'needs': needs, 'acme_from': acme_addresses(store),
@@ -598,7 +604,9 @@ def _canon_lines(m, pol_or_text):
         p = m.parse_policy('')
         for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from', 'self_update',
                   'connect', 'probe', 'probe_local', 'limits', 'store', 'iis', 'rdp', 'roles',
-                  'key_read', 'adcs', 'adcs_read', 'discover'):
+                  'key_read', 'adcs', 'adcs_read', 'discover',
+                  # 1.0.140 (A1): what a deployment may deploy
+                  'issuers', 'names', 'key_local'):
             if pol_or_text.get(k) is not None:
                 p[k] = pol_or_text[k]
         return m.policy_lines(p)
@@ -641,7 +649,10 @@ STATE_KEYS = {'files': list, 'units': list, 'tests': list, 'scripts': list, 'has
               # ...and the Microsoft CAs it asks (1.0.125): [{ca, templates}], the lists read
               'adcs': list, 'adcs_read': bool,
               # ...and discovery (1.0.125, both platforms): ['*'] or the kinds
-              'discover': list}
+              'discover': list,
+              # 1.0.140 (A1): what a deployment may deploy - the CAs (sha256), the names, the
+              # key only one the agent made
+              'issuers': list, 'names': list, 'key_local': bool}
 
 
 def clean_state(state):

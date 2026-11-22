@@ -196,7 +196,9 @@ if (isset($_GET['api'])) {
         exit;
     }
     $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info', 'certs' => '/api/portal/certs',
-              'mfa' => '/api/portal/mfa'];
+              'mfa' => '/api/portal/mfa',
+              /* the expiry calendar of their certificates (1.0.140) */
+              'calendar' => '/api/portal/calendar'];
     $writes = ['cert-download' => '/api/portal/cert_download', 'cert-request' => '/api/portal/cert_request',
                'password' => '/api/portal/password', 'cert-renew' => '/api/portal/cert_renew',
                'cert-auto' => '/api/portal/cert_auto', 'cert-revoke' => '/api/portal/cert_revoke',
@@ -268,6 +270,11 @@ if (isset($_GET['api'])) {
         /* Their certificates - one page of them, searched on the server, when asked so. */
         acme_relay('/api/portal/certs' . $team_query(['team', 'below', 'q', 'state', 'page', 'per']),
                    'GET', null, 30.0);
+        exit;
+    }
+    if (!$post && $what === 'calendar-ics') {
+        /* their certificates as an iCalendar file, in the page's language (1.0.140) */
+        acme_relay('/api/portal/calendar_ics' . $team_query(['lang']), 'GET', null, 30.0);
         exit;
     }
     if ($post && isset($writes[$what])) {
@@ -363,7 +370,7 @@ if ($title_ours) {
 <?php acme_head($title, $lang, $load, $nonce, '/'); ?>
 <?php if ($me && is_file(__DIR__ . '/assets/certs-portal.js')):
     /* The certificate manager's own pieces (names, days left, states), as the administration has them. */
-    foreach (['certs.css', 'certs-portal.css', 'portal-teams.css', 'ctxmenu.css'] as $css):
+    foreach (['certs.css', 'certs-portal.css', 'portal-teams.css', 'ctxmenu.css', 'calendar.css'] as $css):
         if (is_file(__DIR__ . '/assets/' . $css)): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/<?= h($css) ?>?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/' . $css)) ?>">
 <?php endif; endforeach; endif; ?>
@@ -494,6 +501,9 @@ if ($title_ours) {
 <?php endif; ?>
 <?php if (is_file(__DIR__ . '/assets/certs-portal.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs-portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/certs-portal.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(__DIR__ . '/assets/calendar.js')): /* the expiry calendar of their certificates (1.0.140) */ ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/calendar.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/calendar.js')) ?>"></script>
 <?php endif; ?>
 <?php if (is_file(__DIR__ . '/assets/ctxmenu.js')): /* the right button's menu (1.0.138): copy, filter */ ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/ctxmenu.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/ctxmenu.js')) ?>"></script>
