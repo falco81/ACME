@@ -529,10 +529,23 @@ def _elev_get(store, eid):
     return r
 
 
+_ALREADY = {'granted': 'it was granted already', 'declined': 'it was declined already',
+            'cancelled': 'it was withdrawn already', 'ended': 'it has ended already',
+            'expired': 'it has expired already'}
+_REVIEW_ALREADY = {'done': 'the review is done already', 'closed': 'the review was closed already'}
+_ITEM_ALREADY = {'kept': '%s was confirmed already', 'removed': '%s was taken out already',
+                 'expired': '%s was not confirmed in time already'}
+
+
+def _already(state):
+    """A whole sentence for "it is <state> already" - translated as one (1.0.139)."""
+    return _ALREADY.get(state) or 'it is %s already' % state
+
+
 def may_decide(store, r, actor):
     """(whether this person may approve the request now, why not)."""
     if r.get('state') != 'waiting':
-        return False, 'it is %s already' % r.get('state')
+        return False, _already(r.get('state'))
     team = r.get('team')
     if _same(actor, S.jload(r.get('ids'), []), r.get('who')):
         return False, 'you asked for it yourself - someone else approves it'
@@ -563,7 +576,7 @@ def elevation_decide(store, eid, actor, ok, why=''):
         store.add_event('certificates', '%s was refused: deciding the request of %s for %s on the '
                         'team %s (%s)' % (actor.get('by'), r.get('asked_by'), r.get('role'),
                                           r.get('team'), words), 'warn', who=_who_by(actor.get('by')))
-        raise E.ApiError(409 if words.startswith('it is ') else 403, words)
+        raise E.ApiError(409 if words.endswith(' already') else 403, words)
     why = str(why or '').strip()[:500]
     now = _now()
     team = r['team']
@@ -619,7 +632,7 @@ def elevation_end(store, eid, actor):
                          % r.get('team'))
     p = _elev_public(r)
     if p['state'] not in ('waiting', 'granted'):
-        raise E.ApiError(409, 'it is %s already' % p['state'])
+        raise E.ApiError(409, _already(p['state']))
     now = _now()
     state = 'cancelled' if p['state'] == 'waiting' else 'ended'
     store.db.run('UPDATE cert_team_elevations SET state = ?, ended = ?, ended_by = ?, updated = ? '
@@ -748,7 +761,8 @@ def review_answer(store, rid, who, keep, actor, note=''):
     if not r:
         raise LookupError('there is no such review')
     if r.get('state') not in ('open', 'overdue'):
-        raise E.ApiError(409, 'the review is %s already' % r.get('state'))
+        raise E.ApiError(409, _REVIEW_ALREADY.get(r.get('state'))
+                         or 'the review is %s already' % r.get('state'))
     team = r['team']
     if not actor.get('all') and 'team.members' not in _caps_on(actor, team):
         raise E.ApiError(403, 'confirming the members needs "team.members" on the team %s' % team)
@@ -760,7 +774,9 @@ def review_answer(store, rid, who, keep, actor, note=''):
     if not it:
         raise LookupError('%s is not in this review' % str(who)[:120])
     if it.get('state') != 'pending':
-        raise E.ApiError(409, '%s was answered already (%s)' % (it['who'], it['state']))
+        words = _ITEM_ALREADY.get(it['state'])
+        raise E.ApiError(409, words % it['who'] if words else
+                         '%s was answered already (%s)' % (it['who'], it['state']))
     if not keep and not actor.get('all'):
         # taken out only by one who holds no less than they do (as removing a member on the
         # portal): a manager of the members does not take out the team's owner

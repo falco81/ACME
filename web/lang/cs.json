@@ -75959,6 +75959,50 @@
   "z_2686": {
    "source": "teams taken away, slack taken away",
    "text": "Teams odebrán, Slack odebrán"
+  },
+  "z_2687": {
+   "source": "it was granted already",
+   "text": "už byla schválena"
+  },
+  "z_2688": {
+   "source": "it was declined already",
+   "text": "už byla zamítnuta"
+  },
+  "z_2689": {
+   "source": "it was withdrawn already",
+   "text": "už byla stažena"
+  },
+  "z_2690": {
+   "source": "it has ended already",
+   "text": "už skončila"
+  },
+  "z_2691": {
+   "source": "it has expired already",
+   "text": "už vypršela"
+  },
+  "z_2692": {
+   "source": "the review is done already",
+   "text": "revize už je hotová"
+  },
+  "z_2693": {
+   "source": "the review was closed already",
+   "text": "revize už je uzavřená"
+  },
+  "z_2694": {
+   "source": "it was decided meanwhile",
+   "text": "mezitím o ní už někdo rozhodl"
+  },
+  "z_2695": {
+   "source": "you may not see that",
+   "text": "tohle vidět nesmíte"
+  },
+  "z_2696": {
+   "source": "only a full administrator views the pages as somebody else",
+   "text": "stránky očima někoho jiného vidí jen plný správce"
+  },
+  "z_2697": {
+   "source": "that is you",
+   "text": "to jste vy"
   }
  },
  "patterns": {
@@ -105833,6 +105877,22 @@
   "pz_932": {
    "source": "the team {0}, the team {1}, the team {2}",
    "text": "tým {0}, tým {1}, tým {2}"
+  },
+  "pz_933": {
+   "source": "{0} was confirmed already",
+   "text": "{0} už je potvrzen(a)"
+  },
+  "pz_934": {
+   "source": "{0} was taken out already",
+   "text": "{0} už je vyřazen(a)"
+  },
+  "pz_935": {
+   "source": "{0} was not confirmed in time already",
+   "text": "{0} už nebyl(a) potvrzen(a) včas"
+  },
+  "pz_936": {
+   "source": "you may not see the team {0}",
+   "text": "tým {0} vidět nesmíte"
   }
  },
  "rich": {

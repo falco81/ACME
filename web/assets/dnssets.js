@@ -63,7 +63,7 @@
     card.appendChild(h);
     card.appendChild(el('p', 'note', 'Each set is a few DNS servers, one address a line (with :port where it is not 53), asked in their order until one answers. "The system\'s" is built in: the servers of /etc/resolv.conf, as the machine has them. Test looks a name up through a set and shows what each of its servers answered, and how fast.'));
     var used = d.used || {};
-    card.appendChild(listTable(['Name', 'Servers', 'Protocol', {words: 'Timeout', cls: 'num'}, 'Used for', ''],
+    card.appendChild(listTable(['Name', 'Servers', 'Protocol', {words: 'Timeout', cls: 'num'}, 'Used for', {words: '', cls: 'rowtools'}],
       d.sets || [], function (s) {
         var tr = el('tr', s.builtin ? 'dnss-builtin' : '');
         var nm = cell('', '');

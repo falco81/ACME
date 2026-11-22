@@ -457,7 +457,8 @@ function i18nWork(s, depth) {
       + i18nPlural(p.text, p.slots, m).replace(/\{(\d+)\}/g, function (all, n) {
         var at = p.slots.indexOf(Number(n));
         if (at < 0) return all;
-        return i18nSlot(m[at + 1], depth, p.join);
+        return i18nSlot(m[at + 1], depth, p.join || (I18N_ROLE_BEFORE.test(p.lits[at] || '')
+                                                      && I18N_ROLES.test(m[at + 1] || '') ? 'role' : false));
       });
   }
   /* Words with a number before or after them, where no pattern took them
@@ -510,6 +511,10 @@ function i18nParts(key, depth) {
   }
   return null;
 }
+/* The built-in roles' one-word names (Approver, Viewer...) are acme's words, not a name somebody
+   gave, where the pattern says "the role {0}" (1.0.139): "roli Approver" in a Czech event. */
+var I18N_ROLE_BEFORE = /\brole $/i;
+var I18N_ROLES = /^(Viewer|Requester|Renewer|Deployer|Approver)$/;
 /* What fills a pattern's slot: a number or a name stays as it is; words
    the page put there out of its own texts are translated too. */
 function i18nSlot(got, depth, join) {
@@ -528,7 +533,7 @@ function i18nSlot(got, depth, join) {
   if (!/\S\s+\S/.test(got.trim())) {
     /* ...except a word of the page's own in a text only joined together (hunt M):
        "done · 0 s", "failed · 3 s" in the last job of a certificate */
-    if (join && /^[a-z]{3,}$/.test(got.trim())) {
+    if ((join === true && /^[a-z]{3,}$/.test(got.trim())) || join === 'role') {
       var w = I18N.exact.get(got.trim());
       if (w) return /^\s*/.exec(got)[0] + w + /\s*$/.exec(got)[0];
     }
