@@ -1,5 +1,20 @@
 [
   {
+    "name": "acme-1.0.139.tar.gz",
+    "version": "1.0.139",
+    "size": 22451807,
+    "sha256": "ea161a3d230299d22fd32685822c9140110f2c79d75c1c3a40ffe1dbc48eafb6",
+    "date": "2026-11-22T12:04:46Z",
+    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.139.tar.gz",
+    "agent_windows": {
+      "name": "acme-agent-1.0.139-windows-x64.msi",
+      "size": 13976064,
+      "sha256": "32aa71b9ffaaa0cb807fcf142e533c5d4c56e0b3c1da64a0abc329e535430b5c",
+      "product_code": "{B0C16951-D7A1-5992-92C3-FCFB01FF6059}",
+      "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-agent-1.0.139-windows-x64.msi"
+    }
+  },
+  {
     "name": "acme-1.0.138.tar.gz",
     "version": "1.0.138",
     "size": 22446812,
@@ -132,21 +147,6 @@
       "sha256": "26354bdda3ce9399403acad0129cd3d1a8ab201f19a6bc33a5cce2fd0def33cb",
       "product_code": "{71E01D49-F5A2-5765-ADBF-1C99811EE56C}",
       "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-agent-1.0.130-windows-x64.msi"
-    }
-  },
-  {
-    "name": "acme-1.0.129.tar.gz",
-    "version": "1.0.129",
-    "size": 21857614,
-    "sha256": "463dd81495fcb79e4a6f2b0ee419b376026d28a400769b291f88e636eeab0849",
-    "date": "2026-11-18T11:29:22Z",
-    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.129.tar.gz",
-    "agent_windows": {
-      "name": "acme-agent-1.0.129-windows-x64.msi",
-      "size": 13970944,
-      "sha256": "27606473eae8c6b48c9e3f366c0334f526e48f1c0cfcc9917057efaa290f8acb",
-      "product_code": "{727E9F45-7E84-54B2-8500-1CD8F03AF16E}",
-      "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-agent-1.0.129-windows-x64.msi"
     }
   }
 ]
