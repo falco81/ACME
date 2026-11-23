@@ -3,7 +3,7 @@
 
     python3 test/test_hunt_rv5_czech.py
     ACME_RV5_CS=FILE[,FILE...]   {English: Czech} merged into a copy of web/lang/cs.json first
-                                 (an English text with <tags> goes into its `rich` part, with
+                                 (an English text with <b>, <br>, <code>... goes into its `rich` part, with
                                  {0} into `patterns`, else `strings` - and a source already in
                                  the file is left as it is)
     ACME_RV5_FIX=FILE            {English: corrected Czech}: the texts of sources already there
@@ -223,7 +223,7 @@ def merged_pack(tmp):
             if en in have:
                 continue
             i += 1
-            sect = 'rich' if '<' in en else ('patterns' if re.search(r'\{\d\}', en) else 'strings')
+            sect = 'rich' if re.search(r'</?(b|i|br|code|em|strong|a|span)\b', en) else ('patterns' if re.search(r'\{\d\}', en) else 'strings')
             pack.setdefault(sect, {})['%s5%04d' % (sect[0], i)] = {'source': en, 'text': cs}
     if CS_FIX and os.path.exists(CS_FIX):
         with open(CS_FIX, encoding='utf-8') as f:
@@ -375,13 +375,18 @@ class Czech(unittest.TestCase):
         self.assertIn('připojují', said['web1, web2 still reach a database with TLS - perhaps this one: switch them off first'])
 
 
+import test_certs_core as TCC  # noqa: E402  (the daemon, its helpers)
+
+
 class Pages(unittest.TestCase):
     """Every tab, pane, the sign-in page and the portal in Czech."""
+    call = TCC.CertsCore.__dict__['call']
+    login = TCC.CertsCore.__dict__['login']
+    ok = TCC.CertsCore.__dict__['ok']
+    TCC = TCC
 
     @classmethod
     def setUpClass(cls):
-        import test_certs_core as TCC
-        cls.TCC = TCC
         TCC.CertsCore.setUpClass.__func__(cls)
 
     @classmethod

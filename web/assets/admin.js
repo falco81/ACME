@@ -17385,7 +17385,10 @@ function skNodePicker(body) {
       /* A normal user's key only where the user is (1.0.240). */
       var there = SK.user === 'root' || (n.users || []).some(function (u) { return u.name === SK.user; });
       var c = el('input'); c.type = 'checkbox'; c.checked = n.alive && there; c.disabled = !n.alive || !there; c.value = n.name;
-      lab.appendChild(c); lab.appendChild(noI18n(el('span', '', ' ' + n.name + (!n.alive ? ' (not answering)' : !there ? ' (no such user)' : ''))));
+      /* the node's name is data, what is said about it words of the page (hunt v5: "(no such
+         user)" stayed English inside the name's data-no-i18n) */
+      lab.appendChild(c); lab.appendChild(noI18n(el('span', '', ' ' + n.name)));
+      if (!n.alive || !there) lab.appendChild(el('span', '', !n.alive ? ' (not answering)' : ' (no such user)'));
       box.appendChild(lab);
       boxes.push(c);
     });

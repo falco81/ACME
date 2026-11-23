@@ -19,7 +19,7 @@ digest by mail: [teams.md](teams.md#the-digest-by-mail-t12-10140).)
 | Teams | every team (also what has no team), or chosen teams - each with every team below it |
 | Formats | PDF (A4 landscape: a heading, tiles of numbers, the table over as many pages as it needs with its head on each, "page N of M") and/or CSV (UTF-8 with its mark; a cell a spreadsheet would read as a formula gets a leading `'`) |
 | Made by itself | by hand only, weekly (day 1-7, hour) or monthly (day 1-28, hour); the first run is the next moment chosen after it was set - never at once |
-| Mailed to | addresses (at most 20); empty: kept here only |
+| Mailed to | addresses (at most 50); empty: kept here only |
 | Language | Czech, English, or the mails' (`report_lang`, else `mail_lang`) - the words through the pages' translation, as the alerts' |
 | Runs kept | 1-100 (12): the newest runs with their files |
 | Schedule active | off pauses the schedule; Run now still works |

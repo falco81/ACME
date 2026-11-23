@@ -42,7 +42,8 @@ pages do.
     --elevation-approve ID [--why] / --elevation-decline ID --why / --elevation-end ID
     --reviews [TEAM]               access reviews open now, or a team's
     --review-open TEAM / --review-answer ID WHO keep|out [--note]
-    --team-templates / --team-template-save TEAM NAME / --team-from-template TEMPLATE NAME
+    --team-templates / --team-template-save TEAM NAME [--template-members] /
+                                   --team-from-template TEMPLATE NAME
                                    [--parent TEAM] / --teams-import-csv FILE|- (a preview first)
     --team-template-del NAME       a template of teams deleted
 
@@ -69,7 +70,8 @@ KEYS = ('history', 'history_restore', 'trash', 'trash_restore', 'trash_purge',
         'team_template_del', 'team_from_template', 'teams_import_csv')
 # options of ours that go only with some of ours
 WITH = {'fleet_members': ('fleet_group_save',), 'fleet_template': ('fleet_group_save',),
-        'fleet_canary': ('fleet_group_save',), 'rollout_wait': ('fleet_rollout',)}
+        'fleet_canary': ('fleet_group_save',), 'rollout_wait': ('fleet_rollout',),
+        'template_members': ('team_template_save',)}
 # options of other groups that some of ours read (refused beside the others of ours)
 SHARED = {'names': ('profile_dry_run',), 'issuer': ('fleet_takeover',),
           'name': ('trash_restore',), 'parent': ('team_from_template',),
@@ -185,7 +187,11 @@ def add_args(p):
     a('--team-templates', dest='team_templates', action='store_true',
       help='the templates of teams')
     a('--team-template-save', dest='team_template_save', nargs=2, metavar=('TEAM', 'NAME'),
-      help='a team saved as a template (roles, limits, governance - never a secret)')
+      help='a team saved as a template (roles, limits, governance - never a secret; '
+           '--template-members: its members too)')
+    a('--template-members', dest='template_members', action='store_true',
+      help='with --team-template-save: the team\'s members go into the template too (as the '
+           'page\'s "with its members")')
     a('--team-template-del', dest='team_template_del', metavar='NAME',
       help='a template of teams deleted (--yes); the teams made from it stay')
     a('--team-from-template', dest='team_from_template', nargs=2, metavar=('TEMPLATE', 'NAME'),
@@ -1030,7 +1036,9 @@ def _team_templates(c, _v):
 
 def _team_template_save(c, pair):
     team, name = pair
-    got = c.api('POST', '/api/teams/template_save', body={'name': name, 'from_team': team})
+    got = c.api('POST', '/api/teams/template_save', body={
+        'name': name, 'from_team': team, 'members': bool(getattr(c.args, 'template_members',
+                                                                  False))})
     return c.done(got.get('message') or 'saved', got)
 
 
@@ -1502,11 +1510,15 @@ def team_do(con, name, what):
     elif what == 'notify-test':
         con.act('--team-notify-test', name)
     elif what == 'template-save':
-        tpl = con.ask_one('Save %s as a team template' % name, 'the template\'s name', name,
-                          'Its kind, limits and governance are kept; the same name again '
-                          'changes that template.')
-        if tpl and tpl.strip():
-            con.act('--team-template-save', name, tpl.strip())
+        got = con.form('Save %s as a team template' % name, [
+            {'key': 'tpl', 'label': 'the template\'s name', 'value': name, 'need': True,
+             'help': 'Its kind, limits and governance are kept (never a secret); the same name '
+                     'again changes that template.'},
+            {'key': 'members', 'label': 'its members', 'kind': 'choice', 'value': 'no',
+             'options': [('no', 'not kept'), ('yes', 'kept in the template too')]}])
+        if got and (got.get('tpl') or '').strip():
+            con.act('--team-template-save', name, got['tpl'].strip(),
+                    *(['--template-members'] if got.get('members') == 'yes' else []))
     else:
         return False
     return True

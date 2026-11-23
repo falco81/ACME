@@ -77671,6 +77671,26 @@
   "z_3114": {
    "source": "no certificate given",
    "text": "nebyl dán žádný certifikát"
+  },
+  "z_3115": {
+   "source": "the reason %s cannot be put into the CRL of an authority of acme's own (openssl does not take it): one of %s",
+   "text": "důvod %s nelze zapsat do CRL vlastní autority acme (openssl ho nepřijme): jeden z %s"
+  },
+  "z_3116": {
+   "source": "Change its name, days, addresses, note",
+   "text": "Změnit její název, dny, adresy, poznámku"
+  },
+  "z_3117": {
+   "source": "Save it as a team template",
+   "text": "Uložit ho jako šablonu týmu"
+  },
+  "z_3118": {
+   "source": "Who can do one thing in a team or on a certificate, and why",
+   "text": "Kdo smí jednu věc v týmu nebo na certifikátu a proč"
+  },
+  "z_3119": {
+   "source": "Teams from a CSV file (each row said first)",
+   "text": "Týmy ze souboru CSV (nejdřív každý řádek)"
   }
  },
  "patterns": {

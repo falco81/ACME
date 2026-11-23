@@ -397,14 +397,15 @@ class ConsoleWalk(unittest.TestCase):
                 (['gov-set', 'notify'], [{'on': 'on', 'mail': 'web@example.com'}], []),
                 (['reviews', 'open'], [], []), (['reviews', 'show'], [], []),
                 (['reviews', 'answer'], [{'id': '1', 'who': 'local:eva', 'keep': 'keep'}], []),
-                (['template-save'], [], ['WebTpl'])):
+                (['template-save'], [{'tpl': 'WebTpl', 'members': 'yes'}], [])):
             con = Con(chooses=chooses, forms=forms, asks=asks)
             C.team_do(con, {'name': 'Web'})
             last(self, con)
         gov = js(self, '--team-gov', 'Web')['gov']
         self.assertEqual(gov['jit']['max_hours'], 4)
         self.assertTrue(gov['sod']['no_self_approval'])
-        self.assertIn('WebTpl', [t['name'] for t in js(self, '--team-templates')['templates']])
+        tpl = next(t for t in js(self, '--team-templates')['templates'] if t['name'] == 'WebTpl')
+        self.assertEqual(len(tpl['config'].get('members') or []), 2)     # --template-members
         con = Con(chooses=['notify-test'])
         C.team_do(con, {'name': 'Web'})
         self.assertIn(con.acts[-1][1], (0, 1))           # mail is off here: said, exit 1

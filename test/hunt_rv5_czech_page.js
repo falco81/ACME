@@ -9,17 +9,20 @@ const { chromium } = require('playwright');
 const path = require('path');
 
 function englishLeft() {
-  const EN = /(?<![\p{L}\-_.\/])(the|and|is|are|was|of|with|not|this|that|it|its|from|which|when|will|yet|none|nothing|here|there|been|has|have|for|your|you|by|be|to|or|a|an|on|in|at|no)(?![\p{L}\-_.\/])/giu;
+  // English words that are no Czech ones ("a", "to", "no" are both)
+  const EN = /(?<![\p{L}\-_.\/])(the|and|is|are|was|of|with|not|this|that|its|from|which|when|will|yet|none|nothing|here|there|been|has|have|your|you)(?![\p{L}\-_.\/])/giu;
+  const CZ = /[áčďéěíňóřšťúůýž]/i;
   const out = new Set();
   const visible = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
-  const skip = 'script, style, [data-no-i18n], .mono, code, pre, kbd, samp, textarea, input, option, .cm, .noi18n, svg, [hidden], .hidden, #modal[hidden]';
+  const skip = 'script, style, [data-no-i18n], .mono, code, pre, kbd, samp, textarea, input, option, svg, [hidden]';
   const judge = (s, where) => {
     const t = s.replace(/\s+/g, ' ').trim();
     if (!t || !/[a-z]{2}/.test(t)) return;
-    const words = (t.match(EN) || []);
-    // two English small words, or one with three plain English words around it
-    if (words.length >= 2 || (words.length === 1 && /\b[a-z]{3,} [a-z]{2,} [a-z]{3,}\b/.test(t) && !/[áčďéěíňóřšťúůýž]/i.test(t))) {
-      if (/[áčďéěíňóřšťúůýž]/i.test(t) && words.length < 3) return;
+    // in small letters: "The SSL Store (REST API)" is a name
+    const words = (t.match(EN) || []).filter(w => w === w.toLowerCase()).length;
+    // Czech with an English name or two in it is Czech; English is two such words, or one
+    // in a sentence without a Czech letter
+    if (CZ.test(t) ? words >= 2 : words >= 1) {
       out.add(where + t.slice(0, 160));
     }
   };
@@ -66,6 +69,32 @@ function englishLeft() {
         await page.waitForTimeout(1300);
         run.pages[t] = await page.evaluate(englishLeft);
         if (shots) await page.screenshot({path: path.join(shots, `rv5-${t}-${w}.png`)});
+        // the tab's "Add ..." popup (opened, looked at, closed with Esc - nothing saved)
+        if (t !== 'settings' && t !== 'overview') {
+          const opened = await page.evaluate(() => {
+            const b = [...document.querySelectorAll('.btn.primary')].find(x => {
+              const r = x.getBoundingClientRect();
+              return r.width > 0 && !x.closest('#modal') && /^(Přidat|Add)/.test(x.textContent.trim());
+            });
+            if (!b) return false;
+            b.click();
+            return true;
+          });
+          if (opened) {
+            await page.waitForTimeout(1200);
+            const m = await page.evaluate(() => !document.getElementById('modal').hidden);
+            if (m) {
+              run.pages[t + ' +add'] = await page.evaluate(englishLeft);
+              if (shots) await page.screenshot({path: path.join(shots, `rv5-${t}-add-${w}.png`)});
+              await page.keyboard.press('Escape');
+              await page.waitForTimeout(500);
+              if (await page.evaluate(() => !document.getElementById('modal').hidden)) {
+                await page.keyboard.press('Escape');
+                await page.waitForTimeout(400);
+              }
+            }
+          }
+        }
         if (t === 'settings') {
           const panes = await page.evaluate(() => [...document.querySelectorAll('[id^="pane-"]')].map(e => e.id.slice(5)));
           for (const p of panes) {

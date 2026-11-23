@@ -105,6 +105,16 @@ deployment and a test attachment; anybody signed in for the rest.
 
 Latest changes filters by kind, by who and by when, and finds a name.
 
+## The command line and the console
+
+`acme --history [--limit N]` (the latest changes), `acme --history TYPE NAME` (one object's),
+`acme --history-restore ENTRY [--yes]`, `acme --trash`, `acme --trash-restore ID [--name NEW]`
+and `acme --trash-purge ID|all [--yes]` - as the pages, run as `command line` (a full
+administrator) - [command-line.md](command-line.md). What the command line changes or deletes is
+written down and put in the trash as the pages' changes are. In the console: **h** → *The latest
+changes* (Enter: its whole history, or that version again) and *The trash* (Enter: bring it back,
+under another name, delete it for good). Saved views are the pages' lists: no command line.
+
 ## Saved views
 
 By the filters of every list (Certificates, Sources, Validation, Targets, Tests, Jobs, Events,

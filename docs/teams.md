@@ -490,6 +490,17 @@ administration), the portal's routes at the end of `acmelib/certs/portal_teams.p
 `web/assets/teams.js` ("Governance" section, views *Who may*, *Health*, *Requests*,
 *Templates*, the team's tab *Governance*), `web/assets/portal-teams.js` (*Health*, *Access*).
 
+The command line and the console have all of it but *View as* (a sign-in of the pages):
+`acme --team-health`, `--team-gov`, `--team-gov-set TEAM JSON|-`, `--team-notify-test`,
+`--who-may`, `--who-can`, `--elevations`, `--elevation-approve/-decline/-end`, `--reviews`,
+`--review-open`, `--review-answer`, `--team-templates`, `--team-template-save TEAM NAME
+[--template-members]`, `--team-from-template`, `--team-template-del`, `--teams-import-csv`
+([command-line.md](command-line.md)); the webhooks are set sealed through `acme --api POST
+/api/teams/hooks -` (the body on stdin). In the console: **o** (the teams' health, requests to
+decide, reviews open, who may, team templates, who can, teams from a CSV file) and a team's own
+menu (its health, governance in forms, reviews, temporary roles, channels tried, saved as a
+template) - [console.md](console.md).
+
 ### Where it is kept
 
 | what | where |

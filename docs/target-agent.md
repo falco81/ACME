@@ -1034,6 +1034,13 @@ audit?, anomaly?, rotate?, rotate_days?, health: on|off}` (a full administrator)
 `POST /api/agents/keys/rotate` (a full administrator). Each row of `GET /api/agents` carries
 `guard` (the choices, the chain's state, the anomalies, what is served, the keys' age in short).
 The code: `acmelib/certs/agent_guard.py`.
+The command line (as root, a full administrator): `acme --target-agent NAME watch` (all four),
+`watch-set audit=on|off anomaly=on|off health=on|off rotate=on|off rotate_days=N`,
+`audit-verify` (exit 1 when the chain does not agree), `ack audit|anomaly`, `rotate
+[command|seal|both] [--yes]`, `served` (exit 1 when a service still serves the old certificate),
+`acme --target-agent all keys` and `all keys-rotate [--yes]`; the console: the agent's menu
+(*Watching it*, *switch each on or off*, *Read and check its audit chain now*, *Ask what its
+services serve now*, *Looked at*, *Change its keys now*) and **h** → *The keys of the agents*.
 
 ### Windows
 

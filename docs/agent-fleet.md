@@ -167,6 +167,20 @@ without *Take over* (Import… or a deployment by hand, from the agent's card).
 Every route needs a session that sees every certificate: one limited to its teams' certificates
 (*Certificate administrators manage every certificate* off) is refused.
 
+## The command line and the console
+
+`acme --fleet` (every agent, the groups, the rollout), `--fleet-templates`, `--fleet-assign
+TEMPLATE|- AGENT...`, `--fleet-drift [AGENT...]` (exit 1 when one differs), `--fleet-group-save
+NAME [--fleet-members A,B|-] [--fleet-template REF|-] [--fleet-canary yes|no]`,
+`--fleet-group-del NAME`, `--fleet-ask AGENT...|all`, `--fleet-update AGENT...|all`,
+`--fleet-rollout plan|start|continue|stop|forget [GROUP] [--rollout-wait MIN] [--yes]`,
+`--fleet-unmanaged` and `--fleet-takeover TARGET SERVICE [--issuer SOURCE] [--yes]` (the preview
+first) - each as the page, with the same rights ([command-line.md](command-line.md)). A template
+of your own is saved with `acme --api POST /api/fleet/template_save -` (the body on stdin). In
+the console: **h** → *The agent fleet*, *Certificates found on the servers that acme does not
+manage* (Enter: take over), *Drift*, *An update in rings*, *The keys of the agents* and *Groups
+of agents* (`g`: change, plan, delete, add one).
+
 ## API
 
 `GET /api/fleet` (the whole view), `GET /api/fleet/templates[?platform=]`,

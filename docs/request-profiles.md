@@ -258,6 +258,18 @@ the key fails with the same words; one that takes only the certificate works.
 The sources that can sign it: an authority of acme's own, ACME, and every
 other source that sends a CSR to its CA - not self-signed, CMP or SCEP.
 
+## The command line and the console
+
+`acme --profiles`, `--profile-show NAME`, `--profile-versions NAME`, `--profile-diff NAME A [B]`,
+`--profile-restore NAME N [--yes]`, `--profile-compliance [YYYY-MM-DD]` (exit 1 when one does not
+comply), `--profile-dry-run NAME --names D,D` (exit 1 when it would be refused), `--profile-end
+NAME SUCCESSOR [--note TEXT] [--yes]` (the impact said first; `-` as the successor: it no longer
+ends) and `--profile-del NAME [--yes]` (to the trash) - [command-line.md](command-line.md). A
+profile is made from a template (above) or saved whole with `acme --api POST
+/api/reqprofiles/save -` (the body on stdin, as the API below); the company's rules and a delete
+with `detach` the same way. In the console: **h** → *Request profiles* (Enter: show, versions,
+compare, restore, dry run, end or take it back, delete) and *the compliance check*.
+
 ## The API
 
 | | |

@@ -135,7 +135,7 @@ class Teams(unittest.TestCase):
         # 1.0.140 (hunt v1 parity): the governance of 1.0.138 too - health, temporary roles,
         # reviews, who may, templates (acmelib/certs/cli_138.py)
         self.assertEqual([x[0] for x in con.items], ['1', '2', '3', '4', '5', '6', '7', '8',
-                                                     '9', 'w', 'm'])
+                                                     '9', 'w', 'm', 'n', 'i'])
         # a team under IT, with a member added at once
         con = Con(forms=[{'name': 'Web', 'kind': 'team', 'parent': 'IT', 'description': 'web',
                           'contact_mail': 'web@example.com'}], confirms=[False])
