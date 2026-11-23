@@ -382,7 +382,12 @@ CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal':
              'revkeys': 'certs:revoked_keys:%d',
              # whether it was renewed by itself before it was revoked (1.0.102): issued again
              # after, it is as it was - it stayed "by hand" and ran out
-             'revauto': 'certs:revoked_auto:%d'}
+             'revauto': 'certs:revoked_auto:%d',
+             # a switch to a key made by its agent, waiting for its renewal (1.0.140,
+             # agent_keyplace.M_SWITCH; hunt v4): it stayed when the certificate was deleted -
+             # a certificate given the same number later was switched - and was lost by an
+             # export and import of the configuration and by the trash
+             'keyswitch': 'agentkeys:switch:%d'}
 
 
 # ...and by the name of a test (1.0.96, checks.py), {test: value} in the file:

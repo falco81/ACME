@@ -67,6 +67,7 @@ TCP_PER_PEER = 8           # connections at once from one address (1.0.44)
 TCP_MSG_S = 10.0           # one whole message, however slowly it trickles in
 TCP_WHOLE_S = 120.0        # one connection, all its questions
 SERVED_TYPES = (1, 2, 5, 6, 15, 16, 28, 33, 257)
+TTL_MAX = 2147483647       # RFC 2181 8: a TTL above it is taken as 0
 
 
 def _engine():
@@ -102,7 +103,7 @@ class Zones(object):
         # the first one written is "the" zone relative names belong to
         self.first = D.ascii_name(_split(cfg.get('dns_zone'))[0]) if self.zones else ''
         try:
-            self.ttl = max(0, int(cfg.get('dns_ttl') or 60))
+            self.ttl = min(TTL_MAX, max(0, int(cfg.get('dns_ttl') or 60)))
         except (TypeError, ValueError):
             self.ttl = 60
         self.data = {}
@@ -221,9 +222,14 @@ class Zones(object):
         D.name_labels(name)
         if self.zone_of(name) is None:
             raise ValueError('%s is not in %s' % (name, ', '.join(self.zones) or 'any zone'))
+        ttl = int(ttl)
+        if not 0 <= ttl <= TTL_MAX:
+            # v4: a TTL past 32 bits went out cut to its low 32 (99999999999 -> 1215752191), and
+            # one past 2^31-1 is taken as 0 by resolvers (RFC 2181 8) - said, not served
+            raise ValueError('a TTL is 0 to %d seconds' % TTL_MAX)
         rr = self.data.setdefault(name, {}).setdefault(t, [])
         if not any(v == value for _t, v in rr):
-            rr.append((int(ttl), value))
+            rr.append((ttl, value))
 
     def zone_of(self, name):
         name = D.ascii_name(name)

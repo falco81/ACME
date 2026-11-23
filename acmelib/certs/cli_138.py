@@ -44,6 +44,7 @@ pages do.
     --review-open TEAM / --review-answer ID WHO keep|out [--note]
     --team-templates / --team-template-save TEAM NAME / --team-from-template TEMPLATE NAME
                                    [--parent TEAM] / --teams-import-csv FILE|- (a preview first)
+    --team-template-del NAME       a template of teams deleted
 
 And beside --target-agent NAME (acmelib/certs/cli.py): watch, watch-set KEY=VALUE...,
 audit-verify, ack audit|anomaly, rotate [command|seal|both], served; --target-agent all keys,
@@ -65,7 +66,7 @@ KEYS = ('history', 'history_restore', 'trash', 'trash_restore', 'trash_purge',
         'team_health', 'team_gov', 'team_gov_set', 'team_notify_test', 'who_may', 'who_can',
         'elevations', 'elevation_approve', 'elevation_decline', 'elevation_end', 'reviews',
         'review_open', 'review_answer', 'team_templates', 'team_template_save',
-        'team_from_template', 'teams_import_csv')
+        'team_template_del', 'team_from_template', 'teams_import_csv')
 # options of ours that go only with some of ours
 WITH = {'fleet_members': ('fleet_group_save',), 'fleet_template': ('fleet_group_save',),
         'fleet_canary': ('fleet_group_save',), 'rollout_wait': ('fleet_rollout',)}
@@ -185,6 +186,8 @@ def add_args(p):
       help='the templates of teams')
     a('--team-template-save', dest='team_template_save', nargs=2, metavar=('TEAM', 'NAME'),
       help='a team saved as a template (roles, limits, governance - never a secret)')
+    a('--team-template-del', dest='team_template_del', metavar='NAME',
+      help='a template of teams deleted (--yes); the teams made from it stay')
     a('--team-from-template', dest='team_from_template', nargs=2, metavar=('TEMPLATE', 'NAME'),
       help='a new team made from a template (--parent TEAM)')
     a('--teams-import-csv', dest='teams_import_csv', metavar='FILE|-',
@@ -1031,6 +1034,14 @@ def _team_template_save(c, pair):
     return c.done(got.get('message') or 'saved', got)
 
 
+def _team_template_del(c, name):
+    # the page deletes a template (Settings -> Owners and teams -> Templates); the command line
+    # had no way to (hunt v4)
+    _sure(c, 'the team template %s is deleted' % name)
+    got = c.api('POST', '/api/teams/template_delete', body={'name': name})
+    return c.done(got.get('message') or 'deleted', got)
+
+
 def _team_from_template(c, pair):
     tpl, name = pair
     body = {'template': tpl, 'name': name}
@@ -1463,7 +1474,29 @@ def team_do(con, name, what):
                 con.act('--review-answer', got['id'], got['who'], got['keep'], '--note',
                         got.get('note') or '')
     elif what == 'elevations':
-        con.act('--elevations', name)
+        # Enter on one ends it (a request taken back, a role given ended early) - as the team's
+        # page does; the console only listed them (hunt v4)
+        def load():
+            got = con.out('--elevations', name) or {}
+            return got.get('rows') or [] if isinstance(got, dict) else []
+        cols = [('id', lambda r: r.get('id'), 5, None),
+                ('who', lambda r: r.get('asked_by') or r.get('who'), 22, None),
+                ('role', lambda r: r.get('role'), 16, None),
+                ('state', lambda r: r.get('state'), 9, None),
+                ('until', lambda r: _when(r.get('until')) if r.get('until') else '', 16,
+                 lambda r: 'dim'),
+                ('why', lambda r: r.get('reason') or '', 30, lambda r: 'dim')]
+
+        def end(r):
+            if r.get('state') not in ('waiting', 'granted'):
+                return
+            if con.confirm('End it', 'The %s %s of %s on %s ends now?' % (
+                    'request for' if r.get('state') == 'waiting' else 'temporary role',
+                    r.get('role'), r.get('asked_by') or r.get('who'), name), 'End it',
+                    danger=True):
+                con.act('--elevation-end', str(r['id']))
+        con.pick('Temporary roles in %s (Enter: end it)' % name, load, cols, end,
+                 'no request for a temporary role')
     elif what == 'notify-test':
         con.act('--team-notify-test', name)
     else:
@@ -1612,8 +1645,31 @@ def gov_menu_items(con):
                           'team:Web for the people of a team.')
         if who:
             con.act('--who-may', who.strip())
+    def templates():
+        # the page's Templates: a team made from one, one deleted (hunt v4: only listed here)
+        def load():
+            return con._rows(con.out('--team-templates'), 'templates')
+        cols = [('template', lambda r: r.get('name'), 24, None),
+                ('description', lambda r: r.get('description') or '', 40, lambda r: 'dim'),
+                ('kind', lambda r: (r.get('config') or {}).get('kind') or '', 8, None),
+                ('members', lambda r: len((r.get('config') or {}).get('members') or []), 7,
+                 None)]
+
+        def do(r):
+            what = con.choose('The template %s' % r.get('name'), [
+                ('make', 'A new team from it'), ('del', 'Delete it')])
+            if what == 'make':
+                name = con.ask_one('A team from %s' % r.get('name'), 'its name', '')
+                if name:
+                    con.act('--team-from-template', r.get('name'), name.strip())
+            elif what == 'del' and con.confirm('Delete', 'The template %s is deleted? The teams '
+                                               'made from it stay.' % r.get('name'), 'Delete it',
+                                               danger=True):
+                con.act('--team-template-del', r.get('name'), '--yes')
+        return con.pick('Team templates', load, cols, do,
+                        'no team template yet (a team\'s menu: save it as a template)')
     return [('7', 'The teams\' health', lambda: con.act('--team-health')),
             ('8', 'Requests for a temporary role to decide', decide),
             ('9', 'Access reviews open now', lambda: con.act('--reviews')),
             ('w', 'Who may do what, and why', who_may),
-            ('m', 'Team templates', lambda: con.act('--team-templates'))]
+            ('m', 'Team templates (Enter: a team from it, delete it)', templates)]

@@ -17,7 +17,7 @@ process, their steps printed as they come. --json answers JSON.
     deployments    --deploys [CERT] --deploy-add CERT TARGET --deploy-edit ID
                    --deploy-del ID --deploy-run ID
     authorities    --cas --ca-show --ca-create --ca-sub --ca-import --ca-revoke --ca-crl
-                   --ca-export --ca-sign --ca-del --ca-default --ca-publish
+                   --ca-unrevoke --ca-export --ca-sign --ca-del --ca-default --ca-publish
                    --ca-pki-urls --ca-pki-check --ca-edit --ca-renew --ca-versions
                    --ca-install-cert
     DNS server     --dns-records --dns-add --dns-del
@@ -43,6 +43,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'cert_keep', 'approve', 'decline',
         'csr', 'csr_answer', 'import_file', 'export', 'selfsigned', 'cas', 'ca_show',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
+        'ca_unrevoke',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
         'plugins', 'plugin', 'plugins_sync', 'module_mark', 'module_marks_export', 'checks',
         'check_run', 'check_attach', 'check_detach', 'check_after', 'check_switch', 'tests', 'check_show', 'check_add',
@@ -383,6 +384,9 @@ def add_args(p):
                    'own (password: ACME_KEY_PASSWORD)')
     g.add_argument('--ca-revoke', nargs=2, metavar=('CA', 'SERIAL'), help='revoke what it signed '
                    '(--reason); in its next CRL')
+    g.add_argument('--ca-unrevoke', nargs=2, metavar=('CA', 'SERIAL'), help='release a '
+                   'certificate it put on hold (--ca-revoke --reason certificateHold); out of '
+                   'its CRL again')
     g.add_argument('--ca-crl', metavar='CA', help='a new CRL, printed (or --out)')
     g.add_argument('--ca-export', metavar='CA', help='into a file: --what, --out [--password]')
     g.add_argument('--what', metavar='FORMAT', default='cert', help='with --ca-export: %s '
@@ -797,6 +801,7 @@ class Cli(object):
                  ('cert_del', self.cert_del), ('selfsigned', self.selfsigned),
                  ('ca_create', self.ca_create), ('ca_sub', self.ca_create),
                  ('ca_import', self.ca_import), ('ca_revoke', self.ca_revoke),
+                 ('ca_unrevoke', self.ca_unrevoke),
                  ('ca_crl', self.ca_crl), ('ca_export', self.ca_export),
                  ('ca_sign', self.ca_sign), ('ca_del', self.ca_del), ('ca_show', self.ca_show),
                  ('ca_publish', self.ca_publish), ('ca_pki_urls', self.ca_pki_urls),
@@ -3170,6 +3175,15 @@ class Cli(object):
                                                         'reason': self.args.reason})
         return self.done('%s - acme --ca-crl %s makes its CRL now' % (
             got.get('message') or 'revoked', r['name']), got)
+
+    def ca_unrevoke(self):
+        ca, serial = self.args.ca_unrevoke
+        r = self.ca_ref(ca)
+        if not re.match(r'^[0-9A-Fa-f:]{1,80}\Z', str(serial).strip()):
+            raise SystemExit('acme: %s is not a serial number (hex, as --ca-show lists it)'
+                             % serial)
+        got = self.api('POST', '/api/cas/unrevoke', body={'id': r['id'], 'serial': serial})
+        return self.done(got.get('message') or 'released', got)
 
     def _give(self, data, what, mode=0o644):
         """Into --out, or printed (text) / to stdout."""

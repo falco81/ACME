@@ -199,6 +199,7 @@ takes them away), `acme-agent require key local` (`require key any` takes it awa
 | `acme --ca-sub NAME --parent CA [--subject ...] [--key-type ec-256] [--days 1825] [--set ...]` | a new intermediate, signed by CA |
 | `acme --ca-import FILE [--key FILE] [--name N] [--password]` | an authority from a file (PEM or PFX with its key, or the key in a file of its own; its password in `ACME_KEY_PASSWORD`) |
 | `acme --ca-revoke CA SERIAL [--reason R] [--yes]` | revoke what it signed; in its next CRL |
+| `acme --ca-unrevoke CA SERIAL` | release a certificate it put on hold (`--ca-revoke ... --reason certificateHold`): valid again, its CRL made anew without it. Any other reason cannot be taken back |
 | `acme --ca-crl CA [--out FILE]` | a new CRL, printed (or written) |
 | `acme --ca-export CA --what FORMAT --out FILE [--password]` | `cert`, `cert-der`, `chain`, `crl`, `crl-der`, `p7b`, `bundle`, `csr`, `key`, `p12` (the key and the P12 into a file only, mode 0600; a P12 asks for its password) |
 | `acme --ca-sign CA --csr FILE [--days N] [--set eku=serverAuth,clientAuth] [--out FILE]` | a certificate for a CSR from elsewhere |
@@ -362,7 +363,7 @@ when the chain does not agree), `ack audit|anomaly`, `rotate [command|seal|both]
 | `acme --who-can CAP TEAM\|cert:NAME` | who may CAP (`cert.key`, `cert.renew`...) there, and why |
 | `acme --elevations [TEAM]` · `--elevation-approve ID [--why TEXT]` · `--elevation-decline ID --why TEXT` · `--elevation-end ID` | the requests for a temporary role (the command line never asks for one) |
 | `acme --reviews [TEAM]` · `--review-open TEAM` · `--review-answer ID WHO keep\|out [--note TEXT]` | access reviews |
-| `acme --team-templates` · `--team-template-save TEAM NAME` · `--team-from-template TEMPLATE NAME [--parent TEAM]` | the templates of teams |
+| `acme --team-templates` · `--team-template-save TEAM NAME` · `--team-from-template TEMPLATE NAME [--parent TEAM]` · `--team-template-del NAME [--yes]` | the templates of teams (deleted: the teams made from it stay) |
 | `acme --teams-import-csv FILE\|- [--yes]` | teams from a CSV file: each row said first (new, there already, wrong), then made |
 
 A team's webhooks are kept sealed: `acme --api POST /api/teams/hooks -` with the body on stdin.

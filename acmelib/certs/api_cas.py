@@ -12,6 +12,8 @@ An authority of acme's own changed after it was made (docs/own-ca.md,
     POST /api/cas/install_cert {id, cert_pem | data_b64, chain_pem?}   the certificate a CA
                                elsewhere signed (the first one, or a renewal's answer)
     GET  /api/cas/versions?id= every certificate it has had, newest first
+    POST /api/cas/unrevoke     {id, serial}   a certificate on hold (certificateHold)
+                               released, its CRL made anew (fulladmin)
 
 A rename takes what refers to the authority by name along, in one
 transaction (as names.py does for names made safe): the settings of every
@@ -309,6 +311,21 @@ def _ca_install(h, s):
                       who=A.who(s))
     return {'id': int(row['id']), 'not_after': now.get('not_after'), 'renewal': renewal,
             'message': 'the certificate of %s installed' % row['name']}
+
+
+@A.api('POST', '/api/cas/unrevoke', 'fulladmin')
+def _ca_unrevoke(h, s):
+    """{id, serial} - a certificate on hold (certificateHold) released, the CRL made anew
+    (v4: ca_unrevoke was there and nothing called it - a hold put with --ca-revoke stayed)."""
+    b = h.body()
+    row = dict(A.ca_row(h.store, b.get('id')))
+    serial = str(b.get('serial') or '').strip()
+    if not serial:
+        raise ValueError('which serial?')
+    _ca().ca_unrevoke(h.store, row['id'], serial, A.who(s))
+    h.store.add_event('certificates', 'authority %s released the hold on serial %s - %s' % (
+        row['name'], serial, A.who(s)), who=A.who(s))
+    return {'message': 'the hold on serial %s released' % serial}
 
 
 @A.api('GET', '/api/cas/versions')

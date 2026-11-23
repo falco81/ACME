@@ -302,6 +302,8 @@ def save_role(store, b, by):
         store.db.update('cert_roles', old['id'], row)
         if old['name'] != name:
             _role_members_rename(store, old['name'], name, by)
+            from acmelib.certs import teamgov
+            teamgov.follow_role_rename(store, old['name'], name)
         store.add_event('certificates', 'the role %s changed by %s%s: %s' % (
             name, by, (' (was %s)' % old['name']) if old['name'] != name else '',
             ', '.join(caps)), who=by)
@@ -1700,6 +1702,13 @@ def _follow_rename(store, old_name, name):
     # the periodic reports scoped to it (1.0.140)
     from acmelib.certs import reports as _reports
     _reports.follow_rename(store, old_name, name)
+    # the saved views shared with it (hunt v4): they kept the old name - its members no longer
+    # saw them (only a full administrator did), nor could they change them
+    try:
+        store.db.run("UPDATE saved_views SET team = ? WHERE scope = 'team' AND "
+                     "LOWER(TRIM(team)) = ?", (name, _low(old_name)))
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def _enroll_follow(store, old, new):

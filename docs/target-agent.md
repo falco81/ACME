@@ -794,7 +794,8 @@ against what the session may: change it, and renew it for *now*): pick one or ma
 switch; the dialog says what happens and offers
 
 * **At its next renewal** (the default): nothing changes now - the certificate is marked
-  (`agentkeys:switch:<id>`, in meta: in every backup, on every node); a day before it would be
+  (`agentkeys:switch:<id>`, in meta: in every backup, on every node, and with the certificate in
+  an export of the configuration and in the trash - gone when it is deleted); a day before it would be
   renewed acme switches where its key is made (as the certificate's form does: *Key made by the
   device* = the target) and the renewal makes the key on the server. *Take back* removes the mark.
 * **Now - and renew it now**: switched at once, and renewed now.

@@ -81,7 +81,7 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   try, a module's actions such as *Prepare the hosts*, delete), the
   deployments (add, run, change, switch off, take away), acme's own
   authorities (show, new root, new intermediate, import, CRL, export, sign a
-  CSR, revoke, delete), acme's own DNS server (its records) and the modules
+  CSR, revoke, release a hold, renew, its versions, delete), acme's own DNS server (its records) and the modules
   (what each takes). Since 1.0.77 also: **Tests** (`t`: add, change, try, run,
   its SSH key, delete), a certificate's **tests** (attach, run, after which
   deployment, switched off for that certificate, take off), **Run the tests**
@@ -162,7 +162,8 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   --fleet-canary yes|no`, `--fleet-group-del`, `--fleet-rollout plan GROUP`).
 - **Owners and teams** (`o`) has, since 1.0.140, the teams' health (`7`), the requests for a
   temporary role to decide (`8`: approve, or decline with why), the access reviews open now
-  (`9`), *Who may do what, and why* (`w`) and the team templates (`m`); a team's own menu its
+  (`9`), *Who may do what, and why* (`w`) and the team templates (`m`: Enter on one makes a
+  new team from it or deletes it - `--team-from-template`, `--team-template-del`); a team's own menu its
   health, its governance, its access reviews (show, open one, confirm or take out a member),
   its requests for a temporary role and *Try its channels now* - `acme --team-health`,
   `--team-gov`, `--reviews`, `--review-open`, `--review-answer`, `--elevations`,

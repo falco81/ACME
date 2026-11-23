@@ -98,11 +98,12 @@ acme --local-user lock jnovak                        # unlock
 acme --local-user drop-home jnovak                   # drop: the home folder kept
 acme --local-user lock jnovak --local-nodes acme2     # one node only
 acme --local-user aging jnovak --local-max-days 90 --local-min-days 1 --local-warn-days 7
+acme --local-user set jnovak --local-full-name "Jan Novák" --local-shell /bin/zsh   # Name and shell
 acme --local-policy                                  # as set, and as in effect on each node
 acme --local-policy-set managed=1 minlen=14 minclass=3 max_days=90 deny=5 existing=1
 acme --local-policy-set managed=0                    # as each system has it
 ```
 
 In `acme --console`: *The pages' certificates, updates, restarts, tests → Local users of the nodes*, *Add a local
-user*, *A new password for a local user*, *Lock, unlock, sudo or take away a local user*, *The password
+user*, *A new password for a local user*, *Lock, unlock, sudo or take away a local user* (also its full name and shell), *The password
 policy of local users: how it stands*, *Set the password policy of local users*.

@@ -765,8 +765,10 @@ def review_open(store, team, by, rule=None):
                           or dict(row, id=rid))
 
 
-def _review_item_back(store, rid, who):
-    """An answer given back (its member pending again) - the removal it stood for failed."""
+def _review_item_back(store, rid, who, was='open'):
+    """An answer given back (its member pending again) - the removal it stood for failed.
+    `was`: the review's state before the answer - an overdue one made done by it is overdue
+    again, not open (hunt v4: the next tick marked it overdue a second time, with its event)."""
     for _i in range(8):
         r = store.db.row('SELECT items, state FROM cert_team_reviews WHERE id = ?', (rid,))
         if not r:
@@ -777,7 +779,8 @@ def _review_item_back(store, rid, who):
                 i['state'] = 'pending'
                 for k in ('by', 'at', 'note'):
                     i.pop(k, None)
-        state = 'open' if r.get('state') == 'done' else r.get('state')
+        state = (was if was in ('open', 'overdue') else 'open') if r.get('state') == 'done' \
+            else r.get('state')
         if store.db.run('UPDATE cert_team_reviews SET items = ?, state = ?, done = NULL, '
                         'done_by = NULL WHERE id = ? AND items = ?',
                         (json.dumps(items), state, rid, r.get('items'))):
@@ -849,7 +852,7 @@ def review_answer(store, rid, who, keep, actor, note='', _round=0):
                             '%s (access review)' % actor.get('by'))
             except Exception:
                 # not taken out: the answer is given back (pending again), as it was
-                _review_item_back(store, r['id'], who)
+                _review_item_back(store, r['id'], who, r.get('state'))
                 raise
     store.add_event('certificates', '%s %s %s in the access review of the team %s%s' % (
         actor.get('by'), 'confirmed' if keep else 'took out', it['who'], team,
@@ -1739,6 +1742,57 @@ def follow_rename(store, old, new):
                          (new, _low(old)))
         except Exception:                               # noqa: BLE001
             pass
+
+
+def follow_role_rename(store, old, new):
+    """A custom role renamed (teams.save_role, hunt v4): the teams' rules naming it follow - the
+    exclusive pairs of separation of duties (else the pair named a role no longer there and was
+    silently no rule at all: one member then held both sides), the roles just-in-time elevation
+    gives, the templates, and the requests waiting and roles given for now (else a role given
+    for a while gave nothing any more)."""
+    def ren(x):
+        return new if _low(x) == _low(old) else x
+    now = _now()
+    try:
+        store.db.run("UPDATE cert_team_elevations SET role = ?, updated = ? WHERE "
+                     "LOWER(TRIM(role)) = ? AND state IN ('waiting', 'granted')",
+                     (new, now, _low(old)))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+    def extras(ex):
+        hit = False
+        jit = ex.get('jit')
+        if isinstance(jit, dict) and any(_low(r) == _low(old) for r in jit.get('roles') or []):
+            got = []
+            for r in jit.get('roles') or []:
+                r = ren(r)
+                if _low(r) not in {_low(x) for x in got}:
+                    got.append(r)
+            jit['roles'] = got
+            hit = True
+        sod = ex.get('sod')
+        if isinstance(sod, dict) and any(_low(x) == _low(old) for p in sod.get('exclusive') or []
+                                         for x in p):
+            sod['exclusive'] = [[ren(a), ren(b)] for a, b in sod['exclusive']]
+            hit = True
+        return hit
+    for t in T.team_rows(store):
+        ex = extras_of(t)
+        if ex and extras(ex):
+            store.db.update('cert_teams', t['id'], {'extras': json.dumps(ex, sort_keys=True)})
+    for r in _tpl_rows(store):
+        cfg = S.jload(r.get('config'), {}) or {}
+        if not isinstance(cfg, dict):
+            continue
+        hit = extras(cfg.get('extras')) if isinstance(cfg.get('extras'), dict) else False
+        for m in cfg.get('members') or []:
+            if isinstance(m, dict) and any(_low(x) == _low(old) for x in m.get('roles') or []):
+                m['roles'] = [ren(x) for x in m['roles']]
+                hit = True
+        if hit:
+            store.db.update('cert_team_templates', r['id'],
+                            {'config': json.dumps(cfg, sort_keys=True)})
 
 
 def follow_delete(store, name):

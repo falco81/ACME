@@ -2691,6 +2691,7 @@ class Console(object):
             r = self.choose('Change %s on every node' % name, [
                 ('lock', 'Lock - may not sign in at all, nor with a key'), ('unlock', 'Unlock'),
                 ('sudo-on', 'Give sudo'), ('sudo-off', 'Take sudo away'),
+                ('set', 'Its full name and shell'),
                 ('drop', 'Take the user away (the home folder kept)'),
                 ('drop-home', 'Take the user away with the home folder')])
             if not r:
@@ -2698,6 +2699,19 @@ class Console(object):
             if r.startswith('drop') and not self.confirm('Take %s away' % name, 'On every node%s.' % (
                     ', with the home folder and everything in it' if r == 'drop-home' else ''),
                     'Take it away', danger=True):
+                return
+            if r == 'set':
+                # the page's "Name and shell" (v4)
+                got = self.form('%s: full name and shell' % name, [
+                    {'key': 'gecos', 'label': 'the full name',
+                     'help': 'Empty: left as it is.'},
+                    {'key': 'shell', 'label': 'the shell',
+                     'help': 'One of /etc/shells, e.g. /bin/bash. Empty: left as it is.'}])
+                if not got:
+                    return
+                f = {k: got[k].strip() for k in ('gecos', 'shell') if (got.get(k) or '').strip()}
+                if f:
+                    osu_do('set', name, **f)
                 return
             if r.startswith('sudo'):
                 osu_do('sudo', name, on=r == 'sudo-on')

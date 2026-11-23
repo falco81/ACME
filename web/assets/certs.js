@@ -8055,6 +8055,11 @@ function caPeek(id) {
               var x = iconButton('ban', 'Revoke it: into the CRL');
               x.onclick = function (ev) { ev.stopPropagation(); over(function () { caRevoke(c, r); }, back); };
               tools.appendChild(x);
+            } else if (FULL && r.revoked && r.reason === 'certificateHold') {
+              // a hold (acme --ca-revoke --reason certificateHold) is the one revocation that can be released (v4)
+              var rel = iconButton('refresh', 'Release the hold: out of the CRL again');
+              rel.onclick = function (ev) { ev.stopPropagation(); over(function () { caRelease(c, r); }, back); };
+              tools.appendChild(rel);
             }
             tr.appendChild(tools);
             return r.cert_id ? rowOpens(tr, function () { over(function () { certPeek(r.cert_id); }, back); }) : tr;
@@ -8233,6 +8238,18 @@ function caRevoke(ca, r) {
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'narrow');
   nameInTitle('Revoke', r.serial);
+}
+function caRelease(ca, r) {
+  modal('Release ' + r.serial, function (body) {
+    body.appendChild(el('p', 'note', 'It is on hold. Released, it is valid again and a new CRL of ' + ca.name + ' is made without it.'));
+  }, [{words: 'No, leave it', close: true}, {words: 'Release it', icon: 'refresh', go: function (b) {
+    busy(b, true);
+    capi('cas/unrevoke', {id: ca.id, serial: r.serial}).then(function (x) {
+      toast(said(x, 'released'), 'good');
+      closeModal();
+    }).catch(fail).then(function () { busy(b, false); });
+  }}], 'narrow');
+  nameInTitle('Release', r.serial);
 }
 function subjectFields(g, f, cnNeeded, cnHint) {
   [['CN', 'Common name', cnHint || 'Example Root CA', true], ['O', 'Organisation', 'Example s.r.o.'], ['OU', 'Unit', 'IT'],

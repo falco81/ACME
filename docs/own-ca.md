@@ -104,7 +104,9 @@ A CSR from elsewhere is signed with *Sign a request* (`/api/cas/sign_csr`).
 Revoking (by serial, with a reason: `unspecified`, `keyCompromise`,
 `CACompromise`, `affiliationChanged`, `superseded`, `cessationOfOperation`,
 `certificateHold`) marks it in the list and makes the CRL anew. A
-certificate on hold (`certificateHold`) can be released again; the others
+certificate on hold (`certificateHold`) can be released again - *Release
+the hold* in the list of what it signed, `acme --ca-unrevoke CA SERIAL`,
+or `/api/cas/unrevoke` - and the CRL is made anew without it; the others
 cannot.
 
 Each CRL (`openssl ca -gencrl`) carries the next CRL number and the

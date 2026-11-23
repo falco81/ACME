@@ -608,14 +608,15 @@ def build_parser():
                    help='the local users of each node\'s system (root and UID 1000 and up): who is '
                         'there, sudo, locked, the password')
     g.add_argument('--local-user', nargs=2, metavar=('WHAT', 'NAME'),
-                   help='change a local user on the nodes (never root): add, password, aging, lock, '
-                        'unlock, sudo-on, sudo-off, drop or drop-home - a password is asked, never '
-                        'given on the command line')
+                   help='change a local user on the nodes (never root): add, password, aging, set '
+                        '(--local-full-name, --local-shell), lock, unlock, sudo-on, sudo-off, drop or '
+                        'drop-home - a password is asked, never given on the command line')
     g.add_argument('--local-nodes', metavar='NODES', default='',
                    help='with --local-user: only these nodes (separated by commas); every node if not given')
-    g.add_argument('--local-full-name', metavar='TEXT', default=None, help='with --local-user add: the full name')
+    g.add_argument('--local-full-name', metavar='TEXT', default=None, help='with --local-user add or '
+                   'set: the full name')
     g.add_argument('--local-shell', metavar='PATH', default=None,
-                   help='with --local-user add: the shell (/bin/bash if not given)')
+                   help='with --local-user add or set: the shell (add: /bin/bash if not given)')
     g.add_argument('--local-must-change', action='store_true',
                    help='with --local-user add or password: to be changed at the next sign-in')
     g.add_argument('--local-max-days', metavar='N', type=int, default=None,
@@ -2267,10 +2268,20 @@ def cli_osusers(args, pal):
         what, name = args.local_user
         f = {'name': name}
         do = {'add': 'add', 'password': 'password', 'aging': 'aging', 'lock': 'lock', 'unlock': 'unlock',
-              'sudo-on': 'sudo', 'sudo-off': 'sudo', 'drop': 'drop', 'drop-home': 'drop'}.get(what)
+              'sudo-on': 'sudo', 'sudo-off': 'sudo', 'drop': 'drop', 'drop-home': 'drop',
+              'set': 'set'}.get(what)
         if not do:
-            print('add, password, aging, lock, unlock, sudo-on, sudo-off, drop or drop-home')
+            print('add, password, aging, set, lock, unlock, sudo-on, sudo-off, drop or drop-home')
             return 2
+        if do == 'set':
+            # The page's "Name and shell" (v4): the full name and / or the shell of a user there
+            if args.local_full_name is None and args.local_shell is None:
+                print('--local-user set NAME --local-full-name TEXT and / or --local-shell PATH')
+                return 2
+            if args.local_full_name is not None:
+                f['gecos'] = args.local_full_name
+            if args.local_shell is not None:
+                f['shell'] = args.local_shell
         if do == 'aging':
             # A user's own password aging (1.0.43, as otp 1.0.245): what is not given stays as it is.
             u = next((x for n in osu_view(store)['nodes'] for x in n.get('users') or []

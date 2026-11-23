@@ -125,20 +125,42 @@ def supported(st):
 
 
 # ---- what acme knows of CAs ----------------------------------------------------------------------
+# What a CA's PEM says, read once (hunt v4): known_cas read every chain of up to 5000
+# certificates again for each call - and a deployment (check, before_send), the page's
+# guard of a target (once for each of its up to 200 deployments) called it again and again:
+# minutes on a big installation. A certificate's text says always the same.
+_INFO = {}
+_INFO_MOST = 4096
+
+
 def _info(pem):
     from acmelib.certs import pki
+    key = str(pem or '')
+    if key in _INFO:
+        return _INFO[key]
     try:
-        return pki.cert_info(pem)
+        got = pki.cert_info(pem)
     except Exception:                                   # noqa: BLE001
-        return None
+        got = None
+    if len(_INFO) >= _INFO_MOST:
+        _INFO.clear()
+    _INFO[key] = got
+    return got
 
 
 def _pems(text):
     from acmelib.certs import pki
+    key = '\0' + str(text or '')                        # beside _info's, never one of them
+    if key in _INFO:
+        return list(_INFO[key])
     try:
-        return [p for label, p in pki.split_pem(text or '') if label == 'CERTIFICATE']
+        got = [p for label, p in pki.split_pem(text or '') if label == 'CERTIFICATE']
     except Exception:                                   # noqa: BLE001
-        return []
+        got = []
+    if len(_INFO) >= _INFO_MOST:
+        _INFO.clear()
+    _INFO[key] = tuple(got)
+    return got
 
 
 def known_cas(store, row=None):
@@ -183,7 +205,7 @@ def known_cas(store, row=None):
             'SELECT cert_id FROM cert_deploys WHERE target = ?', (row['name'],))
             if d.get('cert_id') is not None}
     for r in store.db.rows('SELECT id, issuer, chain_pem FROM certs WHERE chain_pem IS NOT NULL '
-                           'ORDER BY id DESC')[:CERTS_SCAN]:
+                           'ORDER BY id DESC LIMIT %d' % CERTS_SCAN):
         for p in _pems(r.get('chain_pem')):
             add(p, 'chain', r.get('issuer') or '', cert=True, here=int(r['id']) in here)
     return sorted(out.values(), key=lambda c: (not c['here'], c['kind'] != 'authority',

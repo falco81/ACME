@@ -917,6 +917,9 @@ def ca_do(con, r):
                              ('export', 'Export it into a file'),
                              ('sign', 'Sign a CSR from elsewhere'),
                              ('revoke', 'Revoke something it signed'),
+                             ('unrevoke', 'Release a certificate on hold'),
+                             ('renew', 'Renew its certificate (the same key)'),
+                             ('versions', 'Every certificate it has had'),
                              ('default', 'No default authority any more' if r.get('is_default')
                               else 'Make it the default authority'),
                              ('publish', 'Stop publishing it on acme' if r.get('published')
@@ -980,6 +983,17 @@ def ca_do(con, r):
                                'taken back.' % (got['serial'], name, got['reason']), 'Revoke it',
                                danger=True):            # asked, as a certificate's (1.0.80)
             con.act('--ca-revoke', name, got['serial'], '--reason', got['reason'], '--yes')
+    elif what == 'unrevoke':
+        serial = con.ask_one('Release a certificate on hold', 'its serial', '',
+                             'One revoked with the reason certificateHold (--ca-show lists it).')
+        if serial:
+            con.act('--ca-unrevoke', name, serial)
+    elif what == 'renew':
+        if con.confirm('Renew ' + name, 'Make the certificate of %s again with the same key '
+                       'and subject? What it signed stays valid.' % name, 'Renew it'):
+            con.act('--ca-renew', name)
+    elif what == 'versions':
+        con.act('--ca-versions', name)
     elif what == 'del':
         if con.confirm('Delete ' + name, 'Delete the authority %s and its key? What it signed '
                        'stays valid until it ends.' % name, 'Delete it', danger=True):
