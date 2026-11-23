@@ -602,6 +602,8 @@
     var hkBlob = function (line) {
       var p = String(line || '').trim().split(/\s+/);
       if (p[0] && p[0].charAt(0) === '@') p.shift();
+      /* 'host type key' first: a host named ssh-gw... is a host (hunt w7) */
+      if (p.length >= 3 && /^(ssh-|ecdsa-|sk-)/.test(p[1] || '')) return p[2] || '';
       return /^(ssh-|ecdsa-|sk-)/.test(p[0] || '') ? (p[1] || '') : (p[2] || '');
     };
     var hkPut = function (hb, lines) {

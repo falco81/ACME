@@ -753,7 +753,10 @@ host key is always checked:
 * With no host key and `trust_first` on, the first key the server shows
   (`ssh-keyscan`) is taken. acme writes it into the target's config
   (`hostkey`) and records it as a warning in the job and the events. From
-  then on, that key is checked.
+  then on, that key is checked. A field that holds no usable key (only a
+  comment, or only a `@cert-authority` line) counts as empty: the key seen
+  is added beside what is there. A connector's first key is kept in the
+  connector's own settings, never in the target's.
 * With no host key and no `trust_first`, the connection is refused. The
   error shows the fingerprint the server presents, so it can be checked and
   pasted in.

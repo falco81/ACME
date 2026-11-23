@@ -962,7 +962,12 @@ def hostkey_lines(text):
             # @revoked says the key is NOT to be trusted, @cert-authority that it signs the
             # host's keys - neither is the host's key itself (1.0.51: both were taken for it)
             continue
-        if len(parts) >= 2 and re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]):
+        # 'host type key' first (hunt w7): a host whose name begins like a key type
+        # (ssh-gw.example.com, sk-web01) was read as 'type key' - its line dropped, the key
+        # asked again each run and, with trust_first, any key that answered taken
+        if len(parts) >= 3 and re.match(r'^(ssh-|ecdsa-|sk-)', parts[1]):
+            typ, key = parts[1], parts[2]
+        elif len(parts) >= 2 and re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]):
             typ, key = parts[0], parts[1]
         elif len(parts) >= 3:
             typ, key = parts[1], parts[2]
@@ -1106,16 +1111,19 @@ class SshSession(base.SshSession):
                     % (self.host, prints), detail=scanned, retry=False)
             self.ctx.step('the host key of %s taken as the first one seen: %s'
                           % (self.host, prints), 'warn')
-            if self.ctx.on_hostkey and not c.get('no_keep'):
+            # a connector's own (hunt w7): kept in the connector's row, not the target's
+            keeper = c.get('on_hostkey') if callable(c.get('on_hostkey')) else \
+                self.ctx.on_hostkey
+            if keeper and not c.get('no_keep'):
                 try:
                     # the lines kept under the host's name as set (1.0.51), not the address
                     # scanned: a validation's list of hosts finds them by that name
                     named = '\n'.join('%s %s' % (self.host, ln.split(None, 1)[1])
                                        for ln in lines if len(ln.split(None, 1)) == 2)
                     try:
-                        self.ctx.on_hostkey(named or scanned, c.get('hostkey_field') or 'hostkey')
+                        keeper(named or scanned, c.get('hostkey_field') or 'hostkey')
                     except TypeError:
-                        self.ctx.on_hostkey(scanned)
+                        keeper(scanned)
                 except Exception as e:                  # noqa: BLE001
                     self.ctx.step('the host key could not be kept: %s' % e, 'warn')
         self.d = tempfile.mkdtemp(prefix='acme-ssh-')
@@ -1195,7 +1203,11 @@ class SshSession(base.SshSession):
             raise base.PluginError('the connector %s is switched off' % name, retry=False)
         from acmelib.plugins.targets._common import ssh_conn
         conn = ssh_conn(S.plugin_instance(store, fam, row, self.ctx))
-        conn.update(via='', no_keep=True)
+        # Its first host key seen kept in the connector's own row (hunt w7): never kept, every
+        # connection through it took whatever key answered - a password to anyone between.
+        # Never in the row of the target this session is for (no_keep without a row of its own).
+        keeper = scope_hostkey_keeper(store, '%s:%s' % (fam, row['name']))
+        conn.update(via='', no_keep=keeper is None, on_hostkey=keeper)
         return SshSession(self.ctx, conn)
 
     # ---- the programs --------------------------------------------------------------------

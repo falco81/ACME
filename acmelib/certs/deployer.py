@@ -39,9 +39,15 @@ def hostkey_keeper(store, target_row):
         if not row:
             return
         cfg = S.jload(row.get('config'), {}) or {}
-        if cfg.get(field):
+        have = cfg.get(field) or ''
+        have = ('\n'.join(str(x) for x in have) if isinstance(have, (list, tuple))
+                else str(have)).strip()
+        if runtime.hostkey_lines(have):
             return
-        cfg[field] = str(text).strip()
+        # a field that holds no key the connection uses (hunt w7: only a comment, a
+        # @cert-authority line): the key seen was taken on every run and never kept - kept
+        # now beside what is there
+        cfg[field] = (have + '\n' + str(text).strip()).strip()
         store.db.update('cert_targets', row['id'], {'config': json.dumps(cfg), 'updated': time.time()})
         store.add_event('certificates', 'the host key of target %s was taken as the first one '
                         'seen (trust_first)' % target_row['name'], 'warn')
@@ -149,6 +155,18 @@ def deploy_one(store, job, cert, dep, force=False):
             pass
         raise
     except Exception as e:                              # noqa: BLE001
+        if _stopped(job):
+            # Stopped half way, said by the module as its own error (hunt w7: SSH's "the job
+            # was stopped", a wait cut short): a failure of the target - its count doubled the
+            # wait, an event "failed" and a notice to every recipient for a Stop pressed. As
+            # a stop is (above): tried again soon, nothing said.
+            try:
+                store.db.update('cert_deploys', dep['id'], {
+                    'state': 'failed', 'last_error': 'stopped before it was done',
+                    'next_try': time.time() + 300})
+            except Exception:                           # noqa: BLE001
+                pass
+            raise JobStopped('the job was stopped')
         why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
         if cert.get('csr_from') and 'key' in why.lower():
             why = ('%s is issued for the key the device of %s made, so acme holds no key (%s)'
@@ -195,6 +213,14 @@ def deploy_one(store, job, cert, dep, force=False):
     store.db.update('cert_targets', trow['id'], {'last_ok': t2, 'last_error': ''})
     devicekey.deploy_worked(store, cert, dep)
     return True, 'deployed to %s' % trow['name']
+
+
+def _stopped(job):
+    """Whether the job was told to stop (never raises)."""
+    try:
+        return bool(job is not None and job.cancelled())
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def _tested_words(store, cert, target):
@@ -335,10 +361,21 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     good, bad, done_on, skipped = 0, [], set(), 0
     ok_ids = set()
     for dep in rows:
-        job.check()
-        from acmelib.certs import dnssets       # a target's own connections: Settings → DNS
-        with dnssets.scope('targets', store):
-            ok, said = deploy_one(store, job, cert, dep, force)
+        try:
+            job.check()
+            from acmelib.certs import dnssets       # a target's own connections: Settings → DNS
+            with dnssets.scope('targets', store):
+                ok, said = deploy_one(store, job, cert, dep, force)
+        except JobStopped:
+            # stopped at a later one (hunt w7): those put in place before are told as deployed
+            # (their event, their notice), as a stop while the tests run tells them (1.0.95)
+            for d in rows:
+                if d['id'] in ok_ids:
+                    try:
+                        _told_deployed(store, cert, d)
+                    except Exception:                   # noqa: BLE001
+                        pass
+            raise
         if ok is None:
             # Its target switched off (1.0.77): not counted as done, and its tests not run -
             # they probed a server that never got the new certificate, and said "old version".

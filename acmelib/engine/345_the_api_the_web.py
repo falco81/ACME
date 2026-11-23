@@ -70,6 +70,41 @@ def _no_constant(word):
     raise ValueError('%s is not a number' % word)
 
 
+class _HeadClock(object):
+    """The request's reader, its lines read against the head's deadline while there is one
+    (ApiHandler.head_s): a byte at a time trickled in no longer keeps a line - and the
+    connection - going past it. Everything else is the reader's own."""
+
+    def __init__(self, f, h):
+        self._f = f
+        self._h = h
+
+    def __getattr__(self, name):
+        return getattr(self._f, name)
+
+    def readline(self, limit=-1):
+        end = self._h._head_end
+        if end is None:
+            return self._f.readline(limit)
+        out = bytearray()
+        while limit is None or limit < 0 or len(out) < limit:
+            left = end - time.monotonic()
+            if left <= 0:
+                raise TimeoutError('the head of the request took too long')
+            self._h.connection.settimeout(left)
+            got = self._f.peek(1)           # at most one read of the socket
+            if not got:
+                break
+            i = got.find(b'\n')
+            n = i + 1 if i >= 0 else len(got)
+            if limit is not None and limit >= 0:
+                n = min(n, limit - len(out))
+            out += self._f.read(n)
+            if out.endswith(b'\n'):
+                break
+        return bytes(out)
+
+
 class ApiHandler(BaseHTTPRequestHandler):
     server_version = 'acme'
     protocol_version = 'HTTP/1.1'
@@ -77,6 +112,50 @@ class ApiHandler(BaseHTTPRequestHandler):
     # held a thread for ever, and any program on this machine could open
     # thousands without the key.
     timeout = 60
+    # The whole head of a request - its first line and its headers - within this many seconds
+    # (hunt w7): `timeout` is for each read, so a byte every 50 s kept a connection, and its
+    # thread, for ever - 256 of them (ApiHttpServer.MOST) and the pages had no API at all. The
+    # pages send their whole head at once. From the connection's start for its first request;
+    # for one more on a kept-alive connection, from its first byte (waited for `timeout`).
+    head_s = 15
+    # No Python version on the daemon's answers (hunt w7): "Server: acme", nothing more.
+    sys_version = ''
+
+    def setup(self):
+        BaseHTTPRequestHandler.setup(self)
+        self._head_t0 = time.monotonic()
+        self._head_end = None
+        self.rfile = _HeadClock(self.rfile, self)
+
+    def handle_one_request(self):
+        t0, self._head_t0 = self._head_t0, None
+        if t0 is None:
+            # one more request on a kept-alive connection: its first byte waited for as before
+            try:
+                self.connection.settimeout(self.timeout)
+                if not self.rfile.peek(1):
+                    self.close_connection = True
+                    return
+            except (TimeoutError, OSError):
+                self.close_connection = True
+                return
+            t0 = time.monotonic()
+        self._head_end = t0 + self.head_s
+        try:
+            BaseHTTPRequestHandler.handle_one_request(self)
+        finally:
+            self._head_end = None
+
+    def parse_request(self):
+        try:
+            return BaseHTTPRequestHandler.parse_request(self)
+        finally:
+            # the head is in: the body and the answer with the usual timeout
+            self._head_end = None
+            try:
+                self.connection.settimeout(self.timeout)
+            except OSError:
+                pass
 
     def log_message(self, fmt, *args):
         if debugging('api'):

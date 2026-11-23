@@ -397,7 +397,9 @@ HestiaCP and OPNsense's SSH.
 
 How it goes:
 
-1. acme signs in to the connector with the connector's own address, user and key.
+1. acme signs in to the connector with the connector's own address, user and key. The
+   connector's host key is checked as any server's: with none pinned and *Trust the first
+   host key seen* on, the first one seen is kept in the connector's own settings.
 2. It reads the target's host key from there (`ssh-keyscan`), unless one is pinned.
 3. It reaches the target through the connector: `ProxyCommand ssh … -W %h:%p`, the
    connector's connection held open for it. The target's name is resolved by the connector's

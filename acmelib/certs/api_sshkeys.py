@@ -714,7 +714,10 @@ def _line_hosts(line):
     parts = line.split()
     if parts and parts[0].startswith('@'):
         parts = parts[1:]
-    if not parts or re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]):
+    # a host named like a key type (ssh-gw.example.com) is still a host (hunt w7): the
+    # type is the second word of 'host type key'
+    if not parts or (re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]) and
+                     not (len(parts) >= 3 and re.match(r'^(ssh-|ecdsa-|sk-)', parts[1]))):
         return set()
     out = set()
     for x in parts[0].split(','):
