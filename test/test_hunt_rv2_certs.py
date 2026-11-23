@@ -29,6 +29,7 @@ sys.path.insert(0, ROOT)
 import test_req_profiles as TRP  # noqa: E402  (its store and setup)
 import test_certs_core as TCC  # noqa: E402  (the daemon, its helpers)
 
+from acmelib import engine as E  # noqa: E402
 from acmelib.certs import pki, store as S  # noqa: E402
 from acmelib.certs import reqprofiles as R  # noqa: E402
 from acmelib.certs import reqprofiles_templates as RT  # noqa: E402
@@ -95,6 +96,38 @@ class Template(unittest.TestCase):
         prev = RT.build(STORE, 'web', suffixes=['example.test'], description=cz)
         self.assertEqual(prev['body']['description'], cz)
 
+    def test_preview_says_what_saving_refuses(self):
+        STORE.db.insert('cert_issuers', {'name': 'LE', 'kind': 'acme', 'enabled': 1,
+                                         'created': time.time(), 'config': json.dumps(
+                                             {'directory': 'letsencrypt', 'contacts': []})})
+        STORE.db.insert('cert_challenges', {'name': 'web', 'kind': 'http_local', 'enabled': 1,
+                                            'created': time.time(), 'config': '{}'})
+        try:
+            got = RT.build(STORE, 'web', 'LE', 'web', ['web.test'], saved=True)
+            self.assertEqual(got['status'], 'bad')
+            said = [f['said'] for f in got['findings'] if f['rule'] == 'fits']
+            self.assertTrue(said and '.test' in said[0], got['findings'])
+            with self.assertRaises(E.ApiError):
+                RT.create(STORE, {'template': 'web', 'name': 'Public', 'issuer': 'LE',
+                                  'challenge': 'web', 'suffixes': ['web.test']}, 'boss')
+            self.assertIsNone(R.profile_get(STORE, 'Public'))
+            # a public name: nothing said, made
+            got = RT.build(STORE, 'web', 'LE', 'web', ['example.com'], saved=True)
+            self.assertFalse([f for f in got['findings'] if f['rule'] == 'fits'])
+            RT.create(STORE, {'template': 'web', 'name': 'Public', 'issuer': 'LE',
+                              'challenge': 'web', 'suffixes': ['example.com']}, 'boss')
+            # the route (the page's preview) says it; the catalog's cards as before
+            got = E.ROUTES[('POST', '/api/reqprofiles/template_preview')](TRP.FakeH(body={
+                'template': 'web', 'issuer': 'LE', 'challenge': 'web', 'suffixes': ['web.test']}))
+            self.assertEqual(got['status'], 'bad')
+            self.assertEqual(RT.build(STORE, 'web', 'LE', 'web', ['web.test'])['status'], 'ok')
+            # a source of acme's own: nothing to say
+            got = RT.build(STORE, 'web', 'own', '', ['web.test'], saved=True)
+            self.assertEqual(got['status'], 'ok')
+        finally:
+            STORE.db.run("DELETE FROM cert_issuers WHERE name = 'LE'")
+            STORE.db.run("DELETE FROM cert_challenges WHERE name = 'web'")
+
     def test_page_sends_what_it_shows(self):
         with open(os.path.join(ROOT, 'web', 'assets', 'rptemplates.js'), encoding='utf-8') as f:
             js = f.read()
@@ -140,7 +173,7 @@ class Daemon(unittest.TestCase):
         self.cli_ok('--cert-add', 'wide', '--names', 'a.example.test。,A.example.test',
                     '--issuer', 'own')
         got = self.ok('GET', '/api/certs')
-        one = [c for c in got['certs'] if c['name'] == 'wide'][0]
+        one = [c for c in got['rows'] if c['name'] == 'wide'][0]
         names = one['names'] if isinstance(one['names'], list) else json.loads(one['names'])
         self.assertEqual(names, ['a.example.test'])
 
@@ -197,6 +230,9 @@ class Daemon(unittest.TestCase):
             self.assertEqual(run['editorDesc'], want, tag)
             self.assertEqual(run['madeDesc'], want, tag)
             self.assertEqual(profs[run['name']]['description'], want, tag)
+            self.assertTrue(run['previewBad'], tag)
+            self.assertIn('.test', run['previewSays'], tag)
+            self.assertFalse(run['previewOwnBad'], tag)
 
 
 if __name__ == '__main__':

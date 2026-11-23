@@ -30,7 +30,7 @@ const SHOTS = process.env.HUNT_SHOTS || '';
       await Promise.all([page.waitForNavigation(), page.click('#in-go')]);
       await pause(page, 1200);
       const run = {lang, w};
-      const open = async () => {
+      const open = async (src) => {
         await page.evaluate(() => { showTab('settings'); setTimeout(() => showPane('reqprofiles'), 50); });
         await page.waitForSelector('#rp-tpl', {timeout: 20000});
         await page.click('#rp-tpl');
@@ -40,26 +40,38 @@ const SHOTS = process.env.HUNT_SHOTS || '';
         await page.waitForSelector('#rpf-name');
         run.about = await page.$eval('.rpf-hero .rpf-hw p', n => n.textContent);
         await page.fill('#rpf-suffixes', 'web.test');
+        if (src) await page.selectOption('#rpf-issuer', src);
         await page.waitForSelector('.rpf-prev .rpf-chips', {timeout: 15000});
-        await pause(page, 700);
+        await pause(page, 900);
       };
+      // a public CA and a name never public: the preview says what "Make the profile" refuses
+      await open('LetsEncrypt');
+      run.previewBad = await page.$eval('.rpf-prev .rpf-ph .rpf-badge', n => n.classList.contains('bad'));
+      run.previewSays = await page.$$eval('.rpf-prev .rpf-finds li.bad', n => n.map(x => x.textContent).join(' | '));
+      await shot(page, `rv2-preview-${tag}`);
+      await page.selectOption('#rpf-issuer', 'own');
+      await pause(page, 900);
+      run.previewOwnBad = await page.$eval('.rpf-prev .rpf-ph .rpf-badge', n => n.classList.contains('bad'));
       // "Open in the editor…": filled in, nothing saved
-      await open();
       await page.click('#modal-foot .btn:not(.primary):has-text("' + (lang === 'cs' ? 'editoru' : 'editor') + '")');
       await page.waitForSelector('.rp-f-desc', {timeout: 20000});
       await pause(page, 400);
       run.editorDesc = await page.$eval('.rp-f-desc', n => n.value);
       await shot(page, `rv2-editor-${tag}`);
-      await page.keyboard.press('Escape');
-      await pause(page, 400);
-      if (await page.evaluate(() => !document.getElementById('modal').hidden)) { await page.evaluate(() => closeModal()); await pause(page, 300); }
+      // nothing saved: the page loaded again (the editor asks before it drops what is typed)
+      await page.reload();
+      await page.waitForSelector('#modal', {state: 'attached'});
+      await pause(page, 1200);
       // "Make the profile": saved with that description
-      await open();
+      await open('own');
       run.name = 'Web ' + tag;
       await page.fill('#rpf-name', run.name);
       await pause(page, 500);
       await page.click('#modal-foot .btn.primary');
-      await page.waitForSelector('.rp-f-desc', {timeout: 20000});
+      try { await page.waitForSelector('.rp-f-desc', {timeout: 20000}); } catch (e) {
+        await shot(page, `rv2-fail-${tag}`);
+        throw new Error(tag + ': no editor after "Make the profile": ' + await page.evaluate(() => (document.querySelector('.toast, #toast') || {}).textContent || ''));
+      }
       await pause(page, 500);
       run.madeDesc = await page.$eval('.rp-f-desc', n => n.value);
       await shot(page, `rv2-made-${tag}`);

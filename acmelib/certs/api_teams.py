@@ -56,7 +56,8 @@ def summary(store, s):
     seen = T.scope(store, s, 'view')
     if seen is not None:
         teams = [t if T.owner_in(seen, t['name']) else
-                 dict(t, members=[], contact_mail='', contact_phone='', note='', gov={})
+                 dict(t, members=[], contact_mail='', contact_phone='', note='', gov={},
+                      used=None)       # nor how many certificates it holds (hunt v2)
                  for t in teams]
     # what each team holds (1.0.125, hunt C1): the page asked four lists of every team for it -
     # a scoped account those of the teams it sees only

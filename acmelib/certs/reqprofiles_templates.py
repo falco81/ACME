@@ -173,9 +173,11 @@ def sets(cfg, public=None):
     return out
 
 
-def build(store, tid, issuer='', challenge='', suffixes=None, name='', description=''):
+def build(store, tid, issuer='', challenge='', suffixes=None, name='', description='',
+          saved=False):
     """The profile a template makes with this source: {body, source, public, findings,
-    status, sets, notes}. ValueError when no source fits (or the one named does not)."""
+    status, sets, notes}. ValueError when no source fits (or the one named does not).
+    `saved`: also what saving it would refuse, as a finding (the preview)."""
     from acmelib.certs import defaults as DF
     from acmelib.certs import reqprofiles_more as RM
     from acmelib.certs import store as S
@@ -260,6 +262,15 @@ def build(store, tid, issuer='', challenge='', suffixes=None, name='', descripti
             'eku': list(cfg['eku']), 'approval': approval, 'owner': 'person', 'owner_team': '',
             'tags': [], 'teams': [], 'pfx': pfx}
     finds = RM.lint_settings(store, body, datetime.date.today(), bool(info.get('public')), rl=rl)
+    if saved and body['suffixes']:
+        # what saving it checks (reqprofiles.build_cfg: what fits together - a public CA and a
+        # name never public, ...): said here as it would refuse it (hunt v2: the preview said
+        # "complies" and "Make the profile" was refused)
+        try:
+            R.build_cfg(store, body)
+        except (ValueError, LookupError, E.ApiError) as e:
+            finds.append({'rule': 'fits', 'level': 'bad', 'from': '',
+                          'said': getattr(e, 'message', None) or str(e)})
     status = 'bad' if any(f['level'] == 'bad' and not f['from'] for f in finds) else \
         'warn' if any(f['level'] in ('bad', 'warn') for f in finds) else 'ok'
     return {'template': t['id'], 'body': body, 'source': info['name'],
@@ -340,7 +351,7 @@ def _preview(h, s):
     try:
         sufs = R.clean_suffixes(sufs)
         return build(h.store, b.get('template'), b.get('issuer'), b.get('challenge'), sufs,
-                     b.get('name'), b.get('description'))
+                     b.get('name'), b.get('description'), saved=True)
     except ValueError as e:
         raise E.ApiError(400, str(e))
 

@@ -159,11 +159,35 @@ function versionChart(versions, offered, compact) {
 }
 
 /* ---- the pane ---------------------------------------------------------------------------------- */
+/* The fleet is the whole of the agents: an account kept to some teams is refused it (api_fleet's
+   _whole) - asked anyway, its pane was a red failure and a 403 in the console. Said calmly
+   instead, nothing asked (hunt v2). */
+function scopedOut() {
+  var t = window.ACME_TEAMS;
+  if (!t || typeof t.load !== 'function') return Promise.resolve(false);
+  return t.load().then(function (d) { return !!(d && d.scoped && d.scoped.view); }, function () { return false; });
+}
+function scopedNote(root) {
+  clear(root);
+  var e = el('div', 'fl-empty');
+  e.id = 'fl-scoped';
+  e.appendChild(icon('people', 30));
+  e.appendChild(el('b', '', 'The fleet is for whoever sees every certificate'));
+  e.appendChild(el('p', 'muted', 'This account sees the certificates of its teams only - the agents of its targets are under Settings → Target agents.'));
+  root.appendChild(e);
+}
 function pane(live) {
   var root = $('fl-root');
   if (!root) return;
   var ticket = ++V.ticket;
   if (!V.d && !root.firstChild) root.appendChild(el('div', 'fl-asking', 'Asking for the fleet…'));
+  scopedOut().then(function (no) {
+    if (ticket !== V.ticket) return;
+    if (no) { clearTimeout(V.timer); scopedNote(root); return; }
+    paneAsk(root, ticket, live);
+  });
+}
+function paneAsk(root, ticket, live) {
   ask('fleet').then(function (d) {
     if (ticket !== V.ticket) return;
     V.d = d;
