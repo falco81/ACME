@@ -2980,7 +2980,7 @@ class Cli(object):
         if env:
             print(p.info('  its script is given'))
             for k in sorted(env):
-                print('    %s=%s' % (k, _short(env[k], 100)))
+                print('    %s=%s' % (k, str(env[k]).replace('\n', ' ')))
         bad = 0
         for x in got.get('problems') or []:
             lv = x.get('level') if isinstance(x, dict) else 'warn'

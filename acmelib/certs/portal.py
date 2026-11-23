@@ -448,6 +448,13 @@ def mine_public(h, s, pairs, me=None):
                 one['may_approve'], one['approve_why'] = False, (
                     'you asked for it yourself, or sent its CSR or names - someone else '
                     'approves it')
+                # whom it waits for, where its team's rule says (hunt v3: its card said "Waiting
+                # for an administrator" of a request waiting for the team's approvers)
+                if r.get('state') == WAITING:
+                    from acmelib.certs import teampolicy as TP
+                    wf = TP.waits_words(st_, r)
+                    if wf:
+                        one['waits_for'] = wf
             elif E.portal_sees_all(s):
                 one['may_approve'], one['approve_why'] = True, ''
             elif no_right:

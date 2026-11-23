@@ -107,6 +107,13 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   **request profiles from a template** (`p`: the templates with their
   compliance; Enter asks the name, the domains and the source and makes the
   profile, `acme --profile-from-template`).
+  Since 1.0.141 also: on a certificate **What happens** (everything a renewal
+  would do, step by step, nothing done - `acme --run-plan NAME`), on a
+  deployment **Preview** (the files it writes, what its script is given -
+  `acme --deploy-preview ID`) and **Test it** (the files into a temporary
+  folder on the target, nothing put in place - `acme --deploy-dry-run ID`),
+  and **Show what a file holds** (`v`: a certificate, a chain, a CSR, a CRL,
+  a key, PFX - `acme --inspect FILE [--password]`).
   Each item runs the `acme` option of [command-line.md](command-line.md) it
   says.
 - **Target agents** (`c` → *Target agents*, 1.0.140 too): **Where keys are made**
@@ -148,14 +155,25 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   ([command-line.md](command-line.md)). A target's agent menu has **Watching it** (the audit
   chain, anomalies, what it serves, its keys; switched on and off in a form), *Read and check its
   audit chain now*, *Ask what its services serve now*, *Looked at* and *Change its keys now*
-  (`acme --target-agent NAME watch|watch-set|audit-verify|served|ack|rotate`).
+  (`acme --target-agent NAME watch|watch-set|audit-verify|served|ack|rotate`). Since 1.0.141
+  **Groups of agents** (`h` → `g`): Enter on one changes it in a form - its agents, the template
+  they follow, the canary ring - shows an update in rings with it first, or deletes it; *+ a new
+  group* makes one (`acme --fleet-group-save NAME --fleet-members A,B --fleet-template REF|-
+  --fleet-canary yes|no`, `--fleet-group-del`, `--fleet-rollout plan GROUP`).
 - **Owners and teams** (`o`) has, since 1.0.140, the teams' health (`7`), the requests for a
   temporary role to decide (`8`: approve, or decline with why), the access reviews open now
   (`9`), *Who may do what, and why* (`w`) and the team templates (`m`); a team's own menu its
   health, its governance, its access reviews (show, open one, confirm or take out a member),
   its requests for a temporary role and *Try its channels now* - `acme --team-health`,
   `--team-gov`, `--reviews`, `--review-open`, `--review-answer`, `--elevations`,
-  `--elevation-approve`, `--who-may`, `--team-templates`, `--team-notify-test`.
+  `--elevation-approve`, `--who-may`, `--team-templates`, `--team-notify-test`. Since 1.0.141
+  a team's governance is changed there too, each part in a form of its own: access reviews (how
+  often, the days to answer, reported or taken out), temporary roles (which roles, for how many
+  hours), separation of duties (no self-approval, pairs nobody holds both of: `Requester +
+  Approver; cert.key + cert.revoke`) and its channels (the team's, its manager's and on-call
+  addresses, the days before the end, where a failed deployment goes, whether requests and
+  reviews are told) - each on or off (`acme --team-gov-set TEAM JSON`; the webhooks stay sealed:
+  `acme --api POST /api/teams/hooks -`).
 
 - **Reports and team digests** (`p`, 1.0.140): the reports (show, run now, run and mail,
   their runs, save a run's CSV or PDF on this machine, change - with the runs kept, the days

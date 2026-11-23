@@ -2201,9 +2201,18 @@ def cli_local_policy(args, pal):
         store.set_meta('host:pwpolicy:conf', json.dumps(dict(c, at=time.time(), by=who)))
         store.add_event('settings', '%s %s the password policy of the local users (command line)' % (
             who, 'set' if c['managed'] else 'gave back to the system'), 'warn', who=who)
-        print('saved - each node puts it in within a few seconds')
+        if not getattr(args, 'json', False):
+            print('saved - each node puts it in within a few seconds')
     c = pwp_conf(store)
     v = osu_view(store)
+    if getattr(args, 'json', False):
+        # --json answered as text (hunt 1.0.141): the policy set and each node's in effect
+        print(json.dumps({'policy': c, 'policy_refused': bool(v.get('policy_refused')),
+                          'nodes': [{k: n.get(k) for k in ('name', 'alive', 'policy',
+                                                           'policy_error', 'policy_applied')}
+                                    for n in v['nodes']]}, indent=2, default=str,
+                         ensure_ascii=False))
+        return 0
     print('the password policy of the local users: %s' % ('set by acme on every node' if c['managed']
                                                          else 'the system\'s own on every node'))
     if c['managed']:
@@ -2319,6 +2328,11 @@ def cli_osusers(args, pal):
         return rc
     osu_ask(store, nodes, 'list', who)
     v = settle(30)
+    if getattr(args, 'json', False):
+        # --json answered as text (hunt 1.0.141): the nodes as the page reads them
+        print(json.dumps({'nodes': [n for n in v['nodes'] if n['name'] in nodes]}, indent=2,
+                         default=str, ensure_ascii=False))
+        return 0
     for n in v['nodes']:
         if n['name'] not in nodes:
             continue

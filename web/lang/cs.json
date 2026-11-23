@@ -77559,6 +77559,22 @@
   "z_3086": {
    "source": "This account sees the certificates of its teams only - the agents of its targets are under Settings → Target agents.",
    "text": "Tento účet vidí jen certifikáty svých týmů – agenty jejich cílů najdete v Nastavení → Agenti cílů."
+  },
+  "z_3087": {
+   "source": "another manager of the team confirms you",
+   "text": "potvrdí vás jiný správce týmu"
+  },
+  "z_3088": {
+   "source": "the review was changed meanwhile - try again",
+   "text": "revize se mezitím změnila – zkuste to znovu"
+  },
+  "z_3089": {
+   "source": "You asked for it; it is approved (or not) as its team’s rule says. Look here to see when - no mail is sent to you.",
+   "text": "Požádali jste o něj; schválí se (nebo ne) podle pravidla jeho týmu. Kdy se tak stane, uvidíte zde – e-mail vám nepřijde."
+  },
+  "z_3090": {
+   "source": "You asked for it; it is approved (or not) as its team’s rule says. You are told by mail when it is.",
+   "text": "Požádali jste o něj; schválí se (nebo ne) podle pravidla jeho týmu. Až se tak stane, dostanete e-mail."
   }
  },
  "patterns": {

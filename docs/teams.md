@@ -551,7 +551,9 @@ A **full administrator** sees the pages as a chosen member would, **read-only**:
 - **The portal** (`POST /api/teams/view_as_portal {who}` → a one-time link `/?viewas=CODE`, two
   minutes, used once): a portal sign-in of the member's own is made (two hours at most) - the same
   teams, caps and limits they have. It ends at once when the full administrator who opened it is
-  one no longer (another role, disabled or deleted).
+  one no longer (another role, disabled or deleted). Another member's link opened in the same
+  browser replaces it; behind a load balancer (`portal_sso`) it goes on while the balancer names
+  the administrator who opened it, and ends when it names somebody else.
 
 While viewing as, **every write is refused on the server** before any route runs (`403`
 "read-only: you are viewing the pages as … - nothing is changed"), and so are the downloads of

@@ -28,7 +28,14 @@ KEY = 'view_as'
 OWN_PATHS = ('/api/teams/view_as', '/api/teams/view_as_stop', '/api/auth/logout')
 # Writes that stay allowed while viewing as: stopping and signing out only.
 FREE_POSTS = ('/api/teams/view_as_stop', '/api/auth/logout', '/api/portal/logout',
-              '/api/portal/view_as_stop')
+              '/api/portal/view_as_stop',
+              # another member's link opened in a browser viewing the portal as somebody (hunt
+              # v3): refused as a write, the page stayed on the first member, nothing said
+              '/api/portal/view_as_enter',
+              # the balancer's sign-in asked at every page (portal_sso): refused, the page
+              # cleared the cookie of the view-as sign-in at once (hunt v3) - the route keeps it
+              # for its administrator
+              '/api/portal/sso')
 # Reads that hand out a file (a key, the database, a backup): refused too.
 BLOCKED_GETS = ('/api/db/download', '/api/rbackup/download', '/api/export',
                 '/api/reports/download')     # a report's file, noted as the member's (hunt v2)
@@ -312,6 +319,11 @@ def portal_enter(h, code):
         raise E.ApiError(403, 'the code ran out - open the portal as them again')
     data = dict(rec['data'])
     data[KEY] = {'who': rec.get('who'), 'by': rec.get('by'), 'since': time.time()}
+    # the portal viewed as another member before in this browser: that sign-in ends - its
+    # cookie is replaced by this one
+    was = _session_row(h)
+    if was and was.get('kind') == 'portal' and _va_of(was):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
     token = h.store.session_new('portal', rec['name'], 'portal', h.client_ip(), MOST_H, data)
     names = {_low(rec['name'])}
     if data.get('kind') == 'local':

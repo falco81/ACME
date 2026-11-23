@@ -87,8 +87,8 @@ other setting as it is.
 |---|---|
 | `acme --certs [--search TEXT] [--owner TEAM] [--issuer SOURCE]` | every certificate: state, days left, end, issuer, deployments, names; `--owner`, `--issuer` only those of that team, from that source (the list's filters) |
 | `acme --cert NAME` | one certificate: its details, versions, deployments and last jobs |
-| `acme --cert-add NAME --names a.example.com,b.example.com [--issuer X] [--challenge Y] [--key-type ec-256] [--set ...]` | a certificate to keep, renewed by itself. Without `--issuer`: the default source (**LetsEncrypt**), and for an ACME CA without `--challenge` the default validation (**This server HTTP-01**). The renewer issues it at its next look, or `--renew NAME` issues it now |
-| `acme --cert-edit NAME [--names ...] [--issuer X] [--challenge Y] [--key-type T] [--name NEW] [--note TEXT] [--enabled on\|off] [--set ...]` | change it. `--set` takes `auto_renew`, `renew_days` (0: the setting's), `reuse_key`, `tags` (`tags+=x`), `owner`, `note`, `enabled`, `challenge_map.NAME=VALIDATION` (empty: taken out), `profile.KEY` (`profile.eku=serverAuth,clientAuth`, `profile.must_staple=yes`, `profile.days=90`, `profile.acme_profile=shortlived`, `profile.subject.O=Example`) |
+| `acme --cert-add NAME --names a.example.com,b.example.com [--issuer X] [--challenge Y] [--key-type ec-256] [--key-type-alt rsa-2048] [--csr-from TARGET] [--set ...]` | a certificate to keep, renewed by itself. Without `--issuer`: the default source (**LetsEncrypt**), and for an ACME CA without `--challenge` the default validation (**This server HTTP-01**). The renewer issues it at its next look, or `--renew NAME` issues it now |
+| `acme --cert-edit NAME [--names ...] [--issuer X] [--challenge Y] [--key-type T] [--key-type-alt T\|none] [--csr-from TARGET\|none] [--name NEW] [--note TEXT] [--enabled on\|off] [--set ...]` | change it. `--set` takes `auto_renew`, `renew_days` (0: the setting's), `reuse_key`, `tags` (`tags+=x`), `owner`, `note`, `enabled`, `challenge_map.NAME=VALIDATION` (empty: taken out), `profile.KEY` (`profile.eku=serverAuth,clientAuth`, `profile.must_staple=yes`, `profile.days=90`, `profile.acme_profile=shortlived`, `profile.subject.O=Example`) |
 | `acme --cert-del NAME [--yes]` | delete it with its versions and deployments (the devices keep what they have) |
 | `acme --cert-del NAME --revoke-first [--reason R] [--yes]` | revoke it where it was issued (reason `cessationOfOperation` when not said), then delete it - in one job, followed. A revocation that fails deletes nothing: the certificate is kept as "revocation failed" (`--cert-keep NAME`, or `--cert-del` again) |
 | `acme --cert-keep NAME` | keep a certificate whose revocation (to delete it) failed: back to valid (or expired), renewed by itself again |
@@ -102,8 +102,10 @@ other setting as it is.
 | `acme --csr NAME [--out FILE] [--force]` | a request (CSR) for an authority acme does not speak to: printed (or written to FILE). The key waits in acme. `--force`: a new request (a new key) |
 | `acme --csr-answer NAME FILE [--force]` | the certificate that authority sent back for it: kept as a new version, then deployed. One that lacks a name of the certificate is refused (`--force` takes it anyway) |
 | `acme --import FILE [--name N \| --into CERT] [--password] [--owner TEAM] [--note TEXT]` | a certificate from a file: PEM, DER, PFX/P12, P7B, JKS, or a ZIP of them; `--owner`, `--note` of the new one (not with `--into`); `--into CERT` makes it a new version of a certificate kept here (its names, deployments and tests stay). `--password` asks for the file's password (or reads `ACME_FILE_PASSWORD`, or one line of stdin) |
-| `acme --export NAME --format F --out FILE [--password]` | the certificate into a file (`--out -` writes it to stdout). Formats: `cert-pem`, `cert-der`, `chain-pem`, `fullchain-pem`, `p7b`, `key-pem`, `key-rsa`, `key-der`, `combined-pem`, `pfx`, `p12`, `p12-legacy`, `jks`. PFX, P12 and JKS need `--password`. The file is written with mode 0600 |
+| `acme --export NAME --format F --out FILE [--password] [--variant main\|alt]` | the certificate into a file (`--out -` writes it to stdout); of a dual certificate (`--key-type-alt`: a twin of the same names with another key type) `--variant alt` exports its twin. Formats: `cert-pem`, `cert-der`, `chain-pem`, `fullchain-pem`, `p7b`, `key-pem`, `key-rsa`, `key-der`, `combined-pem`, `pfx`, `p12`, `p12-legacy`, `jks`. PFX, P12 and JKS need `--password`. The file is written with mode 0600 |
 | `acme --selfsigned NAME --names a,b [--key-type T] [--days N]` | a self-signed certificate, made now. A `self-signed` source is made the first time it is needed |
+| `acme --run-plan NAME` | *What happens* of the page: everything a renewal of it would do, step by step - the key and the request, the source (each call to the CA), each name's validation, each deployment (the files, the commands, the calls), the tests, who is told and when it comes again - worked out without doing any of it (nothing is changed or contacted; the modules are recorded in a process that can reach nothing). Steps marked *Only the first time* / *Only at later renewals*, *the answer decides* where the device or the CA decides what follows (1.0.141) |
+| `acme --inspect FILE\|- [--password]` | *Show a certificate* of the page: what a file holds - certificates, a chain and how it links, a CSR, a CRL, keys (what they are and which certificate each belongs to, never the key), PFX/P12, P7B, JKS, a ZIP of them. Nothing is kept or contacted. `--password` asks for the file's password (or `ACME_FILE_PASSWORD`; an encrypted key's own in `ACME_KEY_PASSWORD`); exit 1 when it stays locked (1.0.141) |
 | `acme --jobs [--limit N]` | the jobs, newest first |
 | `acme --job ID` | one job and every step. While it runs, it is followed until it ends (Ctrl-C leaves it running). The exit code is 0 when the job went well |
 | `acme --job-stop ID` | stop a job that runs (on either node) |
@@ -148,7 +150,15 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --module-marks-export` | the marks set here as `acmelib/plugins/verified.json` takes them - what a release ships as checked |
 | `acme --plugin KIND` | one module: its description, every field (`--set` takes), a target's deployment options, its actions. `source/KIND`, `validation/KIND` or `target/KIND` where two families have the kind |
 
-(`--validation-...` and `--target-...` are the same as `--source-...`.)
+(`--validation-...`, `--target-...` and `--check-...` are the same as `--source-...`; a target
+is tried with `--target-test`.)
+
+**The agent of a target** "Server with acme-agent" ([target-agent.md](target-agent.md)):
+`acme --target-agent NAME show|system|code|confirm FP|look|policy|renew|update|forget|design
+show|text|forget|discover [cached] [--kind K,K]|adcs-templates [HOST\CA]`; `acme --target-agent
+waiting`; the company enrollment codes `acme --target-agent enroll new [--title TEXT] [--mode
+passive|active] [--port N] [--days N] [--most N] [--auto-confirm] [--owner TEAM]`, `enroll list`,
+`enroll revoke ID`; `acme --target-agent all update`.
 
 ## Deployments
 
@@ -159,6 +169,8 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --deploy-edit ID [--set ...] [--enabled on\|off] [--note TEXT]` | change one; its options not said stay |
 | `acme --deploy-del ID [--yes]` | take one away (the device keeps what it has) |
 | `acme --deploy-run ID` | run that one now (forced) |
+| `acme --deploy-preview ID [--set KEY=VALUE ...]` | what it would write - each file with its path, format, mode, owner, size and whether it holds the key - the script after them and the `ACME_*` variables it is given (a password as dots), with what is wrong; worked out by the target's module, nothing sent. `--set`: with these options over its own, nothing saved (the form of the page as it is typed). Exit 1 when a problem would stop it (1.0.141) |
+| `acme --deploy-dry-run ID [--set KEY=VALUE ...]` | the page's test of a deployment: signed in, the files made and written into a temporary folder on the target (not their places), the script run there with `ACME_DRY_RUN=1`, the folder deleted - nothing is reloaded or restarted. The steps said, exit 1 when it failed (a certificate administrator may test only the script and commands saved) (1.0.141) |
 
 ## Target agents: what they deploy, where their keys are made (1.0.140)
 
@@ -329,7 +341,7 @@ from a template (above) or `acme --api POST /api/reqprofiles/save -` with the bo
 | `acme --fleet-drift [AGENT...]` | each agent's policy against its template: the lines missing on the server, those there besides; exit 1 when one differs |
 | `acme --fleet-group-save NAME [--fleet-members A,B\|-] [--fleet-template REF\|-] [--fleet-canary yes\|no]` · `acme --fleet-group-del NAME` | a group made, changed, deleted |
 | `acme --fleet-ask AGENT...\|all` · `acme --fleet-update AGENT...\|all` | asked now / updated, a job followed here |
-| `acme --fleet-rollout plan [GROUP]` · `start [GROUP] [--rollout-wait MIN] [--yes]` · `continue` · `stop` · `forget` | an update in rings |
+| `acme --fleet-rollout plan [GROUP]` · `start [GROUP] [--rollout-wait MIN] [--yes]` · `continue` · `stop` · `forget` | an update in rings: the canary ring first - GROUP, or as on the page the group marked the canary ring, or (none marked, or GROUP `-`) 5 % of the agents - then the rest after the wait |
 
 **Watching an agent** ([target-agent.md](target-agent.md)) - beside `--target-agent NAME`:
 `watch` (the audit chain, anomalies, what it serves, its keys and their age), `watch-set

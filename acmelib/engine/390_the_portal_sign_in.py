@@ -917,6 +917,12 @@ def sso_refuse(h, peer, name, why, code=401, said=None, untrusted=False):
                    extra={'untrusted': True} if untrusted else None)
 
 
+def sso_bare(name):
+    """A person's name without its domain (CORP\\jan, jan@corp.loc -> jan), lower case."""
+    n = str(name or '').strip().lower().split('\\')[-1]
+    return n.split('@', 1)[0]
+
+
 @route('POST', '/api/portal/sso')
 def _portal_sso(h):
     if not CONFIG.get('portal'):
@@ -957,6 +963,13 @@ def _portal_sso(h):
     if s:
         data = s.get('data') or {}
         if data.get('sso') and str(data.get('login') or '').lower() == name.lower():
+            return {'same': True, 'name': s['name']}
+        # The portal viewed as a member by the full administrator the balancer says is here
+        # (hunt v3): it goes on - ended here (refused before, and its cookie cleared), "Open the
+        # portal as" never showed anything behind a balancer.
+        va = data.get('view_as')
+        if isinstance(va, dict) and sso_bare(va.get('by')) and \
+                sso_bare(va.get('by')) == sso_bare(name):
             return {'same': True, 'name': s['name']}
         # Somebody else now (a shared machine), or signed in with a password before: that one ends.
         h.store.session_end(h.headers.get('X-Acme-Session'))

@@ -522,7 +522,10 @@ function certDialog(id, fresh) {
       body.appendChild(lw);
     }
     /* "You asked for it" only to the one who did - an approver of the team sees it waiting */
-    if (c.state === 'pending-approval') body.appendChild(c.asked_by_me
+    if (c.state === 'pending-approval') body.appendChild(c.asked_by_me && c.waits_for
+      /* waiting for its team's approvers, not an administrator (hunt v3) - whom, as the server says */
+      ? waitsNote(c)
+      : c.asked_by_me
       /* told by mail only when a mail goes (hunt Rt7): no address of theirs, or mail off */
       ? stateNote('warn', 'Waiting for an administrator', c.told_by_mail === false
         ? 'You asked for it; an administrator approves it (or not). Look here to see when they have - no mail is sent to you.'
@@ -694,6 +697,14 @@ function stateNote(kind, title, words) {
   var box = el('div', 'cp-note ' + kind);
   box.appendChild(el('b', '', title));
   box.appendChild(el('span', '', words));
+  return box;
+}
+/* a request of theirs waiting for its team's rule: whom it waits for (hunt v3) */
+function waitsNote(c) {
+  var box = stateNote('warn', 'Waiting for approval', c.told_by_mail === false
+    ? 'You asked for it; it is approved (or not) as its team’s rule says. Look here to see when - no mail is sent to you.'
+    : 'You asked for it; it is approved (or not) as its team’s rule says. You are told by mail when it is.');
+  box.appendChild(el('span', 'cp-note-who', c.waits_for));
   return box;
 }
 

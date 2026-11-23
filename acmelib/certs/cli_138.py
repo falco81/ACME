@@ -147,7 +147,8 @@ def add_args(p):
       help='these agents (or all) updated to the agent this acme ships, a job')
     a('--fleet-rollout', dest='fleet_rollout', nargs='+', metavar='ARG',
       help='plan [GROUP] | start [GROUP] [--rollout-wait MIN] | continue | stop | forget: an '
-           'update in rings (the canary group, or 5 %%, first)')
+           'update in rings (GROUP, or the group marked the canary ring, or 5 %% - GROUP -: '
+           '5 %% - first)')
     a('--rollout-wait', dest='rollout_wait', type=int, metavar='MIN',
       help='with --fleet-rollout start: the minutes before the rest [60]')
     a('--team-health', dest='team_health', nargs='?', const='', default=None, metavar='TEAM',
@@ -702,10 +703,20 @@ def _fleet_update(c, words):
     return _fleet_job(c, 'update', words)
 
 
+def _canary_of(c, rest):
+    """The canary ring's group: the one named (- : none, 5 % of the agents), or - as the page
+    has it - the group marked the canary ring (1.0.141: the command line took 5 % even then)."""
+    if rest:
+        return '' if rest[0] == '-' else _group(c, rest[0])['id']
+    return next((g['id'] for g in c.api('GET', '/api/fleet').get('groups') or []
+                 if g.get('canary')), '')
+
+
 def _fleet_rollout(c, words):
     what, rest = words[0], words[1:]
     if what == 'plan':
-        args = {'canary': _group(c, rest[0])['id']} if rest else None
+        canary = _canary_of(c, rest)
+        args = {'canary': canary} if canary else None
         got = c.api('GET', '/api/fleet/rollout_plan', args=args)
         if _json(c, got):
             return 0
@@ -717,8 +728,9 @@ def _fleet_rollout(c, words):
         return 0
     if what == 'start':
         body = {}
-        if rest:
-            body['canary'] = _group(c, rest[0])['id']
+        canary = _canary_of(c, rest)
+        if canary:
+            body['canary'] = canary
         if c.args.rollout_wait is not None:
             body['wait'] = c.args.rollout_wait
         _sure(c, 'the agents are updated in rings')
@@ -1403,7 +1415,8 @@ def _con_group_form(con, g):
 def _con_rollout(con):
     what = con.choose('An update in rings', [
         ('plan', 'Who would be updated first, who after'),
-        ('start', 'Start it (the canary 5 %, then the rest after 60 minutes)'),
+        ('start', 'Start it (the canary ring first - its group, or 5 % - then the rest '
+                  'after 60 minutes)'),
         ('continue', 'Go on with the rest now'), ('stop', 'Stop it'),
         ('forget', 'Forget the rollout that ended')])
     if what == 'start':
