@@ -110137,6 +110137,10 @@
   "pz_1400": {
    "source": "{0}: a user name and password in the address are not used - sign in with the module's own fields",
    "text": "{0}: jméno a heslo v adrese se nepoužívají - přihlaste se poli modulu"
+  },
+  "pz_1401": {
+   "source": "{0} is not a search domain (example.cz)",
+   "text": "{0} není prohledávaná doména (example.cz)"
   }
  },
  "rich": {

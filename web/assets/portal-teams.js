@@ -884,8 +884,10 @@ function limitsNote(name) {
   var t = teamOf(name || askTeam());
   if (!t) return null;
   var pol = t.policy || {}, parts = [];
-  if (pol.profiles) parts.push('only from the profiles ' + arr(pol.profiles).join(', '));
-  if (pol.suffixes) parts.push('only names under ' + arr(pol.suffixes).join(', '));
+  /* an empty list is "none at all" (null: no limit) - hunt w5: "only from the profiles" with
+     no name after it, left in English */
+  if (pol.profiles) parts.push(arr(pol.profiles).length ? 'only from the profiles ' + arr(pol.profiles).join(', ') : 'from no request profile');
+  if (pol.suffixes) parts.push(arr(pol.suffixes).length ? 'only names under ' + arr(pol.suffixes).join(', ') : 'no names at all');
   if (pol.max_days) parts.push('valid ' + pol.max_days + ' days at most');
   if (pol.free_form === false) parts.push('never without a profile');
   if (pol.wildcards === false) parts.push('never a wildcard name');
