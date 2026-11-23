@@ -1160,6 +1160,21 @@ END $f$""")
                          'COLLATE utf8mb4_bin NOT NULL')
         except Exception as e:                          # noqa: BLE001
             log('meta\'s keys stay 190 characters long: %s' % str(e).split('\n')[0], 'warn')
+        # A DNS name may be 253 characters (hunt w7): the record _acme-challenge.NAME of a name
+        # past 174 was "Data too long" on MariaDB alone - DNS-01 through acme's own DNS server
+        # failed there, and so did a record or a set's server name for TLS saved by hand.
+        for table, col, null in (('dns_records', 'name', ' NOT NULL'),
+                                 ('dns_sets', 'tls_name', '')):
+            try:
+                n = self.value("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS "
+                               "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? "
+                               "AND COLUMN_NAME = ?", (table, col))
+                if n is not None and int(n) < 255:
+                    self.run('ALTER TABLE %s MODIFY %s VARCHAR(255) CHARACTER SET utf8mb4 '
+                             'COLLATE utf8mb4_bin%s' % (table, col, null))
+            except Exception as e:                      # noqa: BLE001
+                log('%s.%s stays 190 characters long: %s' % (table, col,
+                                                            str(e).split('\n')[0]), 'warn')
 
     def _mariadb_bin_names(self):
         """Tables made before 1.0.44 compared names ignoring case and

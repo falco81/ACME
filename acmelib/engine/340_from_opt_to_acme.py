@@ -136,7 +136,7 @@ def _mariadb_rename_local(c, say, new=None):
             tables = [t for t in _mariadb("SELECT TABLE_NAME FROM information_schema.TABLES "
                                           "WHERE TABLE_SCHEMA = '%s'" % RENAME_OLD).split('\n')
                       if t.strip()]
-            _mariadb('CREATE DATABASE `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+            _mariadb('CREATE DATABASE `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin'
                      % RENAME_NEW)
             if tables:
                 _mariadb('RENAME TABLE ' + ', '.join('`%s`.`%s` TO `%s`.`%s`' % (

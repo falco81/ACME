@@ -3780,7 +3780,9 @@ def _dns(h, s):
 def dns_record_save(store, b, by):
     name = str(b.get('name') or '').strip().lower().rstrip('.')
     if not re.match(r'^(\*\.)?([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)*[a-z0-9_]'
-                    r'([a-z0-9_-]{0,61}[a-z0-9_])?\Z', name) and name != '@':
+                    r'([a-z0-9_-]{0,61}[a-z0-9_])?\Z', name) and name != '@' or len(name) > 253:
+        # 253 characters at most (hunt w7): a longer one was kept and never answered - and on
+        # MariaDB it failed as "Data too long"
         raise ValueError('%r is not a DNS name' % name)
     # the first of the zones (1.0.88: "a.net, b.com" whole was the name of a record at @)
     zone = (re.split(r'[\s,;]+', str(E.CONFIG.get('dns_zone') or '').strip().lower()) or [''])[0]
