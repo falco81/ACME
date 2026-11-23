@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.141 - not released
+## 1.0.141 - 2026-11-23
 
 - Target agents: the administration's agent routes (the list, a target's card, the policy builder, a discovery, the deploy guard) named the certificates of other teams deployed to an agent's server - the builder's needs and "Allowed names", the certificates whose key the agent makes - to a certificate administrator or reader kept to their teams; they now say "another owner's certificate" and list only the names of the certificates the session sees, as the Targets list and the portal do (security).
 - Teams: Owners and teams told a session kept to its teams how many certificates every other team holds; the count is now given only for the teams it sees (security).
