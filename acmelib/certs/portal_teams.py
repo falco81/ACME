@@ -1123,6 +1123,22 @@ def _others_hidden(me, out):
                 one['cert'] = A.OTHERS_CERT
     if isinstance(out.get('discovered'), dict):
         _disc_hidden(me, out['discovered'])
+    # 1.0.140 (A1): the builder's "Allowed names" and the certificates that could switch to a key
+    # made there - of the member's own certificates only
+    g = out.get('guard')
+    if isinstance(g, dict):
+        tid = (out.get('agent') or {}).get('id') if isinstance(out.get('agent'), dict) else None
+        trow = me.store.db.row('SELECT name FROM cert_targets WHERE id = ?', (tid,)) if tid else None
+        from acmelib.certs import agent_deployguard as _dg
+        g['names'] = _dg.deployed_names(me.store, trow, seen) if trow else []
+        keys = g.get('keys')
+        if isinstance(keys, dict) and isinstance(keys.get('switch_ids'), list):
+            mine = []
+            for cid in keys['switch_ids']:
+                r = me.store.db.row('SELECT owner FROM certs WHERE id = ?', (cid,))
+                if r is not None and _low(r.get('owner')) in seen:
+                    mine.append(cid)
+            keys['switch_ids'] = mine
     return out
 
 

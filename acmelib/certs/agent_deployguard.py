@@ -190,13 +190,17 @@ def known_cas(store, row=None):
                                                not c['root'], -c['certs'], c['title'].lower()))
 
 
-def deployed_names(store, row):
-    """The names of the certificates deployed to the target (the builder's "Allowed names")."""
+def deployed_names(store, row, owners=None):
+    """The names of the certificates deployed to the target (the builder's "Allowed names").
+    `owners`: only the certificates of these owners (lower case) - a portal member's builder
+    named every certificate deployed to the team's device, acme's own and other teams' too."""
     from acmelib.certs import store as S
     out = []
-    for r in store.db.rows('SELECT c.names, c.name FROM cert_deploys d JOIN certs c ON '
+    for r in store.db.rows('SELECT c.names, c.name, c.owner FROM cert_deploys d JOIN certs c ON '
                            'c.id = d.cert_id WHERE d.target = ? ORDER BY c.name',
                            (row['name'],))[:500]:
+        if owners is not None and str(r.get('owner') or '').strip().lower() not in owners:
+            continue
         got = S.jload(r.get('names'), None)
         names = got if isinstance(got, list) else [r.get('name')]
         for n in names:
