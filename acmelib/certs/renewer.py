@@ -285,11 +285,20 @@ def main_due(row, t=None):
 def ari_refresh(store, row, variant=''):
     """The renewal window the issuer suggests, asked at most every 6 hours - for
     the main certificate, or (`variant` 'alt') for the twin of a dual one."""
+    # The row as it is now, and written only while it holds the certificate asked about (hunt
+    # w1): read at the start of the look, a renewal that ended meanwhile had the window of the
+    # one before written over its own - the new one renewed again at the old one's moment.
+    row = S.cert_get(store, row['id']) or row
+    pcol = 'alt_cert_pem' if variant == 'alt' else 'cert_pem'
     col, pem = ('alt_ari', row.get('alt_cert_pem')) if variant == 'alt' else \
         ('ari', row.get('cert_pem'))
     ari = S.jload(row.get(col), {}) or {}
     if time.time() - float(ari.get('checked') or 0) < ARI_EVERY or not pem:
         return
+
+    def keep(value):
+        store.db.run('UPDATE certs SET %s = ? WHERE id = ? AND %s = ?' % (col, pcol),
+                     (json.dumps(value), row['id'], pem))
     irow = S.plugin_row(store, 'issuer', row.get('issuer'))
     if not irow:
         return
@@ -300,7 +309,7 @@ def ari_refresh(store, row, variant=''):
     except Exception as e:                              # noqa: BLE001
         ari['checked'] = time.time()
         ari['error'] = str(e)[:300]
-        store.db.update('certs', row['id'], {col: json.dumps(ari)})
+        keep(ari)
         return
     ari['checked'] = time.time()
     ari.pop('error', None)
@@ -313,7 +322,7 @@ def ari_refresh(store, row, variant=''):
     else:
         for k in ('start', 'end', 'at'):
             ari.pop(k, None)
-    store.db.update('certs', row['id'], {col: json.dumps(ari)})
+    keep(ari)
 
 
 # ---------------------------------------------------------------------------
@@ -1249,6 +1258,18 @@ def scan(store, by='the renewer'):
             if not why and dual:
                 why, only = alt_due(r, t), 'alt'
             if not why or jobs.cert_busy(store, r['id']):
+                continue
+            # Due on the row read at the start of the look: read again, now that nothing works
+            # on it (hunt w1) - one failed or not issued yet, renewed by a person while the look
+            # asked the CA's ARI of the others, was ordered a second time right after.
+            r = S.cert_get(store, r['id'])
+            if not r:
+                continue
+            why = main_due(r, t)
+            only = None
+            if not why and dual:
+                why, only = alt_due(r, t), 'alt'
+            if not why:
                 continue
             # The first issue of one just added is the one who added it (1.0.46): "Add and issue
             # now" showed its job and version 1 as by the renewer.

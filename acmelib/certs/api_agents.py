@@ -107,6 +107,10 @@ def _seen_only(store, s, out):
         # an agent's row (the list, the card): the certificates whose key it makes
         if isinstance(out.get('keys_of'), list):
             out['keys_of'] = [n for n in out['keys_of'] if _cert_seen(me, n)]
+        if isinstance(out.get('guard'), dict):
+            # what its services serve (hunt w1): the certificates of other teams named too
+            from acmelib.certs import portal_teams
+            portal_teams._served_hidden(me, out['guard'].get('served'))
         return out
     from acmelib.certs import portal_teams
     return portal_teams._others_hidden(me, out)
@@ -226,6 +230,15 @@ def _discover(h, s):
     if str(h.arg('cached') or '') in ('1', 'true', 'yes'):
         got = agent_discover.cached(h.store, row)
         return {'discovery': _seen_disc(h.store, s, got), 'target': row['name']}
+    if s.get('view_as_by'):
+        # a GET that is no read (hunt w1): a signed job sent to the server, its answer kept with
+        # the target and an event in the member's name - while viewing the pages as them, which
+        # changes nothing; the last discovery kept (cached=1) is still shown
+        h.store.add_event('certificates', '%s, viewing the pages as %s (read-only), was refused: '
+                          'GET /api/agents/discover' % (s['view_as_by'], A.who(s)), 'warn',
+                          who=str(s['view_as_by'])[:190])
+        raise E.ApiError(403, 'read-only: you are viewing the pages as %s - nothing is changed '
+                              'while you do (Stop viewing as first)' % A.who(s))
     return {'discovery': _seen_disc(h.store, s, agent_discover.run(
         h.store, row, h.arg('kind') or None, A.who(s))), 'target': row['name']}
 
@@ -279,7 +292,9 @@ def _look(h, s):
     row = _row(h, h.body())
     out = G.look(h.store, row, A.who(s))
     out['design'] = P.design_view(h.store, row, out.get('policy'))
-    return {'agent': out}
+    # as the card's GET /api/agents/one says it (hunt w1: the certificates whose key the agent
+    # makes and what its services serve were named of other teams' certificates too)
+    return {'agent': _seen_only(h.store, s, out)}
 
 
 @A.api('POST', '/api/agents/confirm', 'fulladmin')
@@ -351,9 +366,20 @@ def _guard():
     return agent_guard
 
 
+def _guard_seen(store, s, view):
+    """The card's "Watching this agent" as a session kept to its teams sees it (hunt w1): what
+    the services serve - the certificate, the names and the subject it serves - of its own
+    certificates only."""
+    me = _Seer(store, s)
+    if not me.all and isinstance(view, dict):
+        from acmelib.certs import portal_teams
+        portal_teams._served_hidden(me, view.get('served'))
+    return view
+
+
 @A.api('GET', '/api/agents/guard')
 def _guard_view(h, s):
-    return {'guard': _guard().view(h.store, _row(h))}
+    return {'guard': _guard_seen(h.store, s, _guard().view(h.store, _row(h)))}
 
 
 @A.api('POST', '/api/agents/guard', 'fulladmin')
@@ -371,7 +397,7 @@ def _guard_verify(h, s):
     if not _guard().opts(h.store, row['id'])['audit']:
         raise ValueError('acme does not compare the audit chain of this agent (switch it on)')
     _guard().read_chain(h.store, row, A.who(s), recheck=True)
-    return {'guard': _guard().view(h.store, row)}
+    return {'guard': _guard_seen(h.store, s, _guard().view(h.store, row))}
 
 
 @A.api('POST', '/api/agents/guard/ack', 'fulladmin')
@@ -398,7 +424,7 @@ def _guard_served(h, s):
         raise ValueError('what the services serve is asked only where the agent\'s policy allows '
                          '"allow probe local" (and it is not switched off on the card)')
     _guard().served_check(h.store, row, force=True, by=A.who(s))
-    return {'guard': _guard().view(h.store, row)}
+    return {'guard': _guard_seen(h.store, s, _guard().view(h.store, row))}
 
 
 @A.api('GET', '/api/agents/keys')

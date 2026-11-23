@@ -1155,7 +1155,16 @@ class Cli(object):
         if a.renew == 'all':
             rows = self.store.db.rows("SELECT * FROM certs WHERE COALESCE(issuer, '') <> '' AND "
                                       "COALESCE(enabled, 1) <> 0 ORDER BY name")
-            todo = [r for r in rows if a.force or renewer.due_why(r)]
+            # the twin only where its source gives one (hunt w1: a paid source with the twin not
+            # allowed had it "not issued yet" - a job that did nothing at every --renew all)
+            duals = {}
+
+            def due(r):
+                if r['id'] not in duals:
+                    duals[r['id']] = bool(r.get('key_type_alt')) and \
+                        S.issuer_dual(self.store, r.get('issuer'), r)
+                return renewer.due_why(r, dual=duals[r['id']])
+            todo = [r for r in rows if a.force or due(r)]
             if not todo:
                 if self.json:
                     self.out({'jobs': []})
@@ -1188,7 +1197,7 @@ class Cli(object):
                     # the first one is an issue, as the pages say it (1.0.102)
                     job = self._run_job('renew' if r.get('cert_pem') else 'issue',
                                         renewer.renew_job(r['id'], a.force, self.WHO, only),
-                                        r['id'], '%s: %s' % (r['name'], renewer.due_why(r) or
+                                        r['id'], '%s: %s' % (r['name'], due(r) or
                                                              'forced'))
                 except SystemExit as e:
                     # One busy (a job on it already): said, and the others go on (1.0.45).

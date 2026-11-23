@@ -627,6 +627,9 @@ checks its tables, its wizard, its files and the MANIFEST. Installing is then as
   card, the policy builder, a discovery, the deploy guard - name only the certificates of its
   teams deployed to the server; the others are "another owner's certificate", and the builder's
   *Allowed names* holds only the names of its own (1.0.141, as the Targets list and the portal).
+  So do *Look at the agent* (`POST /api/agents/look`) and what the services serve (the card's
+  *Watching this agent*, `GET /api/agents/guard`, and each agent's summary): of another team's
+  certificate only its state, never its names or subject (1.0.143).
 
 ## What the agent tells about its server (1.0.120)
 

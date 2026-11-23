@@ -351,6 +351,11 @@ class Refused(Exception):
         self.needs = needs or []
 
 
+class Unproven(Refused):
+    """A join message without the proof of the join code's secret (hunt w1): anybody who
+    reaches the port may send one - refused and audited, never the join's state."""
+
+
 def audit(**kw):
     """Every operation, refusals too: journald (syslog) and the root side's own log - names,
     paths, hashes and results only, never what a file holds."""
@@ -1183,6 +1188,11 @@ def _policy_line(pol, words):
         kv, rest = _kv(rest, ('owner', 'mode'))
         if len(rest) != 1:
             raise Refused('allow file DIR [owner=U:G] [mode=0640]')
+        for k in ('owner', 'mode'):
+            if k in kv and not kv[k].strip():
+                # hunt w1: `mode=` with no value (mode=$MODE of an empty variable) allowed the
+                # default 0644 instead - said, as a word the entry does not know is
+                raise Refused('%s= takes a value (allow file DIR [owner=U:G] [mode=0640])' % k)
         owner = kv.get('owner') or 'root:root'
         u, _, g = owner.partition(':')
         g = g or u
@@ -5631,7 +5641,7 @@ class Net(object):
                 st[:20], ', '.join(STARTTLS)))
         try:
             timeout = max(2, min(PROBE_S, int(args.get('timeout') or 15)))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             timeout = 15
         argv = [OPENSSL, 's_client', '-connect', '[%s]:%d' % (host, port) if ':' in host
                 else '%s:%d' % (host, port), '-showcerts']
@@ -5672,7 +5682,7 @@ class Net(object):
         host, port = got['dest']
         try:
             timeout = max(2, min(60, int(args.get('timeout') or 20)))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             timeout = 20
         try:
             sock = socket.create_connection((host, port), timeout=timeout)
@@ -5724,8 +5734,9 @@ class Net(object):
         ca, cmd, aid = str(ans.get('ca_pem') or ''), str(ans.get('cmd_pub') or ''), \
             str(ans.get('agent_id') or '')
         want = proof(j['s'], 'joined', j['i'], _sha(ca), cmd, aid, nonce)
-        if not hmac.compare_digest(want, str(ans.get('proof') or '')):
-            raise Refused('the answer is not of the acme that made this code')
+        if not hmac.compare_digest(want.encode(), str(ans.get('proof') or '').encode(
+                'utf-8', 'replace')):
+            raise Unproven('the answer is not of the acme that made this code')
         try:
             fp = fp_of_pem(ca)
         except ValueError:
@@ -5744,8 +5755,9 @@ class Net(object):
     def join_finish(self, j, ans, nonce, aid):
         pem = str(ans.get('cert_pem') or '')
         want = proof(j['s'], 'cert', j['i'], _sha(pem), nonce)
-        if not hmac.compare_digest(want, str(ans.get('proof') or '')):
-            raise Refused('the certificate is not of the acme that made this code')
+        if not hmac.compare_digest(want.encode(), str(ans.get('proof') or '').encode(
+                'utf-8', 'replace')):
+            raise Unproven('the certificate is not of the acme that made this code')
         key, crt = tls_paths()
         check_issued(pem, key)
         if cert_cn(pem) != AGENT_CN + aid:
@@ -5837,7 +5849,8 @@ class PassiveHandler(http.server.BaseHTTPRequestHandler):
             return self.answer(429, {'ok': False, 'said': 'too many requests'})
         try:
             body = json.loads(raw.decode('utf-8') or '{}')
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, UnicodeDecodeError, RecursionError):
+            # (hunt w1: a body nested deeper than Python reads closed the connection unanswered)
             return self.answer(400, {'ok': False, 'said': 'not JSON'})
         if not isinstance(body, dict):
             return self.answer(400, {'ok': False, 'said': 'not an object'})
@@ -5875,7 +5888,7 @@ class PassiveHandler(http.server.BaseHTTPRequestHandler):
         job = {}
         try:
             job = json.loads(str(body.get('job') or '{}'))
-        except ValueError:
+        except (ValueError, RecursionError):
             pass
         if not isinstance(job, dict) or job.get('op') != 'connect':
             return self.answer(400, {'ok': False, 'said': 'a tunnel is asked by the job connect'})
@@ -5907,7 +5920,7 @@ class PassiveHandler(http.server.BaseHTTPRequestHandler):
             if self.path == '/v1/join':
                 nonce = str(body.get('nonce') or '')
                 if not re.fullmatch(r'[0-9a-f]{32}', nonce):
-                    raise Refused('no nonce')
+                    raise Unproven('no nonce')
                 aid = net.join_answer(j, body, nonce)
                 j['agent_id'] = aid
                 _write(os.path.join(STATE, 'join.json'), json.dumps(j))
@@ -5924,6 +5937,12 @@ class PassiveHandler(http.server.BaseHTTPRequestHandler):
                 self.server.restart = True
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
                 return None
+        except Unproven as e:
+            # hunt w1: a message of anybody who reaches the port during the join (no proof of
+            # the code's secret) set the join "refused" - `acme-agent join` stopped with it and
+            # the fingerprint was gone from the status, though acme could still join
+            audit(op='join', ok=False, said=str(e)[:300])
+            return self.answer(403, {'ok': False, 'said': str(e)})
         except Refused as e:
             audit(op='join', ok=False, said=str(e))
             status_write(state='refused', said=str(e))
@@ -6106,9 +6125,11 @@ class Active(object):
                                                timeout=timeout)
             try:
                 raw = json.dumps(body).encode()
-                conn.request('POST', path, body=raw, headers={
-                    'Content-Type': 'application/json', 'User-Agent': 'acme-agent/%s' % VERSION})
                 if not joining:
+                    # hunt w1: acme's certificate checked before anything is sent - the poll
+                    # (the results of the jobs, the facts) went first to whoever answered with
+                    # any certificate of the agent authority (another agent's, too)
+                    conn.connect()
                     peer = conn.sock.getpeercert() or {}
                     cn = ''
                     for rdn in peer.get('subject') or ():
@@ -6117,6 +6138,8 @@ class Active(object):
                                 cn = v
                     if cn != CTL_CN:
                         raise Refused('%s does not answer with acme\'s certificate' % ep)
+                conn.request('POST', path, body=raw, headers={
+                    'Content-Type': 'application/json', 'User-Agent': 'acme-agent/%s' % VERSION})
                 r = conn.getresponse()
                 data = r.read(BODY_MOST + 1)
                 if len(data) > BODY_MOST:
@@ -6225,6 +6248,9 @@ class Active(object):
                 self.results = self.results[20:]
                 jobs = got.get('jobs') if isinstance(got.get('jobs'), list) else []
                 for one in jobs[:20]:
+                    if not isinstance(one, dict):
+                        # hunt w1: an entry of no shape stopped the jobs after it in this poll
+                        continue
                     out = self.net.job(one)
                     if out.get('sock') is not None:
                         out.pop('sock').close()
@@ -6232,8 +6258,9 @@ class Active(object):
                                                     'passive agent (acme connects to it)'}
                     jid = ''
                     try:
-                        jid = str(json.loads(str(one.get('job') or '{}')).get('job') or '')
-                    except ValueError:
+                        got_job = json.loads(str(one.get('job') or '{}'))
+                        jid = str(got_job.get('job') or '') if isinstance(got_job, dict) else ''
+                    except (ValueError, RecursionError):
                         pass
                     self.results.append({'job': jid[:64], 'result': out})
                 backoff = 2.0

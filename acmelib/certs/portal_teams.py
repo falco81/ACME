@@ -1115,6 +1115,8 @@ def _others_hidden(me, out):
     for a in (out, out.get('agent')):
         if isinstance(a, dict) and isinstance(a.get('keys_of'), list):
             a['keys_of'] = [n for n in a['keys_of'] if visible(n)]
+        if isinstance(a, dict) and isinstance(a.get('guard'), dict):
+            _served_hidden(me, a['guard'].get('served'))
     for one in out.get('needs') or []:
         if isinstance(one, dict) and not str(one.get('id') or '').startswith('source:'):
             dep = me.store.db.row('SELECT c.owner FROM cert_deploys d LEFT JOIN certs c ON '
@@ -1140,6 +1142,28 @@ def _others_hidden(me, out):
                     mine.append(cid)
             keys['switch_ids'] = mine
     return out
+
+
+def _served_hidden(me, v):
+    """What the services of an agent's server serve (agent_guard.served_view, the summary's
+    `served`) as a member sees it (hunt w1): each deployment's certificate, the names and the
+    subject served were named of other teams' certificates too - "another owner's certificate",
+    its state only."""
+    if me.all or not isinstance(v, dict) or not isinstance(v.get('items'), list):
+        return v
+    seen = set(me.reach('cert.view'))
+    items = []
+    for it in v['items']:
+        if not isinstance(it, dict):
+            continue
+        dep = me.store.db.row('SELECT c.owner FROM cert_deploys d LEFT JOIN certs c ON '
+                              'c.id = d.cert_id WHERE d.id = ?', (it.get('deploy_id'),))
+        if dep is None or _low(dep.get('owner')) not in seen:
+            it = {'deploy_id': it.get('deploy_id'), 'at': it.get('at'), 'state': it.get('state'),
+                  'cert': A.OTHERS_CERT}
+        items.append(it)
+    v['items'] = items
+    return v
 
 
 def _disc_hidden(me, v):

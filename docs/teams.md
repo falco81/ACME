@@ -568,7 +568,8 @@ A **full administrator** sees the pages as a chosen member would, **read-only**:
 
 While viewing as, **every write is refused on the server** before any route runs (`403`
 "read-only: you are viewing the pages as … - nothing is changed"), and so are the downloads of
-the database, a backup, the configuration and a periodic report's file; only *Stop viewing as*
+the database, a backup, the configuration and a periodic report's file, and a discovery run on
+the server of a target's agent (the last one kept is still shown); only *Stop viewing as*
 and *Sign out* go through. A certificate the member may not see, looked at meanwhile, is noted as
 refused to you (viewing as them), never as the member's own attempt.
 A banner on every page says whom you see as, with **Stop viewing as** (the portal's: Sign out).
