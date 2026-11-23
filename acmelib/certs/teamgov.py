@@ -635,8 +635,20 @@ def elevation_end(store, eid, actor):
         raise E.ApiError(409, _already(p['state']))
     now = _now()
     state = 'cancelled' if p['state'] == 'waiting' else 'ended'
-    store.db.run('UPDATE cert_team_elevations SET state = ?, ended = ?, ended_by = ?, updated = ? '
-                 'WHERE id = ?', (state, now, _who_by(actor.get('by')), now, r['id']))
+    # written only over the state as it was read (hunt v4): a request decided, or a role that
+    # ran out, meanwhile was overwritten - a declined request became "cancelled", one granted
+    # meanwhile became "cancelled" while the role stayed recorded as given
+    n = store.db.run('UPDATE cert_team_elevations SET state = ?, ended = ?, ended_by = ?, '
+                     'updated = ? WHERE id = ? AND state = ?' + (
+                         ' AND (until IS NULL OR until > ?)' if r.get('state') == 'granted'
+                         else ''),
+                     (state, now, _who_by(actor.get('by')), now, r['id'], r.get('state'))
+                     + ((now,) if r.get('state') == 'granted' else ()))
+    if not n:
+        cur = _elev_public(store.db.row('SELECT * FROM cert_team_elevations WHERE id = ?',
+                                        (r['id'],)) or r)
+        raise E.ApiError(409, _already(cur['state']) if cur['state'] not in
+                         ('waiting', 'granted') else 'it was changed meanwhile - try again')
     T.changed()
     store.add_event('certificates', '%s %s the role %s of %s on the team %s' % (
         actor.get('by'), 'took back the request for' if state == 'cancelled' else 'ended',
@@ -869,11 +881,32 @@ def _review_tick(store):
                 pass
 
 
+def _review_late_write(store, cur, ch):
+    """The deadline's change written only over the review as it was read (hunt v4): an answer
+    given meanwhile (or the review closed, done) was overwritten - a member confirmed just before
+    the deadline was expired all the same. False when it changed: the next tick looks again."""
+    keys = sorted(ch)
+    return bool(store.db.run(
+        "UPDATE cert_team_reviews SET %s WHERE id = ? AND items = ? AND state = 'open'"
+        % ', '.join('%s = ?' % k for k in keys),
+        [ch[k] for k in keys] + [cur['id'], cur.get('_items_raw')]))
+
+
 def _review_late(store, t, cur, rule):
     now = _now()
+    raw = store.db.row('SELECT items, state FROM cert_team_reviews WHERE id = ?', (cur['id'],))
+    if not raw or raw.get('state') != 'open':
+        return
+    cur = dict(cur, items=S.jload(raw.get('items'), []) or [], _items_raw=raw.get('items'))
     pending = [i for i in cur['items'] if i.get('state') == 'pending']
     if (cur.get('action') or rule.get('action')) == 'expire':
         whos = {_low(i['who']) for i in pending}
+        for i in pending:
+            i.update(state='expired', at=now, by='not confirmed in time')
+        if not _review_late_write(store, cur, {
+                'items': json.dumps(cur['items']), 'state': 'closed', 'done': now,
+                'done_by': 'its deadline', 'updated': now}):
+            return
         row = T.team_get(store, t['name'])
         ms = []
         for m in S.jload((row or {}).get('members'), []) or []:
@@ -884,19 +917,15 @@ def _review_late(store, t, cur, rule):
         if row:
             T.save_team(store, {'old_name': row['name'], 'name': row['name'], 'members': ms},
                         'the access review')
-        for i in pending:
-            i.update(state='expired', at=now, by='not confirmed in time')
-        store.db.update('cert_team_reviews', cur['id'], {
-            'items': json.dumps(cur['items']), 'state': 'closed', 'done': now,
-            'done_by': 'its deadline', 'updated': now})
         store.add_event('certificates', 'the access review of the team %s ended unanswered: %d '
                         'membership(s) expired (%s)' % (t['name'], len(pending), ', '.join(
                             i['who'] for i in pending[:20])), 'warn')
     else:
         for i in pending:
             i['late'] = True
-        store.db.update('cert_team_reviews', cur['id'], {
-            'items': json.dumps(cur['items']), 'state': 'overdue', 'updated': now})
+        if not _review_late_write(store, cur, {
+                'items': json.dumps(cur['items']), 'state': 'overdue', 'updated': now}):
+            return
         store.add_event('certificates', 'the access review of the team %s is overdue: %d '
                         'member(s) not confirmed (%s)' % (t['name'], len(pending), ', '.join(
                             i['who'] for i in pending[:20])), 'warn')
