@@ -1005,6 +1005,10 @@ CX.showEvents = function (words) {
   setTimeout(function () {
     var q = document.getElementById('ev-q');
     if (!q) return;
+    /* the kind chosen there before no longer hides the object's events (as openJobs, 1.0.125):
+       "Show in Events" of a certificate said nothing with "sign-ins" left in the box */
+    var k = document.getElementById('ev-kind');
+    if (k) k.value = '';
     q.value = String(words || '');
     q.dispatchEvent(new Event('input', {bubbles: true}));
     q.dispatchEvent(new Event('change', {bubbles: true}));
@@ -1015,6 +1019,9 @@ CX.showJobs = function (f) {
   setTimeout(function () {
     var c = document.getElementById('jb-cert');
     if (!c) return;
+    /* ...and the kind and the outcome chosen there before: its jobs that went well were hidden
+       behind "failed" */
+    ['jb-kind', 'jb-ok'].forEach(function (id) { var n = document.getElementById(id); if (n) n.value = ''; });
     if (f.cert_id && !c.querySelector('option[value="' + String(f.cert_id).replace(/"/g, '') + '"]')) {
       var o = el('option', '', f.name || ('#' + f.cert_id));
       o.value = String(f.cert_id);
