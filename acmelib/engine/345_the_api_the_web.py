@@ -425,12 +425,14 @@ class ApiHandler(BaseHTTPRequestHandler):
             who, how = admin_name_parts(name)
             entry = ad.find_user(who, how)
             role = None
+            have = None
             # ...and the same person (1.0.51): a name given again to somebody else in the
             # directory kept the open session of the one before
             same = not acc.get('dn') or not (entry or {}).get('dn') or \
                 str(entry.get('dn')).lower() == str(acc.get('dn')).lower()
             if entry and same and not entry.get('many') and not entry_unusable(entry, locked=False):
-                role = admin_role_for(ad.groups_of(entry, True), ad)
+                have = ad.groups_of(entry, True)
+                role = admin_role_for(have, ad)
         except Exception as e:                          # noqa: BLE001
             # Asked again in a minute, not on every click: a directory that
             # does not answer would hold each page for its whole timeout. (1.0.36)
@@ -444,6 +446,13 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.store.set_account(name, role=role)
             self.store.add_event('accounts', 'the directory gives %s the role %s now (was %s)'
                                  % (name, role, acc.get('role')), 'warn')
+            acc = self.store.account(name)
+        # ...and the groups the teams look at (hunt w4): taken out of a team's group in the
+        # directory, a member kept that team's certificates until they signed in again - only
+        # the role was asked again here
+        groups = dir_group_list(have)
+        if have is not None and groups != str(acc.get('group_list') or ''):
+            self.store.set_account(name, group_list=groups)
             acc = self.store.account(name)
         return acc
 

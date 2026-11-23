@@ -30,6 +30,8 @@ function tr(s) { try { var t = typeof i18nText === 'function' ? i18nText(String(
 function pat(s, a, b) { return tr(s).replace('{0}', a).replace('{1}', b === undefined ? '' : b); }
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
 function lang() { try { return (typeof I18N === 'object' && I18N.on && I18N.code) || 'en'; } catch (e) { return 'en'; } }
+/* the browser's time zone: the .ics file's days are those the page draws (hunt w4) */
+function tzName() { try { return (Intl.DateTimeFormat().resolvedOptions().timeZone) || ''; } catch (e) { return ''; } }
 function loc() { var l = lang(); return l === 'en' ? 'en-GB' : l; }
 function ic(key, size) { var s = el('span', 'cal-ic'); s.innerHTML = iconMarkup(key, size || 16); return s; }
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { } return null; }
@@ -685,7 +687,7 @@ Cal.prototype.subscribe = function () {
       }});
       if (feed.may !== false) bs.push({words: feed.on || made ? 'Make a new link' : 'Make a link', icon: 'add', cls: 'primary', go: function (b) {
         busy(b, true);
-        api('calendar/feed_link', {action: 'new', lang: lang()}).then(function (d) {
+        api('calendar/feed_link', {action: 'new', lang: lang(), tz: tzName()}).then(function (d) {
           made = d;
           feed = self.feed = {on: true, made: Date.now() / 1000, may: true};
           draw();
@@ -753,7 +755,7 @@ CAL.show = function (on, quiet) {
       ADMIN.cal = new Cal(ADMIN.host, {
         filters: true, subscribe: true,
         load: function (from, to, f) { return capi('calendar' + qs({from: from, to: to, team: f.team, issuer: f.issuer, target: f.target, mine: f.mine})); },
-        ics: function (f) { return capi('calendar/ics' + qs({team: f.team, issuer: f.issuer, target: f.target, mine: f.mine, lang: lang()})); },
+        ics: function (f) { return capi('calendar/ics' + qs({team: f.team, issuer: f.issuer, target: f.target, mine: f.mine, lang: lang(), tz: tzName()})); },
         open: function (e) { if (window.ACME_CERTS && ACME_CERTS.certPeek) ACME_CERTS.certPeek(e.id); }
       });
     } else if (Date.now() - (ADMIN.at || 0) > 60000) {
@@ -791,7 +793,7 @@ CAL.portal = function () {
       load: function () {
         return api('calendar').then(function (d) { (d.rows || []).forEach(function (r) { rows[r.id] = r; }); return d; });
       },
-      ics: function () { return api('calendar-ics&lang=' + encodeURIComponent(lang())); },
+      ics: function () { return api('calendar-ics&lang=' + encodeURIComponent(lang()) + '&tz=' + encodeURIComponent(tzName())); },
       open: function (e) {
         var r = rows[e.id];
         if (r && window.ACME_PORTAL_CERTS && ACME_PORTAL_CERTS.openRow) ACME_PORTAL_CERTS.openRow(r);

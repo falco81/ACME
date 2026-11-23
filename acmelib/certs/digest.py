@@ -290,8 +290,8 @@ def collect(store, team, cfg, since, now=None):
             continue
         na = float(c.get('not_after') or 0)
         one = {'id': c['id'], 'name': c['name'], 'team': RP._team_name(tr, c['owner']),
-               'names': RP._names(c, 3), 'ends': na, 'left': int((na - now) / 86400) if na
-               else None, 'auto': bool(int(c.get('auto_renew') or 0)), 'state': st}
+               'names': RP._names(c, 3), 'ends': na, 'left': RP._left(c, now),
+               'auto': bool(int(c.get('auto_renew') or 0)), 'state': st}
         if na and na < now:
             out['expired'].append(one)
         elif na and na <= now + days * 86400:

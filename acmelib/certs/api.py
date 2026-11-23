@@ -1609,6 +1609,12 @@ def cert_import(store, b, by, s=None):
                 names = S.clean_names([info['cn']])
             except ValueError:
                 names = []
+        if s is not None and not _lib('teams').unscoped(s, 'request'):
+            # a new certificate of a team, made by a scoped certificate administrator: within
+            # its team's limits as one saved is (hunt w4: an import went past the team's quota,
+            # its suffixes and its "no wildcards")
+            _lib('teampolicy').need_request(store, _text(b, 'owner', 190), who(s), profile='',
+                                            names=[str(n) for n in names])
         cid = store.db.insert('certs', {
             'name': name, 'cn': str(info.get('cn') or (names[0] if names else ''))[:190],
             'names': json.dumps(names), 'key_type': str(info.get('key_type') or '')[:60],

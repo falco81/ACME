@@ -274,7 +274,7 @@ if (isset($_GET['api'])) {
     }
     if (!$post && $what === 'calendar-ics') {
         /* their certificates as an iCalendar file, in the page's language (1.0.140) */
-        acme_relay('/api/portal/calendar_ics' . $team_query(['lang']), 'GET', null, 30.0);
+        acme_relay('/api/portal/calendar_ics' . $team_query(['lang', 'tz']), 'GET', null, 30.0);
         exit;
     }
     if ($post && isset($writes[$what])) {

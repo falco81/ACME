@@ -5654,14 +5654,19 @@ def _test_steps(cls, cfg, names, via=None, agent=None):
             steps.append({'kind': 'stop', 'words': str(e)})
         if lines:
             hdrs = []
+            # one a line in a text since 1.0.143 (a secret), a list before
+            given = cfg.get('headers') or []
+            given = given.splitlines() if isinstance(given, str) else given
+            # their values as every secret's: dots (a token under a name of its own)
+            own = {str(h).split(':', 1)[0].strip().lower() for h in given if ':' in str(h)}
             for ln in lines[1:]:
                 k, _, v = ln.partition(':')
                 v = v.strip()
-                if SECRET_HEADERS.match(k.strip()):
+                if SECRET_HEADERS.match(k.strip()) or (k.strip().lower() in own and v):
                     v = DOTS
                 hdrs.append([k.strip(), v, k.strip().lower() in ('user-agent', 'accept', 'connection')
                              and not any(str(h).lower().startswith(k.strip().lower() + ':')
-                                         for h in (cfg.get('headers') or []))])
+                                         for h in given)])
             steps.append({'kind': 'call', 'words': 'Asks {0} {1} with Host: {2}'.replace(
                 '{0}', method).replace('{1}', path).replace('{2}', hosth),
                 'note': 'the status expected: %s%s' % (cfg.get('expect_status') or 'any', (

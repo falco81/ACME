@@ -269,10 +269,39 @@ def _fold(line):
     return '\r\n '.join(out)
 
 
-def ics(entries, lang='en', title='acme'):
+def zone(name):
+    """A time zone named as the browser names it (IANA, e.g. Europe/Prague) - or None (none
+    given, or not one this system knows: the server's own then)."""
+    name = str(name or '').strip()
+    if not name or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}', name) \
+            or len(name) > 64:
+        return None
+    try:
+        import zoneinfo
+        return zoneinfo.ZoneInfo(name)
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def zone_name(name):
+    """The name kept for a subscription (only one this system knows), or ''."""
+    return str(name).strip() if zone(name) is not None else ''
+
+
+def _date(ts, tz=None):
+    """The day of a moment - in `tz` (the browser's), else the server's own."""
+    if tz is not None:
+        return datetime.datetime.fromtimestamp(float(ts), tz).date()
+    return datetime.date.fromtimestamp(float(ts))
+
+
+def ics(entries, lang='en', title='acme', tz=None):
     """The expiries (and planned renewals) as an iCalendar text: all-day events, a reminder
-    a week before an end."""
+    a week before an end. Each event's day is that of the time zone `tz` (the browser's, as
+    the page draws it - hunt w4: always the server's, a certificate the page showed on the 1st
+    was on the 2nd in the file of a browser in another zone), else the server's."""
     from acmelib import i18n_mail
+    tz = zone(tz) if isinstance(tz, str) else tz
 
     def t(s):
         return i18n_mail.tr(s, lang) if lang and lang != 'en' else s
@@ -293,7 +322,7 @@ def ics(entries, lang='en', title='acme'):
         for key, ts in (('end', e.get('not_after')), ('renew', e.get('renew_at'))):
             if not ts:
                 continue
-            day = datetime.date.fromtimestamp(float(ts))
+            day = _date(ts, tz)
             nxt = day + datetime.timedelta(days=1)
             summary = (t('The certificate {0} runs out') if key == 'end'
                        else t('acme renews the certificate {0}')).replace('{0}', e['name'])
@@ -335,13 +364,16 @@ def feed_of(store, who):
             'who': got.get('who')}
 
 
-def feed_new(store, who, lang='en'):
-    """A new secret link for `who` (the old one stops working): the secret, once."""
+def feed_new(store, who, lang='en', tz=''):
+    """A new secret link for `who` (the old one stops working): the secret, once. `tz`: the
+    time zone of the browser that made it - the days of its events are that zone's."""
     feed_revoke(store, who, by=None)
     tok = secrets.token_urlsafe(32)
     h = _hash(tok)
     lang = lang if re.fullmatch(r'[a-z]{2}', str(lang or '')) else 'en'
     rec = {'who': str(who), 'made': time.time(), 'lang': lang}
+    if zone_name(tz):
+        rec['tz'] = zone_name(tz)
     # which account it is (hunt v1): a new account of the same name - somebody else, made after
     # this one was deleted, or a directory name given to another person - gets nothing from it
     acc = store.account(who) or {}
@@ -471,7 +503,8 @@ def _calendar_ics(h, s):
     except ValueError as e:
         raise E.ApiError(400, str(e))
     lang = h.arg('lang') if re.fullmatch(r'[a-z]{2}', h.arg('lang') or '') else 'en'
-    return {'text': ics(got['certs'], lang, str(E.CONFIG.get('site_name') or 'acme')),
+    return {'text': ics(got['certs'], lang, str(E.CONFIG.get('site_name') or 'acme'),
+                        zone(h.arg('tz'))),
             'filename': 'acme-certificates.ics', 'count': got['count']}
 
 
@@ -482,7 +515,7 @@ def _feed_link(h, s):
     if _view_as(s):
         raise E.ApiError(403, 'viewing as a member changes nothing')
     if act == 'new':
-        tok = feed_new(h.store, s['name'], str(b.get('lang') or 'en'))
+        tok = feed_new(h.store, s['name'], str(b.get('lang') or 'en'), str(b.get('tz') or ''))
         return {'token': tok, 'path': '/calendar.ics?t=' + tok,
                 'message': 'a new link to subscribe to - the one before no longer works'}
     if act == 'revoke':
@@ -533,7 +566,7 @@ def _feed(h):
                                                        .timetuple()),
                                time.mktime((today + datetime.timedelta(days=730)).timetuple()))
     text = ics([entry(r) for r in rows], got.get('lang') or 'en',
-               str(E.CONFIG.get('site_name') or 'acme'))
+               str(E.CONFIG.get('site_name') or 'acme'), zone(got.get('tz')))
     with FEED_CACHE['lock']:
         if len(FEED_CACHE['at']) > 500:
             FEED_CACHE['at'].clear()
@@ -579,5 +612,5 @@ def _portal_calendar(h):
 def _portal_calendar_ics(h):
     _s, _rows, got = _portal_entries(h)
     lang = h.arg('lang') if re.fullmatch(r'[a-z]{2}', h.arg('lang') or '') else 'en'
-    return {'text': ics(got, lang, str(E.CONFIG.get('site_name') or 'acme')),
+    return {'text': ics(got, lang, str(E.CONFIG.get('site_name') or 'acme'), zone(h.arg('tz'))),
             'filename': 'my-certificates.ics', 'count': len(got)}

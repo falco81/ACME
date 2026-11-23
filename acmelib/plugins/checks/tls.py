@@ -36,9 +36,11 @@ HTTP_FIELDS = [
     field('host_header', 'Host header', 'text', show_if={'http': [True]},
           placeholder='empty: the SNI',
           help='The Host the request names - a virtual host other than the SNI, say.'),
-    field('headers', 'More headers', 'list', show_if={'http': [True]},
+    # 1.0.143: kept sealed, as the webhook's - an Authorization or a cookie goes here; a list
+    # in clear before, shown with the test and in a configuration exported without secrets
+    field('headers', 'More headers', 'secret', multiline=True, show_if={'http': [True]},
           placeholder='User-Agent: acme-check\nX-Forwarded-Proto: https',
-          help='One a line, "Name: value".'),
+          help='one "Name: value" a line - kept sealed, as every secret'),
     field('expect_status', 'Status expected', 'text', default='200-399',
           show_if={'http': [True]}, placeholder='200,301-302',
           help='Codes and ranges, comma between them. Empty: any answer.'),

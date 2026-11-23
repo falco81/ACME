@@ -135,6 +135,7 @@ def _dirs_do(h):
         if said is None:
             raise ApiError(404, 'the directory %s is not set up' % CONFIG.get('admin_directory'))
         said.pop('entry', None)
+        said.pop('group_list', None)        # what is kept of it (hunt w4): its groups say it
         if not said.get('ok'):
             h.failed(key)
         h.store.add_event('accounts', '%s tried the directory sign-in of %s: %s' % (

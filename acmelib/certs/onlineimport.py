@@ -398,6 +398,18 @@ def _keep(store, irow, p, got, kn, by, s=None):
     else:
         first = info.get('cn') or (names[0] if names else '') or 'imported'
         name = S.safe_name(first.replace('*.', 'wildcard.'), taken)
+    if s is not None and p['owner']:
+        from acmelib.certs import teams as T, teampolicy as TP
+        if not T.unscoped(s, 'request'):
+            # a scoped certificate administrator's import (hunt w4): within the team's limits
+            # as a certificate they make is - its sources, the validation it will renew with,
+            # its names and its quota
+            try:
+                TP.need_request(store, p['owner'], str(s.get('name') or '?'), profile='',
+                                issuer=irow['name'], validation=p['challenge'] or None,
+                                names=[str(n) for n in names])
+            except E.ApiError as e:
+                raise ValueError(str(e))
     ref = str(got.get('ref') or p['ref'])[:190]
     t = time.time()
     prof = profile_of(info)

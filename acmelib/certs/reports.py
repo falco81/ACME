@@ -414,8 +414,13 @@ def _names(r, most=4):
 
 
 def _left(r, now):
+    """Whole days left; one that ran out less than a day ago is -1, never 0 (int() rounded it
+    towards nought: it was "within 7 days" and "ending within 30 days", not expired)."""
     na = float(r.get('not_after') or 0)
-    return int((na - now) / 86400) if na else None
+    if not na:
+        return None
+    left = int((na - now) / 86400)
+    return -1 if na < now and left == 0 else left
 
 
 STATE_WORDS = {'ok': 'valid', 'new': 'not issued yet', 'held': 'held', 'due': 'due for renewal',

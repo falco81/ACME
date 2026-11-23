@@ -644,6 +644,27 @@ def admin_role_for(have, ad=None):
     return None
 
 
+GROUP_LIST_MOST = 20000
+
+
+def dir_group_list(have):
+    """accounts.group_list of the groups a person is in ([(dn, cn)]): their DNs, '; ' between
+    them (teams.groups_of_text reads the cn out of each), as "View the pages as" keeps them.
+    Only their cn was kept before (hunt w4): a team member named by the group's DN matched
+    nobody signed in, though the access check said it did - and cut at 2000 characters
+    mid-name, "PKI-Web-Admins" became "PKI-Web", another team's group. Whole entries only."""
+    out, size = [], 0
+    for dn, cn in sorted(have or [], key=lambda g: str(g[1] or g[0]).lower()):
+        one = str(dn or cn or '').strip()
+        if not one or one in out:
+            continue
+        if size + len(one) + 2 > GROUP_LIST_MOST:
+            break
+        out.append(one)
+        size += len(one) + 2
+    return '; '.join(out)
+
+
 def admin_name_parts(name):
     """`DOMAIN\\novak`, `novak@example.cz` or `novak`, as the directory is asked."""
     name = name.strip()
@@ -695,7 +716,8 @@ def admin_ask_directory(h, name, password, ticket=False):
         have = ad.groups_of(entry, True)
         return {'ok': True, 'name': who, 'role': admin_role_for(have, ad), 'dn': entry['dn'],
                 'display': entry.get('display') or '', 'directory': ad.name, 'entry': entry,
-                'groups': sorted({cn for _, cn in have}, key=str.lower)}
+                'groups': sorted({cn for _, cn in have}, key=str.lower),
+                'group_list': dir_group_list(have)}
     # The cap per account (as otp 1.0.230, 1.0.232, 1.0.234).
     held = dir_pw_take(h, who, ad.name, entry)
     try:
@@ -711,7 +733,8 @@ def admin_ask_directory(h, name, password, ticket=False):
     have = ad.groups_of(entry, True)
     return {'ok': True, 'name': who, 'role': admin_role_for(have, ad), 'dn': entry['dn'],
             'display': entry.get('display') or '', 'directory': ad.name, 'entry': entry,
-            'groups': sorted({cn for _, cn in have}, key=str.lower)}
+            'groups': sorted({cn for _, cn in have}, key=str.lower),
+            'group_list': dir_group_list(have)}
 
 
 def admin_from_directory(h, name, password):
@@ -766,7 +789,8 @@ def admin_directory_account(h, said):
     if same:
         name = same[0]['name']
     acc = h.store.account(name)
-    groups = '; '.join(said['groups'])[:2000]
+    groups = said['group_list'] if 'group_list' in said else \
+        dir_group_list([(g, g) for g in said.get('groups') or []])
     if acc:
         if acc.get('source') != 'directory':
             return None

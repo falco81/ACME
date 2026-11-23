@@ -475,10 +475,21 @@ def tree_public(store, counts=None):
 # ---------------------------------------------------------------------------
 # Whose capabilities, where (1.0.125)
 # ---------------------------------------------------------------------------
+def _dn_key(v):
+    """A group's DN as it is compared (hunt w4, as the role groups are - dn_norm): lower case,
+    no spaces around its commas and equals signs - "group:CN=PKI Web, OU=Groups,..." copied
+    from a page matched no member of that group. Not a DN: as it is."""
+    w = _low(v)
+    if '=' in w and ',' in w:
+        return re.sub(r'(?<!\\)\s*([,=])\s*', r'\1', w)
+    return w
+
+
 def _principal_key(names, groups):
     gset = set()
     for dn, cn in groups or ():
         gset.add(_low(dn))
+        gset.add(_dn_key(dn))
         gset.add(_low(cn))
     gset.discard('')
     return frozenset(_low(n) for n in names or () if n), frozenset(gset)
@@ -495,7 +506,7 @@ def _matches_fast(who, names, gset):
     if w.startswith('local:'):
         return False
     bare = w[6:].strip() if w.startswith('group:') else w
-    return bare in gset
+    return bare in gset or _dn_key(bare) in gset
 
 
 def person_caps(store, names, groups):
@@ -1173,7 +1184,7 @@ def member_matches(who, names, groups):
         return False
     bare = w[6:].strip() if w.startswith('group:') else w
     for dn, cn in groups or ():
-        if bare in (_low(dn), _low(cn)):
+        if bare in (_low(dn), _low(cn)) or _dn_key(bare) == _dn_key(dn):
             return True
     return False
 
@@ -1181,7 +1192,7 @@ def member_matches(who, names, groups):
 def groups_of_text(text):
     """[(dn, cn)] of accounts.group_list ('; ' between them, each a DN or a name)."""
     out = []
-    for g in re.split(r'\s*;\s*', str(text or '')):
+    for g in re.split(r'\s*(?<!\\);\s*', str(text or '')):       # a DN's own \; kept
         g = g.strip()
         if not g:
             continue

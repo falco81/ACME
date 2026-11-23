@@ -33,6 +33,7 @@ in words; the gateway's restart of the service is not in the documents.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import time
 import urllib.parse
@@ -43,6 +44,41 @@ from acmelib.plugins.targets._common import (
 # the two the guide names; the others are on Central's REST API page
 GATEWAYS = [['https://apigw-prod2.central.arubanetworks.com', 'US-2'],
             ['https://eu-apigw.central.arubanetworks.com', 'EU-1']]
+
+
+def _engine():
+    try:
+        from acmelib import engine as E
+        return E if callable(getattr(E, 'seal_secret', None)) else None
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _seal(value, bind):
+    """A token kept in the module's state sealed (1.0.143: the access and refresh tokens
+    - the live credential, a refresh token being used up - were in the database in clear,
+    beside the refresh token of the form's, which is sealed). In clear only outside acme."""
+    E = _engine()
+    if E is None or not value:
+        return value
+    return E.seal_secret(text(value), 'certs:' + bind)
+
+
+def _unseal(value, bind):
+    """A kept token opened; one kept in clear before 1.0.143 as it is; None where it does
+    not open here."""
+    E = _engine()
+    if E is None or not isinstance(value, str) or not value.startswith('sealed:'):
+        return value
+    try:
+        return E.unseal_secret(value, 'certs:' + bind)
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _from_of(token):
+    """What the kept tokens remember of the form's refresh token: a hash of it, not it."""
+    return 'sha256:' + hashlib.sha256(text(token or '').encode('utf-8')).hexdigest()
 
 
 def b64(data):
@@ -99,17 +135,41 @@ class ArubaCentralTarget(HttpTarget):
                 v = json.loads(v)
             except ValueError:
                 v = None
-        return v if isinstance(v, dict) else {}
+        if not isinstance(v, dict):
+            return {}
+        bind = self.tokens_key()
+        out = dict(v)
+        out['access'] = _unseal(v.get('access'), bind)
+        out['refresh'] = _unseal(v.get('refresh'), bind)
+        return out
+
+    def kept_from_form(self, k):
+        """Whether the kept tokens come from the refresh token the form has now (kept as a
+        hash since 1.0.143; the token itself before)."""
+        now = self.c('refresh_token') or ''
+        was = k.get('from')
+        return bool(was) and (was == _from_of(now) or was == now)
+
+    def keep_tokens(self, access, refresh, until):
+        bind = self.tokens_key()
+        self.ctx.kv_set(bind, {
+            'access': _seal(access, bind), 'refresh': _seal(refresh, bind),
+            'until': until, 'from': _from_of(self.c('refresh_token'))})
 
     def login(self):
         if self.token:
             return
         k = self.kept()
-        if k.get('access') and float(k.get('until') or 0) > time.time() + 60 and \
-                k.get('from') == self.c('refresh_token'):
+        same = self.kept_from_form(k)
+        if k.get('access') and float(k.get('until') or 0) > time.time() + 60 and same:
             self.token = text(k['access'])
+            if k.get('from') != _from_of(self.c('refresh_token')):
+                try:                    # kept in clear before 1.0.143: sealed now
+                    self.keep_tokens(k['access'], k.get('refresh'), k.get('until'))
+                except Exception:                       # noqa: BLE001
+                    pass
             return
-        refresh = k.get('refresh') if k.get('from') == self.c('refresh_token') else None
+        refresh = k.get('refresh') if same else None
         refresh = refresh or self.c('refresh_token') or ''
         qs = urllib.parse.urlencode({'client_id': self.c('client_id') or '',
                                      'client_secret': self.c('client_secret') or '',
@@ -126,10 +186,8 @@ class ArubaCentralTarget(HttpTarget):
             raise PluginError('Central gave no access_token', retry=False)
         self.token = text(d['access_token'])
         try:
-            self.ctx.kv_set(self.tokens_key(), {
-                'access': self.token, 'refresh': text(d.get('refresh_token') or refresh),
-                'until': time.time() + float(d.get('expires_in') or 7200),
-                'from': self.c('refresh_token')})
+            self.keep_tokens(self.token, text(d.get('refresh_token') or refresh),
+                             time.time() + float(d.get('expires_in') or 7200))
         except Exception as e:                          # noqa: BLE001
             self.ctx.step('the new refresh token cannot be kept: %s - the next run needs a '
                           'new one' % e, 'warn')

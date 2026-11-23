@@ -112,6 +112,39 @@ def url_shown(url):
     return urllib.parse.urlunsplit((u.scheme, net, u.path, q, ''))
 
 
+def _netloc_shown(url):
+    """host[:port] of a URL as an error says it: a user name and password written in the
+    address (https://user:password@host/...) left out (1.0.143: they were in the job's
+    steps, the certificate's last error and isemon)."""
+    try:
+        return urllib.parse.urlsplit(str(url)).netloc.rsplit('@', 1)[-1]
+    except ValueError:
+        return '?'
+
+
+def _netloc_raw(url):
+    try:
+        return urllib.parse.urlsplit(str(url)).netloc
+    except ValueError:
+        return ''
+
+
+def _without_userinfo(e, url):
+    """An error's words with the user name and password of the URL left out (http.client
+    names "password@host" in "nonnumeric port")."""
+    words = str(e)
+    try:
+        net = urllib.parse.urlsplit(str(url)).netloc
+    except ValueError:
+        return words
+    if '@' in net:
+        info = net.rsplit('@', 1)[0]
+        for part in sorted({info, info.partition(':')[2]}, key=len, reverse=True):
+            if part:
+                words = words.replace(part, '\u2022' * 8)
+    return words
+
+
 def scope_hostkey_keeper(store, scope):
     """fn(known_hosts, field) writing the first host key seen into the row the scope names
     ('target:web1', 'challenge:ssh-dns', 'check:relay'), if that field is empty there."""
@@ -263,7 +296,14 @@ class RunContext(base.Context):
         times (limits.RETRIES) - the job told so in words."""
         from acmelib.plugins import limits as L
         if not re.match(r'^https?://', str(url or '')):
-            raise base.PluginError('%r is not an http(s) address' % url, retry=False)
+            raise base.PluginError('%r is not an http(s) address' % url_shown(url), retry=False)
+        # (1.0.143) a user name and password in the address (https://user:pass@host/):
+        # urllib never sent them - it took "pass@host" for the port, its error (and the
+        # address in ours) put the password into the job's steps and the last error
+        if '@' in _netloc_raw(url):
+            raise base.PluginError('%s: a user name and password in the address are not '
+                                   'used - sign in with the module\'s own fields'
+                                   % _netloc_shown(url), retry=False)
         # (1.0.101) an option of a deployment that became "x/../../other" in a module's path,
         # or a line break in it, went to another endpoint of the device - refused, any module
         from acmelib.plugins.targets._common import url_path_problem, debug_url
@@ -464,7 +504,7 @@ class RunContext(base.Context):
                 data = got.read(HTTP_ANSWER_MAX + 1)
                 if len(data) > HTTP_ANSWER_MAX:
                     raise base.PluginError('%s answered more than %d MB - not read' % (
-                        urllib.parse.urlsplit(url).netloc, HTTP_ANSWER_MAX // (1 << 20)))
+                        _netloc_shown(url), HTTP_ANSWER_MAX // (1 << 20)))
                 self._http_shipped(req.get_method(), url, began, got.status, len(data))
                 return got.status, header_dict(got.headers), data
         except urllib.error.HTTPError as e:
@@ -477,10 +517,10 @@ class RunContext(base.Context):
         except urllib.error.URLError as e:
             self._http_shipped(req.get_method(), url, began, error=getattr(e, 'reason', e))
             raise base.PluginError('%s could not be reached: %s' % (
-                urllib.parse.urlsplit(url).netloc, getattr(e, 'reason', e)))
+                _netloc_shown(url), _without_userinfo(getattr(e, 'reason', e), url)))
         except (OSError, ssl.SSLError) as e:
-            self._http_shipped(req.get_method(), url, began, error=e)
-            raise base.PluginError('%s: %s' % (urllib.parse.urlsplit(url).netloc, e))
+            self._http_shipped(req.get_method(), url, began, error=_without_userinfo(e, url))
+            raise base.PluginError('%s: %s' % (_netloc_shown(url), _without_userinfo(e, url)))
 
     # ---- SSH and openssl ---------------------------------------------------------------
     def ssh(self, conn):
@@ -1442,7 +1482,7 @@ def wire_request(method, url, headers=None, body=None, own=False):
     out = [['Accept-Encoding', 'identity', True]]
     if data is not None:
         out.append(['Content-Length', str(len(str(data).encode('utf-8'))), True])
-    out.append(['Host', u.netloc, True])
+    out.append(['Host', u.netloc.rsplit('@', 1)[-1], True])
     for k, v in mine.items():
         if k.lower() not in ('content-type', 'user-agent', 'host', 'connection'):
             out.append([k, str(v), False])
@@ -1464,7 +1504,7 @@ def wire_request(method, url, headers=None, body=None, own=False):
         gl = {k.lower() for k in given}
         lines = []
         if 'host' not in gl:
-            lines.append(['Host', u.netloc, True])
+            lines.append(['Host', u.netloc.rsplit('@', 1)[-1], True])
         if 'accept-encoding' not in gl:
             lines.append(['Accept-Encoding', 'identity', True])
         if data is not None and 'content-length' not in gl:

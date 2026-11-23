@@ -51,11 +51,14 @@ subscription. At most 5000 certificates are drawn at once (the earliest); more i
 **Download .ics** writes the certificates of the calendar (with its filters; a month back and two
 years ahead) as an iCalendar file (RFC 5545) for Outlook, Google Calendar, Apple Calendar or
 Thunderbird: each end an all-day event with a reminder a week before, each planned renewal an
-event of its own, in the page's language.
+event of its own, in the page's language - each on the day the page shows it (the browser's time
+zone, not the server's).
 
 **Subscribe…** makes a **private link** (`https://NAME/calendar.ics?t=SECRET`) the calendar
 program asks by itself (every 6 hours by default). The link:
 
+- keeps the language and the time zone of the browser that made it (the events' days are that
+  zone's);
 - is the account's own - one per account; a new link replaces the old one, *Take it back* ends it;
 - shows what the account may see **now** - its role and teams as they are when it is asked; an
   account switched off, deleted or no longer of the administration gets nothing (404);
@@ -83,8 +86,8 @@ The console: *Certificates → The expiry calendar* (`y`).
 | | |
 |---|---|
 | `GET /api/calendar?from=&to=&team=&issuer=&target=&mine=1` | `{from, to, certs[{id, name, names, n_names, owner, issuer, state, not_after, renew_at, days_left, auto_renew, urgency}], count, capped, today, counts{day: {ends, renews, worst}}, weeks[{week, ends, renews}], options{teams, issuers, targets}, feed{on, made, used, may}}` - 800 days at most |
-| `GET /api/calendar/ics` | the same filters, `lang` → `{text, filename, count}` |
-| `POST /api/calendar/feed_link` | `{action: new, lang}` → `{token, path}` (shown once) · `{action: revoke}` - one's own |
+| `GET /api/calendar/ics` | the same filters, `lang`, `tz` (an IANA time zone, e.g. `Europe/Prague`: the events' days; the server's own without it) → `{text, filename, count}` |
+| `POST /api/calendar/feed_link` | `{action: new, lang, tz}` → `{token, path}` (shown once) · `{action: revoke}` - one's own |
 | `GET /api/calendar/feeds` · `POST /api/calendar/feeds_revoke` | `{who}` or `{all: true}` - a full administrator |
 | `GET /api/calendar/feed` | header `X-Acme-Calfeed: SECRET` → `{text}` (what calendar.php asks) |
 | `GET /api/portal/calendar` · `GET /api/portal/calendar_ics` | the portal's: `{certs, rows, count, counts}` / `{text, filename, count}` |
