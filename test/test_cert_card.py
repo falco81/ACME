@@ -367,7 +367,7 @@ def test_01_off_changes_nothing(self):
         self.assertNotIn('card', me['me'])
         # 1.0.115 (the kit's 4th edition), off: the portal's `me`, /api/auth/mfa and the
         # portal's password change answer as before - nothing held, nothing trimmed.
-        self.assertEqual(sorted(me['me']), ['about', 'display', 'help', 'kind', 'must_change', 'name',
+        self.assertEqual(sorted(me['me']), ['about', 'display', 'help', 'idle_min', 'kind', 'must_change', 'name',
                                             'role', 'sees_all', 'sso', 'sso_logout', 'title'])
         st, got = self.call('GET', '/api/auth/mfa', None, tok)
         self.assertEqual(st, 200, got)
