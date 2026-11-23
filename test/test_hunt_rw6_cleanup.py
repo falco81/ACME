@@ -131,6 +131,23 @@ class Helper(unittest.TestCase):
         TC.sweep()                                   # what the next test does when it starts
         self.gone(d, pid)
 
+    def test_old_leftovers(self):
+        top = tempfile.mkdtemp(prefix='acme-rw6-top-', dir=TMP)
+        old = time.time() - 30 * 3600
+        names = ['acme-certs-test-aaaa1111', 'tmpabcd_123', 'acme-certs-test-busy2222',
+                 'acme-certs-test-new33333', 'someones-own-dir']
+        for n in names:
+            os.makedirs(os.path.join(top, n))
+            if n != 'acme-certs-test-new33333':
+                os.utime(os.path.join(top, n), (old, old))
+        busy = subprocess.Popen(['sleep', '60'], cwd=os.path.join(top, names[2]))
+        self.addCleanup(busy.kill)
+        with mock.patch.object(TC, '_TOP', top):
+            removed, kept = TC.sweep_old(24)
+        self.assertEqual((removed, kept), (2, 1))
+        self.assertEqual(sorted(os.listdir(top)), sorted(names[2:]))
+        self.assertIsNone(busy.poll(), 'a running test of its own is left alone')
+
 
 class CertsCoreHalfWay(unittest.TestCase):
     def test_daemon_stopped_when_setup_fails_after_it(self):

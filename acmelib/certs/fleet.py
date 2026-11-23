@@ -550,17 +550,18 @@ def assigned(store, tid):
     return _meta(store, ASSIGN_PREFIX + str(int(tid)), {}).get('ref') or ''
 
 
-def agent_template(store, agent_id):
+def agent_template(store, agent_id, gs=None):
     """The template the agent should follow - its own assignment, else that of its first group
     (by name) that has one -> {ref, title, note, platform, builtin, text, lines, via: agent |
     group, group: name or ''} or None. For the alerts of drift (agentsec): compare `lines`
-    with the policy the agent last said (drift() does)."""
+    with the policy the agent last said (drift() does). `gs`: groups() read once for a list."""
     row = _row_of(store, agent_id)
     if not row:
         return None
     ref, via, gname = assigned(store, row['id']), 'agent', ''
     if not ref:
-        for g in sorted(groups(store), key=lambda g: str(g.get('name') or '').lower()):
+        for g in sorted(groups(store) if gs is None else gs,
+                        key=lambda g: str(g.get('name') or '').lower()):
             if row['id'] in g['members'] and g.get('template'):
                 ref, via, gname = g['template'], 'group', g['name']
                 break
@@ -661,7 +662,7 @@ def health(a, d=None):
     return level, why
 
 
-def _agent_row(store, row, gmap, offered):
+def _agent_row(store, row, gmap, offered, gs=None):
     G = _G()
     try:
         a = G.info(store, row)
@@ -669,7 +670,7 @@ def _agent_row(store, row, gmap, offered):
         a = {'id': row['id'], 'name': row['name'], 'state': 'new', 'error': str(e)[:200]}
     t = None
     try:
-        t = agent_template(store, row['id'])
+        t = agent_template(store, row['id'], gs)
     except Exception:                                   # noqa: BLE001
         t = None
     d = None
@@ -713,7 +714,8 @@ def view(store):
         pkg = None
     import acmelib
     offered = (pkg or {}).get('version') or acmelib.__version__
-    agents = [_agent_row(store, r, gmap, offered) for r in G.rows(store)]
+    # the groups read once (hunt w6): each agent read every row of meta again for its template
+    agents = [_agent_row(store, r, gmap, offered, gs) for r in G.rows(store)]
     by_id = {a['id']: a for a in agents}
     count = {'ok': 0, 'warn': 0, 'bad': 0, 'idle': 0}
     for a in agents:
@@ -822,8 +824,9 @@ def act(store, action, ids, by):
 
 def drift_many(store, ids):
     out = []
+    gs = groups(store)
     for row in _rows_for(store, ids):
-        t = agent_template(store, row['id'])
+        t = agent_template(store, row['id'], gs)
         d = drift(store, row, tpl=t) if t else None
         out.append({'id': row['id'], 'name': row['name'], 'drift': d})
     return out
