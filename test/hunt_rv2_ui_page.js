@@ -40,6 +40,11 @@ const path = require('path');
                 note: note ? note.textContent.trim() : '', hscroll: document.scrollingElement.scrollWidth - innerWidth};
       }));
       if (shots) await page.screenshot({path: path.join(shots, `rv2-fleet-${tag}.png`), fullPage: w < 500});
+      // ---- Owners and teams: the tree's counts ("1 unit", not "1 units") ----
+      await page.evaluate(() => showPane('teams'));
+      await page.waitForSelector('#tmx-tree .tmx-tree-n', {state: 'attached', timeout: 30000});
+      await page.waitForTimeout(400);
+      run.treeCounts = await page.$eval('#tmx-tree .tmx-tree-n', n => n.textContent.replace(/\s+/g, ' ').trim());
       // ---- Events: what the reports and the digests wrote (a full administrator sees them all) ----
       if (who === 'tester') {
         await page.evaluate(() => showTab('events'));

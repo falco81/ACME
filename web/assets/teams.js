@@ -630,8 +630,8 @@
     title.appendChild(el('b', '', 'Organisation'));
     var units = T.order.filter(function (n) { return n.kind === 'unit'; }).length;
     var counts = el('span', 'tmx-tree-n');
-    counts.appendChild(nw(T.order.length - units, 'teams'));
-    if (units) { counts.appendChild(document.createTextNode(' · ')); counts.appendChild(nw(units, 'units')); }
+    counts.appendChild(nw(T.order.length - units, T.order.length - units === 1 ? 'team' : 'teams'));
+    if (units) { counts.appendChild(document.createTextNode(' · ')); counts.appendChild(nw(units, units === 1 ? 'unit' : 'units')); }
     title.appendChild(counts);
     var x = iconButton('close', 'Close');
     x.classList.add('tmx-drawer-x');

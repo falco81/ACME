@@ -13,6 +13,7 @@
   tester (weekly, day 1, 07:00)", "the report X (inventory) was added by Y", ...) stayed in
   English on the Czech page; with the Czech of cs_rv2_ui.json they are Czech (checked here with
   web/assets/i18n.js itself, and on the page).
+- Owners and teams: the tree's head said "2 teams · 1 units" in English; now "1 unit" / "1 team".
 """
 import json
 import os
@@ -139,6 +140,10 @@ class Pages(RP.Pages):
             self.assertEqual(r['hscroll'], 0, tag)
             self.assertEqual(r['bad'], '', tag)
             self.assertFalse([x for x in r['http'] if 'fleet' in x], (tag, r['http']))
+            if r['lang'] == 'en':
+                self.assertEqual(r['treeCounts'], '2 teams · 1 unit', tag)
+            else:
+                self.assertEqual(r['treeCounts'].split(' · ')[1], '1 jednotka', tag)
             if r['who'] == 'tester':
                 self.assertTrue(r['hero'], tag)
                 self.assertFalse(r['scoped'], tag)

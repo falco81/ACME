@@ -77547,6 +77547,18 @@
   "z_3083": {
    "source": "many",
    "text": "hodně"
+  },
+  "z_3084": {
+   "source": "waiting in the outgoing mail for another try",
+   "text": "čeká v odchozí poště na další pokus"
+  },
+  "z_3085": {
+   "source": "The fleet is for whoever sees every certificate",
+   "text": "Flotila agentů je pro toho, kdo vidí všechny certifikáty"
+  },
+  "z_3086": {
+   "source": "This account sees the certificates of its teams only - the agents of its targets are under Settings → Target agents.",
+   "text": "Tento účet vidí jen certifikáty svých týmů – agenty jejich cílů najdete v Nastavení → Agenti cílů."
   }
  },
  "patterns": {
@@ -107953,6 +107965,118 @@
   "pz_1065": {
    "source": "acme renews the certificate {0}",
    "text": "acme obnoví certifikát {0}"
+  },
+  "pz_1066": {
+   "source": "{0} - Correct the name",
+   "text": "{0} – Opravte jméno"
+  },
+  "pz_1067": {
+   "source": "{0} - Take the wildcard out, or choose a source that gives wildcards",
+   "text": "{0} – Wildcard odeberte, nebo zvolte zdroj, který wildcardy vydává"
+  },
+  "pz_1068": {
+   "source": "{0} - Take the address out, or choose a source that takes IP addresses",
+   "text": "{0} – Adresu odeberte, nebo zvolte zdroj, který IP adresy bere"
+  },
+  "pz_1069": {
+   "source": "{0} - Use the full public name (e.g. {1}.example.com), or take an authority of your own, AD CS or self-signed for internal names",
+   "text": "{0} – Použijte plné veřejné jméno (např. {1}.example.com), nebo pro interní jména vlastní autoritu, AD CS či certifikát podepsaný sám sebou"
+  },
+  "pz_1070": {
+   "source": "{0} - Choose a validation that can prove it",
+   "text": "{0} – Zvolte validaci, která ho umí prokázat"
+  },
+  "pz_1071": {
+   "source": "{0} - Choose a DNS validation for {1}",
+   "text": "{0} – Zvolte pro {1} DNS validaci"
+  },
+  "pz_1072": {
+   "source": "{0} - Choose an HTTP-01 validation for {1}",
+   "text": "{0} – Zvolte pro {1} validaci HTTP-01"
+  },
+  "pz_1073": {
+   "source": "acme {0} does not know the lines of an agent's policy that guard what it deploys (allow issuer, allow names, require key local), and does not send what the agent checks with them - these agents would refuse its deployments ({1}): take the lines out of their policy first",
+   "text": "acme {0} nezná řádky politiky agenta, které hlídají, co nasazuje (allow issuer, allow names, require key local), a neposílá to, čím je agent kontroluje – tito agenti by její nasazení odmítli ({1}): nejdřív ty řádky z jejich politiky odeberte"
+  },
+  "pz_1074": {
+   "source": "the team {0}: the digest switched on by {1} (weekly, day {2}, {3})",
+   "text": "tým {0}: souhrn zapnul(a) {1} (týdně, den {2}, {3})"
+  },
+  "pz_1075": {
+   "source": "the team {0}: the digest switched on by {1} (daily, {2})",
+   "text": "tým {0}: souhrn zapnul(a) {1} (denně, {2})"
+  },
+  "pz_1076": {
+   "source": "the team {0}: the digest set (off) by {1} (weekly, day {2}, {3})",
+   "text": "tým {0}: souhrn nastavil(a) {1}, vypnutý (týdně, den {2}, {3})"
+  },
+  "pz_1077": {
+   "source": "the team {0}: the digest set (off) by {1} (daily, {2})",
+   "text": "tým {0}: souhrn nastavil(a) {1}, vypnutý (denně, {2})"
+  },
+  "pz_1078": {
+   "source": "a preview of the digest of the team {0} did not go to {1}: {2}",
+   "text": "náhled souhrnu týmu {0} pro {1} neodešel: {2}"
+  },
+  "pz_1079": {
+   "source": "a preview of the digest of the team {0} was sent to {1} ({2})",
+   "text": "náhled souhrnu týmu {0} byl odeslán pro {1} ({2})"
+  },
+  "pz_1080": {
+   "source": "the digest of the team {0} was not sent: nothing to tell",
+   "text": "souhrn týmu {0} nebyl odeslán: nebylo co hlásit"
+  },
+  "pz_1081": {
+   "source": "the digest of the team {0} was not sent: mail is switched off",
+   "text": "souhrn týmu {0} nebyl odeslán: pošta je vypnutá"
+  },
+  "pz_1082": {
+   "source": "the digest of the team {0} was not sent: nobody to send it to (no contact address, no member with an address)",
+   "text": "souhrn týmu {0} nebyl odeslán: není komu ho poslat (žádná kontaktní adresa, žádný člen s adresou)"
+  },
+  "pz_1083": {
+   "source": "the digest of the team {0} was {1} ({2} item(s))",
+   "text": "souhrn týmu {0}: {1} (položek: {2})"
+  },
+  "pz_1084": {
+   "source": "not sent to {0}",
+   "text": "neodesláno na {0}"
+  },
+  "pz_1085": {
+   "source": "the digest of the team {0} could not be made: {1}",
+   "text": "souhrn týmu {0} se nepodařilo vytvořit: {1}"
+  },
+  "pz_1086": {
+   "source": "{0} downloaded the report {1} ({2}, run {3})",
+   "text": "{0} stáhl(a) report {1} ({2}, běh {3})"
+  },
+  "pz_1087": {
+   "source": "the report {0} ({1}) was added by {2}",
+   "text": "report {0} ({1}) přidal(a) {2}"
+  },
+  "pz_1088": {
+   "source": "the report {0} ({1}) was changed by {2}",
+   "text": "report {0} ({1}) změnil(a) {2}"
+  },
+  "pz_1089": {
+   "source": "the report {0} was deleted by {1}",
+   "text": "report {0} smazal(a) {1}"
+  },
+  "pz_1090": {
+   "source": "the report {0} was made by {1} ({2} row(s), {3})",
+   "text": "report {0} vytvořil(a) {1} (řádků: {2}, {3})"
+  },
+  "pz_1091": {
+   "source": "the report {0} was made by {1} ({2} row(s), {3}) and sent to {4}",
+   "text": "report {0} vytvořil(a) {1} (řádků: {2}, {3}) a odeslal(a) na {4}"
+  },
+  "pz_1092": {
+   "source": "the report {0} was made by {1} ({2} row(s), {3}) - it was not sent: {4}",
+   "text": "report {0} vytvořil(a) {1} (řádků: {2}, {3}) – neodešel: {4}"
+  },
+  "pz_1093": {
+   "source": "the report {0} could not be made: {1}",
+   "text": "report {0} se nepodařilo vytvořit: {1}"
   }
  },
  "rich": {
