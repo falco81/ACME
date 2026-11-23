@@ -78411,6 +78411,38 @@
   "z_3299": {
    "source": "one of that name was saved at the same moment - load the list again",
    "text": "ve stejnou chvíli se uložilo něco se stejným názvem – načtěte seznam znovu"
+  },
+  "z_3300": {
+   "source": "a new source needs its module (kind) - acme --plugins lists them",
+   "text": "nový zdroj potřebuje svůj modul (kind) – vypíše je acme --plugins"
+  },
+  "z_3301": {
+   "source": "a new validation needs its module (kind) - acme --plugins lists them",
+   "text": "nové ověření potřebuje svůj modul (kind) – vypíše je acme --plugins"
+  },
+  "z_3302": {
+   "source": "a new target needs its module (kind) - acme --plugins lists them",
+   "text": "nový cíl potřebuje svůj modul (kind) – vypíše je acme --plugins"
+  },
+  "z_3303": {
+   "source": "a new test needs its module (kind) - acme --plugins lists them",
+   "text": "nový test potřebuje svůj modul (kind) – vypíše je acme --plugins"
+  },
+  "z_3304": {
+   "source": "which source: its id - or a module (kind) and its settings to try",
+   "text": "který zdroj: jeho id – nebo modul (kind) a nastavení k vyzkoušení"
+  },
+  "z_3305": {
+   "source": "which validation: its id - or a module (kind) and its settings to try",
+   "text": "které ověření: jeho id – nebo modul (kind) a nastavení k vyzkoušení"
+  },
+  "z_3306": {
+   "source": "which target: its id - or a module (kind) and its settings to try",
+   "text": "který cíl: jeho id – nebo modul (kind) a nastavení k vyzkoušení"
+  },
+  "z_3307": {
+   "source": "which test: its id - or a module (kind) and its settings to try",
+   "text": "který test: jeho id – nebo modul (kind) a nastavení k vyzkoušení"
   }
  },
  "patterns": {
@@ -110197,6 +110229,10 @@
   "pz_1410": {
    "source": "there is no certificate {0} - it was deleted meanwhile",
    "text": "certifikát {0} neexistuje – mezitím byl smazán"
+  },
+  "pz_1411": {
+   "source": "{0} is on or off",
+   "text": "{0} je zapnuto, nebo vypnuto"
   }
  },
  "rich": {
