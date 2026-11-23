@@ -110141,6 +110141,18 @@
   "pz_1401": {
    "source": "{0} is not a search domain (example.cz)",
    "text": "{0} není prohledávaná doména (example.cz)"
+  },
+  "pz_1402": {
+   "source": "the password of {0} is the directory's - it is changed in the directory",
+   "text": "heslo účtu {0} je heslo z adresáře – mění se v adresáři"
+  },
+  "pz_1403": {
+   "source": "{0} ended the sign-in of {1} on the command line",
+   "text": "{0} ukončil přihlášení {1} na příkazové řádce"
+  },
+  "pz_1404": {
+   "source": "{0} ended the sign-in of {1} from {2} on the command line",
+   "text": "{0} ukončil přihlášení {1} z {2} na příkazové řádce"
   }
  },
  "rich": {
