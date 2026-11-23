@@ -264,7 +264,10 @@ class FlowmonTarget(HttpTarget):
             return served
         try:
             import datetime
-            got = datetime.datetime.fromisoformat(to.replace('Z', '+00:00')).timestamp()
+            got = datetime.datetime.fromisoformat(to.replace('Z', '+00:00'))
+            if got.tzinfo is None:          # no offset: UTC, not this machine's local time
+                got = got.replace(tzinfo=datetime.timezone.utc)
+            got = got.timestamp()
         except ValueError:
             return served
         return (abs(got - float(end)) < 120) and served is not False

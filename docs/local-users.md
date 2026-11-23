@@ -92,6 +92,7 @@ row the guard refuses changes nothing - each node keeps the policy it has put in
 ```
 acme --local-users                                   # the users of each node
 acme --local-user add jnovak --local-full-name "Jan Novák" --local-must-change   # the password is asked
+acme --local-user add admin2 --local-sudo            # may become root with sudo (a password is needed)
 acme --local-user password jnovak                    # asked at the terminal, twice
 acme --local-user sudo-on jnovak                     # sudo-off
 acme --local-user lock jnovak                        # unlock

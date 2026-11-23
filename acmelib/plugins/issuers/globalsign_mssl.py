@@ -152,7 +152,9 @@ def _when(v):
     s = str(v or '').strip()
     for fmt, n in (('%Y-%m-%dT%H:%M:%S', 19), ('%Y-%m-%d', 10)):
         try:
-            return calendar.timegm(time.strptime(s[:n], fmt))
+            # the offset counts (a CA in its own time zone, +09:00, was read 9 h late)
+            return calendar.timegm(time.strptime(s[:n], fmt)) - (sc.utc_offset(s) if n == 19
+                                                                 else 0)
         except ValueError:
             continue
     return None

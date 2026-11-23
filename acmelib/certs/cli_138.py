@@ -1445,7 +1445,9 @@ def team_items(con, name):
                         'of duties, channels'),
             ('reviews', 'Its access reviews (open one)'),
             ('elevations', 'Requests for a temporary role'),
-            ('notify-test', 'Try its channels now')]
+            ('notify-test', 'Try its channels now'),
+            # v5: the team templates' list pointed here ("save it as a template") - it was not
+            ('template-save', 'Save it as a team template')]
 
 
 def team_do(con, name, what):
@@ -1499,6 +1501,12 @@ def team_do(con, name, what):
                  'no request for a temporary role')
     elif what == 'notify-test':
         con.act('--team-notify-test', name)
+    elif what == 'template-save':
+        tpl = con.ask_one('Save %s as a team template' % name, 'the template\'s name', name,
+                          'Its kind, limits and governance are kept; the same name again '
+                          'changes that template.')
+        if tpl and tpl.strip():
+            con.act('--team-template-save', name, tpl.strip())
     else:
         return False
     return True
@@ -1668,8 +1676,39 @@ def gov_menu_items(con):
                 con.act('--team-template-del', r.get('name'), '--yes')
         return con.pick('Team templates', load, cols, do,
                         'no team template yet (a team\'s menu: save it as a template)')
+    def who_can():
+        # acme --who-can CAP TEAM|cert:NAME (v5: the command line only)
+        got = con.form('Who can', [
+            {'key': 'cap', 'label': 'the capability', 'need': True, 'value': 'cert.renew',
+             'help': 'cert.view, cert.renew, cert.key, cert.revoke ... (acme --roles).'},
+            {'key': 'where', 'label': 'where', 'need': True,
+             'help': 'A team, or cert:NAME for one certificate.'}])
+        if got and got.get('cap', '').strip() and got.get('where', '').strip():
+            con.act('--who-can', got['cap'].strip(), got['where'].strip())
+
+    def import_csv():
+        # acme --teams-import-csv FILE (v5: the command line only): each row said first
+        path = con.ask_one('Teams from a CSV file', 'the file', '/root/teams.csv',
+                           'Columns name, parent, kind, description, members ... - each row '
+                           'is said first, nothing is made before Yes.')
+        if not path or not path.strip():
+            return
+        path = path.strip()
+        if con.act('--teams-import-csv', path) == 0:      # each row said; nothing new to make
+            return
+        pre = con.out('--teams-import-csv', path)          # errors in the file: JSON, nothing made
+        if isinstance(pre, dict) and pre.get('errors'):
+            return
+        err = getattr(con, 'out_err', None)                 # not there, not readable: said
+        if err is not None and 'again with --yes' not in err:
+            return
+        if con.confirm('Teams from a CSV file', 'Make the teams of %s that are not there yet?'
+                       % path, 'Make them'):
+            con.act('--teams-import-csv', path, '--yes')
     return [('7', 'The teams\' health', lambda: con.act('--team-health')),
             ('8', 'Requests for a temporary role to decide', decide),
             ('9', 'Access reviews open now', lambda: con.act('--reviews')),
             ('w', 'Who may do what, and why', who_may),
-            ('m', 'Team templates (Enter: a team from it, delete it)', templates)]
+            ('m', 'Team templates (Enter: a team from it, delete it)', templates),
+            ('n', 'Who can do one thing in a team or on a certificate, and why', who_can),
+            ('i', 'Teams from a CSV file (each row said first)', import_csv)]

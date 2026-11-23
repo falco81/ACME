@@ -198,7 +198,7 @@ takes them away), `acme-agent require key local` (`require key any` takes it awa
 | `acme --ca-create NAME --subject "CN=Example Root CA,O=Example" [--key-type ec-384] [--days 3650] [--set ...]` | a new root authority. `--set crl_days=7 crl_url=... aia_url=... ocsp_url=... path_len=0 name_constraints=example.com` |
 | `acme --ca-sub NAME --parent CA [--subject ...] [--key-type ec-256] [--days 1825] [--set ...]` | a new intermediate, signed by CA |
 | `acme --ca-import FILE [--key FILE] [--name N] [--password]` | an authority from a file (PEM or PFX with its key, or the key in a file of its own; its password in `ACME_KEY_PASSWORD`) |
-| `acme --ca-revoke CA SERIAL [--reason R] [--yes]` | revoke what it signed; in its next CRL |
+| `acme --ca-revoke CA SERIAL [--reason R] [--yes]` | revoke what it signed; its CRL is made anew at once with it. Reasons: `unspecified`, `keyCompromise`, `cACompromise`, `affiliationChanged`, `superseded`, `cessationOfOperation`, `certificateHold` (`privilegeWithdrawn` is refused: openssl cannot put it into a CRL) |
 | `acme --ca-unrevoke CA SERIAL` | release a certificate it put on hold (`--ca-revoke ... --reason certificateHold`): valid again, its CRL made anew without it. Any other reason cannot be taken back |
 | `acme --ca-crl CA [--out FILE]` | a new CRL, printed (or written) |
 | `acme --ca-export CA --what FORMAT --out FILE [--password]` | `cert`, `cert-der`, `chain`, `crl`, `crl-der`, `p7b`, `bundle`, `csr`, `key`, `p12` (the key and the P12 into a file only, mode 0600; a P12 asks for its password) |

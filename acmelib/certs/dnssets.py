@@ -118,7 +118,12 @@ def parse_server(text, port=53):
         raise ValueError('an empty line')
     host, p = D.split_hostport(s, port)
     try:
-        host = str(ipaddress.ip_address(host.split('%')[0]))
+        try:
+            # an IPv6 link-local address keeps its zone (fe80::1%eth0): without it the
+            # system cannot tell which interface it is on
+            host = str(ipaddress.ip_address(host))
+        except ValueError:
+            host = str(ipaddress.ip_address(host.split('%')[0]))
     except ValueError:
         raise ValueError('%s is not an IPv4 or IPv6 address (with :port if not %d)' % (s, port))
     if not 0 < int(p) < 65536:

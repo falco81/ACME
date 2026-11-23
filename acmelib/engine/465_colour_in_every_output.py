@@ -619,6 +619,9 @@ def build_parser():
                    help='with --local-user add or set: the shell (add: /bin/bash if not given)')
     g.add_argument('--local-must-change', action='store_true',
                    help='with --local-user add or password: to be changed at the next sign-in')
+    g.add_argument('--local-sudo', action='store_true',
+                   help='with --local-user add: may become root with sudo (as the page\'s "sudo"; '
+                        'needs a password)')
     g.add_argument('--local-max-days', metavar='N', type=int, default=None,
                    help='with --local-user aging: days the password is good for (99999: no end)')
     g.add_argument('--local-min-days', metavar='N', type=int, default=None,
@@ -2307,6 +2310,7 @@ def cli_osusers(args, pal):
             if args.local_full_name is not None:
                 f['gecos'] = args.local_full_name
             f['shell'] = args.local_shell or '/bin/bash'
+            f['sudo'] = bool(getattr(args, 'local_sudo', False))   # v5: the page and console had it
         if do == 'sudo':
             f['on'] = what == 'sudo-on'
         if do == 'drop':

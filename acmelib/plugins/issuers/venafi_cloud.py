@@ -58,8 +58,11 @@ BASE = 'outagedetection/v1/'
 
 
 def _epoch(v):
+    """'2026-05-01T10:00:00Z', '...T10:00:00.123+02:00', '...T10:00:00' (UTC) -> epoch. The
+    offset counts: cutting at 19 characters read 10:00+02:00 as 10:00 UTC, two hours late."""
     try:
-        return calendar.timegm(time.strptime(str(v or '')[:19], '%Y-%m-%dT%H:%M:%S'))
+        return calendar.timegm(time.strptime(str(v or '')[:19], '%Y-%m-%dT%H:%M:%S')) - \
+            sc.utc_offset(v)
     except (TypeError, ValueError):
         return None
 

@@ -162,8 +162,8 @@ def add_args(p):
     g.add_argument('--reason', metavar='WHY', default=None, help='with --revoke, '
                    '--ca-revoke, --cert-del --revoke-first: unspecified keyCompromise '
                    'cACompromise affiliationChanged superseded cessationOfOperation '
-                   'certificateHold privilegeWithdrawn [unspecified; cessationOfOperation with '
-                   '--cert-del]')
+                   'certificateHold privilegeWithdrawn (not with --ca-revoke) [unspecified; '
+                   'cessationOfOperation with --cert-del]')
     g.add_argument('--csr', metavar='NAME|FILE', help='a request (CSR) for a certificate, for '
                    'an authority acme does not speak to: printed (or --out); with --ca-sign: '
                    'the CSR file to sign')
@@ -383,7 +383,7 @@ def add_args(p):
     g.add_argument('--key', metavar='FILE', help='with --ca-import: its key, in a file of its '
                    'own (password: ACME_KEY_PASSWORD)')
     g.add_argument('--ca-revoke', nargs=2, metavar=('CA', 'SERIAL'), help='revoke what it signed '
-                   '(--reason); in its next CRL')
+                   '(--reason); its CRL is made anew with it')
     g.add_argument('--ca-unrevoke', nargs=2, metavar=('CA', 'SERIAL'), help='release a '
                    'certificate it put on hold (--ca-revoke --reason certificateHold); out of '
                    'its CRL again')
@@ -3166,6 +3166,12 @@ class Cli(object):
         self.args.reason = self.args.reason or 'unspecified'
         if self.args.reason not in api.REVOKE_REASONS:
             raise SystemExit('acme: the reason is one of %s' % ', '.join(api.REVOKE_REASONS))
+        from acmelib.certs import ca as CA
+        from acmelib.certs.pki import PkiError
+        try:                                # refused before it is asked, not after (v5)
+            CA.norm_reason(self.args.reason)
+        except PkiError as e:
+            raise SystemExit('acme: %s' % e)
         # a serial before it is asked (1.0.80)
         if not re.match(r'^[0-9A-Fa-f:]{1,80}\Z', str(serial).strip()):
             raise SystemExit('acme: %s is not a serial number (hex, as --ca-show lists it)'
@@ -3173,7 +3179,7 @@ class Cli(object):
         self.sure('serial %s of %s is revoked (%s)' % (serial, r['name'], self.args.reason))
         got = self.api('POST', '/api/cas/revoke', body={'id': r['id'], 'serial': serial,
                                                         'reason': self.args.reason})
-        return self.done('%s - acme --ca-crl %s makes its CRL now' % (
+        return self.done('%s - its CRL is made anew (acme --ca-crl %s prints it)' % (
             got.get('message') or 'revoked', r['name']), got)
 
     def ca_unrevoke(self):

@@ -56,7 +56,6 @@ _REASON_ALIAS.update({'key_compromise': 'keyCompromise', 'ca_compromise': 'CACom
                       'cessation_of_operation': 'cessationOfOperation',
                       'certificate_hold': 'certificateHold', 'hold': 'certificateHold',
                       '': 'unspecified', 'none': 'unspecified',
-                      'privilegewithdrawn': 'unspecified', 'aacompromise': 'unspecified',
                       '0': 'unspecified', '1': 'keyCompromise', '2': 'CACompromise',
                       '3': 'affiliationChanged', '4': 'superseded',
                       '5': 'cessationOfOperation', '6': 'certificateHold'})
@@ -1022,8 +1021,18 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
 # ---------------------------------------------------------------------------
 # Revoking, CRLs
 # ---------------------------------------------------------------------------
+# Reasons RFC 5280 has and openssl's `ca -gencrl` does not take into its index (it stops with
+# "invalid reason code"): refused by name (v5: they were turned into unspecified without a word,
+# the CRL then telling something else than what was asked).
+_REASON_NOT_IN_CRL = ('privilegewithdrawn', 'aacompromise', 'removefromcrl', '9', '10', '8')
+
+
 def norm_reason(reason):
     r = str(reason or '').strip()
+    if r.lower() in _REASON_NOT_IN_CRL:
+        raise PkiError('the reason %s cannot be put into the CRL of an authority of acme\'s own '
+                       '(openssl does not take it): one of %s' % (r, ', '.join(REASONS)),
+                       retry=False)
     hit = _REASON_ALIAS.get(r.lower()) or _REASON_ALIAS.get(r.lower().replace(' ', '_'))
     if not hit:
         raise PkiError('an unknown reason: %s (one of %s)' % (reason, ', '.join(REASONS)),

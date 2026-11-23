@@ -35,6 +35,9 @@ want one; without openssl it goes unencrypted with no password.
 from __future__ import annotations
 
 import base64
+import os
+import shutil
+import tempfile
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
@@ -165,13 +168,23 @@ class CiscoIseTarget(HttpTarget):
         """(PEM, password): the key encrypted with a random password."""
         key = bundle.as_format('key-pem')
         pw = random_password(20)
+        # The password never on openssl's command line (hunt v5: -passout pass:... was seen by
+        # every user of acme's machine in ps): read from stdin, the key from a file of its own
+        work = tempfile.mkdtemp(prefix='acme-ise-')
         try:
-            enc = self.ctx.openssl(['pkcs8', '-topk8', '-v2', 'aes-256-cbc',
-                                    '-passout', 'pass:' + pw], data=key)
+            os.chmod(work, 0o700)
+            kf = os.path.join(work, 'key.pem')
+            fd = os.open(kf, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'wb') as f:
+                f.write(key if isinstance(key, bytes) else str(key).encode('utf-8'))
+            enc = self.ctx.openssl(['pkcs8', '-topk8', '-v2', 'aes-256-cbc', '-in', kf,
+                                    '-passout', 'stdin'], data=(pw + '\n').encode('ascii'))
             if b'ENCRYPTED PRIVATE KEY' in (enc or b''):
                 return text(enc), pw
         except Exception as e:                          # noqa: BLE001
             self.ctx.debug('the key could not be encrypted: %s' % e)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
         return text(key), ''
 
     def cleanup(self, prefix, current, keep):

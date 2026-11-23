@@ -911,9 +911,62 @@ def ca_new(con, how):
     con.act(*args)
 
 
+def ca_edit(con, name):
+    """acme --ca-edit CA --set ... as a form (v5): what is not in its certificate. Only what
+    was changed is sent."""
+    one = (con.out('--ca-show', name) or {}).get('ca') or {}
+    if not one:
+        con.note('Change ' + name, getattr(con, 'out_err', '') or 'It could not be read.', 'bad')
+        return
+    old = {'name': one.get('name') or name,
+           'days_default': str(one.get('days_default') or ''),
+           'crl_days': str(one.get('crl_days') or ''),
+           'crl_url': one.get('crl_url') or '', 'aia_url': one.get('aia_url') or '',
+           'ocsp_url': one.get('ocsp_url') or '', 'note': one.get('note') or '',
+           'disabled': 'yes' if one.get('disabled') else 'no',
+           'eku': ','.join(one.get('eku') or [])}
+    got = con.form('Change ' + name, [
+        {'key': 'name', 'label': 'its name', 'value': old['name'], 'need': True},
+        {'key': 'days_default', 'label': 'what it signs: days', 'kind': 'number',
+         'value': old['days_default'], 'range': (1, 36500),
+         'help': 'How long what it signs is valid, unless asked otherwise.'},
+        {'key': 'crl_days', 'label': 'CRL valid for (days)', 'kind': 'number',
+         'value': old['crl_days'], 'range': (1, 3650)},
+        {'key': 'crl_url', 'label': 'CRL address', 'value': old['crl_url'],
+         'help': 'Written into what it signs from now on. own: acme\'s own on /pki/; '
+         'empty: none.'},
+        {'key': 'aia_url', 'label': 'CA certificate address', 'value': old['aia_url'],
+         'help': 'Written into what it signs from now on. own: acme\'s own on /pki/; '
+         'empty: none.'},
+        {'key': 'ocsp_url', 'label': 'OCSP address', 'value': old['ocsp_url'],
+         'help': 'An OCSP responder of your own (acme runs none); empty: none.'},
+        {'key': 'eku', 'label': 'signs for (eku)', 'value': old['eku'],
+         'help': 'serverAuth, clientAuth, codeSigning, emailProtection, timeStamping, '
+         'OCSPSigning - separated by commas; empty: serverAuth, clientAuth.'},
+        {'key': 'note', 'label': 'note', 'value': old['note']},
+        {'key': 'disabled', 'label': 'signs nothing (off)', 'kind': 'choice',
+         'value': old['disabled'], 'options': [('no', 'no - it signs'),
+                                               ('yes', 'yes - switched off')]}],
+        'What is not in its certificate. The addresses go into what it signs from now on.')
+    if not got:
+        return
+    sets = []
+    for k in ('name', 'days_default', 'crl_days', 'crl_url', 'aia_url', 'ocsp_url', 'eku',
+              'note', 'disabled'):
+        v = str(got.get(k) if got.get(k) is not None else '').strip()
+        if v != old[k]:
+            sets += ['--set', '%s=%s' % (k, v)]
+    if not sets:
+        con.note('Nothing changed', 'Nothing was changed.')
+        return
+    con.act('--ca-edit', name, *sets)
+
+
 def ca_do(con, r):
     name = r['name']
-    what = con.choose(name, [('show', 'Show it and what it signed'), ('crl', 'A new CRL'),
+    what = con.choose(name, [('show', 'Show it and what it signed'),
+                             ('edit', 'Change its name, days, addresses, note'),
+                             ('crl', 'A new CRL'),
                              ('export', 'Export it into a file'),
                              ('sign', 'Sign a CSR from elsewhere'),
                              ('revoke', 'Revoke something it signed'),
@@ -929,6 +982,8 @@ def ca_do(con, r):
                              ('del', 'Delete it')])
     if what == 'show':
         con.act('--ca-show', name)
+    elif what == 'edit':
+        ca_edit(con, name)
     elif what == 'default':
         con.act('--ca-default', 'none' if r.get('is_default') else name)
     elif what == 'publish':

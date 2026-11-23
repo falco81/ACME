@@ -38,6 +38,28 @@ TLS_EXPORT_KINDS = {
 }
 
 
+# The rounds of a key locked for a download (hunt v5): as the certificates' own (certs/pki.py
+# KEY_ENC_ITER, certs/bundle.py P12_ITER) - openssl's default of 2048 was taken here.
+TLS_KEY_ITER = 600000
+TLS_P12_ITER = 250000
+
+
+def _tls_p12_args():
+    """A PKCS#12's ciphers and count as a certificate's (certs/bundle.p12_cipher_args): AES-256,
+    a SHA-256 MAC and TLS_P12_ITER rounds with openssl 3.0 and later; 1.1.1 (no -iter) as it
+    was, its own defaults."""
+    try:
+        out = _openssl(['version']).decode('ascii', 'replace')
+        m = re.search(r'(\d+)\.(\d+)\.', out)
+        major = int(m.group(1)) if m else 0
+    except (ValueError, OSError):
+        major = 0
+    if major < 3:
+        return []
+    return ['-keypbe', 'AES-256-CBC', '-certpbe', 'AES-256-CBC', '-macalg', 'sha256',
+            '-iter', str(TLS_P12_ITER)]
+
+
 def tls_export(prof, kind, passphrase='', legacy=False, which='rsa'):
     """One certificate as a file to download (1.0.191): (bytes, ending). A private
     key in it is always locked with the passphrase - given to openssl on its
@@ -101,8 +123,13 @@ def tls_export(prof, kind, passphrase='', legacy=False, which='rsa'):
                 if legacy:
                     # Windows before 10 1709 / Server 2016 open no AES PKCS#12.
                     args += ['-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES', '-macalg', 'sha1']
+                else:
+                    args += _tls_p12_args()
                 return _openssl(args, (passphrase + '\n').encode(), what='the PKCS#12 file'), ending
-            locked = _openssl(['pkey', '-in', kf, '-aes256', '-passout', 'stdin'],
+            # Locked as a certificate's key-pem-enc is (hunt v5): `pkey -aes256` took openssl's
+            # own count of 2048 PBKDF2 rounds - 1.0.102's "tried in hours on one GPU"
+            locked = _openssl(['pkcs8', '-topk8', '-v2', 'aes-256-cbc', '-v2prf', 'hmacWithSHA256',
+                               '-iter', str(TLS_KEY_ITER), '-in', kf, '-passout', 'stdin'],
                               (passphrase + '\n').encode(), what='locking the key').decode()
             return (cert + '\n' + (chain + '\n' if chain else '') + locked).encode(), ending
         finally:

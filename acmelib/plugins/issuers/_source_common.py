@@ -580,6 +580,16 @@ def dn_rfc2253(ctx, cert_pem, which='issuer'):
     return re.sub(r'^(issuer|subject)\s*=\s*', '', text)
 
 
+def utc_offset(v):
+    """The seconds a date-time's trailing offset is ahead of UTC: '...T10:00:00+02:00' 7200,
+    '...-0530' -19800, 'Z' or none 0 - what reading only its first 19 characters lost
+    (a CA answering in its own time zone, +09:00 say, was read nine hours late)."""
+    m = re.search(r'([+-])(\d\d):?(\d\d)$', str(v or '').strip()[19:])
+    if not m:
+        return 0
+    return (1 if m.group(1) == '+' else -1) * (int(m.group(2)) * 3600 + int(m.group(3)) * 60)
+
+
 # -- discovery (1.0.29): what the sources' discover_setup() share -------------------------
 def day(epoch):
     """An epoch as YYYY-MM-DD, or ''."""
