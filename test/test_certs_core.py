@@ -1102,7 +1102,16 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         leaves it "revocation failed" (not deleted, not renewed), Keep it brings it back."""
         cid = self.ok('POST', '/api/certs/save', {'name': 'delfail', 'names': ['delfail.example.test'],
                                                   'issuer': 'own', 'auto_renew': 1})['id']
-        self.wait_job(self.ok('POST', '/api/certs/renew', {'id': cid})['job_id'])
+        # (auto_renew on: the scan may take the new certificate first - "a job is already
+        # working on that certificate" is right then; waited for, as a person would)
+        end = time.time() + 120
+        while True:
+            st, got = self.call('POST', '/api/certs/renew', {'id': cid}, session=self.admin)
+            if st != 409 or time.time() > end:
+                break
+            time.sleep(1)
+        self.assertEqual(st, 200, got)
+        self.wait_job(got['job_id'])
         # its source now one acme cannot reach: the revocation fails
         self.ok('POST', '/api/sources/save', {'name': 'gone-ca', 'kind': 'acme', 'config': {
             'directory': 'custom', 'directory_url': 'http://127.0.0.1:9/directory',
