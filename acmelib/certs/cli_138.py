@@ -1429,7 +1429,9 @@ def _con_rollout(con):
 def team_items(con, name):
     """The governance lines of a team's own menu (console.py teams)."""
     return [('health', 'Its health'),
-            ('gov', 'Its governance (reviews, temporary roles, SoD, channels): show, change'),
+            ('gov', 'Its governance (reviews, temporary roles, SoD)'),
+            ('gov-set', 'Change its governance: access reviews, temporary roles, separation '
+                        'of duties, channels'),
             ('reviews', 'Its access reviews (open one)'),
             ('elevations', 'Requests for a temporary role'),
             ('notify-test', 'Try its channels now')]
@@ -1439,6 +1441,8 @@ def team_do(con, name, what):
     if what == 'health':
         con.act('--team-health', name)
     elif what == 'gov':
+        con.act('--team-gov', name)
+    elif what == 'gov-set':
         _con_gov(con, name)
     elif what == 'reviews':
         sub = con.choose('Access reviews of %s' % name, [
@@ -1476,15 +1480,11 @@ def _gov_words(v):
 def _con_gov(con, name):
     """A team's governance: shown, and each part set in a form of its own (acme --team-gov-set
     TEAM JSON - the console writes the JSON)."""
-    what = con.choose('The governance of %s' % name, [
-        ('show', 'Show it (and what holds from the teams above)'),
+    what = con.choose('Change the governance of %s' % name, [
         ('review', 'Access reviews: how often, the days to answer, what happens then'),
         ('jit', 'Temporary roles: which may be asked for, for how long'),
         ('sod', 'Separation of duties: no self-approval, pairs no one may hold both of'),
         ('notify', 'Channels: who is told, when, and where a failed deployment goes')])
-    if what == 'show':
-        con.act('--team-gov', name)
-        return
     if not what:
         return
     got = con.out('--team-gov', name) or {}

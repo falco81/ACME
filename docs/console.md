@@ -167,7 +167,8 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   its requests for a temporary role and *Try its channels now* - `acme --team-health`,
   `--team-gov`, `--reviews`, `--review-open`, `--review-answer`, `--elevations`,
   `--elevation-approve`, `--who-may`, `--team-templates`, `--team-notify-test`. Since 1.0.141
-  a team's governance is changed there too, each part in a form of its own: access reviews (how
+  a team's governance is changed there too (*Change its governance*), each part in a form of
+  its own: access reviews (how
   often, the days to answer, reported or taken out), temporary roles (which roles, for how many
   hours), separation of duties (no self-approval, pairs nobody holds both of: `Requester +
   Approver; cert.key + cert.revoke`) and its channels (the team's, its manager's and on-call

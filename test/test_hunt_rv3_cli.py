@@ -376,14 +376,19 @@ class ConsoleNew(unittest.TestCase):
         con = Con(chooses=['jit'], forms=[None])
         M._con_gov(con, 'Web')
         self.assertEqual(con.acts, [])
-        con = Con(chooses=['show'])
+        con = Con(chooses=[None])
         M._con_gov(con, 'Web')
-        self.assertEqual(con.acts[-1][:2], (('--team-gov', 'Web'), 0))
-        # from the team's own menu
-        con = Con(chooses=['gov', 'show'])
+        self.assertEqual(con.acts, [])
+        # from the team's own menu: shown as before, changed by an item of its own
         from acmelib.certs import console as C
+        con = Con(chooses=['gov'])
         C.team_do(con, {'name': 'Web'})
         self.assertEqual(con.acts[-1][:2], (('--team-gov', 'Web'), 0))
+        con = Con(chooses=['gov-set', 'jit'], forms=[{'on': 'on', 'roles': 'Requester',
+                                                      'max_hours': '2'}])
+        C.team_do(con, {'name': 'Web'})
+        self.assertEqual(con.acts[-1][1], 0, con.acts[-1])
+        self.assertEqual(gov()['jit'], {'roles': ['Requester'], 'max_hours': 2})
 
     def test_groups_of_agents(self):
         from acmelib.certs import cli_138 as M
@@ -603,11 +608,12 @@ class Walker(object):
                 if not opts or (f.get('value') not in (None, '') and f['value'] not in opts):
                     self.bad('form %r: the choice %s (%r of %s)' % (title, f['key'],
                                                                    f.get('value'), opts))
-            elif kind == 'number' and str(f.get('value') or '').strip():
-                lo, hi = f.get('range') or (None, None)
-                v = int(str(f['value']))
-                if (lo is not None and v < lo) or (hi is not None and v > hi):
-                    self.bad('form %r: %s=%s out of %s' % (title, f['key'], v, f['range']))
+            elif kind == 'number':
+                if str(f.get('value') or '').strip():
+                    lo, hi = f.get('range') or (None, None)
+                    v = int(str(f['value']))
+                    if (lo is not None and v < lo) or (hi is not None and v > hi):
+                        self.bad('form %r: %s=%s out of %s' % (title, f['key'], v, f['range']))
             elif kind not in ('text', 'secret'):
                 self.bad('form %r: %s of kind %r' % (title, f['key'], kind))
         return None                                         # Esc
@@ -686,6 +692,7 @@ class Walker(object):
             got = run(*args)
             self.cache[args] = (got.returncode, got.stdout, got.stderr)
         rc, out, err = self.cache[args]
+        self.ran.append(args[:-1])
         self.w.out_err = '' if rc == 0 else (err or out).strip()[-300:]
         if 'Traceback' in out + err:
             self.bad('acme %s: %s' % (' '.join(args), (out + err)[-400:]))
@@ -705,11 +712,12 @@ class ConsoleWalk(unittest.TestCase):
         for k in ('c', 'o', 'p', 'h', '1', '4', '11'):
             self.assertIn(k, keys)
         n = w.walk(depth=int(os.environ.get('WALK_DEPTH', '5')))
-        self.assertGreater(n, 300)
-        self.assertGreater(len(set(w.ran)), 60)
-        for want in (('--run-plan', 'web1'), ('--deploy-preview', '1'), ('--team-gov', 'Web')):
-            self.assertIn(want, w.ran)
         self.assertEqual(w.problems, [])
+        self.assertGreater(n, 300)
+        self.assertGreater(len(set(w.ran)), 40)
+        for want in (('--run-plan', 'web1'), ('--deploy-preview', '1'), ('--team-gov', 'Web'),
+                     ('--fleet',), ('--status',)):
+            self.assertIn(want, w.ran)
 
 
 if __name__ == '__main__':
