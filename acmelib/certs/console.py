@@ -13,7 +13,7 @@ and what the pages can do, it can do.
          4 Jobs (Enter: followed live)     5 The live log of the certificates
          6 Sources        7 Validations    8 Targets
                           (Enter: show, edit, test, its actions, delete; + add one)
-         9 Deployments (Enter: run, edit, switch, delete)
+         9 Deployments (Enter: run, preview, test, edit, switch, delete)
          t Tests (Enter: show, edit, try, delete; + add one) - and on a certificate:
            its tests (attach, run, after which deployment, switch, take off)
          a Authorities (show, CRL, export, sign a CSR, revoke, delete; new root,
@@ -21,6 +21,8 @@ and what the pages can do, it can do.
          d acme's DNS server (its records: add, delete)
          0 Modules (Enter: what one takes)
          f Find anything   y The expiry calendar   p Request profiles from a template
+         v Show what a file holds (acme --inspect); on a certificate: What happens
+           (acme --run-plan)
     h  History, trash, request profiles, the agent fleet (1.0.138; acmelib/certs/cli_138.py)
     o  Owners and teams (1.0.126): the tree (Enter: show, members and their roles, change,
        limits, move, a team below, activity, delete; + add one), roles, the access check
@@ -113,7 +115,25 @@ def menu(con):
         ('n', 'DNS sets: which DNS servers each function asks (Settings → DNS)',
          lambda: con.act('--dns-sets')),
         ('0', 'Modules (Enter: what one takes)', lambda: modules(con)),
+        # 1.0.141: the viewer of the pages (Show a certificate), acme --inspect
+        ('v', 'Show what a file holds: a certificate, a chain, a CSR, a CRL, a key, PFX…',
+         lambda: inspect_file(con)),
     ] + _ui_items(con))
+
+
+def inspect_file(con):
+    got = con.form('Show what a file holds', [
+        {'key': 'path', 'label': 'the file', 'value': '', 'need': True,
+         'help': 'PEM, DER, PFX/P12, P7B, JKS or a ZIP of them - read here, nothing is kept.'},
+        {'key': 'locked', 'label': 'it is locked', 'kind': 'choice', 'value': 'no',
+         'options': [('no', 'no'), ('yes', 'yes - ask for its password')]}])
+    if not got or not (got.get('path') or '').strip():
+        return
+    path = got['path'].strip()
+    if got.get('locked') == 'yes':
+        con.live(lambda: (con.cmd('--inspect', path, '--password'), con.pause()))
+    else:
+        con.act('--inspect', path)
 
 
 def _ui_items(con):
@@ -465,7 +485,9 @@ def cert_do(con, r):
     by_hand = not r.get('issuer')
     # By hand (imported, a CSR): nothing to renew it from, nothing to validate (1.0.75 on the
     # page, 1.0.77 here).
-    opts = [('show', 'Show it all')] + ([] if by_hand else [('renew', 'Renew it now')]) + [
+    opts = [('show', 'Show it all')] + ([] if by_hand else [
+        ('plan', 'What happens: everything a renewal would do, step by step (nothing done)'),
+        ('renew', 'Renew it now')]) + [
         ('deploy', 'Deploy it now')] + ([] if by_hand else [
             ('check', 'Check its validation: what to set up where'),
             ('dry', 'A dry run of its validation (no CA asked)')]) + [
@@ -484,6 +506,8 @@ def cert_do(con, r):
                                                         'imported', _when(r.get('not_after'))))
     if what == 'show':
         con.act('--cert', name)
+    elif what == 'plan':
+        con.act('--run-plan', name)
     elif what == 'check':
         con.live(lambda: (con.cmd('--cert-check', name), con.pause()))
     elif what == 'dry':
@@ -775,11 +799,19 @@ def deploy_add(con, cert=None, target=None):
 def deploy_do(con, r):
     ident = str(r['id'])
     what = con.choose('Deployment %s: %s on %s' % (ident, r.get('cert_name'), r.get('target')),
-                      [('run', 'Run it now'), ('edit', 'Change its options'),
+                      [('run', 'Run it now'),
+                       ('preview', 'Preview: the files it writes, what its script is given'),
+                       ('test', 'Test it: the files into a temporary folder on the target, '
+                                'nothing put in place'),
+                       ('edit', 'Change its options'),
                        ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on')),
                        ('del', 'Take it away')])
     if what == 'run':
         con.live(lambda: (con.cmd('--deploy-run', ident), con.pause()))
+    elif what == 'preview':
+        con.act('--deploy-preview', ident)
+    elif what == 'test':
+        con.live(lambda: (con.cmd('--deploy-dry-run', ident), con.pause()))
     elif what == 'edit':
         t = con.out('--target-show', r.get('target')) or {}
         d = _plugin(con, 'target', t.get('kind') or r.get('target_kind')) or {}

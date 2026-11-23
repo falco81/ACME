@@ -53,7 +53,7 @@ Two processes:
   acme-agent allow discover [KIND,KIND]  acme may list the services here and their certificates
                                          (read-only; no KIND: every kind it knows)
   acme-agent discover [--kind K] [--json]   what such a discovery finds here (as root)
-  acme-agent limit files N | limit size BYTES
+  acme-agent limit files N | limit size BYTES   (deny limit files|size: back to the default)
   acme-agent allow issuer sha256=HEX | CA.pem   what is deployed must chain to this CA (1.0.140)
   acme-agent allow names NAME [NAME...]  every name of what is deployed one of these
                                          (*.example.com: one label more)
@@ -1228,6 +1228,10 @@ def _policy_line(pol, words):
         except ValueError:
             raise Refused('%r is not an address or a network' % rest[0][:60])
     elif what == 'self-update':
+        if rest:
+            # hunt v3: `allow self-update no` (or any word after it) allowed self-update - the
+            # words after it were not looked at (Windows' `allow store` / `allow rdp` refuse them)
+            raise Refused('allow self-update (no word after it)')
         pol['self_update'] = True
     elif what == 'connect':
         if len(rest) != 1:
@@ -4757,7 +4761,11 @@ def cmd_discover(argv):
     argv = [a for a in argv if a != '--json']
     kinds = []
     if argv[:1] == ['--kind'] and len(argv) == 2:
-        kinds = discover_asked({'kinds': argv[1]})
+        try:
+            kinds = discover_asked({'kinds': argv[1]})
+        except Refused as e:
+            # hunt v3: a kind it does not know stopped with a traceback
+            raise SystemExit('acme-agent: %s' % e)
     elif argv:
         raise SystemExit('acme-agent discover [--kind %s] [--json]' % ','.join(discover_kinds()))
     try:
@@ -6528,6 +6536,10 @@ def policy_edit(add, words):
         # 1.0.125: a script is taken away by its path - its file is not read (the SHA-256 of a
         # script changed or deleted since named no entry: it could not be taken away at all)
         line = 'allow script %s sha256=%s' % (shlex.quote(os.path.normpath(words[1])), '0' * 64)
+    elif not add and len(words) == 2 and words[0] == 'limit' and words[1] in ('files', 'size'):
+        # hunt v3: `deny limit files` (no number: the limit back to its default) was refused
+        # with "an entry begins with allow or limit" - only `deny limit files 30` took it away
+        line = 'limit %s %d' % (words[1], FILES_MOST if words[1] == 'files' else FILE_MOST)
     else:
         line = policy_words(words)
     probe = parse_policy(line)
@@ -6711,6 +6723,9 @@ def policy_words(words):
     if what == 'probe':
         return 'allow probe %s' % (rest[0] if rest else '')
     if what == 'limit':
+        if len(rest) != 2 or rest[0] not in ('files', 'size'):
+            # hunt v3: `acme-agent limit files` said "an entry begins with allow or limit"
+            raise SystemExit('acme-agent limit files N | limit size BYTES')
         return 'limit %s' % ' '.join(rest)
     if what == 'issuer':
         # 1.0.140 (A1): sha256=HEX, or the CA's certificate (a PEM file) it is taken from
@@ -6721,8 +6736,13 @@ def policy_words(words):
             m = re.search(r'-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----', text, re.S)
             if not m:
                 raise SystemExit('acme-agent: %s holds no certificate (PEM)' % rest[0])
-            fp = fp_of_pem(m.group(0))
-            print('note: %s is %s (SHA-256 %s)' % (rest[0], cert_cn(m.group(0)) or '?', fp))
+            try:
+                fp = fp_of_pem(m.group(0))
+                cn = cert_cn(m.group(0))
+            except (Refused, ValueError):
+                # hunt v3: a PEM block that is no certificate stopped with a traceback
+                raise SystemExit('acme-agent: %s holds no certificate openssl reads' % rest[0])
+            print('note: %s is %s (SHA-256 %s)' % (rest[0], cn or '?', fp))
             return 'allow issuer sha256=%s' % fp
         return 'allow issuer %s' % rest[0]
     if what == 'names':
@@ -6838,6 +6858,15 @@ def build_package(dest, version, key=None, keys_dir=None, epoch=None):
 
 
 def main(argv):
+    try:
+        return _main(argv)
+    except Refused as e:
+        # hunt v3: a check of the command line's own words (a CA file openssl cannot read in
+        # `allow issuer FILE.pem` ...) stopped with a Python traceback instead of its words
+        raise SystemExit('acme-agent: %s' % str(e).strip()[:600])
+
+
+def _main(argv):
     if not argv:
         print(__doc__)
         return 2

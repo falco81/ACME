@@ -154,7 +154,7 @@ Change it with the command line (as root) or by hand, one entry a line:
 | `allow connect HOST:PORT` | `acme-agent allow connect 10.0.5.21:22` | acme reaches HOST:PORT through this agent (a passive one): the agent as the connector of SSH targets |
 | `allow self-update` | `acme-agent allow self-update` | acme may send a newer agent - only a package signed by a release key this agent was installed with, only a newer version |
 | `allow discover [KIND,KIND]` | `acme-agent allow discover nginx,apache` | acme may list the services here that take certificates and the certificates there - read-only (1.0.125, *Discovery* below); no KIND: every kind |
-| `limit files N` / `limit size BYTES` | `acme-agent limit files 30` | files in one deployment (20), bytes of one file (1 MiB) |
+| `limit files N` / `limit size BYTES` | `acme-agent limit files 30` (`deny limit files`: back to the default) | files in one deployment (20), bytes of one file (1 MiB) |
 | `audit chain` | `acme-agent audit on` (`off` takes it away) | nothing more for acme: every operation is also written into the hash-chained audit log and its head told acme (1.0.138, *Watching an agent* below). Without the line the policy's hash is what it was |
 | `allow issuer sha256=HEX` | `acme-agent allow issuer CA.pem` (or `sha256=HEX`) | nothing more for acme - it narrows: every certificate a deployment writes must chain to one of these CAs (1.0.140, *What the agent deploys* below); repeatable |
 | `allow names NAME [NAME...]` | `acme-agent allow names *.example.com www.example.net` | narrows: every name of every end certificate deployed must be one of these (`*.example.com` takes one label more); repeatable |
@@ -441,7 +441,8 @@ sudo acme-agent join CODE
 
 Red Hat Enterprise Linux 8-10 and its rebuilds, Debian 11+, Ubuntu 20.04+; Python 3.7 or later
 (RHEL 8: `dnf install python39` - install.sh picks it), systemd, openssl. `install.sh --uninstall`
-takes it away (the policy stays; `--purge` takes that and the account too).
+takes it away (the policy stays - its keys and the record of having joined go, so it joins
+again; `--purge` takes the policy and the account too).
 
 | Where | What |
 |---|---|
@@ -501,7 +502,7 @@ the identity in `C:\ProgramData\acme-agent` stay). An older MSI is refused over 
 `allow self-update` updates the agent's own files from acme as on Linux.
 
 **Uninstall**: Settings → Apps → Installed apps → acme-agent, or `msiexec /x {ProductCode} /qn`
-- the policy and identity stay (as `install.sh --uninstall`); `msiexec /x {ProductCode} /qn
+- the policy and identity stay (`install.sh --uninstall` on Linux keeps the policy only); `msiexec /x {ProductCode} /qn
 PURGE=1`, or the box on the wizard's *Remove* page, takes them too. Each version has its own
 product code (made from the version: acme shows it with the package; `index.json` lists it).
 

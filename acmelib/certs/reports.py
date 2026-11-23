@@ -335,6 +335,17 @@ def may_see_run(store, s, rep, run):
     return bool(teams) and all(t in sc for t in teams)
 
 
+_ADDR = re.compile(r"[\w.!#$%&'*+/=?^`{|}~-]+@[\w-]+(?:\.[\w-]+)*")
+
+
+def said_for(s, words):
+    """What a run (a report's last run) said as the session may see it: a mail server's answer
+    names the recipients ("<x@y>: mailbox unavailable") - a certificate administrator never
+    sees recipients, so the addresses are masked for them (1.0.141)."""
+    words = str(words or '')
+    return words if _full(s) else _ADDR.sub('…', words)
+
+
 def runs_for(store, s, rep, limit=100):
     """The runs as the session may see them: a certificate administrator's without the
     addresses they went to (the recipients are a full administrator's) nor the runs made of
@@ -348,6 +359,7 @@ def runs_for(store, s, rep, limit=100):
     for r in runs(store, rep, max(int(limit), 100)):
         if r['id'] in ok:
             r['sent_to'] = ['…'] * len(r['sent_to'])
+            r['said'] = said_for(s, r.get('said'))
             out.append(r)
     return out[:int(limit)]
 

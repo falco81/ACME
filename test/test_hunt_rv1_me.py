@@ -47,5 +47,17 @@ class Rename(unittest.TestCase):
             self.assertIn('_reports.follow_rename(store, old_name, name)', f.read())
 
 
+class Uninstall(unittest.TestCase):
+    """install.sh --uninstall without --purge (1.0.141): the keys go, so the files that said the
+    agent had joined go too; the policy stays."""
+    def test_identity_files_go(self):
+        with open(os.path.join(ROOT, 'deploy/agent/install.sh')) as f:
+            sh = f.read()
+        block = sh.split('if [[ -n "$PURGE" ]]; then', 1)[1].split('exit 0', 1)[0]
+        keep = block.split('else', 1)[1]
+        self.assertIn('rm -f /etc/acme-agent/agent.json /etc/acme-agent/ca.pem', keep)
+        self.assertNotIn('/etc/acme-agent/policy', keep)
+
+
 if __name__ == '__main__':
     unittest.main()

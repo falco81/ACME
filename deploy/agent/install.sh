@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
                      JOIN="$2"; shift 2;;
         --uninstall) UNINSTALL="yes"; shift;;
         --purge)     PURGE="yes"; shift;;
-        -h|--help)   sed -n '2,15p' "$0"; exit 0;;
+        -h|--help)   sed -n '2,/^[^#]/{/^#/p}' "$0"; exit 0;;
         *)           fail "what is $1? (--join CODE, --uninstall [--purge])";;
     esac
 done
@@ -45,6 +45,9 @@ if [[ -n "$UNINSTALL" ]]; then
         userdel acme-agent 2>/dev/null || true
         say "acme-agent taken away, its policy and account too"
     else
+        # the identity went with /var/lib (its keys): the files that said it had joined go too
+        # (1.0.141) - a reinstall showed a "joined" agent without its keys; the policy stays
+        rm -f /etc/acme-agent/agent.json /etc/acme-agent/ca.pem
         say "acme-agent taken away; its policy stays in /etc/acme-agent (--purge takes it too)"
     fi
     exit 0

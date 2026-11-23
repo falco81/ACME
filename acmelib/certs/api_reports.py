@@ -69,6 +69,7 @@ def _reports(h, s):
         one['next_at'] = _next(r)
         if not _full(s):
             one['recipients'] = [] if not one['recipients'] else ['…'] * len(one['recipients'])
+            one['last_said'] = RP.said_for(s, one.get('last_said'))
         out.append(one)
     return {'reports': out, 'may_change': _full(s), 'mail_on': _mail_on(),
             'kinds': [{'kind': k, 'words': RP.KIND_WORDS[k], 'says': RP.KIND_SAYS[k]}
@@ -112,6 +113,7 @@ def _report_one(h, s):
     one['next_at'] = _next(r)
     if not _full(s):
         one['recipients'] = []
+        one['last_said'] = RP.said_for(s, one.get('last_said'))
     return {'report': one, 'runs': RP.runs_for(h.store, s, r), 'may_change': _full(s)}
 
 

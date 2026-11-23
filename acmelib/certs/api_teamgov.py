@@ -84,17 +84,28 @@ def _whomay(h, s):
 
 @A.api('GET', '/api/teams/whocan', 'certadmin')
 def _whocan(h, s):
-    got = TA.who_can(h.store, h.arg('cap'), team=h.arg('team') or None,
-                     cert=h.arg('cert') or None)
+    limited = _seen(h, s) is not None
+    try:
+        got = TA.who_can(h.store, h.arg('cap'), team=h.arg('team') or None,
+                         cert=h.arg('cert') or None)
+    except LookupError:
+        if h.arg('cert') and limited:
+            # the same answer for "there is no such certificate" as for "you may not see it" -
+            # a 404 told one who sees a part which names exist (1.0.141)
+            raise E.ApiError(403, 'not a certificate you may see') from None
+        raise
     if got.get('team'):
         try:
             _need_seen(h, s, got['team'])
-        except E.ApiError:
-            if h.arg('cert'):
-                # not the owner's name of a certificate one cannot see (1.0.138)
+        except (E.ApiError, LookupError):
+            if h.arg('cert') and limited:
+                # not the owner's name of a certificate one cannot see (1.0.138) - nor whether
+                # its owner is a team defined (1.0.141)
                 raise E.ApiError(403, 'not a certificate you may see') from None
             raise
-    elif _seen(h, s) is not None:
+    elif limited:
+        if h.arg('cert'):
+            raise E.ApiError(403, 'not a certificate you may see')
         raise E.ApiError(403, 'a certificate without a team is seen only by those who see every '
                               'certificate')
     return got

@@ -605,6 +605,9 @@ def _canon_lines(m, pol_or_text):
         for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from', 'self_update',
                   'connect', 'probe', 'probe_local', 'limits', 'store', 'iis', 'rdp', 'roles',
                   'key_read', 'adcs', 'adcs_read', 'discover',
+                  # hunt v3: `audit chain` (1.0.138) - left out, a design or template with the
+                  # line said "differs" (+audit chain) of a server whose policy has it
+                  'audit_chain',
                   # 1.0.140 (A1): what a deployment may deploy
                   'issuers', 'names', 'key_local'):
             if pol_or_text.get(k) is not None:

@@ -58,6 +58,9 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check',
         'ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert',
         'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key',
+        # 1.0.141: read-only views of the pages (What happens, Show a certificate, a
+        # deployment's preview and test)
+        'run_plan', 'inspect', 'deploy_preview', 'deploy_dry_run',
         'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign',
         'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
         'roles', 'role_add', 'role_del', 'team_access', 'team_activity', 'teams_from_groups',
@@ -172,7 +175,7 @@ def add_args(p):
     g.add_argument('--name', metavar='NAME', help='with --import, --ca-import: the name it is '
                    'kept under; with --*-edit: its new name')
     g.add_argument('--password', action='store_true', help='with --import, --export, '
-                   '--ca-import, --ca-export: ask for the file\'s password (or '
+                   '--ca-import, --ca-export, --inspect: ask for the file\'s password (or '
                    'ACME_FILE_PASSWORD)')
     g.add_argument('--export', metavar='NAME', help='a certificate into a file: --format, --out')
     g.add_argument('--format', metavar='F', default='fullchain-pem', help='with --export: '
@@ -197,6 +200,13 @@ def add_args(p):
     g.add_argument('--dry-run', metavar='NAME|N1,N2', help='its validation tried for real '
                    'without a CA: a test record or file put in place, looked for from outside, '
                    'taken away (a job, followed; --issuer, --challenge for names)')
+    g.add_argument('--run-plan', dest='run_plan', metavar='NAME', help='what happens: '
+                   'everything a renewal of it would do, step by step - the key, the source, '
+                   'each name\'s validation, each deployment, the tests - worked out without '
+                   'doing any of it (nothing is changed or contacted)')
+    g.add_argument('--inspect', metavar='FILE|-', help='show what a file holds - a '
+                   'certificate, a chain, a CSR, a CRL, a key (never shown), PFX/P12, P7B, '
+                   'JKS: each piece, and how the chain links (--password); nothing is kept')
 
     g = p.add_argument_group('CERTIFICATES: SOURCES, VALIDATIONS AND TARGETS',
                              'Where certificates come from (sources: issuers), how names are '
@@ -345,6 +355,14 @@ def add_args(p):
     g.add_argument('--deploy-del', metavar='ID', type=int, help='take one away (the device keeps '
                    'what it has; --yes)')
     g.add_argument('--deploy-run', metavar='ID', type=int, help='run one now (forced)')
+    g.add_argument('--deploy-preview', dest='deploy_preview', metavar='ID', type=int,
+                   help='what it would write - each file with its path, size and mode - and '
+                   'the ACME_* variables its script is given, worked out by its module '
+                   '(nothing is sent; --set KEY=VALUE: with these options over its own)')
+    g.add_argument('--deploy-dry-run', dest='deploy_dry_run', metavar='ID', type=int,
+                   help='test it: the files written into a temporary folder on the target, '
+                   'the script run there with ACME_DRY_RUN=1, the folder deleted - nothing is '
+                   'put in place, reloaded or restarted (--set: with these options)')
 
     g = p.add_argument_group('CERTIFICATES: AUTHORITIES OF ACME\'S OWN')
     g.add_argument('--cas', action='store_true', help='acme\'s own certificate authorities')
@@ -616,6 +634,7 @@ class Cli(object):
                 self.files[v[6:]] = self._read(v[6:]).decode('utf-8', 'replace')
         for path in (a.import_file, a.ca_import, a.key, (a.csr_answer or [None, None])[1],
                      a.csr if a.ca_sign else None,
+                     a.inspect if getattr(a, 'inspect', None) not in (None, '-') else None,
                      (getattr(a, 'ca_install_cert', None) or [None, None])[1]):
             if path:
                 self.files[path] = self._read(path)
@@ -786,6 +805,9 @@ class Cli(object):
                  ('revoke', self.revoke), ('csr_answer', self.csr_answer), ('csr', self.csr),
                  ('cert_keep', self.cert_keep), ('approve', self.approve),
                  ('decline', self.decline),
+                 ('run_plan', self.run_plan), ('inspect', self.inspect),
+                 ('deploy_preview', self.deploy_preview),
+                 ('deploy_dry_run', self.deploy_dry_run),
                  ('deploy_add', self.deploy_add), ('deploy_edit', self.deploy_edit),
                  ('deploy_del', self.deploy_del), ('deploy_run', self.deploy_run),
                  ('deploy', self.deploy), ('deploy_hold', self.deploy_hold), ('deploys', self.deploys), ('export', self.export),
@@ -1286,6 +1308,157 @@ class Cli(object):
             line = 'job %d: %s' % (jid, v.get('said') or v.get('state'))
             print(self.pal.ok_line(line) if v.get('ok') else self.pal.bad_line(line))
         return 0 if v.get('ok') else 1
+
+    # ---- read-only views of the pages (1.0.141): What happens, Show a certificate ----------
+    def run_plan(self):
+        """What happens (the run plan): GET /api/certs/run_plan, as the page's tab draws it."""
+        row = self.cert_ref(self.args.run_plan)
+        got = self.api('GET', '/api/certs/run_plan', args={'id': str(row['id'])})
+        if self.json:
+            self.out(got)
+            return 0
+        p = self.pal
+        plan = got.get('plan') or {}
+        head = plan.get('head') or {}
+        src = head.get('source') or {}
+        print(p.head(row['name']) + '  ' + p.dim('what a renewal of it would do - nothing of it '
+                                                 'was done'))
+        self.kv([('names', ', '.join((plan.get('cert') or {}).get('names') or [])),
+                 ('source', ('%s (%s)' % (src.get('name'), src.get('title') or src.get('kind')))
+                  if src else '(none)'),
+                 ('deployments', head.get('deploys')), ('tests', head.get('tests'))], 12)
+
+        def step(st, indent):
+            tags = [t for t in (st.get('branch'), 'the answer decides' if st.get('invented')
+                                else '', 'holds the private key' if st.get('secret') else '')
+                    if t]
+            words = str(st.get('words') or '')
+            if st.get('kind') == 'head':
+                print('%s%s' % (indent, p.info(words)))
+                return
+            mark = '-' if st.get('said') else '·'
+            print('%s%s %s%s' % (indent, mark, words, p.dim(' [%s]' % ', '.join(tags))
+                                 if tags else ''))
+            d = st.get('detail') if isinstance(st.get('detail'), dict) else {}
+            more = ''
+            if d.get('method') or d.get('url'):
+                more = '%s %s' % (d.get('method') or '', d.get('url') or '')
+            elif d.get('command'):
+                more = '$ %s' % d['command']
+            elif d.get('record'):
+                more = _short(d['record'], 100)
+            elif d.get('files'):
+                more = ', '.join('%s (%s)' % (f.get('full') or f.get('path'), f.get('format'))
+                                 for f in d['files'] if isinstance(f, dict))
+            elif d.get('path'):
+                more = d['path']
+            if more:
+                print('%s    %s' % (indent, p.dim(_short(more.strip(), 110))))
+            if st.get('note'):
+                print('%s    %s' % (indent, p.dim(_short(st['note'], 160))))
+        for ph in plan.get('phases') or []:
+            print('')
+            print(p.head(ph.get('title') or ph.get('key') or ''))
+            for st in ph.get('steps') or []:
+                step(st, '  ')
+            for g in ph.get('groups') or []:
+                mod = g.get('module') or {}
+                print('  %s%s%s' % (p.info(g.get('title') or ''), p.dim(' (%s)' % (
+                    mod.get('title') or mod.get('kind'))) if mod else '', '' if g.get(
+                    'enabled', True) else p.warn(' - switched off')))
+                if g.get('names'):
+                    print('    %s %s' % (p.dim('names'), ', '.join(g['names'])))
+                for st in g.get('steps') or []:
+                    step(st, '    ')
+        return 0
+
+    def inspect(self):
+        """Show a certificate (the viewer of the pages): POST /api/certs/inspect - nothing kept."""
+        a = self.args
+        if a.inspect == '-':
+            data = sys.stdin.buffer.read(20 << 20)
+            fname = ''
+        else:
+            data = self.files.get(a.inspect)
+            if data is None:
+                data = self._read(a.inspect)
+            fname = os.path.basename(a.inspect)
+        pw = self._password(False)
+        body = {'data_b64': base64.b64encode(data).decode('ascii'), 'filename': fname,
+                'password': pw, 'key_password': os.environ.get('ACME_KEY_PASSWORD') or ''}
+        got = self.api('POST', '/api/certs/inspect', body=body)
+        pwi = got.get('password') or {}
+        locked = bool(pwi.get('needed') and (pwi.get('wrong') or not pw))
+        if self.json:
+            self.out(got)
+            return 1 if locked else 0
+        p = self.pal
+        print('%s  %s%s' % (p.head(fname or 'stdin'), ', '.join(
+            str(x) for x in (got.get('formats') or [got.get('format')]) if x),
+            p.dim(' (%s bytes)' % got.get('size')) if got.get('size') is not None else ''))
+        for w in list(pwi.get('words') or []) + list(got.get('notes') or []):
+            print('  %s' % p.warn(str(w)))
+        names = {}
+        for t in got.get('things') or []:
+            k = t.get('kind')
+            key = t.get('key') or {}
+            names[t.get('id')] = t.get('cn') or t.get('issuer_cn') or t.get('id')
+            print('')
+            print(p.info('%s %s' % (t.get('id'), {'cert': 'certificate', 'csr': 'request (CSR)',
+                                                  'crl': 'CRL', 'key': 'private key',
+                                                  'pubkey': 'public key'}.get(k, k))) +
+                  (p.dim(' (%s)' % t['alias']) if t.get('alias') else ''))
+            if k == 'cert':
+                self.kv([('subject', t.get('subject_dn')), ('issuer', t.get('issuer_dn')),
+                         ('names', ', '.join('%s:%s' % (x[0], x[1]) if isinstance(x, (list, tuple))
+                                             else str(x) for x in t.get('names') or [])),
+                         ('valid', '%s - %s' % (_when(t.get('not_before')),
+                                                _when(t.get('not_after')))),
+                         ('key', key.get('type')), ('serial', t.get('serial')),
+                         ('sha-256', t.get('sha256')),
+                         ('what', '%s%s' % (t.get('role') or '', (', a CA%s' % (
+                             '' if t.get('path_len') is None else
+                             ' (path length %s)' % t['path_len'])) if t.get('is_ca') else '')),
+                         ('usages', ', '.join(t.get('eku') or [])),
+                         ('signature', t.get('sig_alg'))], 12)
+            elif k == 'csr':
+                self.kv([('subject', t.get('subject_dn')),
+                         ('names', ', '.join('%s:%s' % (x[0], x[1]) if isinstance(x, (list, tuple))
+                                             else str(x) for x in t.get('names') or [])),
+                         ('key', key.get('type')), ('usages', ', '.join(t.get('eku') or [])),
+                         ('signature', '%s%s' % (t.get('sig_alg') or '', '' if t.get(
+                             'signature_ok') in (None, True) else ' - does not verify'))], 12)
+            elif k == 'crl':
+                self.kv([('issuer', t.get('issuer_dn')),
+                         ('this update', _when(t.get('this_update'))),
+                         ('next update', _when(t.get('next_update'))),
+                         ('number', t.get('number')), ('revoked', t.get('count'))], 12)
+            elif k == 'key':
+                self.kv([('key', (key or {}).get('type') or ('not read: %s' % (
+                    t.get('error') or t.get('locked') or 'locked'))),
+                         ('encrypted', ('yes, %s' % t.get('cipher') if t.get('cipher') else 'yes')
+                          if t.get('encrypted') else 'no'),
+                         ('belongs to', ', '.join(t.get('matches') or []) or '-')], 12)
+            else:
+                self.kv([('key', key.get('type')),
+                         ('belongs to', ', '.join(t.get('matches') or []) or '-')], 12)
+        for ch in got.get('chains') or []:
+            items = ch.get('items') or []
+            if len(items) < 2 and not (ch.get('top') or {}).get('missing'):
+                continue
+            print('')
+            print(p.info('chain: %s' % ' → '.join(str(names.get(i, i)) for i in items)))
+            for ln in ch.get('links') or []:
+                words = '%s → %s: %s' % (ln.get('child'), ln.get('parent'), ln.get('words') or '')
+                print('  %s' % (p.ok_line(words) if ln.get('ok') else p.bad_line(words)))
+            top = ch.get('top') or {}
+            if top.get('missing'):
+                print('  %s' % p.warn('missing: %s' % top['missing']))
+        if locked:
+            print(p.bad_line('it is locked: %s' % ('the password is wrong' if pwi.get('wrong')
+                                                  else 'add --password')))
+            return 1
+        return 0
 
     def revoke(self):
         from acmelib.certs import api
@@ -2754,6 +2927,85 @@ class Cli(object):
                             c['id'], '%s to %s' % (c['name'], row['target']))
         return 0 if job.ok else 1
 
+    def _deploy_test_body(self, ident):
+        """{id, target, options}: the saved deployment, --set over its options (nothing saved)."""
+        from acmelib.certs import store as S
+        row = self._deploy_row(ident)
+        body = {'id': row['id'], 'target': row['target'], 'cert_id': row['cert_id']}
+        if self.sets():
+            trow, fields = self._deploy_fields(row['target'])
+            pub = S.deploy_public(self.store, row, True)
+            cur = dict(pub.get('options') or {})
+            cur['__secret_set__'] = list(pub.get('secret_set') or [])
+            body['options'] = self.module_config(fields, cur, what='the deployment to %s' %
+                                                 trow['name'], need=False)
+        return row, body
+
+    def deploy_preview(self):
+        """A deployment's files and the variables of its script (POST /api/deploys/preview)."""
+        row, body = self._deploy_test_body(self.args.deploy_preview)
+        got = self.api('POST', '/api/deploys/preview', body=body)
+        if self.json:
+            self.out(got)
+            return 0
+        p = self.pal
+        print(p.head('deployment %s: %s to %s' % (row['id'], got.get('cert') or row['cert_id'],
+                                                  row['target'])))
+        if not got.get('supported'):
+            print('  its target writes no files of its own to preview (acme --run-plan %s says '
+                  'what it does)' % (got.get('cert') or ''))
+            return 0
+        if not got.get('issued'):
+            print(p.dim('  not issued yet: the sizes are guessed'))
+        files = got.get('files') or []
+        for f in files:
+            print('  %s' % (f.get('full') or f.get('path')))
+            print('      %s' % p.dim(', '.join(x for x in (
+                f.get('format') or '', ('mode %s' % f['mode']) if f.get('mode') else '',
+                ('owner %s' % f['owner']) if f.get('owner') else '',
+                ('%s%s B' % ('' if f.get('exact') else '≈', f['size']))
+                if f.get('size') is not None else '',
+                'holds the private key' if f.get('key') else '') if x)))
+        if not files:
+            print('  no file is written')
+        sc = got.get('script') or {}
+        if sc:
+            self.kv([('then runs', sc.get('words') or sc.get('command') or sc.get('path') or
+                      _short(sc, 120))], 12)
+        pw = got.get('password') or {}
+        if pw.get('needed'):
+            self.kv([('password', '%s%s' % (pw.get('mode'), '' if pw.get('set') or
+                                            pw.get('mode') != 'fixed' else ' - none set'))], 12)
+        env = got.get('env') or {}
+        if env:
+            print(p.info('  its script is given'))
+            for k in sorted(env):
+                print('    %s=%s' % (k, _short(env[k], 100)))
+        bad = 0
+        for x in got.get('problems') or []:
+            lv = x.get('level') if isinstance(x, dict) else 'warn'
+            words = x.get('words') if isinstance(x, dict) else str(x)
+            bad += lv == 'bad'
+            print('  %s' % (p.bad_line(words) if lv == 'bad' else p.warn('! ' + str(words))))
+        return 1 if bad else 0
+
+    def deploy_dry_run(self):
+        """The test of a deployment (POST /api/deploys/dry_run): nothing put in place."""
+        row, body = self._deploy_test_body(self.args.deploy_dry_run)
+        body['run_script'] = True
+        got = self.api('POST', '/api/deploys/dry_run', body=body)
+        ok = bool(got.get('ok'))
+        if self.json:
+            self.out(got)
+            return 0 if ok else 1
+        for st in got.get('steps') or []:
+            if isinstance(st, (list, tuple)) and len(st) >= 3:
+                self.echo(st)
+        line = 'job %s: %s' % (got.get('job_id'), got.get('said') or ('passed' if ok else
+                                                                      'failed'))
+        print(self.pal.ok_line(line) if ok else self.pal.bad_line(line))
+        return 0 if ok else 1
+
     # ---- the authorities ---------------------------------------------------------------------
     def cas(self):
         got = self.api('GET', '/api/cas')
@@ -3073,7 +3325,7 @@ def run(args):
     # and only then "nothing of it was saved", exit 2)
     if getattr(args, 'set', None) and acting and not re.search(
             r'(_add|_edit|_test|_discover)$|^(ca_create|ca_sub|ca_sign|ca_renew|'
-            r'ca_edit)$', acting[0]):
+            r'ca_edit|deploy_preview|deploy_dry_run)$', acting[0]):
         raise SystemExit('acme: --set does not go with --%s - nothing was done (the settings: '
                          'acme --set KEY=VALUE on its own)' % _opt(acting[0]))
     cli = Cli(args)

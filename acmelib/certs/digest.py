@@ -192,6 +192,10 @@ def public(store, t, full=False):
     lt = last(store, t)
     out['last'] = {k: lt.get(k) for k in ('at', 'ok', 'said', 'items', 'to_count', 'skipped')} \
         if lt else None
+    if out['last'] and not full:
+        # "sent to a@x, b@y" / a mail server's answer naming them: the addresses are a full
+        # administrator's, as the contact address above (1.0.141)
+        out['last']['said'] = RP.said_for({}, out['last'].get('said'))
     out['contact_mail'] = _contact(t) if full else bool(_contact(t))
     return out
 
@@ -575,8 +579,10 @@ def preview(store, team, cfg=None, lang='en', full=False):
     return {'team': t['name'], 'subject': subject, 'html': page, 'text': text,
             'counts': data['counts'], 'empty': data['empty'], 'since': since,
             'mail_on': (E.CONFIG.get('mail_mode') or 'off') != 'off',
+            # who the members chosen are (the accounts a group or a name stands for) only to
+            # whoever may set the digest (1.0.141: a draft listed them to a reader of the team)
             'recipients': [dict(r) for r in to] if full else
-            [{'who': r['who'] if r['who'] != 'contact' else 'contact', 'lang': r['lang']}
+            [{'who': 'contact' if r['who'] == 'contact' else 'member', 'lang': r['lang']}
              for r in to],
             'would_skip': bool(data['empty'] and cfg.get('skip_empty', True))}
 
@@ -704,16 +710,42 @@ def due_period(cfg, now=None):
     return key
 
 
+def missed_period(cfg, now=None):
+    """The key of the period before this one when its moment came after the digest was set - or
+    None. A digest whose moment fell while acme was down, and acme started again only in the
+    next period (the next day, the next week), was never sent (1.0.141): tick sends it once,
+    as reports.missed_period does - what it covers is from the last one sent on."""
+    if not cfg.get('on'):
+        return None
+    now = now or _now()
+    n = datetime.datetime.fromtimestamp(now)
+    if cfg.get('every') == 'daily':
+        prev = (n - datetime.timedelta(days=1))
+        at = prev.replace(hour=int(cfg['hour']), minute=0, second=0, microsecond=0)
+        key = 'd:%s' % prev.strftime('%Y-%m-%d')
+    else:
+        start = (n - datetime.timedelta(days=n.isoweekday() - 1)).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        prev = start - datetime.timedelta(days=7)
+        at = prev + datetime.timedelta(days=int(cfg['day']) - 1, hours=int(cfg['hour']))
+        key = 'w:%04d-%02d' % tuple(prev.isocalendar()[:2])
+    ts = time.mktime(at.timetuple())
+    if now < ts or ts < float(cfg.get('since') or 0):
+        return None
+    return key
+
+
 def tick(store, now=None):
     for t in T.team_rows(store):
         cfg = config(t)
         if not cfg['on']:
             continue
-        key = due_period(cfg, now)
+        # this period's moment not come yet: the last one's, missed while acme was down
+        key = due_period(cfg, now) or missed_period(cfg, now)
         if not key:
             continue
         mk = META_PERIOD % t['id']
-        if store.get_meta(mk) == key or not E.claim_once(store, mk, key):
+        if RP._made(store.get_meta(mk), key) or not E.claim_once(store, mk, key):
             continue
         try:
             send(store, t, 'the schedule', cfg, period=key)
