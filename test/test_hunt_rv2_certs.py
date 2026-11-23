@@ -3,9 +3,13 @@
 
     python3 test/test_hunt_rv2_certs.py
     HUNT_SHOTS=/some/dir python3 test/test_hunt_rv2_certs.py      # and screenshots there
+    HUNT_CS=FILE[,FILE]  {English: Czech} merged into the copy's cs.json (before they are in it)
 
 - a request profile made from a template on the Czech page keeps the description the page showed
   (Czech), as it keeps the name; the command line keeps acme's English words or its --note;
+- the template's preview says what "Make the profile" would refuse (a public CA and a name that
+  is never public) - it said "complies" and the profile was refused; what does not fit and what
+  to do are Czech on the Czech page (compat.words joins them - patterns of their own);
 - a name ending with an ideographic or full-width full stop (example.com。) is example.com - it
   was kept as "example.com." beside example.com (store.clean_names, pki.classify_name);
 with a real daemon (test/test_certs_core.py's): the command line and the pages (php -S,
@@ -36,6 +40,7 @@ from acmelib.certs import reqprofiles_templates as RT  # noqa: E402
 
 STORE = TRP.STORE
 SHOTS = os.environ.get('HUNT_SHOTS', '')
+CS_EXTRA = [x for x in os.environ.get('HUNT_CS', '').split(',') if x]
 
 
 def cs_text(en):
@@ -193,6 +198,9 @@ class Daemon(unittest.TestCase):
             text = f.read()
         with open(api_php, 'w', encoding='utf-8') as f:
             f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+        if CS_EXTRA:
+            import test_f140_ui
+            test_f140_ui.TCC_merge_cs(os.path.join(web, 'lang', 'cs.json'), CS_EXTRA)
         port = TCC.free_port()
         self.assertNotIn(port, (8092, 8443, 5432, 5433))
         php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port], cwd=web,
@@ -233,6 +241,12 @@ class Daemon(unittest.TestCase):
             self.assertTrue(run['previewBad'], tag)
             self.assertIn('.test', run['previewSays'], tag)
             self.assertFalse(run['previewOwnBad'], tag)
+            if run['lang'] == 'cs' and (CS_EXTRA or cs_text(
+                    '{0} - Use the full public name (e.g. {1}.example.com), or take an authority '
+                    'of your own, AD CS or self-signed for internal names')):
+                # what does not fit, and what to do, in Czech (compat.words joins them)
+                self.assertNotIn('never public', run['previewSays'], tag)
+                self.assertNotIn('Use the full', run['previewSays'], tag)
 
 
 if __name__ == '__main__':

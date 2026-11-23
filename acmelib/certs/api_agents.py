@@ -103,8 +103,18 @@ def _seen_only(store, s, out):
     me = _Seer(store, s)
     if me.all or not isinstance(out, dict):
         return out
+    if 'agent' not in out:
+        # an agent's row (the list, the card): the certificates whose key it makes
+        if isinstance(out.get('keys_of'), list):
+            out['keys_of'] = [n for n in out['keys_of'] if _cert_seen(me, n)]
+        return out
     from acmelib.certs import portal_teams
     return portal_teams._others_hidden(me, out)
+
+
+def _cert_seen(me, name):
+    r = me.store.db.row('SELECT owner FROM certs WHERE name = ?', (name,))
+    return r is not None and str(r.get('owner') or '').strip().lower() in me.reach('cert.view')
 
 
 def _row(h, b=None):

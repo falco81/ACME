@@ -622,6 +622,10 @@ checks its tables, its wizard, its files and the MANIFEST. Installing is then as
   version, SHA-256, size, product code - or null and `windows_why`), `GET /api/agents/package
   ?platform=windows` (the MSI itself). Each agent's row (`GET /api/agents` `rows[]`, `GET
   /api/agents/one`) carries `system` (1.0.120: what the agent tells about its server, below).
+* To an account kept to its teams (Owners and teams, its settings off) these routes - the list, the
+  card, the policy builder, a discovery, the deploy guard - name only the certificates of its
+  teams deployed to the server; the others are "another owner's certificate", and the builder's
+  *Allowed names* holds only the names of its own (1.0.141, as the Targets list and the portal).
 
 ## What the agent tells about its server (1.0.120)
 
