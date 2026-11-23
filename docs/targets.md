@@ -1284,7 +1284,10 @@ main one.
 `multipart/form-data` with the formats listed as files. Headers:
 `X-Acme-Event`, `X-Acme-Timestamp`, and with a signing secret
 `X-Acme-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + "." + body)>` -
-check it, and that the timestamp is recent, on the receiving side. *Test*
+check it, and that the timestamp is recent, on the receiving side. *More headers* (one
+`Name: value` a line - `Authorization: Bearer …` for a token) are kept **sealed** as every
+secret (1.0.143; a list in clear before - it is sealed at its first use after the upgrade): shown
+as dots, never in a configuration exported without secrets. *Test*
 sends `{"event": "ping"}`. Any 2xx is success.
 
 **Dual certificate:** the JSON gets `key_type` and `alt` - the twin's

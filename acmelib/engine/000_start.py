@@ -95,7 +95,7 @@ from acmelib import __version__  # noqa: E402  (one place for the version)
 # its own in the database.
 # A CHANGELOG section with an entry marked "(security)" means the floor is that
 # version at least (test/test_hunt_n2_system.py checks it; docs/releasing.md).
-DOWNGRADE_FLOOR = '1.0.142'         # 1.0.142: a renamed role followed by the teams' rules; 1.0.141: agent routes and team counts kept to the teams one sees, view-as refusals; 1.0.137: db_guard marks set when switched on; 1.0.135: dbagent:addr signed; 1.0.134: team limits kept by scoped administrators, balancer snippets
+DOWNGRADE_FLOOR = '1.0.143'         # 1.0.143: webhook headers sealed; 1.0.142: a renamed role followed by the teams' rules; 1.0.141: agent routes and team counts kept to the teams one sees, view-as refusals; 1.0.137: db_guard marks set when switched on; 1.0.135: dbagent:addr signed; 1.0.134: team limits kept by scoped administrators, balancer snippets
 # (1.0.106: the certificate sign-in's OCSP and CRL checks)
 # (1.0.101/1.0.102: root helper under db_guard, seal binds, approvals)
 # (1.0.115 too: acme-db-agent's join sealed to root's key - its network side kept a node's key)

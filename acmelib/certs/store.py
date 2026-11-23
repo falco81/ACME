@@ -196,6 +196,10 @@ def config_open(cfg, place, secrets):
     out = dict(cfg or {})
     clear = {}
     for k, v in list(out.items()):
+        if k in secrets and isinstance(v, list):
+            # a field kept as a list before it was marked secret (1.0.143: the webhook's
+            # headers) - one value a line, sealed from now on as every secret
+            v = out[k] = '\n'.join(str(x) for x in v if str(x).strip())
         if isinstance(v, str) and (v.startswith('sealed:') or k in secrets):
             if v and not v.startswith('sealed:') and E.seal_bound():
                 # Kept in clear after every secret was sealed for its place (1.0.102): its
@@ -247,6 +251,8 @@ def config_seal(new, old, place, secrets):
         if not re.match(r'^[A-Za-z0-9_.-]{1,64}\Z', str(k)):
             raise ValueError('a setting called %r is not one a module has' % k)
         if k in secrets:
+            if isinstance(v, list):
+                v = '\n'.join(str(x) for x in v if str(x).strip())
             # "" or what the page was shown (dots, its last two): the one kept.
             if v in (None, '') or E.is_masked(v):
                 if old.get(k):
@@ -275,6 +281,8 @@ def config_masked(cfg, secrets, place=None, full=False):
     anybody else, "" when not set - and which ones are set."""
     out, is_set = {}, []
     for k, v in (cfg or {}).items():
+        if k in secrets and isinstance(v, list):
+            v = '\n'.join(str(x) for x in v if str(x).strip())
         if k in secrets or (isinstance(v, str) and v.startswith('sealed:')):
             plain = None
             if v and full and place:

@@ -78299,6 +78299,10 @@
   "z_3271": {
    "source": "is no longer trusted for the mail server. The others stay.",
    "text": "už není pro poštovní server důvěryhodný. Ostatní zůstávají."
+  },
+  "z_3272": {
+   "source": "one \"Name: value\" a line - kept sealed, as every secret",
+   "text": "jedna hlavička „Název: hodnota“ na řádek – uloženo zašifrovaně, jako každé tajemství"
   }
  },
  "patterns": {

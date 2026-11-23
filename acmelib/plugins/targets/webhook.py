@@ -36,8 +36,11 @@ class WebhookTarget(HttpTarget):
         field('url', 'URL', 'text', required=True, placeholder='https://hooks.example.com/cert'),
         field('secret', 'Signing secret', 'secret',
               help='X-Acme-Signature: sha256=HMAC(secret, timestamp + "." + body)'),
-        field('headers', 'More headers', 'list', advanced=True,
-              placeholder='Authorization: Bearer …'),
+        # 1.0.143: kept sealed - a token goes here (Authorization: Bearer ...); a list in clear
+        # before, shown to whoever saw targets and in a configuration exported without secrets
+        field('headers', 'More headers', 'secret', multiline=True, advanced=True,
+              placeholder='Authorization: Bearer …',
+              help='one "Name: value" a line - kept sealed, as every secret'),
         field('include_key', 'Send the private key', 'bool', default=False,
               help='off: only the certificate and chain leave acme'),
     ] + tls_fields(proxy=True)
