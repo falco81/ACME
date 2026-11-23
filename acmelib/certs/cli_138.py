@@ -1786,9 +1786,9 @@ def gov_menu_items(con):
             con.act('--teams-import-csv', path, '--yes')
     return [('7', 'The teams\' health', lambda: con.act('--team-health')),
             ('8', 'Requests for a temporary role to decide', decide),
+            ('9', 'Access reviews open now', lambda: con.act('--reviews')),
             ('a', 'Actions of the teams waiting for an approval (revoke, delete, a key)',
              actions),
-            ('9', 'Access reviews open now', lambda: con.act('--reviews')),
             ('w', 'Who may do what, and why', who_may),
             ('m', 'Team templates (Enter: a team from it, delete it)', templates),
             ('n', 'Who can do one thing in a team or on a certificate, and why', who_can),

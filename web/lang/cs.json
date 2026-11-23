@@ -78343,6 +78343,10 @@
   "z_3282": {
    "source": "what the alerts sent is forgotten - what is wrong now is mailed again",
    "text": "co upozornění poslala, se zapomene - co je teď špatně, se pošle znovu"
+  },
+  "z_3283": {
+   "source": "your approval is recorded",
+   "text": "vaše schválení je zaznamenáno"
   }
  },
  "patterns": {
