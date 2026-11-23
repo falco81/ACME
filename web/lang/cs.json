@@ -78383,6 +78383,10 @@
   "z_3292": {
    "source": "The request of ",
    "text": "Žádost autority "
+  },
+  "z_3293": {
+   "source": "Instant 8.7 and later: {addr} the address above, {file} the file name, {dir} the folder; empty: tftp://{addr}/{file} - kept sealed, as every secret",
+   "text": "Instant 8.7 a novější: {addr} adresa výše, {file} název souboru, {dir} složka; prázdné: tftp://{addr}/{file} – uloženo zašifrovaně, jako každé tajemství"
   }
  },
  "patterns": {
@@ -110125,6 +110129,10 @@
   "pz_1399": {
    "source": "a path or crt-list with \";\" or a line break cannot go to the Runtime API: {0}",
    "text": "cestu nebo crt-list se „;“ nebo koncem řádku nelze poslat do Runtime API: {0}"
+  },
+  "pz_1400": {
+   "source": "{0}: a user name and password in the address are not used - sign in with the module's own fields",
+   "text": "{0}: jméno a heslo v adrese se nepoužívají - přihlaste se poli modulu"
   }
  },
  "rich": {

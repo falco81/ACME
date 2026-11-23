@@ -2113,7 +2113,11 @@ $('ctl-find').addEventListener('input', function () {
     b.type = 'button';
     b.appendChild(noI18n(el('span', 'ctl-hit-t', n.textContent.trim())));
     b.appendChild(el('span', 'ctl-hit-w', 'the page'));
-    b.onclick = function () { showPane(n.dataset.pane); $('ctl-find').value = ''; box.hidden = true; };
+    b.onclick = function (ev) {
+      showPane(n.dataset.pane); $('ctl-find').value = ''; box.hidden = true;
+      /* chosen from the keyboard (1.0.143): the focus was left on the list just hidden */
+      if (ev && ev.detail === 0) { try { n.focus(); } catch (x) { } }
+    };
     box.appendChild(b);
   });
   if (!hits.length && !panes.length) box.appendChild(el('div', 'ctl-none', 'Nothing by that name'));
@@ -2124,13 +2128,17 @@ $('ctl-find').addEventListener('input', function () {
     var pane = paneOf(s);
     var where = document.querySelector('.ctl-nav [data-pane="' + (pane || 'about') + '"]');
     b.appendChild(el('span', 'ctl-hit-w', where ? where.textContent.trim() : (pane || '')));
-    b.onclick = function () {
+    b.onclick = function (ev) {
       showPane(pane || 'about', {keepScroll: true});
       $('ctl-find').value = '';
       box.hidden = true;
       var item = document.querySelector('.set-item[data-key="' + s.key + '"]');
       if (item) {
         item.scrollIntoView({block: 'center'});
+        /* chosen from the keyboard (1.0.143): on to the setting's own box - the focus was left
+           on the list just hidden, and Tab started again at the top of the page */
+        var box1 = ev && ev.detail === 0 && item.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])');
+        if (box1) { try { box1.focus({preventScroll: true}); } catch (x) { } }
         item.classList.remove('found');
         void item.offsetWidth;
         item.classList.add('found');
@@ -2150,6 +2158,8 @@ $('ctl-find').addEventListener('keydown', function (e) {
 });
 window.addEventListener('scroll', function () { if (window.innerWidth <= 980 && $('ctl-found')) $('ctl-found').hidden = true; }, {passive: true});
 $('ctl-found').addEventListener('keydown', function (e) {
+  /* Escape on the list (1.0.143) as in the box: it goes, the focus back in the box */
+  if (e.key === 'Escape') { e.preventDefault(); $('ctl-found').hidden = true; $('ctl-find').focus(); return; }
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
   var hits = Array.prototype.slice.call($('ctl-found').querySelectorAll('.ctl-hit'));
   var i = hits.indexOf(document.activeElement);
