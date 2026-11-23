@@ -16,7 +16,7 @@ if (window.ACME_PALETTE) return;
 var P = window.ACME_PALETTE = {open: open, close: close};
 var MAC = /Mac|iPhone|iPad/.test(navigator.platform || '');
 var RECENT_KEY = 'acme.palette.recent';
-var CACHE = {at: 0, items: null, asking: null};
+var CACHE = {at: 0, items: null, asking: null, gen: 0};
 var ST = null;      /* {veil, box, input, list, rows, at, items} */
 
 function me() { return (typeof ME === 'object' && ME) || null; }
@@ -101,7 +101,7 @@ function serialNow() { try { return typeof SERIAL !== 'undefined' ? String(SERIA
 function objectItems() {
   if (CACHE.items && Date.now() - CACHE.at < 60000 && CACHE.serial === serialNow()) return Promise.resolve(CACHE.items);
   if (CACHE.asking) return CACHE.asking;
-  var serial = serialNow();
+  var serial = serialNow(), gen = CACHE.gen;
   var safe = function (p) { return p.catch(function () { return null; }); };
   var have = !!window.ACME_CERTS;
   CACHE.asking = Promise.all([
@@ -150,6 +150,7 @@ function objectItems() {
                   return true;
                 }); }});
     });
+    if (gen !== CACHE.gen) return out;       /* asked before a change: used once, not kept */
     CACHE.items = out;
     CACHE.at = Date.now();
     CACHE.serial = serial;
@@ -570,7 +571,7 @@ document.addEventListener('keydown', function (e) {
 });
 /* the button in the header, where the page has one (none needed: the keys always work) */
 P.hint = (MAC ? '⌘' : 'Ctrl') + '+K';
-P.refresh = function () { CACHE.items = null; };
+P.refresh = function () { CACHE.items = null; CACHE.asking = null; CACHE.gen++; };
 /* A search box in the header (1.0.140) for those who reach for the mouse: it opens the palette
    (what is typed into it goes with it). Only on the administration's own page. */
 function headerBox() {
