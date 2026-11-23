@@ -243,6 +243,34 @@ function portalSignOut(sso) {
   api('logout', {sso: !!sso}).then(done, function () { location.reload(); });
 }
 
+/* Signed out after the time set unused (hunt w5), as the administration's pages (1.0.33): the
+   list refreshed every minute kept the sign-in fresh for as long as a tab stayed open. What
+   counts is a person using a page - any tab of this browser. */
+function portalIdle(min) {
+  var last = Date.now(), wrote = 0, limit = (Number(min) || 15) * 60000, KEY = 'acme.portal.used';
+  function used() {
+    last = Date.now();
+    if (last - wrote > 5000) {
+      wrote = last;
+      try { localStorage.setItem(KEY, String(last)); } catch (e) { /* this tab's own then */ }
+    }
+  }
+  used();
+  ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'wheel'].forEach(function (e) {
+    document.addEventListener(e, used, {passive: true, capture: true});
+  });
+  setInterval(function () {
+    var other = 0;
+    try { other = Number(localStorage.getItem(KEY)) || 0; } catch (e) { other = 0; }
+    if (other > last && other <= Date.now()) last = other;
+    if (limit && Date.now() - last > limit) {
+      limit = 0;
+      try { sessionStorage.setItem('acme-signed-out', '1'); } catch (e) { /* said or not */ }
+      portalSignOut(!!(ME && ME.sso));
+    }
+  }, 30000);
+}
+
 window.ACME_PORTAL_PARTS = window.ACME_PORTAL_PARTS || [];
 
 function portalApp(me) {
@@ -250,6 +278,7 @@ function portalApp(me) {
   drawLangPick();
   dressButtons(document);
   $('signout').onclick = function () { portalSignOut(!!(ME && ME.sso)); };
+  if (ME && ME.idle_min) portalIdle(ME.idle_min);
   if ($('mebtn')) {
     $('mebtn').onclick = aboutMe;
     /* the person's initials in a circle before their name (1.0.125) */

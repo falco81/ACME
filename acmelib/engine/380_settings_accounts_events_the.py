@@ -331,6 +331,12 @@ def _users_do(h):
         if 'again' in b and str(b.get('again') or '') != str(b.get('password') or ''):
             raise ApiError(400, 'the new password and the one typed again are not the same - '
                            'type them again')
+        if acc.get('source') == 'directory':
+            # Its password is the directory's (hunt w5): one set here was never asked, and its
+            # "to change at sign-in" refused every page with "change the password first" - which
+            # a directory account cannot do here - till the account was deleted.
+            raise ApiError(400, 'the password of %s is the directory\'s - it is changed in the '
+                                'directory' % acc['name'])
         h.store.set_account(name, password=b.get('password'), must_change=int(bool(
             b.get('must_change', 1))))
         h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',

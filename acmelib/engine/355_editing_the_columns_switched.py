@@ -166,7 +166,8 @@ def _whoami(h):
     got = {'idle_min': int(CONFIG.get('session_idle_min') or 120),
             'who': {'name': acc['name'], 'role': acc['role'], 'source': acc.get('source'),
                     'display': acc.get('display') or '', 'must_change': bool(
-                        acc.get('must_change')), 'prefs': prefs,
+                        acc.get('must_change') and acc.get('source') != 'directory'),
+                    'prefs': prefs,
                     # the performance meter switched on (Settings → About, 1.0.48)
                     'perf_meter': bool(CONFIG.get('perf_meter')),
                     'passkeys_on': bool(CONFIG.get('admin_2fa') and CONFIG.get('admin_2fa_passkey')),

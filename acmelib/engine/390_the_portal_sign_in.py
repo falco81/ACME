@@ -1124,7 +1124,10 @@ def portal_state(h, s):
            'title': CONFIG.get('portal_title') or '', 'help': CONFIG.get('portal_help') or '',
            # Signed in by the balancer (otp 1.0.239): where signing out goes.
            'sso': bool(data.get('sso')),
-           'sso_logout': (CONFIG.get('portal_sso_logout') or '') if data.get('sso') else ''}
+           'sso_logout': (CONFIG.get('portal_sso_logout') or '') if data.get('sso') else '',
+           # How long the page may sit unused (hunt w5): its own refresh of the list every
+           # minute kept the sign-in fresh while a tab stayed open, whatever was set.
+           'idle_min': int(CONFIG.get('portal_session_min') or 15)}
     for fn in PORTAL_ME:
         try:
             out.update(fn(h, s) or {})

@@ -1109,7 +1109,28 @@ class Console(object):
              lambda: self.pick('Accounts of the administration', load, cols, self.account_do)),
             ('2', 'Make one', self.account_new),
             ('3', 'The second step of signing in, for everybody', self.mfa_switch),
+            # as Settings - Accounts - Signed in now, and acme --sessions (hunt w5)
+            ('4', 'Who is signed in now (Enter: end that sign-in)', self.sessions_view),
         ])
+
+    def sessions_view(self):
+        def load():
+            got = self.out('--sessions') or {}
+            return self._rows(got, 'sessions')
+
+        def end(r):
+            if self.confirm('End this sign-in', '%s%s is signed out at once.' % (
+                    r.get('name') or '?', (' from %s' % r['ip']) if r.get('ip') else ''),
+                    'End it'):
+                self.act('--session-end', r['id'])
+
+        cols = [('account', lambda r: r.get('name'), 24, None),
+                ('where', lambda r: 'these pages' if r.get('kind') == 'admin' else 'the portal',
+                 12, None),
+                ('from', lambda r: r.get('ip') or '', 18, None),
+                ('since', lambda r: self._when(r.get('created')), 16, None),
+                ('last asked', lambda r: self._when(r.get('last')), 16, lambda r: 'dim')]
+        self.pick('Who is signed in now', load, cols, end, empty='nobody is signed in')
 
     def account_do(self, u):
         name = u['name']
@@ -2607,6 +2628,20 @@ class Console(object):
                             '; the service goes on on the others.', 'Restart', danger=True):
                 self.act('--restart-nodes', which, '--yes')
 
+        def power_off():
+            # The page's Power off (hunt w5): no place in the console before.
+            ns = nodes()
+            opts = [('all', 'every node, together')] + [(n, n) for n in ns]
+            which = self.choose('Switch a machine off', opts)
+            if which is None:
+                return
+            if self.confirm('Power off', ('Every node is switched off now: nothing answers - the '
+                                          'pages, the renewals - ' if which == 'all' or len(ns) < 2
+                                          else 'The machine %s is switched off now; ' % which) +
+                            'it stays off until somebody switches it on at the machine.',
+                            'Power off', danger=True):
+                self.act('--power-off-nodes', which, '--yes')
+
         def mail_test():
             got = self.form('A test mail', [{'key': 'to', 'label': 'to', 'need': True,
                                              'check': lambda v, _: None if re.match(
@@ -2844,6 +2879,7 @@ class Console(object):
             ('22', 'The system\'s trusted roots: what acme added, each node', lambda: self.act('--os-roots')),
             ('23', 'The system\'s trusted roots: add a certificate authority (a file)', os_roots_add),
             ('24', 'The system\'s trusted roots: take one away', os_roots_remove),
+            ('25', 'Switch a machine off (power off)', power_off),
         ])
 
     def m_more(self):

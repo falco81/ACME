@@ -11213,13 +11213,26 @@ if ($('ha-pause')) {
 /* Signed out after the idle time even with the page left open (1.0.33): the
    live refresh asks the daemon every few seconds, which kept the sign-in
    fresh for ever. What counts is a person using the page. */
+/* One sign-in, every tab of it (hunt w5): each tab counted only its own use, and a tab left
+   open behind signed out the one being worked in - the last use is shared in this browser. */
 (function () {
-  var last = Date.now(), limit = 0;
+  var last = Date.now(), limit = 0, wrote = 0, KEY = 'acme.admin.used';
+  function used() {
+    last = Date.now();
+    if (last - wrote > 5000) {
+      wrote = last;
+      try { localStorage.setItem(KEY, String(last)); } catch (e) { /* this tab's own then */ }
+    }
+  }
+  used();
   ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'wheel'].forEach(function (e) {
-    document.addEventListener(e, function () { last = Date.now(); }, {passive: true, capture: true});
+    document.addEventListener(e, used, {passive: true, capture: true});
   });
   api('whoami').then(function (d) { limit = (d.idle_min || 120) * 60000; }).catch(function () {});
   setInterval(function () {
+    var other = 0;
+    try { other = Number(localStorage.getItem(KEY)) || 0; } catch (e) { other = 0; }
+    if (other > last && other <= Date.now()) last = other;
     if (limit && Date.now() - last > limit) {
       limit = 0;
       api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); });

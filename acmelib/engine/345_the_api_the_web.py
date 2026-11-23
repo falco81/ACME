@@ -384,7 +384,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         # do that and nothing else.
         if mfa_pending(s) and getattr(self, 'route_path', '') not in MFA_ALLOWED:
             raise ApiError(401, 'the second step of signing in is not done yet')
-        if acc.get('must_change') and getattr(self, 'route_path', '') not in MUST_CHANGE_ALLOWED:
+        # Not of the directory's people (hunt w5): their password is changed there, never here -
+        # a mark set on one (a password given to it past the pages) refused them every page.
+        if acc.get('must_change') and acc.get('source') != 'directory' and \
+                getattr(self, 'route_path', '') not in MUST_CHANGE_ALLOWED:
             raise ApiError(403, 'change the password first')
         # Viewing as a member (1.0.138, docs/teams.md "View as"): answered as theirs, read-only.
         if isinstance((s.get('data') or {}).get('view_as'), dict):

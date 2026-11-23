@@ -655,6 +655,13 @@ def build_parser():
                         'switch it on or off, or say how it stands')
     g.add_argument('--reset-2fa', metavar='NAME', help='take away the second step an account set '
                    'up for these pages: it sets it up again at its next sign-in')
+    # Who is signed in (hunt w5), as Settings - Accounts - Signed in now on the pages.
+    g.add_argument('--sessions', action='store_true',
+                   help='who is signed in now, to these pages and to the portal: the id, the '
+                        'account, where, from which address, since, last asked')
+    g.add_argument('--session-end', metavar='ID|NAME',
+                   help='end a sign-in at once (its id from --sessions), or every sign-in of the '
+                        'account NAME')
     g.add_argument('--note', metavar='TEXT', default='', help='a note beside what is made')
     g = p.add_argument_group('THE DATABASE AND ISEMON')
     g.add_argument('--export-config', metavar='FILE', help='the whole configuration into a JSON '
@@ -707,6 +714,10 @@ def build_parser():
                    'by itself, or never [ask]')
     g.add_argument('--restart-nodes', metavar='NODE,NODE', help='restart these machines now, one '
                    'at a time, the service kept on the others (all: every node)')
+    # The page's Power off (hunt w5): it had no command line and no place in the console.
+    g.add_argument('--power-off-nodes', metavar='NODE,NODE', help='switch these machines off '
+                   'now, together (all: every node) - nothing answers on them until somebody '
+                   'switches them on at the machines (--yes)')
     g.add_argument('--restarts', action='store_true', help='the restarts asked for, and how they '
                    'went')
     g.add_argument('--mail-test', metavar='ADDRESS', help='send a test mail now, every step said')
@@ -3171,7 +3182,8 @@ def cli_main(argv=None):
     # An option that names something given an empty name (1.0.77): it fell through to the help
     # with exit 2, nothing said about why.
     for dest in ('hand_done', 'mail_test', 'sms_test', 'del_user', 'disable_user', 'reset_2fa',
-                 'acme_order', 'ha_forget', 'ha_renamed', 'export_config', 'restart_nodes'):
+                 'acme_order', 'ha_forget', 'ha_renamed', 'export_config', 'restart_nodes',
+                 'power_off_nodes'):
         v = getattr(args, dest, None)
         if isinstance(v, str) and not v.strip():
             raise SystemExit('acme: --%s needs a value, not an empty one' % dest.replace('_', '-'))
@@ -4254,6 +4266,43 @@ def cli_main(argv=None):
             print('the second step is asked for (admin_2fa); acme --reset-2fa NAME takes one away')
         return 0
 
+    if args.sessions or args.session_end:
+        # As the pages' list (hunt w5): the ones that sat too long tidied first.
+        store.sessions_tidy(int(CONFIG.get('session_idle_min') or 120) * 60,
+                            int(CONFIG.get('portal_session_min') or 15) * 60)
+        rows = store.sessions()
+        if args.session_end:
+            asked = str(args.session_end).strip()
+            if asked.isdigit():
+                hit = [r for r in rows if int(r['id']) == int(asked)]
+                if not hit:
+                    raise SystemExit('acme: that sign-in has ended already')
+            else:
+                hit = [r for r in rows if str(r['name']).lower() == asked.lower()]
+                if not hit:
+                    raise SystemExit('acme: %s is not signed in' % asked)
+            for r in hit:
+                store.session_drop(r['id'])
+                store.add_event('sign-ins', '%s ended the sign-in of %s%s on the command line' % (
+                    who, r['name'], (' from %s' % r['ip']) if r.get('ip') else ''), 'warn', who=who)
+            if args.json:
+                out({'ok': True, 'ended': [r['id'] for r in hit]})
+                return 0
+            print(pal.ok_line('%d sign-in(s) ended' % len(hit) if len(hit) != 1 else
+                              'the sign-in of %s is ended' % hit[0]['name']))
+            return 0
+        if args.json:
+            out({'sessions': rows})
+            return 0
+        if not rows:
+            print(pal.dim('  nobody is signed in'))
+            return 0
+        print(table([(r['id'], r['name'], 'these pages' if r['kind'] == 'admin' else 'the portal',
+                      r.get('ip') or '', stamp(r['created']) if r.get('created') else '',
+                      stamp(r['last']) if r.get('last') else '') for r in rows],
+                    ['id', 'name', 'where', 'from', 'since', 'last asked']))
+        return 0
+
     def acct_said(args, pal, words, **extra):
         """An account changed: said in a line, or with --json as JSON (the account options
         printed text with --json, hunt w2)."""
@@ -4308,6 +4357,11 @@ def cli_main(argv=None):
                          name=args.add_user, role=args.role or 'readonly')
 
     if args.passwd:
+        acc = store.account(args.passwd)
+        if acc and acc.get('source') == 'directory':
+            # As the pages (hunt w5): "the password is set" said of one never asked.
+            raise SystemExit('acme: the password of %s is the directory\'s - it is changed in the '
+                             'directory' % acc['name'])
         pw = ask_password('a new password for %s' % args.passwd)
         try:
             store.set_account(args.passwd, password=pw, must_change=0)
@@ -4689,6 +4743,25 @@ def cli_main(argv=None):
         cli_sure(args, 'the machines %s are restarted now, one at a time' % ', '.join(nodes))
         try:
             plan = power_ask(store, 'reboot', nodes, 'rolling' if len(nodes) > 1 else 'one', who)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        cli_ok(args, pal, ('asked (%s) - acme --restarts says how it goes' % plan.get('id')))
+        return 0
+
+    if args.power_off_nodes:
+        alln = host_nodes(store)
+        nodes = alln if args.power_off_nodes == 'all' else \
+            [x.strip() for x in args.power_off_nodes.split(',') if x.strip()]
+        wrong = [n for n in nodes if n not in alln]
+        if wrong:
+            raise SystemExit('acme: there is no node %s (%s)' % (', '.join(wrong), ', '.join(alln)))
+        rest = [n for n in alln if n not in nodes]
+        cli_sure(args, 'the machines %s are switched off now and stay off until somebody '
+                 'switches them on at the machines%s' % (', '.join(nodes), (
+                     ' - %s goes on' % ', '.join(rest)) if rest else
+                     ' - nothing answers (the pages, the renewals) until then'))
+        try:
+            plan = power_ask(store, 'poweroff', nodes, 'one' if len(nodes) == 1 else 'together', who)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         cli_ok(args, pal, ('asked (%s) - acme --restarts says how it goes' % plan.get('id')))

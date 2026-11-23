@@ -1598,6 +1598,7 @@
     border-radius:8px;background:transparent;color:var(--tx);font:inherit;font-size:13px;
     text-align:left;cursor:pointer}
   .cols-mi:hover:not(:disabled){background:var(--info-bg)}
+  .cols-menu:focus{outline:none}
   .cols-mi:disabled{opacity:.4;cursor:not-allowed}
   .cols-mi svg{flex:none;color:var(--info)}
   .cols-mi .cols-mi-blank{display:inline-block;width:14px;flex:none}

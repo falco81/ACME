@@ -184,6 +184,13 @@ def net_check(store, node, want, rollback=False):
             # whole change for an IPv6 one put here.
             raise ValueError('%s is an IPv6 address - put it with the IPv6 DNS servers' % x)
     search = _net_list(v4.get('search'), 6)
+    # The search domains checked here as root checks them (hunt w5): one root refused
+    # (corp_ad.local, a.b..cz) stopped the change half way - the other node told, the
+    # node's certificate made again - and it all went back.
+    bad = [x for x in search if not NET_DOMAIN_RE.match(x)]
+    if bad and not rollback:
+        raise ValueError('%r is not a search domain (example.cz)' % bad[0][:60])
+    search = [x for x in search if x not in bad]
     v6 = want.get('ipv6') or {}
     on6 = bool(v6.get('on'))
     mode6 = 'off'
@@ -196,7 +203,8 @@ def net_check(store, node, want, rollback=False):
             except ValueError:
                 raise ValueError('the IPv6 address is an address with its prefix: '
                                  '2001:db8::10/64')
-            if a6.version != 6 or a6.ip.is_link_local or '/' not in str(v6.get('addr')):
+            if a6.version != 6 or a6.ip.is_link_local or '/' not in str(v6.get('addr')) or \
+                    '%' in str(a6):
                 raise ValueError('the IPv6 address is a global one with its prefix: '
                                  '2001:db8::10/64')
         g6 = str(v6.get('gw') or '').strip()
@@ -208,9 +216,7 @@ def net_check(store, node, want, rollback=False):
     if rollback:
         dns6 = [x for x in dns6 if _net_ip(x)]
     for x in dns6:
-        try:
-            ipaddress.ip_address(x)
-        except ValueError:
+        if not _net_ip(x):
             raise ValueError('%r is not the address of a DNS server' % x)
     host = str(want.get('hostname') or '').strip().rstrip('.').lower()
     if len(host) > 64:
@@ -295,10 +301,16 @@ def net_check(store, node, want, rollback=False):
             'ip_changed': ip_changed, 'was6': was6, 'plan': plan}
 
 
+NET_DOMAIN_RE = re.compile(r'^(?=.{1,253}\Z)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+                           r'(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\Z')
+
+
 def _net_ip(text, version=None):
     """`text` one address (of that IP version) - True/False."""
     try:
-        a = ipaddress.ip_address(str(text or '').strip())
+        # Plain, as the root helper takes it (hunt w5): with a scope id (fe80::1%eth0) the
+        # change was planned, the other node told - and root refused it half way.
+        a = plain_ip(text, 'address')
     except ValueError:
         return False
     return version is None or a.version == version

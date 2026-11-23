@@ -3686,6 +3686,8 @@ class Secrets(object):
                 continue
             self.keep(v)
             shaped = self.shaped(v, str(f.get('label') or k), marks)
+            if shaped is None and f.get('multiline') and str(k).endswith('headers'):
+                shaped = self.header_lines(v, str(f.get('label') or k), marks)
             if shaped is not None:
                 out[k] = shaped
                 continue
@@ -3777,6 +3779,37 @@ class Secrets(object):
         except Exception:                               # noqa: BLE001
             return None
         return None
+
+    def header_lines(self, v, label, marks):
+        """Headers kept as a secret, one "Name: value" a line (1.0.143: a webhook's More
+        headers) - each name kept, each value a stand-in; None when it is no such text. (hunt
+        w5: the whole text one stand-in with no colon, the module sent none of the headers -
+        What happens showed a request without them, unlike the one sent.)"""
+        if isinstance(v, list):
+            v = '\n'.join(str(x) for x in v)
+        if not isinstance(v, str):
+            return None
+        out, seen = [], False
+        for line in v.splitlines():
+            if not line.strip() or line.strip().startswith('#'):
+                out.append(line)
+                continue
+            m = re.match(r"^\s*([!#$%&'*+.^_`|~0-9A-Za-z-]+)\s*:\s*(.*?)\s*\Z", line)
+            if not m:
+                return None
+            name, value = m.group(1), m.group(2)
+            if value:
+                self.keep(value)
+                # the scheme word of a sign-in header kept (Bearer, Basic), as it is shown
+                sch = re.match(r'^([A-Za-z][A-Za-z0-9-]*)\s+(\S.*)\Z', value) if \
+                    name.lower() in ('authorization', 'proxy-authorization') else None
+                self.n += 1
+                si = _stand_in(self.n)
+                marks[si] = '%s: %s' % (label, name)
+                value = '%s %s' % (sch.group(1), si) if sch else si
+            out.append('%s: %s' % (name, value))
+            seen = True
+        return '\n'.join(out) if seen else None
 
     def keep(self, v):
         if isinstance(v, (bytes, bytearray)):

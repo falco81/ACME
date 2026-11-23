@@ -81,7 +81,10 @@ Switched on for a node, by hand (address/prefix, gateway, DNS) or automatically
 A card per node (answering or not, its address, how long the machine has been up
 and how long acme has run on it - a restart of the service is not one of the machine
 (1.0.87) -, its version) with **Restart** and **Power off**. `acme --restarts` shows
-both too (*machine up since*, *acme started*). In a cluster:
+both too (*machine up since*, *acme started*). From the command line, `acme --restart-nodes
+NODE,NODE|all` restarts them one at a time and `acme --power-off-nodes NODE,NODE|all` switches
+them off together (both ask first; `--yes`); in the console both are under *The pages'
+certificates, updates, restarts, tests*. In a cluster:
 
 | | |
 |---|---|

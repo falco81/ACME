@@ -245,7 +245,13 @@ function remoteItems(groups) {
         sub = (r.days_left < 0 ? pat('ran out {0} days ago', -r.days_left) : pat('{0} days left', r.days_left)) + (sub ? ' · ' + sub : '');
       }
       if (kind === 'event' && r.at && typeof stamp === 'function') sub = stamp(r.at) + (sub ? ' · ' + sub : '');
-      out.push({kind: kind, key: key, label: r.name, sub: sub, data: true, remote: true,
+      /* An event's words and its kind in the page's language, as the Events tab says them (hunt
+         w5: in Czech the palette showed "shop ends in 2 days..." and "certificates" in English);
+         its time and who did it stay data. */
+      var ek = String(r.sub || '').split(' · ');       /* the server's "kind · who" */
+      var parts = kind === 'event' ? [[r.at && typeof stamp === 'function' ? stamp(r.at) : '', false],
+        [ek[0] || '', true], [ek.slice(1).join(' · '), false]].filter(function (x) { return x[0]; }) : null;
+      out.push({kind: kind, key: key, label: r.name, sub: sub, data: true, remote: true, said: kind === 'event', subParts: parts,
                 words: [r.sub || '', r.serial || '', r.owner || '', r.issuer || ''].join(' '),
                 go: function () { remoteGo(kind, r); }});
     });
@@ -521,11 +527,15 @@ function draw() {
         t.appendChild(el('span', 'cxp-verb', it.verb.label));
         t.appendChild(document.createTextNode(' '));
       }
-      t.appendChild(it.data ? noI18n(el('span', '', it.label)) : el('span', '', it.label));
+      t.appendChild(it.data && !it.said ? noI18n(el('span', '', it.label)) : el('span', '', it.label));
       w.appendChild(t);
       var sub = el('div', 'cxp-s');
       sub.appendChild(el('span', 'cxp-k', KIND[it.kind] ? KIND[it.kind][0] : ''));
-      if (it.sub) { sub.appendChild(noI18n(el('span', 'cxp-dot', ' · '))); sub.appendChild(it.data || it.kind === 'cert' ? noI18n(el('span', '', it.sub)) : el('span', '', it.sub)); }
+      if (it.subParts && it.subParts.length) it.subParts.forEach(function (x) {
+        sub.appendChild(noI18n(el('span', 'cxp-dot', ' · ')));
+        sub.appendChild(x[1] ? el('span', '', x[0]) : noI18n(el('span', '', x[0])));
+      });
+      else if (it.sub) { sub.appendChild(noI18n(el('span', 'cxp-dot', ' · '))); sub.appendChild(it.data || it.kind === 'cert' ? noI18n(el('span', '', it.sub)) : el('span', '', it.sub)); }
       if (it.off) { sub.appendChild(noI18n(el('span', 'cxp-dot', ' · '))); sub.appendChild(el('span', 'cxp-no', 'not possible here')); }
       w.appendChild(sub);
       r.appendChild(w);

@@ -687,6 +687,9 @@ function colsMenu(x, y, table, th, kb) {
   });
   var all = menu.querySelectorAll('.cols-mi');
   var want = kb && kb.at >= 0 && all[kb.at] && !all[kb.at].disabled ? all[kb.at] : live()[0];
+  /* Opened by the mouse (hunt w5): the menu itself takes the focus - the arrows go on from there -
+     not its first line, which wore the browser's focus ring as if chosen from the keyboard */
+  if (!menu._kb) { menu.tabIndex = -1; want = menu; }
   if (want) { try { want.focus({preventScroll: true}); } catch (e) { } }
 }
 

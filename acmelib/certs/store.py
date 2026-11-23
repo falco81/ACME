@@ -199,7 +199,7 @@ def config_open(cfg, place, secrets):
         if k in secrets and isinstance(v, list):
             # a field kept as a list before it was marked secret (1.0.143: the webhook's
             # headers) - one value a line, sealed from now on as every secret
-            v = out[k] = '\n'.join(str(x) for x in v if str(x).strip())
+            v = out[k] = _list_text(v)
         if isinstance(v, str) and (v.startswith('sealed:') or k in secrets):
             if v and not v.startswith('sealed:') and E.seal_bound():
                 # Kept in clear after every secret was sealed for its place (1.0.102): its
@@ -215,6 +215,14 @@ def config_open(cfg, place, secrets):
     return out
 
 
+def _list_text(v):
+    """A secret kept as a list before its field was marked secret (1.0.143: the headers of a
+    webhook and of a TLS check) as the text it is now: one value a line."""
+    if isinstance(v, list):
+        return '\n'.join(str(x) for x in v if str(x).strip())
+    return v
+
+
 def _config_seal_clear(place, clear):
     """The secrets of a module's settings found in clear (config_open), sealed for their place
     in the row - those still as they were found."""
@@ -228,7 +236,9 @@ def _config_seal_clear(place, clear):
         cfg = jload((row or {}).get(col), {})
         if not isinstance(cfg, dict):
             return
-        done = sorted(k for k, v in clear.items() if cfg.get(k) == v)
+        # (hunt w5: one kept as a list was compared with its text - never the same, so never
+        # sealed, though the change log said "sealed at its first use")
+        done = sorted(k for k, v in clear.items() if _list_text(cfg.get(k)) == v)
         if not done:
             return
         for k in done:
@@ -251,8 +261,7 @@ def config_seal(new, old, place, secrets):
         if not re.match(r'^[A-Za-z0-9_.-]{1,64}\Z', str(k)):
             raise ValueError('a setting called %r is not one a module has' % k)
         if k in secrets:
-            if isinstance(v, list):
-                v = '\n'.join(str(x) for x in v if str(x).strip())
+            v = _list_text(v)
             # "" or what the page was shown (dots, its last two): the one kept.
             if v in (None, '') or E.is_masked(v):
                 if old.get(k):
@@ -270,6 +279,7 @@ def config_seal(new, old, place, secrets):
 def _sealed_kept(v, place):
     """A secret kept: sealed already, or - kept in clear before its field was
     marked secret (the SSH key of a validation) - sealed now."""
+    v = _list_text(v)           # (hunt w5) a list kept in clear before 1.0.143: sealed too
     if isinstance(v, str) and v and not v.startswith('sealed:'):
         return E.seal_secret(v, place)
     return v
@@ -281,8 +291,8 @@ def config_masked(cfg, secrets, place=None, full=False):
     anybody else, "" when not set - and which ones are set."""
     out, is_set = {}, []
     for k, v in (cfg or {}).items():
-        if k in secrets and isinstance(v, list):
-            v = '\n'.join(str(x) for x in v if str(x).strip())
+        if k in secrets:
+            v = _list_text(v)
         if k in secrets or (isinstance(v, str) and v.startswith('sealed:')):
             plain = None
             if v and full and place:

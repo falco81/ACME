@@ -377,6 +377,14 @@ A team's webhooks are kept sealed: `acme --api POST /api/teams/hooks -` with the
 *View as* is a sign-in of the pages and the saved views are the pages' lists - neither has a
 command line.
 
+## Who is signed in (Settings → Accounts → Signed in now)
+
+| | |
+|---|---|
+| `--sessions` | who is signed in now, to these pages and to the portal: the id, the account, where, from which address, since and last asked - the ones that sat too long tidied first, as on the page (`--json` too) |
+| `--session-end ID\|NAME` | end that sign-in at once (its id from `--sessions`), or every sign-in of the account NAME; written into Events |
+| `--passwd NAME` | a new password for an account of acme's own; one of the directory is refused - its password is changed in the directory |
+
 ## Signing in with Windows - Kerberos (1.0.99)
 
 The engine's own options (group **WHAT THE PAGES DO, HERE TOO**), as the card on *Settings →

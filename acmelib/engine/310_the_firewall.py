@@ -208,7 +208,9 @@ def ntp_checked(b):
         if not host:
             continue
         try:
-            host = str(ipaddress.ip_address(host))
+            # Plain, as the root helper takes it (hunt w5): an address with a scope id
+            # (fe80::1%eth0) was saved here, refused by root on every node every ten minutes.
+            host = str(plain_ip(host, 'address'))
         except ValueError:
             if not re.match(r'^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
                             r'(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$', host):
@@ -226,7 +228,7 @@ def ntp_checked(b):
         if not a:
             continue
         try:
-            allow.append(str(ipaddress.ip_network(a, strict=False)))
+            allow.append(str(plain_ip(a, 'network')))
         except ValueError:
             raise ValueError('%r is not a network (192.0.2.0/24)' % a)
     out['allow'] = allow[:20]

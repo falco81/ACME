@@ -63,6 +63,8 @@ It opens on the **live log** (every line); Esc goes to the main menu.
     the portal's one-time code goes, `acme --user-contact`), change its role,
     switch it off / on, reset its second step, show it, delete it; a new one
     takes a note, an e-mail address and a mobile number too, as on the page;
+  - who is signed in now (Accounts, as the page's *Signed in now*): Enter ends
+    that sign-in (`acme --sessions`, `acme --session-end ID`);
   - a directory: try it (and look somebody up), show it, change it, delete it;
   - a backup: what is in it, put it back.
 - Every action is the `acme …` command its window shows in its title, run as
@@ -149,7 +151,8 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   pages do, for a server without them (installed `--no-web`) or with them
   down: the pages' own certificates by ACME and one ordered now, followed; the
   updates of the system looked for, put in one node at a time, or stopped; a
-  machine restarted, the service kept on the others; a test mail or SMS; who
+  machine restarted, the service kept on the others, or switched off (it stays off until
+  somebody switches it on at the machine); a test mail or SMS; who
   is locked out, and a lockout forgotten on every node.
 - **Encryption, sending out, time, network, high security** (1.0.188): the
   encryption to the database server and to isemon looked at and tried, a

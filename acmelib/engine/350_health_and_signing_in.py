@@ -933,6 +933,7 @@ def _login(h):
                       who=ok['name'])
     split_note(h.store, 'signin', ok['name'], 'signin:admin:' + str(ok['name']).lower())
     return {'token': token, 'who': {'name': ok['name'], 'role': ok['role'] if not stage else ''},
-            'must_change': bool(ok.get('must_change')), 'mfa': stage}
+            'must_change': bool(ok.get('must_change') and ok.get('source') != 'directory'),
+            'mfa': stage}
 
 

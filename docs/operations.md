@@ -80,6 +80,7 @@ acme --acme-order all        # order now (a node's name, vip, or all), followed 
 acme --updates status        # the updates of the system on each node
 acme --updates check         # look for them now;  start [--node A,B] [--reboot auto]  /  cancel
 acme --restart-nodes all     # restart the machines one at a time, the service kept (--yes)
+acme --power-off-nodes acme2 # switch machines off (all: every node, together) - they stay off (--yes)
 acme --restarts              # how the restarts went
 acme --mail-test a@b.cz      # a test mail, every step said;  --sms-test +420...
 acme --lockouts              # who is locked out, on every node;  --lockouts-clear all|KIND:WHO
