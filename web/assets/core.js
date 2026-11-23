@@ -326,7 +326,7 @@ function modalAria() {
   if ($('modal-title')) box.setAttribute('aria-labelledby', 'modal-title');
 }
 /* The arrow keys along a row of tabs (1.0.143): role="tab" tells a screen reader to use them,
-   and on the main tabs, the settings' and most of the others they did nothing. Left and right,
+   and on the main tabs and most of the others they did nothing. Left and right,
    Home and End move the focus to a tab; Enter or Space opens it, as before. A row of tabs that
    handles its own keys (the fleet's) is left to it. */
 document.addEventListener('keydown', function (e) {

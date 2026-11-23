@@ -17262,7 +17262,7 @@ function drawSshKeys(live) {
     var wh = el('div', 'sk-who-row');
     wh.appendChild(el('span', 'k', 'Whose keys'));
     var sel = el('select', 'mono');
-    sel.setAttribute('aria-label', 'Whose keys');  /* named by the words beside it (1.0.143) */
+    sel.setAttribute('aria-label', txT('Whose keys'));  /* named by the words beside it, said in the page's language: a .mono box is not translated (1.0.143) */
     var o0 = el('option', '', 'root'); o0.value = 'root'; sel.appendChild(o0);
     users.forEach(function (u) { var o = noI18n(el('option', '', u)); o.value = u; sel.appendChild(o); });
     sel.value = SK.user;

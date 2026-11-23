@@ -78387,6 +78387,10 @@
   "z_3293": {
    "source": "Instant 8.7 and later: {addr} the address above, {file} the file name, {dir} the folder; empty: tftp://{addr}/{file} - kept sealed, as every secret",
    "text": "Instant 8.7 a novější: {addr} adresa výše, {file} název souboru, {dir} složka; prázdné: tftp://{addr}/{file} – uloženo zašifrovaně, jako každé tajemství"
+  },
+  "z_3294": {
+   "source": "What to send",
+   "text": "Co poslat"
   }
  },
  "patterns": {
