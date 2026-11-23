@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.143 - not released
+## 1.0.143 - 2026-11-24
 
 - **Webhook target: its headers kept sealed** (security). *More headers* of a webhook target - where a token goes (`Authorization: Bearer …`) - were a list kept in clear: shown to whoever could see targets and carried by a configuration exported without secrets. They are a secret now, sealed as every other (shown as dots; a header list kept from before is sealed at its first use and works as before).
 - Target agent: an active agent sent its poll (the results of its jobs, its facts) before it checked acme's certificate, so whoever answered with any certificate of the agent authority (another agent's) got it - acme's certificate is now checked first and nothing is sent otherwise. (security)
