@@ -78307,6 +78307,42 @@
   "z_3273": {
    "source": "its node is gone",
    "text": "jeho uzel zmizel"
+  },
+  "z_3274": {
+   "source": "The alerts: what they see wrong now",
+   "text": "Upozornění: co je teď špatně"
+  },
+  "z_3275": {
+   "source": "The alerts: look now and mail what is new",
+   "text": "Upozornění: podívat se hned a poslat, co je nové"
+  },
+  "z_3276": {
+   "source": "The alerts: a test mail to their addresses",
+   "text": "Upozornění: zkušební mail na jejich adresy"
+  },
+  "z_3277": {
+   "source": "Prometheus: what this node answers now",
+   "text": "Prometheus: co tento uzel teď odpovídá"
+  },
+  "z_3278": {
+   "source": "nothing is wrong now",
+   "text": "teď není nic špatně"
+  },
+  "z_3279": {
+   "source": "this node sends the alerts",
+   "text": "upozornění posílá tento uzel"
+  },
+  "z_3280": {
+   "source": "the other node sends the alerts",
+   "text": "upozornění posílá druhý uzel"
+  },
+  "z_3281": {
+   "source": "no address to send them to",
+   "text": "žádná adresa, kam je poslat"
+  },
+  "z_3282": {
+   "source": "what the alerts sent is forgotten - what is wrong now is mailed again",
+   "text": "co upozornění poslala, se zapomene - co je teď špatně, se pošle znovu"
   }
  },
  "patterns": {

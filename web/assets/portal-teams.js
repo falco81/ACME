@@ -879,8 +879,9 @@ function askTeam() {
   var mine = teamsWith('cert.request');
   return WS.team !== '*' && mine.indexOf(WS.team) >= 0 ? WS.team : (mine[0] || '');
 }
-function limitsNote() {
-  var t = teamOf(askTeam());
+function limitsNote(name) {
+  /* `name`: the team chosen in the form (hunt w2: the first team's limits stayed said) */
+  var t = teamOf(name || askTeam());
   if (!t) return null;
   var pol = t.policy || {}, parts = [];
   if (pol.profiles) parts.push('only from the profiles ' + arr(pol.profiles).join(', '));
@@ -960,7 +961,7 @@ function viewCerts(main) {
 function certCtx(said) {
   return {
     team: function () { return askTeam(); },
-    policy: function () { var t = teamOf(askTeam()); return t ? t.policy : null; },
+    policy: function (name) { var t = teamOf(name || askTeam()); return t ? t.policy : null; },
     askTeams: function () { return teamsWith('cert.request'); },
     limitsNote: limitsNote,
     mayAsk: can('cert.request'),

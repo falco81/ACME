@@ -415,6 +415,7 @@ def mine_public(h, s, pairs, me=None):
     names, groups, tms, defined, ids = me.names, me.groups, me.tms, me.defined, me.ids
     held_rows = []
     approver = []
+    keys_out = {}
 
     def public(st_, r, via):
         one = public_row(st_, r, via)
@@ -475,11 +476,30 @@ def mine_public(h, s, pairs, me=None):
         # self-signed one was offered Revoke and its job failed "cannot revoke a certificate"
         if 'cert.revoke' in caps and r.get('cert_pem'):
             one['revoke_no'] = A.revocable(st_, r)
-        if not key_may(s, via, caps, asker(st_, r['id']).get('who')):
+        if not key_may(s, via, caps, asker(st_, r['id']).get('who')) or (
+                KEY_FORMAT in (one.get('formats') or []) and not key_out(st_, r, keys_out)):
+            # ...nor where its team's limits keep the keys in (hunt w2: the PFX was offered,
+            # its password typed, and the download refused - policy key_download)
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
     with prefetched(h.store, [r['id'] for r, _v in pairs]):
         return [public(h.store, r, via) for r, via in pairs]
+
+
+def key_out(store, row, cache=None):
+    """Whether the limits of the certificate's team let a file with its key out (policy
+    key_download, as the download checks it: teampolicy.need_key_download) - True for one of
+    no team. `cache` {owner: bool} for a list."""
+    owner = str(row.get('owner') or '').strip().lower()
+    if cache is not None and owner in cache:
+        return cache[owner]
+    from acmelib.certs import teampolicy as TP
+    from acmelib.certs import teams as T
+    team = TP.team_name(store, owner)
+    got = not team or bool(T.policy_value(TP._eff(store, team), 'key_download'))
+    if cache is not None:
+        cache[owner] = got
+    return got
 
 
 def may_approve_caps(caps):

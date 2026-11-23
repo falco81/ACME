@@ -814,19 +814,40 @@ function downloadDialog(c) {
 
 /* ---- asking for one -------------------------------------------------------------- */
 /* The team asked for (the workspace): its limits in force, said above the form. */
-function teamPolicy() { return (CP.ctx && CP.ctx.policy && CP.ctx.policy()) || null; }
-function limitsNote(body) {
+/* `name`: the team chosen in the form - left out, the one the workspace shows */
+function teamPolicy(name) { return (CP.ctx && CP.ctx.policy && CP.ctx.policy(name)) || null; }
+function limitsNote(body, name) {
   if (CP.ctx && CP.ctx.limitsNote) {
-    var n = CP.ctx.limitsNote();
+    var n = CP.ctx.limitsNote(name);
     if (n) body.appendChild(n);
   }
 }
 function askDialog() {
   var d = CP.d || {};
   var sufs = d.suffixes || [], iss = d.issuers || [];
-  var pol = teamPolicy();
-  if (pol && Array.isArray(pol.suffixes) && pol.suffixes.length) sufs = pol.suffixes;
-  var namesBox, chips, issuerSel, keySel, noteBox, said, teamSel = null;
+  var namesBox, chips, issuerSel, keySel, noteBox, said, teamSel = null, limHost = null, lede = null, sufsB = null;
+  var askTeams = CP.ctx && CP.ctx.askTeams ? CP.ctx.askTeams() : null;
+  var team0 = askTeams && askTeams.length ? (askTeams.indexOf(CP.ctx.team()) >= 0 ? CP.ctx.team() : askTeams[0]) : undefined;
+  /* The team chosen in the form: its names, its limits and its rule (hunt w2: those of the team
+     the form opened for stayed - another team's names were refused, its rule not said). */
+  var ta = null;
+  var forTeam = function (name) {
+    var pol = teamPolicy(name);
+    sufs = pol && Array.isArray(pol.suffixes) && pol.suffixes.length ? pol.suffixes : (d.suffixes || []);
+    ta = pol && pol.approval && (typeof pol.approval === 'string' ? pol.approval : pol.approval.mode);
+  };
+  forTeam(team0);
+  /* "told by mail" only when a mail goes to them (hunt Rt7) */
+  var noMail = d.told_by_mail === false;
+  var ledeWords = function () {
+    return ta === 'always' || ta === 'outside'
+      ? (noMail ? 'An approver of the team approves it first (the team’s rule); look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.'
+        : 'An approver of the team approves it first (the team’s rule); you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.')
+      : d.auto
+      ? 'It is issued as soon as you ask, and renewed by itself before it runs out.'
+      : noMail ? 'An administrator approves it first; look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.'
+      : 'An administrator approves it first; you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.';
+  };
   var check = function () {
     var names = splitNames(namesBox.value);
     clear(chips);
@@ -834,17 +855,11 @@ function askDialog() {
     return names;
   };
   modal('Ask for a certificate', function (body) {
-    limitsNote(body);
-    var tp = teamPolicy(), ta = tp && tp.approval && (typeof tp.approval === 'string' ? tp.approval : tp.approval.mode);
-    /* "told by mail" only when a mail goes to them (hunt Rt7) */
-    var noMail = d.told_by_mail === false;
-    body.appendChild(el('p', 'note', ta === 'always' || ta === 'outside'
-      ? (noMail ? 'An approver of the team approves it first (the team’s rule); look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.'
-        : 'An approver of the team approves it first (the team’s rule); you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.')
-      : d.auto
-      ? 'It is issued as soon as you ask, and renewed by itself before it runs out.'
-      : noMail ? 'An administrator approves it first; look here to see when they have - no mail is sent to you. Then it is issued, and renewed by itself before it runs out.'
-      : 'An administrator approves it first; you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.'));
+    limHost = el('div', 'cp-lim');
+    limitsNote(limHost, team0);
+    body.appendChild(limHost);
+    lede = el('p', 'note', ledeWords());
+    body.appendChild(lede);
     namesBox = el('textarea', 'cp-names');
     namesBox.rows = 3;
     namesBox.spellcheck = false;
@@ -856,7 +871,8 @@ function askDialog() {
     hint.appendChild(document.createTextNode(' '));
     hint.appendChild(el('span', '', 'Names under:'));
     hint.appendChild(document.createTextNode(' '));
-    hint.appendChild(data('b', 'mono', sufs.join(', ')));
+    sufsB = data('b', 'mono', sufs.join(', '));
+    hint.appendChild(sufsB);
     body.lastChild.appendChild(hint);
     chips = el('div', 'cp-chips');
     body.lastChild.appendChild(chips);
@@ -866,9 +882,8 @@ function askDialog() {
     keySel = selectBox((d.key_types || ['ec-256', 'rsa-2048']).map(function (k) { return [k, KEY_WORDS[k] || k]; }), 'ec-256');
     body.appendChild(formField('Its key', keySel, 'EC P-256 suits nearly everything; RSA 2048 for old devices that know nothing else.'));
     /* Owned by a team they may ask for (Settings → Owners and teams), or by them. */
-    var askTeams = CP.ctx && CP.ctx.askTeams ? CP.ctx.askTeams() : null;
     if (askTeams && askTeams.length) {
-      teamSel = selectBox(askTeams.map(function (t) { return [t, t]; }), askTeams.indexOf(CP.ctx.team()) >= 0 ? CP.ctx.team() : askTeams[0]);
+      teamSel = selectBox(askTeams.map(function (t) { return [t, t]; }), team0);
       teamSel.id = 'cp-team';
       noI18n(teamSel);
       body.appendChild(formField('Whose it is', teamSel, 'The team it belongs to: its members see it here too.'));
@@ -890,6 +905,17 @@ function askDialog() {
       issuerSel.disabled = !allowed.length;
     };
     if (teamSel) { teamSel.addEventListener('change', fitIssuers); fitIssuers(); }
+    /* ...and in the workspace its names, its limits and its rule */
+    if (teamSel && askTeams && askTeams.length) teamSel.addEventListener('change', function () {
+      forTeam(teamSel.value);
+      clear(limHost);
+      limitsNote(limHost, teamSel.value);
+      explainWhatWasDrawn(limHost);
+      lede.textContent = ledeWords();
+      sufsB.textContent = sufs.join(', ');
+      namesBox.placeholder = 'www.' + (sufs[0] || 'example.com') + '\n' + 'app.' + (sufs[0] || 'example.com');
+      check();
+    });
     noteBox = el('textarea');
     noteBox.rows = 2;
     noteBox.placeholder = 'what it is for (the administrator sees this)';
