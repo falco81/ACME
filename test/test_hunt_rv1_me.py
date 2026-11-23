@@ -59,5 +59,19 @@ class Uninstall(unittest.TestCase):
         self.assertNotIn('/etc/acme-agent/policy', keep)
 
 
+class ActivityMasked(unittest.TestCase):
+    def test_digest_addresses_masked(self):
+        from acmelib.certs import digest as D
+        rows = [{'words': 'the team Web: the digest was sent to a@x.test, b.c@y.test'},
+                {'words': 'the team Web: contact mail set to web@x.test'}]
+        got = D.activity_masked([dict(r) for r in rows])
+        self.assertEqual(got[0]['words'], 'the team Web: the digest was sent to …, …')
+        self.assertEqual(got[1]['words'], rows[1]['words'])
+        for p, needle in (('acmelib/certs/api_teams.py', '_digest.activity_masked(rows)'),
+                          ('acmelib/certs/portal_teams.py', '_digest.activity_masked(rows)')):
+            with open(os.path.join(ROOT, p), encoding='utf-8') as f:
+                self.assertIn(needle, f.read())
+
+
 if __name__ == '__main__':
     unittest.main()

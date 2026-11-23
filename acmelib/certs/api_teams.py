@@ -443,6 +443,9 @@ def _activity(h, s):
     rows, total = T.team_activity(h.store, team['name'], h.num('limit', 50, 1, 500),
                                   h.num('offset', 0, 0, 10 ** 6),
                                   below=str(h.arg('below') or '') in ('1', 'true'))
+    if s.get('role') != 'fulladmin' and not s.get('cli'):
+        from acmelib.certs import digest as _digest
+        rows = _digest.activity_masked(rows)
     return {'team': team['name'], 'rows': rows, 'total': total}
 
 

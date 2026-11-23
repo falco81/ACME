@@ -752,3 +752,16 @@ def tick(store, now=None):
         except Exception as e:                          # noqa: BLE001
             store.add_event('certificates', 'the digest of the team %s could not be made: %s'
                             % (t['name'], str(e)[:300]), 'warn')
+
+
+def activity_masked(rows):
+    """A team's Activity as one who is not a full administrator sees it (1.0.141): the digest's
+    events name the addresses it went to ("... was sent to a@x, b@y") - masked, as the digest's
+    own preview masks them."""
+    import re as _re
+    addr = _re.compile(r"[\w.!#$%&'*+/=?^`{|}~-]+@[\w-]+(?:\.[\w-]+)*")
+    for r in rows or []:
+        w = str(r.get('words') or '')
+        if 'digest' in w.lower() and '@' in w:
+            r['words'] = addr.sub('…', w)
+    return rows

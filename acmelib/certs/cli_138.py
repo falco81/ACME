@@ -52,6 +52,7 @@ all keys-rotate.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 
@@ -1201,6 +1202,8 @@ def console_menu(con):
         ('8', 'An update of the agents in rings', lambda: _con_rollout(con)),
         ('9', 'The keys of the agents and acme\'s command key',
          lambda: con.act('--target-agent', 'all', 'keys')),
+        # 1.0.141: the group cards of Settings → Agent fleet (acme --fleet-group-save/-del)
+        ('g', 'Groups of agents (Enter: change, delete; + add one)', lambda: _con_groups(con)),
     ])
 
 
@@ -1324,6 +1327,79 @@ def _con_unmanaged(con):
     return con.pick('Not managed', load, cols, do, 'every certificate found is managed')
 
 
+def _con_groups(con):
+    """The groups of agents: members, the template they follow, the canary ring."""
+    def load():
+        got = con.out('--fleet') or {}
+        if not isinstance(got, dict):
+            return []
+        names = {a.get('id'): a.get('name') for a in got.get('agents') or []}
+        return [{'name': '+ a new group', '_new': True}] + [
+            dict(g, _names=[str(names.get(m, m)) for m in g.get('members') or []])
+            for g in got.get('groups') or []]
+    cols = [('group', lambda r: r['name'], 22, lambda r: 'ok' if r.get('_new') else None),
+            ('agents', lambda r: '' if r.get('_new') else ', '.join(r.get('_names') or []) or
+             '-', 36, None),
+            ('template', lambda r: r.get('template_title') or r.get('template') or '', 22,
+             lambda r: 'dim'),
+            ('canary', lambda r: 'yes' if r.get('canary') else '', 6, lambda r: 'warn')]
+
+    def do(r):
+        if r.get('_new'):
+            return _con_group_form(con, None)
+        what = con.choose('The group %s' % r['name'], [
+            ('edit', 'Change it: its agents, its template, the canary ring'),
+            ('plan', 'An update in rings with it as the canary: who first, who after'),
+            ('del', 'Delete it (its agents stay as they are)')])
+        if what == 'edit':
+            _con_group_form(con, r)
+        elif what == 'plan':
+            con.act('--fleet-rollout', 'plan', r['name'])
+        elif what == 'del' and con.confirm('Delete the group', 'Delete the group %s? Its agents '
+                                           'and their policies stay as they are.' % r['name'],
+                                           'Delete it', danger=True):
+            con.act('--fleet-group-del', r['name'])
+    return con.pick('Groups of agents', load, cols, do, 'no group yet')
+
+
+def _con_group_form(con, g):
+    got = con.out('--fleet') or {}
+    agents = [a.get('name') for a in (got.get('agents') if isinstance(got, dict) else None) or []]
+    tpl = con.out('--fleet-templates') or {}
+    tpls = [(t['ref'], t.get('title') or t['ref']) for t in (
+        tpl.get('templates') if isinstance(tpl, dict) else None) or [] if t.get('ref')]
+    cur = (g or {}).get('template') or ''
+    opts = [('-', 'none: each agent its own policy')] + tpls
+    if cur and cur not in [o[0] for o in opts]:
+        opts.append((cur, cur))
+
+    def check_members(v, _vals):
+        bad = [x for x in re.split(r'[\s,]+', v or '') if x and x not in agents]
+        return ('%s has no acme-agent (the agents: %s)' % (bad[0], ', '.join(agents) or 'none')
+                if bad else None)
+    fields = ([] if g else [{'key': 'name', 'label': 'its name', 'need': True, 'value': ''}]) + [
+        {'key': 'members', 'label': 'its agents', 'value': ', '.join((g or {}).get('_names')
+                                                                      or []),
+         'need': False, 'check': check_members,
+         'help': 'The targets with acme-agent, with commas: %s.' % (', '.join(agents[:12]) or
+                                                                     'there is none yet')},
+        {'key': 'template', 'label': 'its template', 'kind': 'choice', 'value': cur or '-',
+         'options': opts, 'help': 'The policy template its agents follow (drift is measured '
+                                  'against it).'},
+        {'key': 'canary', 'label': 'the canary ring', 'kind': 'choice',
+         'value': 'yes' if (g or {}).get('canary') else 'no',
+         'options': [('no', 'no'), ('yes', 'yes - updated first in an update in rings')]}]
+    got = con.form('The group %s' % g['name'] if g else 'A new group of agents', fields)
+    if not got:
+        return
+    name = g['name'] if g else (got.get('name') or '').strip()
+    if not name:
+        return
+    members = ','.join(x for x in re.split(r'[\s,]+', got.get('members') or '') if x) or '-'
+    con.act('--fleet-group-save', name, '--fleet-members', members, '--fleet-template',
+            got.get('template') or '-', '--fleet-canary', got.get('canary') or 'no')
+
+
 def _con_rollout(con):
     what = con.choose('An update in rings', [
         ('plan', 'Who would be updated first, who after'),
@@ -1339,7 +1415,8 @@ def _con_rollout(con):
 
 def team_items(con, name):
     """The governance lines of a team's own menu (console.py teams)."""
-    return [('health', 'Its health'), ('gov', 'Its governance (reviews, temporary roles, SoD)'),
+    return [('health', 'Its health'),
+            ('gov', 'Its governance (reviews, temporary roles, SoD, channels): show, change'),
             ('reviews', 'Its access reviews (open one)'),
             ('elevations', 'Requests for a temporary role'),
             ('notify-test', 'Try its channels now')]
@@ -1349,7 +1426,7 @@ def team_do(con, name, what):
     if what == 'health':
         con.act('--team-health', name)
     elif what == 'gov':
-        con.act('--team-gov', name)
+        _con_gov(con, name)
     elif what == 'reviews':
         sub = con.choose('Access reviews of %s' % name, [
             ('show', 'Its reviews'), ('open', 'Open one now'),
@@ -1375,6 +1452,122 @@ def team_do(con, name, what):
     else:
         return False
     return True
+
+
+def _gov_words(v):
+    if isinstance(v, (list, tuple)):
+        return ', '.join(str(x) for x in v)
+    return '' if v is None else str(v)
+
+
+def _con_gov(con, name):
+    """A team's governance: shown, and each part set in a form of its own (acme --team-gov-set
+    TEAM JSON - the console writes the JSON)."""
+    what = con.choose('The governance of %s' % name, [
+        ('show', 'Show it (and what holds from the teams above)'),
+        ('review', 'Access reviews: how often, the days to answer, what happens then'),
+        ('jit', 'Temporary roles: which may be asked for, for how long'),
+        ('sod', 'Separation of duties: no self-approval, pairs no one may hold both of'),
+        ('notify', 'Channels: who is told, when, and where a failed deployment goes')])
+    if what == 'show':
+        con.act('--team-gov', name)
+        return
+    if not what:
+        return
+    got = con.out('--team-gov', name) or {}
+    gov = (got.get('gov') if isinstance(got, dict) else None) or {}
+    cur = gov.get(what) or {}
+    on = [('on', 'on'), ('off', 'off - none of its own')]
+
+    def is_on(vals):
+        return vals.get('on') == 'on'
+    if what == 'review':
+        fields = [
+            {'key': 'on', 'label': 'access reviews', 'kind': 'choice', 'options': on,
+             'value': 'on' if cur else 'off'},
+            {'key': 'every_days', 'label': 'every (days)', 'kind': 'number', 'need': True,
+             'range': (7, 3650),
+             'value': str(cur.get('every_days') or 90), 'when': is_on},
+            {'key': 'answer_days', 'label': 'days to answer', 'kind': 'number', 'need': True,
+             'range': (1, 365),
+             'value': str(cur.get('answer_days') or 14), 'when': is_on,
+             'check': lambda v, vals: None if not is_on(vals) or not str(v).isdigit() or
+             not str(vals.get('every_days') or '').isdigit() or int(v) <= int(
+                 vals['every_days']) else 'at most the days between reviews'},
+            {'key': 'action', 'label': 'not answered in time', 'kind': 'choice',
+             'value': cur.get('action') or 'report', 'when': is_on,
+             'options': [('report', 'reported'), ('expire', 'the member taken out')]}]
+    elif what == 'jit':
+        fields = [
+            {'key': 'on', 'label': 'temporary roles', 'kind': 'choice', 'options': on,
+             'value': 'on' if cur else 'off'},
+            {'key': 'roles', 'label': 'roles that may be asked for', 'when': is_on,
+             'value': _gov_words(cur.get('roles')),
+             'check': lambda v, vals: None if not is_on(vals) or str(v).strip() else
+             'say which roles (acme --roles)', 'help': 'Their names, with commas: Requester, '
+                                                     'Deployer.'},
+            {'key': 'max_hours', 'label': 'for at most (hours)', 'kind': 'number',
+             'need': True, 'range': (1, 720), 'value': str(cur.get('max_hours') or 8), 'when': is_on}]
+    elif what == 'sod':
+        fields = [
+            {'key': 'no_self_approval', 'label': 'no self-approval', 'kind': 'choice',
+             'value': 'yes' if cur.get('no_self_approval') else 'no',
+             'options': [('no', 'no'), ('yes', 'yes - nobody approves their own request')]},
+            {'key': 'exclusive', 'label': 'pairs no one holds both', 'need': False,
+             'value': '; '.join('%s + %s' % (p[0], p[1]) for p in cur.get('exclusive') or []
+                                if isinstance(p, (list, tuple)) and len(p) == 2),
+             'help': 'Roles or capabilities, a pair with + and pairs with ; - Requester + '
+                     'Approver; cert.key + cert.revoke.'}]
+    else:
+        fields = [
+            {'key': 'on', 'label': 'channels of its own', 'kind': 'choice', 'options': on,
+             'value': 'on' if cur else 'off'},
+            {'key': 'mail', 'label': 'the team (mail)', 'need': False, 'when': is_on,
+             'value': _gov_words(cur.get('mail'))},
+            {'key': 'manager_mail', 'label': 'its manager (mail)', 'need': False,
+             'when': is_on, 'value': _gov_words(cur.get('manager_mail'))},
+            {'key': 'oncall_mail', 'label': 'on call (mail)', 'need': False, 'when': is_on,
+             'value': _gov_words(cur.get('oncall_mail'))},
+            {'key': 'expiry_days', 'label': 'told days before the end', 'kind': 'number',
+             'need': True, 'range': (0, 365), 'value': str(cur.get('expiry_days', 14)), 'when': is_on},
+            {'key': 'manager_days', 'label': 'the manager, days before', 'kind': 'number',
+             'need': True, 'range': (0, 365), 'value': str(cur.get('manager_days', 3)), 'when': is_on},
+            {'key': 'deploy_failed', 'label': 'a failed deployment goes to', 'kind': 'choice',
+             'value': cur.get('deploy_failed', 'oncall') or '-', 'when': is_on,
+             'options': [('oncall', 'on call'), ('manager', 'the manager'), ('team', 'the team'),
+                         ('-', 'nobody')]},
+            {'key': 'elevations', 'label': 'requests for a temporary role', 'kind': 'choice',
+             'value': 'no' if cur and not cur.get('elevations', True) else 'yes',
+             'when': is_on, 'options': [('yes', 'told'), ('no', 'not told')]},
+            {'key': 'reviews', 'label': 'access reviews', 'kind': 'choice',
+             'value': 'no' if cur and not cur.get('reviews', True) else 'yes', 'when': is_on,
+             'options': [('yes', 'told'), ('no', 'not told')]}]
+    vals = con.form('The governance of %s' % name, fields,
+                    'The webhooks of the team stay sealed: acme --api POST /api/teams/hooks - '
+                    'with the body on stdin.' if what == 'notify' else '')
+    if not vals:
+        return
+    if what == 'sod':
+        pairs = [x.strip() for x in str(vals.get('exclusive') or '').split(';') if x.strip()]
+        part = {'no_self_approval': vals.get('no_self_approval') == 'yes', 'exclusive': pairs}
+        if not part['no_self_approval'] and not pairs:
+            part = None
+    elif vals.get('on') != 'on':
+        part = None
+    elif what == 'review':
+        part = {'every_days': int(vals['every_days']), 'answer_days': int(vals['answer_days']),
+                'action': vals['action']}
+    elif what == 'jit':
+        part = {'roles': [x.strip() for x in str(vals['roles']).split(',') if x.strip()],
+                'max_hours': int(vals['max_hours'])}
+    else:
+        part = {k: vals.get(k) or '' for k in ('mail', 'manager_mail', 'oncall_mail')}
+        part.update(expiry_days=int(vals['expiry_days']), manager_days=int(vals['manager_days']),
+                    deploy_failed='' if vals.get('deploy_failed') == '-'
+                    else vals.get('deploy_failed'),
+                    elevations=vals.get('elevations') != 'no',
+                    reviews=vals.get('reviews') != 'no')
+    con.act('--team-gov-set', name, json.dumps({what: part}, ensure_ascii=False))
 
 
 def gov_menu_items(con):

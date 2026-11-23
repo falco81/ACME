@@ -3521,9 +3521,16 @@ function reviewAnswer(rv, after) {
       arr(it.roles).concat(arr(it.rights)).forEach(function (x) { roles.appendChild(chip(x, 'info', null, true)); });
       w.appendChild(roles);
       r.appendChild(w);
-      if (it.state === 'pending') {
+      if (it.state === 'pending' && it.me) {
+        /* their own membership: another manager confirms it (hunt v3: offered, and refused) */
+        r.appendChild(el('span', 'muted small', 'another manager of the team confirms you'));
+      } else if (it.state === 'pending') {
         var b = el('div', 'pwg-e-b');
         var outB = cmdButton('Take out', 'trash', 'small');
+        if (it.may_out === false) {
+          outB.disabled = true;
+          outB.title = tr('they hold more than you do here - not yours to change');
+        }
         var keepB = cmdButton('Confirm', 'check', 'small primary');
         keepB.classList.add('pwg-rv-keep');
         var answer = function (keep, btn) {
@@ -3535,7 +3542,11 @@ function reviewAnswer(rv, after) {
           }).catch(oops).then(function () { busy(btn, false); });
         };
         keepB.onclick = function () { answer(true, keepB); };
-        outB.onclick = function () { answer(false, outB); };
+        /* asked first (hunt v3): one click took the member off the team, beside Confirm -
+           Members asks it */
+        outB.onclick = function () {
+          confirmThen(tr('Take a member off'), tr('{0} is no longer a member of {1}.').replace('{0}', htmlText(whoWords(it.who))).replace('{1}', htmlText(rv.team)), 'Take it off', function () { answer(false, outB); });
+        };
         b.appendChild(outB);
         b.appendChild(keepB);
         r.appendChild(b);
@@ -3616,6 +3627,9 @@ function whoMatrix(d) {
 /* ---- the banner while an administrator views the portal as somebody ------------------------ */
 function viewAsBanner() {
   if (!(typeof PORTAL_ME === 'object' && PORTAL_ME)) return;
+  /* not while the password is to be changed first (hunt v3): asked, it was refused 403 - an
+     error in the browser's console on that page; a view-as sign-in never has to change it */
+  if (PORTAL_ME.must_change) return;
   api('view-as').then(function (d) {
     if (!d || !d.active || $('pwg-viewas')) return;
     var b = el('div', 'pwg-viewas');

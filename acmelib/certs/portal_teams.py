@@ -1738,6 +1738,9 @@ def _activity(h):
     team = me.need(h.arg('team'), 'team.activity', 'see what happened')
     page, per = _page(h, ACTIVITY_PER, 200)
     rows, total = T.team_activity(h.store, team, per, page * per, below=_flag(h, 'below'))
+    if not me.all:
+        from acmelib.certs import digest as _digest
+        rows = _digest.activity_masked(rows)
     return {'team': team, 'rows': rows, 'total': total, 'page': page, 'per': per,
             'pages': (total + per - 1) // per}
 
@@ -1823,6 +1826,18 @@ def _reviews(h):
     # the reviews open where they confirm members
     teams = {k for k in me.reach('team.members')}
     rows = [r for r in G.review_open_rows(h.store) if _low(r['team']) in teams]
+    # which answers are theirs to give (hunt v3): their own membership and one holding more
+    # than they do were offered Confirm / Take out - each refused once clicked
+    cat = T.role_catalog(h.store)
+    for r in rows[:200]:
+        mine = _norm(me.caps(r['team']))
+        t = me.tr.rows.get(_low(r['team'])) or {}
+        cur = {_low(m.get('who')): m for m in S.jload(t.get('members'), []) or []
+               if isinstance(m, dict)}
+        for it in r.get('items') or []:
+            it['me'] = bool(not me.all and _is_me(me, it.get('who')))
+            m = cur.get(_low(it.get('who')))
+            it['may_out'] = bool(me.all or not m or _norm(T.member_caps(m, cat, now=0)) <= mine)
     return {'open': rows[:200]}
 
 

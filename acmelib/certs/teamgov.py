@@ -753,7 +753,26 @@ def review_open(store, team, by, rule=None):
                           or dict(row, id=rid))
 
 
-def review_answer(store, rid, who, keep, actor, note=''):
+def _review_item_back(store, rid, who):
+    """An answer given back (its member pending again) - the removal it stood for failed."""
+    for _i in range(8):
+        r = store.db.row('SELECT items, state FROM cert_team_reviews WHERE id = ?', (rid,))
+        if not r:
+            return
+        items = S.jload(r.get('items'), []) or []
+        for i in items:
+            if _low(i.get('who')) == _low(who):
+                i['state'] = 'pending'
+                for k in ('by', 'at', 'note'):
+                    i.pop(k, None)
+        state = 'open' if r.get('state') == 'done' else r.get('state')
+        if store.db.run('UPDATE cert_team_reviews SET items = ?, state = ?, done = NULL, '
+                        'done_by = NULL WHERE id = ? AND items = ?',
+                        (json.dumps(items), state, rid, r.get('items'))):
+            return
+
+
+def review_answer(store, rid, who, keep, actor, note='', _round=0):
     try:
         r = store.db.row('SELECT * FROM cert_team_reviews WHERE id = ?', (int(rid),))
     except (TypeError, ValueError):
@@ -792,18 +811,34 @@ def review_answer(store, rid, who, keep, actor, note=''):
     now = _now()
     it.update(state='kept' if keep else 'removed', by=_who_by(actor.get('by')), at=now,
               note=str(note or '').strip()[:300])
+    pending = [i for i in items if i.get('state') == 'pending']
+    ch = {'items': json.dumps(items), 'updated': now}
+    if not pending:
+        ch.update(state='done', done=now, done_by=_who_by(actor.get('by')))
+    # written only over the items as they were read (hunt v3): two managers answering at once
+    # each wrote back the list they had read - one answer was lost (a member confirmed became
+    # pending again, or one taken out of the team still pending), and the same member could be
+    # taken out twice. The other answer is then read again and this one checked against it.
+    keys = sorted(ch)
+    n = store.db.run('UPDATE cert_team_reviews SET %s WHERE id = ? AND items = ? AND state IN '
+                     "('open', 'overdue')" % ', '.join('%s = ?' % k for k in keys),
+                     [ch[k] for k in keys] + [r['id'], r.get('items')])
+    if not n:
+        if _round < 7:
+            return review_answer(store, rid, who, keep, actor, note, _round + 1)
+        raise E.ApiError(409, 'the review was changed meanwhile - try again')
     if not keep:
         t = T.team_get(store, team)
         if t:
             ms = [m for m in S.jload(t.get('members'), []) or []
                   if isinstance(m, dict) and _low(m.get('who')) != _low(who)]
-            T.save_team(store, {'old_name': t['name'], 'name': t['name'], 'members': ms},
-                        '%s (access review)' % actor.get('by'))
-    pending = [i for i in items if i.get('state') == 'pending']
-    ch = {'items': json.dumps(items), 'updated': now}
-    if not pending:
-        ch.update(state='done', done=now, done_by=_who_by(actor.get('by')))
-    store.db.update('cert_team_reviews', r['id'], ch)
+            try:
+                T.save_team(store, {'old_name': t['name'], 'name': t['name'], 'members': ms},
+                            '%s (access review)' % actor.get('by'))
+            except Exception:
+                # not taken out: the answer is given back (pending again), as it was
+                _review_item_back(store, r['id'], who)
+                raise
     store.add_event('certificates', '%s %s %s in the access review of the team %s%s' % (
         actor.get('by'), 'confirmed' if keep else 'took out', it['who'], team,
         ' - the review is done' if not pending else ''), 'info' if keep else 'warn',
