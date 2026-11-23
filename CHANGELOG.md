@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.144 - not released
 
+- **Backups are a snapshot of one moment.** a copy of the database (the nightly one, one made by hand or downloaded, the backup to another machine) read its tables one by one, so a renewal or deployment finished meanwhile could leave a certificate older in the copy than its versions and jobs; every copy is now read in one transaction - SQLite in WAL mode (a file not in WAL mode is read from SQLite's own backup of it), PostgreSQL at REPEATABLE READ, MariaDB with a consistent InnoDB snapshot - and is the database of one moment, without holding the daemon's writes.
+
 ## 1.0.143 - 2026-11-24
 
 - **Webhook target: its headers kept sealed** (security). *More headers* of a webhook target - where a token goes (`Authorization: Bearer …`) - were a list kept in clear: shown to whoever could see targets and carried by a configuration exported without secrets. They are a secret now, sealed as every other (shown as dots; a header list kept from before is sealed at its first use and works as before).
