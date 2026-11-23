@@ -62,7 +62,9 @@ The picker shows each as a card - its icon, what it is for, what it sets, whethe
 not comply* - the compliance check below, on the profile it would make), whether its source is a
 public CA or your own, and which source. One chosen asks the **name**, the **domains**, the
 **source** (only those that fit; the others say why) and, for a source that proves names, the
-validation - and shows *The profile it will be* as it is typed. *Make the profile* saves it and
+validation - and shows *The profile it will be* as it is typed (with what saving it would refuse:
+a public CA and domains no public CA issues for, such as `.test` or `.local`, are *Does not
+comply*, and why). *Make the profile* saves it and
 opens it in its editor; *Open in the editor…* opens the editor filled in, nothing saved yet.
 
 What a template sets is fitted, never forced:
