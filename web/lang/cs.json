@@ -670,7 +670,7 @@
   },
   "s0166": {
    "source": "A full administrator may open a token and show its QR code and key - for somebody whose phone cannot scan the page, or to set the same token up again. Whoever has the key can make the codes, so every look is written down as an event. Off: nobody sees a key after it is made.",
-   "text": "Plný administrátor smí otevřít token a zobrazit jeho QR kód a klíč – pro někoho, jehož telefon stránku nenaskenuje, nebo pro opětovné nastavení stejného tokenu. Kdo má klíč, umí vytvářet kódy, proto se každé zobrazení zapíše jako událost. Vypnuto: klíč po vytvoření už nikdo neuvidí."
+   "text": "Plný správce smí otevřít token a zobrazit jeho QR kód a klíč – pro někoho, jehož telefon stránku nenaskenuje, nebo pro opětovné nastavení stejného tokenu. Kdo má klíč, umí vytvářet kódy, proto se každé zobrazení zapíše jako událost. Vypnuto: klíč po vytvoření už nikdo neuvidí."
   },
   "s0167": {
    "source": "A key (below) or a password - or both.",
@@ -3950,7 +3950,7 @@
   },
   "s0986": {
    "source": "Full administrators",
-   "text": "Plní administrátoři"
+   "text": "Plní správci"
   },
   "s0987": {
    "source": "Full name",
@@ -4078,7 +4078,7 @@
   },
   "s1018": {
    "source": "Group of full administrators",
-   "text": "Skupina plných administrátorů"
+   "text": "Skupina plných správců"
   },
   "s1019": {
    "source": "Group of read-only accounts",
@@ -11526,7 +11526,7 @@
   },
   "s2883": {
    "source": "This account may not change the settings. A full administrator can change that under",
-   "text": "Tento účet nesmí měnit nastavení. Plný administrátor to může změnit v sekci"
+   "text": "Tento účet nesmí měnit nastavení. Plný správce to může změnit v sekci"
   },
   "s2884": {
    "source": "This account was given a password by somebody else. Before anything else, choose one only you know - every page waits for it.",
@@ -12202,7 +12202,7 @@
   },
   "s3052": {
    "source": "User principal name",
-   "text": "User principal name"
+   "text": "Hlavní jméno uživatele (UPN)"
   },
   "s3053": {
    "source": "VDOM of a wildcard RADIUS admin.",
@@ -13394,7 +13394,7 @@
   },
   "s3350": {
    "source": "a full administrator can sign in after it",
-   "text": "po obnově se může přihlásit plný administrátor"
+   "text": "po obnově se může přihlásit plný správce"
   },
   "s3351": {
    "source": "a layout of the columns is an object of tables",
@@ -16490,11 +16490,11 @@
   },
   "s4125": {
    "source": "only a full administrator may bring tokens over",
-   "text": "převzít tokeny smí jen plný administrátor"
+   "text": "převzít tokeny smí jen plný správce"
   },
   "s4126": {
    "source": "only a full administrator may send a new version",
-   "text": "novou verzi smí poslat jen plný administrátor"
+   "text": "novou verzi smí poslat jen plný správce"
   },
   "s4127": {
    "source": "only a realm of one suffix (example.cz) can take others too",
@@ -17714,7 +17714,7 @@
   },
   "s4431": {
    "source": "that is the last full administrator who can sign in",
-   "text": "to je poslední úplný administrátor, který se může přihlásit"
+   "text": "to je poslední úplný správce, který se může přihlásit"
   },
   "s4432": {
    "source": "that is the last key root signs in with here - said again to take it away anyway",
@@ -19218,7 +19218,7 @@
   },
   "s4807": {
    "source": "there is no full administrator who can sign in in that file: putting it back would lock everybody out of these pages (on the command line it can be put back, and an account made after it)",
-   "text": "v tom souboru není žádný plný administrátor, který se může přihlásit: obnova by všem zamkla tyto stránky (na příkazové řádce ji lze obnovit a účet založit potom)"
+   "text": "v tom souboru není žádný plný správce, který se může přihlásit: obnova by všem zamkla tyto stránky (na příkazové řádce ji lze obnovit a účet založit potom)"
   },
   "s4808": {
    "source": "there is no key made or given for that",
@@ -20614,7 +20614,7 @@
   },
   "sc0175": {
    "source": "No target yet - a full administrator adds them under Targets.",
-   "text": "Zatím žádný cíl – přidává je plný administrátor v záložce Cíle."
+   "text": "Zatím žádný cíl – přidává je plný správce v záložce Cíle."
   },
   "sc0176": {
    "source": "Off: kept, but the certificate is not put there.",
@@ -20882,7 +20882,7 @@
   },
   "sc0242": {
    "source": "Choose the shape. Formats with the private key are for a full administrator only.",
-   "text": "Zvolte podobu. Formáty se soukromým klíčem jsou jen pro plného administrátora."
+   "text": "Zvolte podobu. Formáty se soukromým klíčem jsou jen pro plného správce."
   },
   "sc0243": {
    "source": "with the key",
@@ -20966,7 +20966,7 @@
   },
   "sc0263": {
    "source": "A full administrator adds them under Sources.",
-   "text": "Přidává je plný administrátor v záložce Zdroje."
+   "text": "Přidává je plný správce v záložce Zdroje."
   },
   "sc0264": {
    "source": "proves names",
@@ -21058,7 +21058,7 @@
   },
   "sc0286": {
    "source": "The key is made here, on this server, and never leaves it unless a full administrator exports it.",
-   "text": "Klíč se vytvoří zde, na tomto serveru, a nikdy jej neopustí, pokud jej plný administrátor neexportuje."
+   "text": "Klíč se vytvoří zde, na tomto serveru, a nikdy jej neopustí, pokud jej plný správce neexportuje."
   },
   "sc0287": {
    "source": "This source makes the key itself; the type is what is asked of it.",
@@ -21314,11 +21314,11 @@
   },
   "sc0350": {
    "source": "There is no self-signed source yet - a full administrator adds one under Sources.",
-   "text": "Zatím neexistuje self-signed zdroj – přidá jej plný administrátor v záložce Zdroje."
+   "text": "Zatím neexistuje self-signed zdroj – přidá jej plný správce v záložce Zdroje."
   },
   "sc0351": {
    "source": "there is no self-signed source - a full administrator adds one under Sources",
-   "text": "neexistuje self-signed zdroj – přidá jej plný administrátor v záložce Zdroje"
+   "text": "neexistuje self-signed zdroj – přidá jej plný správce v záložce Zdroje"
   },
   "sc0352": {
    "source": "A CSR for an outside CA",
@@ -28186,7 +28186,7 @@
   },
   "sc1983": {
    "source": "Enrollment code",
-   "text": "Enrollment code"
+   "text": "Registrační kód"
   },
   "sc1984": {
    "source": "The end entity's password (enrollment code). Empty: one made for each request.",
@@ -31098,7 +31098,7 @@
   },
   "sc2677": {
    "source": "a set not saved is tried by a full administrator",
-   "text": "neuloženou sadu zkouší jen plný administrátor"
+   "text": "neuloženou sadu zkouší jen plný správce"
   },
   "sc2678": {
    "source": "which name? (www.example.com)",
@@ -32582,7 +32582,7 @@
   },
   "sp0067": {
    "source": "A full administrator can make the certificates for those not covered.",
-   "text": "Certifikáty pro nepokryté sloty může vytvořit plný administrátor."
+   "text": "Certifikáty pro nepokryté sloty může vytvořit plný správce."
   },
   "sp0068": {
    "source": "Every slot that needs a certificate has one from acme.",
@@ -33310,7 +33310,7 @@
   },
   "sdf0014": {
    "source": "uploaded on every deployment, run with the ACME_* variables, then deleted; only a full administrator may change it (64 KiB at most)",
-   "text": "při každém nasazení se nahraje, spustí s proměnnými ACME_* a pak smaže; měnit ho smí jen plný administrátor (nejvýš 64 KiB)"
+   "text": "při každém nasazení se nahraje, spustí s proměnnými ACME_* a pak smaže; měnit ho smí jen plný správce (nejvýš 64 KiB)"
   },
   "sdf0015": {
    "source": "Password of PKCS#12 / keystore files",
@@ -33318,7 +33318,7 @@
   },
   "sdf0016": {
    "source": "for pfx, p12, p12-legacy and jks files. Made by acme: a random one, kept with the deployment (a full administrator sees it), given to the script as ACME_PASSWORD",
-   "text": "pro soubory pfx, p12, p12-legacy a jks. Vytvoří acme: náhodné, uložené u nasazení (plný administrátor ho vidí), skript ho dostane jako ACME_PASSWORD"
+   "text": "pro soubory pfx, p12, p12-legacy a jks. Vytvoří acme: náhodné, uložené u nasazení (plný správce ho vidí), skript ho dostane jako ACME_PASSWORD"
   },
   "sdf0017": {
    "source": "the one set here (none when empty)",
@@ -33342,7 +33342,7 @@
   },
   "sdf0022": {
    "source": "off: a deployment runs only a command allowed above. On: a script written in the deployment (by a full administrator) runs on this machine as acme, after the files",
-   "text": "vypnuto: nasazení spustí jen příkaz povolený výše. Zapnuto: skript napsaný v nasazení (plným administrátorem) se po souborech spustí na tomto stroji pod účtem acme"
+   "text": "vypnuto: nasazení spustí jen příkaz povolený výše. Zapnuto: skript napsaný v nasazení (plným správcem) se po souborech spustí na tomto stroji pod účtem acme"
   },
   "sdf0023": {
    "source": "besides the machine store, when asked: one a line, format path - the same formats as on Linux (cert-pem, fullchain-pem, key-pem, pfx, p12-legacy, jks...); {name} {cn} {service} {date} in paths",
@@ -33766,7 +33766,7 @@
   },
   "sdf0128": {
    "source": "A random password of 24 characters, kept sealed with this deployment and the same on every renewal; a full administrator sees it here as every secret. The script gets it as ACME_PASSWORD.",
-   "text": "Náhodné heslo o 24 znacích, uložené zapečetěně u tohoto nasazení a stejné při každém obnovení; plný administrátor ho tu vidí jako každé tajemství. Skript ho dostane jako ACME_PASSWORD."
+   "text": "Náhodné heslo o 24 znacích, uložené zapečetěně u tohoto nasazení a stejné při každém obnovení; plný správce ho tu vidí jako každé tajemství. Skript ho dostane jako ACME_PASSWORD."
   },
   "sdf0129": {
    "source": "Typed here, kept sealed. Empty: none (or what the service's preset says). The script gets it as ACME_PASSWORD.",
@@ -33814,7 +33814,7 @@
   },
   "sdf0140": {
    "source": "The target's default (its settings, a full administrator changes it there):",
-   "text": "Výchozí skript cíle (v jeho nastavení, mění ho tam plný administrátor):"
+   "text": "Výchozí skript cíle (v jeho nastavení, mění ho tam plný správce):"
   },
   "sdf0141": {
    "source": "Run with",
@@ -33838,7 +33838,7 @@
   },
   "sdf0146": {
    "source": "Only a full administrator may change the script (it runs on the target).",
-   "text": "Skript smí měnit jen plný administrátor (spouští se na cíli)."
+   "text": "Skript smí měnit jen plný správce (spouští se na cíli)."
   },
   "sdf0147": {
    "source": "Uploaded to the target's upload folder on every deployment under a name of its own, made executable, run through sudo, then deleted - what it prints goes into the job. Exit code other than 0: the deployment fails and the previous files are put back. On a test ACME_DRY_RUN is 1: change nothing then.",
@@ -33970,11 +33970,11 @@
   },
   "sdf0179": {
    "source": "only a full administrator may change the script of a deployment (it runs on the target)",
-   "text": "skript nasazení smí měnit jen plný administrátor (spouští se na cíli)"
+   "text": "skript nasazení smí měnit jen plný správce (spouští se na cíli)"
   },
   "sdf0180": {
    "source": "only a full administrator may test a script other than the one saved",
-   "text": "jiný než uložený skript smí testovat jen plný administrátor"
+   "text": "jiný než uložený skript smí testovat jen plný správce"
   },
   "sdf0181": {
    "source": "the certificate has not been issued yet: there is nothing to test with",
@@ -33982,7 +33982,7 @@
   },
   "sdf0182": {
    "source": "a password for the PKCS#12 / keystore files was made and kept with the deployment (a full administrator sees it)",
-   "text": "pro soubory PKCS#12 / keystore bylo vytvořeno heslo a uloženo u nasazení (plný administrátor ho vidí)"
+   "text": "pro soubory PKCS#12 / keystore bylo vytvořeno heslo a uloženo u nasazení (plný správce ho vidí)"
   },
   "sdf0183": {
    "source": "the test passed",
@@ -34374,7 +34374,7 @@
   },
   "stm0070": {
    "source": "Who belongs to it, and what each may do with its certificates. A full administrator always sees and does everything; certificate administrators and readers are kept to their teams only when the settings of this pane say so.",
-   "text": "Kdo k němu patří a co kdo smí s jeho certifikáty. Plný administrátor vždy vidí a smí vše; správci certifikátů a čtenáři jsou omezeni na své týmy, jen když to říkají nastavení tohoto panelu."
+   "text": "Kdo k němu patří a co kdo smí s jeho certifikáty. Plný správce vždy vidí a smí vše; správci certifikátů a čtenáři jsou omezeni na své týmy, jen když to říkají nastavení tohoto panelu."
   },
   "stm0071": {
    "source": "No member yet: only administrators see its certificates.",
@@ -34462,7 +34462,7 @@
   },
   "stm0096": {
    "source": "Who each certificate belongs to and what its people may do with it, and the tags - defined once here and picked from lists everywhere else, never typed. A full administrator always sees and does everything.",
-   "text": "Komu který certifikát patří a co s ním jeho lidé smějí, a štítky – definované jednou zde a všude jinde vybírané ze seznamu, nikdy psané. Plný administrátor vždy vidí a smí vše."
+   "text": "Komu který certifikát patří a co s ním jeho lidé smějí, a štítky – definované jednou zde a všude jinde vybírané ze seznamu, nikdy psané. Plný správce vždy vidí a smí vše."
   },
   "stm0097": {
    "source": "Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.",
@@ -34542,7 +34542,7 @@
   },
   "stm0116": {
    "source": "On (as before): a certificate administrator sees and manages every certificate. Off: only those of the teams where they are a member with the right to manage (or to see, to approve); a certificate without an owner only a full administrator sees. A full administrator always sees and does everything.",
-   "text": "Zapnuto (jako dosud): správce certifikátů vidí a spravuje každý certifikát. Vypnuto: jen certifikáty týmů, kde je členem s právem spravovat (nebo vidět, schvalovat); certifikát bez vlastníka vidí jen plný administrátor. Plný administrátor vždy vidí a smí vše."
+   "text": "Zapnuto (jako dosud): správce certifikátů vidí a spravuje každý certifikát. Vypnuto: jen certifikáty týmů, kde je členem s právem spravovat (nebo vidět, schvalovat); certifikát bez vlastníka vidí jen plný správce. Plný správce vždy vidí a smí vše."
   },
   "stm0117": {
    "source": "On (as before): a read-only account sees every certificate. Off: only those of the teams where it is a member with the right to see.",
@@ -41298,7 +41298,7 @@
   },
   "sr4v0000": {
    "source": "settings that are not saved are tried with the secrets kept by a full administrator",
-   "text": "neuložená nastavení s uloženými tajnými údaji zkouší jen plný administrátor"
+   "text": "neuložená nastavení s uloženými tajnými údaji zkouší jen plný správce"
   },
   "sb5_001": {
    "source": "on the VIP address only",
@@ -53766,7 +53766,7 @@
   },
   "pm_2": {
    "source": "How busy each node is - the processor, the memory, the disks and the network - beside the state at the top of these pages, every 3 s, with the cores, the temperatures, the disks and the processes when a number is pointed at; in a cluster every node. For full administrators, each choosing its look in Your account. Off: nothing is shown, and nothing is read or written for it.",
-   "text": "Jak je každý uzel vytížený – procesor, paměť, disky a síť – vedle stavu nahoře na těchto stránkách, každé 3 s, s jádry, teplotami, disky a procesy po najetí na číslo; v clusteru všechny uzly. Pro plné administrátory, každý si vzhled volí ve Vašem účtu. Vypnuto: nic se nezobrazuje a nic se kvůli tomu nečte ani nezapisuje."
+   "text": "Jak je každý uzel vytížený – procesor, paměť, disky a síť – vedle stavu nahoře na těchto stránkách, každé 3 s, s jádry, teplotami, disky a procesy po najetí na číslo; v clusteru všechny uzly. Pro plné správce, každý si vzhled volí ve Vašem účtu. Vypnuto: nic se nezobrazuje a nic se kvůli tomu nečte ani nezapisuje."
   },
   "pm_3": {
    "source": "How busy each node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Switched on for everybody in Settings → About; here, how it looks for you - or not shown.",
@@ -53778,7 +53778,7 @@
   },
   "huntc1_1": {
    "source": "this deployment runs commands or writes the key where a full administrator set: only one may move it to another target",
-   "text": "toto nasazení spouští příkazy nebo zapisuje klíč tam, kam určil plný administrátor: na jiný cíl ho smí přesunout jen on"
+   "text": "toto nasazení spouští příkazy nebo zapisuje klíč tam, kam určil plný správce: na jiný cíl ho smí přesunout jen on"
   },
   "huntc1_2": {
    "source": "the CA had revoked it already",
@@ -53954,7 +53954,7 @@
   },
   "ui3_1": {
    "source": "only a full administrator may change where a deployment writes the private key, or its password",
-   "text": "kam nasazení zapisuje privátní klíč a jeho heslo, smí měnit jen plný administrátor"
+   "text": "kam nasazení zapisuje privátní klíč a jeho heslo, smí měnit jen plný správce"
   },
   "ui3_2": {
    "source": "made on the first start",
@@ -54762,7 +54762,7 @@
   },
   "move_14": {
    "source": "No source is set up yet - a full administrator adds them under Sources.",
-   "text": "Zatím není nastaven žádný zdroj – přidá ho plný administrátor v sekci Zdroje."
+   "text": "Zatím není nastaven žádný zdroj – přidá ho plný správce v sekci Zdroje."
   },
   "move_15": {
    "source": "Stays as it is",
@@ -56390,7 +56390,7 @@
   },
   "dsc_8": {
    "source": "A full administrator can give the slots their certificates.",
-   "text": "Certifikáty slotům může přidělit plný administrátor."
+   "text": "Certifikáty slotům může přidělit plný správce."
   },
   "dsc_9": {
    "source": "One certificate for the new slots",
@@ -65730,7 +65730,7 @@
   },
   "z_316": {
    "source": "A full administrator confirms it.",
-   "text": "Potvrzuje ho plný administrátor."
+   "text": "Potvrzuje ho plný správce."
   },
   "z_317": {
    "source": "What its policy allows",
@@ -72146,7 +72146,7 @@
   },
   "z_1733": {
    "source": "A full administrator switches it",
-   "text": "Přepíná ho plný administrátor"
+   "text": "Přepíná ho plný správce"
   },
   "z_1734": {
    "source": "A new network, its policy changed or widened, drift from its design or template, its clock, silence, an older version.",
@@ -72294,7 +72294,7 @@
   },
   "z_1770": {
    "source": "Switched on, what the agent is now is taken as its usual; what changes from it is an event and an alert until a full administrator has looked at it.",
-   "text": "Po zapnutí se současný stav agenta bere jako obvyklý; co se od něj změní, je událost a upozornění, dokud to plný administrátor neprověří."
+   "text": "Po zapnutí se současný stav agenta bere jako obvyklý; co se od něj změní, je událost a upozornění, dokud to plný správce neprověří."
   },
   "z_1771": {
    "source": "Take it as its usual",
@@ -74746,7 +74746,7 @@
   },
   "z_2383": {
    "source": "Only a full administrator may do that",
-   "text": "To smí jen plný administrátor"
+   "text": "To smí jen plný správce"
   },
   "z_2384": {
    "source": "Clone…",
@@ -74834,7 +74834,7 @@
   },
   "z_2405": {
    "source": "Only a certificate administrator (or a full one) may do that",
-   "text": "To smí jen administrátor certifikátů (nebo plný administrátor)"
+   "text": "To smí jen administrátor certifikátů (nebo plný správce)"
   },
   "z_2406": {
    "source": "Your teams do not give you that on this certificate",
@@ -75050,7 +75050,7 @@
   },
   "z_2459": {
    "source": "only a full administrator may",
-   "text": "smí jen plný administrátor"
+   "text": "smí jen plný správce"
   },
   "z_2460": {
    "source": "already has them",
@@ -75226,15 +75226,15 @@
   },
   "z_2503": {
    "source": "A new request profile with these settings, under a name of its own. Open it afterwards to change anything.",
-   "text": "Nový profil požadavku s tímto nastavením a vlastním názvem. Chcete-li cokoli změnit, otevřete ho potom."
+   "text": "Nový profil žádosti s tímto nastavením a vlastním názvem. Chcete-li cokoli změnit, otevřete ho potom."
   },
   "z_2504": {
    "source": "request profiles",
-   "text": "profily požadavků"
+   "text": "profily žádostí"
   },
   "z_2505": {
    "source": "Add a request profile…",
-   "text": "Přidat profil požadavku…"
+   "text": "Přidat profil žádosti…"
   },
   "z_2506": {
    "source": "DNS set",
@@ -75326,7 +75326,7 @@
   },
   "z_2528": {
    "source": "A new request profile as",
-   "text": "Nový profil požadavku podle"
+   "text": "Nový profil žádosti podle"
   },
   "z_2529": {
    "source": "Event",
@@ -77691,6 +77691,614 @@
   "z_3119": {
    "source": "Teams from a CSV file (each row said first)",
    "text": "Týmy ze souboru CSV (nejdřív každý řádek)"
+  },
+  "z_3120": {
+   "source": "the agent answered no discovery",
+   "text": "agent nevrátil žádné zjišťování"
+  },
+  "z_3121": {
+   "source": "the agent answered no key to seal to",
+   "text": "agent nevrátil žádný klíč, pro který by se dalo pečetit"
+  },
+  "z_3122": {
+   "source": "the agents' port is off: an enrolling agent always asks acme there - switch it on at Settings → Target agents (Agents may connect to acme) first",
+   "text": "port agentů je vypnutý: registrující se agent se acme vždy ptá tam – nejdřív ho zapněte v Nastavení → Agenti cílů (Agenti se mohou připojovat k acme)"
+  },
+  "z_3123": {
+   "source": "the mode is passive or active",
+   "text": "režim je pasivní nebo aktivní"
+  },
+  "z_3124": {
+   "source": "- each server that joins with it is CONFIRMED AUTOMATICALLY",
+   "text": "– každý server, který se s ním připojí, je POTVRZEN AUTOMATICKY"
+  },
+  "z_3125": {
+   "source": "- each server that joins with it waits to be confirmed",
+   "text": "– každý server, který se s ním připojí, čeká na potvrzení"
+  },
+  "z_3126": {
+   "source": "- confirmed automatically",
+   "text": "– potvrzen automaticky"
+  },
+  "z_3127": {
+   "source": "- it waits for its fingerprint to be confirmed",
+   "text": "– čeká na potvrzení svého otisku"
+  },
+  "z_3128": {
+   "source": "not an agent's certificate",
+   "text": "není to certifikát agenta"
+  },
+  "z_3129": {
+   "source": "this agent is not one of acme's targets (deleted, or joined again)",
+   "text": "tento agent nepatří k cílům acme (smazán, nebo připojen znovu)"
+  },
+  "z_3130": {
+   "source": "this certificate is no longer the agent's (joined again, or forgotten)",
+   "text": "tento certifikát už agentovi nepatří (připojen znovu, nebo zapomenut)"
+  },
+  "z_3131": {
+   "source": "the target is switched off in acme",
+   "text": "cíl je v acme vypnutý"
+  },
+  "z_3132": {
+   "source": "the target is passive in acme: it is not polled",
+   "text": "cíl je v acme pasivní: nedotazuje se"
+  },
+  "z_3133": {
+   "source": "the target has no address: a passive agent is reached at it",
+   "text": "cíl nemá adresu: pasivní agent je dostupný právě na ní"
+  },
+  "z_3134": {
+   "source": "the agent answers with another key than the one confirmed",
+   "text": "agent odpovídá jiným klíčem, než jaký byl potvrzen"
+  },
+  "z_3135": {
+   "source": "the agent's answer is too big",
+   "text": "odpověď agenta je příliš velká"
+  },
+  "z_3136": {
+   "source": "the agents' port is off (Settings → Target agents): an active agent cannot reach acme",
+   "text": "port agentů je vypnutý (Nastavení → Agenti cílů): aktivní agent se k acme nedostane"
+  },
+  "z_3137": {
+   "source": "not a public key",
+   "text": "není to veřejný klíč"
+  },
+  "z_3138": {
+   "source": "its certificate is being renewed already",
+   "text": "jeho certifikát se už obnovuje"
+  },
+  "z_3139": {
+   "source": "the agent authority's key does not open on this node (the sealing key is not the one it was sealed with)",
+   "text": "klíč autority agentů na tomto uzlu nejde otevřít (pečeticí klíč není ten, kterým byl zapečetěn)"
+  },
+  "z_3140": {
+   "source": "acme's command key does not open on this node",
+   "text": "command key acme na tomto uzlu nejde otevřít"
+  },
+  "z_3141": {
+   "source": "not a certificate request",
+   "text": "není to žádost o certifikát"
+  },
+  "z_3142": {
+   "source": "the agent's key is ECDSA P-256 / P-384, Ed25519 or RSA of 2048 bits or more",
+   "text": "klíč agenta je ECDSA P-256 / P-384, Ed25519 nebo RSA o 2048 bitech a více"
+  },
+  "z_3143": {
+   "source": "the agent's key is not one to seal to",
+   "text": "pro klíč agenta nelze pečetit"
+  },
+  "z_3144": {
+   "source": "no such code",
+   "text": "takový kód neexistuje"
+  },
+  "z_3145": {
+   "source": "the join code was tried too often - make a new one",
+   "text": "připojovací kód byl zkoušen příliš často – vytvořte nový"
+  },
+  "z_3146": {
+   "source": "the agent answers with another key than it asks a certificate for",
+   "text": "agent odpovídá jiným klíčem, než pro jaký žádá certifikát"
+  },
+  "z_3147": {
+   "source": "the join code's secret is gone - make a new code",
+   "text": "tajemství připojovacího kódu už neexistuje – vytvořte nový kód"
+  },
+  "z_3148": {
+   "source": "only a full administrator may try settings that are not saved - save them first, or try the one saved",
+   "text": "neuložené nastavení smí zkoušet jen plný správce – nejdřív ho uložte, nebo vyzkoušejte to uložené"
+  },
+  "z_3149": {
+   "source": "a service name with a path in it is set by a full administrator only (it goes into the paths of the files)",
+   "text": "jméno služby s cestou smí nastavit jen plný správce (dostává se do cest k souborům)"
+  },
+  "z_3150": {
+   "source": "only a full administrator may set what is checked after a deployment (it becomes a test: Certificates → Tests)",
+   "text": "co se kontroluje po nasazení, smí nastavit jen plný správce (stane se z toho test: Certifikáty → Testy)"
+  },
+  "z_3151": {
+   "source": "only a full administrator may try a test that is not saved",
+   "text": "neuložený test smí zkoušet jen plný správce"
+  },
+  "z_3152": {
+   "source": "a copy is a new one - it has no id (to change one, save it)",
+   "text": "kopie je nová – nemá id (chcete-li ji změnit, uložte ji)"
+  },
+  "z_3153": {
+   "source": "which report? (id)",
+   "text": "který report? (id)"
+  },
+  "z_3154": {
+   "source": "a report is downloaded as csv or pdf",
+   "text": "report se stahuje jako csv nebo pdf"
+  },
+  "z_3155": {
+   "source": "you may not see that report",
+   "text": "tento report nesmíte vidět"
+  },
+  "z_3156": {
+   "source": "a certificate without a team is seen only by those who see every certificate",
+   "text": "certifikát bez týmu vidí jen ti, kdo vidí všechny certifikáty"
+  },
+  "z_3157": {
+   "source": "opening a review needs \"team.members\" on the team",
+   "text": "otevření revize vyžaduje „team.members“ v týmu"
+  },
+  "z_3158": {
+   "source": "nothing was given: drop a file or paste its text",
+   "text": "nic nebylo zadáno: přetáhněte soubor nebo vložte jeho text"
+  },
+  "z_3159": {
+   "source": "the openssl program is not installed",
+   "text": "program openssl není nainstalován"
+  },
+  "z_3160": {
+   "source": "openssl took longer than 60 seconds to open the PKCS#12 file",
+   "text": "otevírání souboru PKCS#12 trvalo programu openssl déle než 60 sekund"
+  },
+  "z_3161": {
+   "source": "no address to connect to - set it in the test",
+   "text": "žádná adresa k připojení – nastavte ji v testu"
+  },
+  "z_3162": {
+   "source": "the language is cs, en or empty (each recipient's own)",
+   "text": "jazyk je cs, en nebo prázdný (vlastní jazyk každého příjemce)"
+  },
+  "z_3163": {
+   "source": "no such calendar - the link was taken back, or its account may no longer sign in",
+   "text": "takový kalendář neexistuje – odkaz byl odvolán, nebo se jeho účet už nesmí přihlásit"
+  },
+  "z_3164": {
+   "source": "the view is too big",
+   "text": "pohled je příliš velký"
+  },
+  "z_3165": {
+   "source": "the daemon's sending is not running",
+   "text": "odesílání démona neběží"
+  },
+  "z_3166": {
+   "source": "a full sync is running already",
+   "text": "úplná synchronizace už běží"
+  },
+  "z_3167": {
+   "source": "the language is cs, en or empty (the mails' own)",
+   "text": "jazyk je cs, en nebo prázdný (vlastní jazyk e-mailů)"
+  },
+  "z_3168": {
+   "source": "save the target first, then join its agent (a join code on its card)",
+   "text": "nejdřív cíl uložte, pak připojte jeho agenta (připojovací kód na jeho kartě)"
+  },
+  "z_3169": {
+   "source": "what happens to a member not confirmed in time: report or expire",
+   "text": "co se stane s členem, který není včas potvrzen: report nebo expire"
+  },
+  "z_3170": {
+   "source": "which request? (its number)",
+   "text": "která žádost? (její číslo)"
+  },
+  "z_3171": {
+   "source": "which review? (its number)",
+   "text": "která revize? (její číslo)"
+  },
+  "z_3172": {
+   "source": "you are viewing as somebody already - stop that first",
+   "text": "už zobrazujete jako někdo jiný – nejdřív to ukončete"
+  },
+  "z_3173": {
+   "source": "only a full administrator (not viewing as somebody) opens the portal as somebody else",
+   "text": "portál jako někdo jiný otevírá jen plný správce (který sám nezobrazuje jako někdo jiný)"
+  },
+  "z_3174": {
+   "source": "the portal (with certificates) is switched off - nobody sees it",
+   "text": "portál (s certifikáty) je vypnutý – nikdo ho nevidí"
+  },
+  "z_3175": {
+   "source": "the code is missing",
+   "text": "kód chybí"
+  },
+  "z_3176": {
+   "source": "the code is used or wrong - open the portal as them again",
+   "text": "kód je použitý nebo chybný – otevřete portál jako on znovu"
+  },
+  "z_3177": {
+   "source": "the code is used already",
+   "text": "kód je už použitý"
+  },
+  "z_3178": {
+   "source": "the code ran out - open the portal as them again",
+   "text": "platnost kódu vypršela – otevřete portál jako on znovu"
+  },
+  "z_3179": {
+   "source": "not a .tar.gz",
+   "text": "není to .tar.gz"
+  },
+  "z_3180": {
+   "source": "the mode is off, arbiter or priority",
+   "text": "režim je off, arbiter nebo priority"
+  },
+  "z_3181": {
+   "source": "try the arbiter from every node first (Try it): a node that cannot reach its arbiter would step aside the moment the other is away",
+   "text": "nejdřív vyzkoušejte arbitra z každého uzlu (Vyzkoušet): uzel, který na svého arbitra nedosáhne, by ustoupil ve chvíli, kdy by druhý chyběl"
+  },
+  "z_3182": {
+   "source": "the second PFX / PKCS#12 file did not arrive whole",
+   "text": "druhý soubor PFX / PKCS#12 nedorazil celý"
+  },
+  "z_3183": {
+   "source": "the configuration was exported with the secrets in it, locked, on the command line",
+   "text": "konfigurace byla exportována i s tajemstvími, zamčená, na příkazové řádce"
+  },
+  "z_3184": {
+   "source": "no such action",
+   "text": "taková akce neexistuje"
+  },
+  "z_3185": {
+   "source": "the dnsmasq file is not a text file",
+   "text": "soubor dnsmasq není textový soubor"
+  },
+  "z_3186": {
+   "source": "sudo asks for a password: root, or a sudoers line for sh (NOPASSWD)",
+   "text": "sudo se ptá na heslo: použijte root, nebo řádek sudoers pro sh (NOPASSWD)"
+  },
+  "z_3187": {
+   "source": "the dnsmasq file must end in .conf (dnsmasq reads *.conf of its directory)",
+   "text": "soubor dnsmasq musí končit na .conf (dnsmasq čte *.conf ve svém adresáři)"
+  },
+  "z_3188": {
+   "source": "no zone files are set - Find out what runs there, or add \"ZONE /path/to/file\" lines",
+   "text": "nejsou nastaveny žádné soubory zón – použijte Zjistit, co tam běží, nebo přidejte řádky „ZONE /cesta/k/souboru“"
+  },
+  "z_3189": {
+   "source": "a connector runs other tests - checks.py runs each",
+   "text": "konektor spouští jiné testy – checks.py spouští každý"
+  },
+  "z_3190": {
+   "source": "the plan has no certificate to show",
+   "text": "plán nemá žádný certifikát k zobrazení"
+  },
+  "z_3191": {
+   "source": "ACOS gave no signature on signing in",
+   "text": "ACOS při přihlášení nevrátil žádný podpis"
+  },
+  "z_3192": {
+   "source": "the deployment writes no file that holds the key - give it one (key-pem, combined-pem, pfx...): the agent puts the key it makes there",
+   "text": "nasazení nezapisuje žádný soubor s klíčem – přidejte mu ho (key-pem, combined-pem, pfx...): agent tam uloží klíč, který vytvoří"
+  },
+  "z_3193": {
+   "source": "the key of this certificate is made by the agent: a certificate with acme's key does not go with it",
+   "text": "klíč tohoto certifikátu vytváří agent: certifikát s klíčem od acme k němu nepatří"
+  },
+  "z_3194": {
+   "source": "an empty command",
+   "text": "prázdný příkaz"
+  },
+  "z_3195": {
+   "source": "no application gateway is set",
+   "text": "není nastavena žádná aplikační brána"
+  },
+  "z_3196": {
+   "source": "no web app is set",
+   "text": "není nastavena žádná webová aplikace"
+  },
+  "z_3197": {
+   "source": "no pull zone is set",
+   "text": "není nastavena žádná pull zóna"
+  },
+  "z_3198": {
+   "source": "the Management server gave no session (sid)",
+   "text": "Management server nevrátil žádnou relaci (sid)"
+  },
+  "z_3199": {
+   "source": "portals are chosen but no gateway: set the gateway or cluster",
+   "text": "portály jsou zvoleny, ale žádná brána: nastavte bránu nebo cluster"
+  },
+  "z_3200": {
+   "source": "the FMC gave no token (X-auth-access-token)",
+   "text": "FMC nevrátilo žádný token (X-auth-access-token)"
+  },
+  "z_3201": {
+   "source": "FDM gave no access_token",
+   "text": "FDM nevrátilo access_token"
+  },
+  "z_3202": {
+   "source": "FDM shows no web interface certificate setting",
+   "text": "FDM neukazuje nastavení certifikátu webového rozhraní"
+  },
+  "z_3203": {
+   "source": "FDM gave no id for the deployment",
+   "text": "FDM nevrátilo id nasazení"
+  },
+  "z_3204": {
+   "source": "set the domain first",
+   "text": "nejdřív nastavte doménu"
+  },
+  "z_3205": {
+   "source": "no domain is set",
+   "text": "není nastavena žádná doména"
+  },
+  "z_3206": {
+   "source": "say where the certificate goes: a reusable TLS setting, or listening ports",
+   "text": "uveďte, kam certifikát patří: znovupoužitelné nastavení TLS, nebo naslouchající porty"
+  },
+  "z_3207": {
+   "source": "no local certificate group is set",
+   "text": "není nastavena žádná skupina místních certifikátů"
+  },
+  "z_3208": {
+   "source": "virtual servers are given but no client SSL profile to point them at",
+   "text": "virtuální servery jsou zadány, ale chybí klientský SSL profil, na který by se nasměrovaly"
+  },
+  "z_3209": {
+   "source": "Intermediates \"a group of mine\" needs the group's name",
+   "text": "Mezilehlé „vlastní skupina“ potřebuje jméno skupiny"
+  },
+  "z_3210": {
+   "source": "no web domain is set",
+   "text": "není nastavena žádná webová doména"
+  },
+  "z_3211": {
+   "source": "ISPConfig gave no session",
+   "text": "ISPConfig nevrátil žádnou relaci"
+  },
+  "z_3212": {
+   "source": "no website is set",
+   "text": "není nastaven žádný web"
+  },
+  "z_3213": {
+   "source": "no SNI to point at the certificate",
+   "text": "žádné SNI, které by ukazovalo na certifikát"
+  },
+  "z_3214": {
+   "source": "Kong gave no id for the certificate added",
+   "text": "Kong nevrátil id přidaného certifikátu"
+  },
+  "z_3215": {
+   "source": "the XCC answered GenerateCSR without a CSR",
+   "text": "XCC odpovědělo na GenerateCSR bez CSR"
+  },
+  "z_3216": {
+   "source": "the XCC gave no CSR to download",
+   "text": "XCC nenabídlo žádné CSR ke stažení"
+  },
+  "z_3217": {
+   "source": "the XCC offers no CertificateService.ReplaceCertificate - choose the version \"xcc2\" of this target",
+   "text": "XCC nenabízí CertificateService.ReplaceCertificate – zvolte u tohoto cíle verzi „xcc2“"
+  },
+  "z_3218": {
+   "source": "this NPM user signs in with a second factor: give acme a user of its own without one",
+   "text": "tento uživatel NPM se přihlašuje s druhým faktorem: dejte acme vlastního uživatele bez něj"
+  },
+  "z_3219": {
+   "source": "the size of the certificate's key is not known here: choose the Key algorithm of the deployment",
+   "text": "velikost klíče certifikátu zde není známa: zvolte algoritmus klíče nasazení"
+  },
+  "z_3220": {
+   "source": "Prism Central gave no ETag for the cluster's certificate",
+   "text": "Prism Central nevrátil ETag certifikátu clusteru"
+  },
+  "z_3221": {
+   "source": "no cluster is set",
+   "text": "není nastaven žádný cluster"
+  },
+  "z_3222": {
+   "source": "the UAG takes an RSA or ECDSA key",
+   "text": "UAG přijímá klíč RSA nebo ECDSA"
+  },
+  "z_3223": {
+   "source": "the UAG gave no token at sign-in",
+   "text": "UAG při přihlášení nevrátila žádný token"
+  },
+  "z_3224": {
+   "source": "no subscription is set (or choose the server's repository)",
+   "text": "není nastaveno žádné předplatné (nebo zvolte úložiště serveru)"
+  },
+  "z_3225": {
+   "source": "no virtual server is set",
+   "text": "není nastaven žádný virtuální server"
+  },
+  "z_3226": {
+   "source": "the daemon is not answering",
+   "text": "démon neodpovídá"
+  },
+  "z_3227": {
+   "source": "the download took too long to start - start it again",
+   "text": "stahování se rozbíhalo příliš dlouho – spusťte ho znovu"
+  },
+  "z_3228": {
+   "source": "that download is started from the page",
+   "text": "toto stahování se spouští ze stránky"
+  },
+  "z_3229": {
+   "source": "the page is not ready",
+   "text": "stránka ještě není připravená"
+  },
+  "z_3230": {
+   "source": "itself (self-signed)",
+   "text": "sám sebou (self-signed)"
+  },
+  "z_3231": {
+   "source": "(no such user)",
+   "text": "(takový uživatel neexistuje)"
+  },
+  "z_3232": {
+   "source": "stopped here",
+   "text": "zastaveno zde"
+  },
+  "z_3233": {
+   "source": "(no display name)",
+   "text": "(bez zobrazovaného jména)"
+  },
+  "z_3234": {
+   "source": "Certificates ending soon",
+   "text": "Brzy končící certifikáty"
+  },
+  "z_3235": {
+   "source": "team owner",
+   "text": "vlastník týmu"
+  },
+  "z_3236": {
+   "source": "device manager",
+   "text": "správce zařízení"
+  },
+  "z_3237": {
+   "source": "request waits for you",
+   "text": "žádost čeká na vás"
+  },
+  "z_3238": {
+   "source": "A file on the disk (/etc/acme/plugins): changed there.",
+   "text": "Soubor na disku (/etc/acme/plugins): mění se tam."
+  },
+  "z_3239": {
+   "source": "It takes the module as it is and changes what you write below - see docs/writing-a-module.md.",
+   "text": "Převezme modul tak, jak je, a změní to, co napíšete níže – viz docs/writing-a-module.md."
+  },
+  "z_3240": {
+   "source": "the source's id",
+   "text": "id zdroje"
+  },
+  "z_3241": {
+   "source": "ordered by acme",
+   "text": "objednáno přes acme"
+  },
+  "z_3242": {
+   "source": "the scan",
+   "text": "skenování"
+  },
+  "z_3243": {
+   "source": "its own settings of the source and validations (profile.over) are in the API call",
+   "text": "jeho vlastní nastavení zdroje a validací (profile.over) jsou ve volání API"
+  },
+  "z_3244": {
+   "source": "no id: a new certificate (a new key, made when it is issued)",
+   "text": "bez id: nový certifikát (nový klíč, vytvořený při vystavení)"
+  },
+  "z_3245": {
+   "source": "· restarted where needed",
+   "text": "· restartováno, kde bylo třeba"
+  },
+  "z_3246": {
+   "source": "· no copy yet",
+   "text": "· zatím žádná kopie"
+  },
+  "z_3247": {
+   "source": "- for a minute nothing is renewed or put in place.",
+   "text": "– minutu se nic neobnovuje ani nenasazuje."
+  },
+  "z_3248": {
+   "source": "on every node, one at a time - each in maintenance while it is, so the service never stops.",
+   "text": "na každém uzlu, jeden po druhém – každý je mezitím v údržbě, takže se služba nikdy nezastaví."
+  },
+  "z_3249": {
+   "source": "Each directory with a cap of its own, or as the setting above.",
+   "text": "Každý adresář s vlastním limitem, nebo podle nastavení výše."
+  },
+  "z_3250": {
+   "source": "- but the agent's policy does not allow it",
+   "text": "– ale zásady agenta ji nepovolují"
+  },
+  "z_3251": {
+   "source": "only a full administrator may try settings that are not saved - save them first, or use the one saved",
+   "text": "neuložené nastavení smí zkoušet jen plný správce – nejdřív ho uložte, nebo použijte to uložené"
+  },
+  "z_3252": {
+   "source": "only a full administrator may ask with settings that are not saved - save them first, or use the one saved",
+   "text": "dotazovat se s neuloženým nastavením smí jen plný správce – nejdřív ho uložte, nebo použijte to uložené"
+  },
+  "z_3253": {
+   "source": "only a full administrator may look up with settings that are not saved - save them first, or use the one saved",
+   "text": "vyhledávat s neuloženým nastavením smí jen plný správce – nejdřív ho uložte, nebo použijte to uložené"
+  },
+  "z_3254": {
+   "source": "openssl crl: verify failure",
+   "text": "openssl crl: ověření selhalo"
+  },
+  "z_3255": {
+   "source": "the key is not a COSE key",
+   "text": "klíč není klíč COSE"
+  },
+  "z_3256": {
+   "source": "a P-256 key of the wrong size",
+   "text": "klíč P-256 špatné velikosti"
+  },
+  "z_3257": {
+   "source": "an Ed25519 key of the wrong size",
+   "text": "klíč Ed25519 špatné velikosti"
+  },
+  "z_3258": {
+   "source": "an RSA key under 2048 bits",
+   "text": "klíč RSA kratší než 2048 bitů"
+  },
+  "z_3259": {
+   "source": "each server that joins with it waits to be confirmed",
+   "text": "každý server, který se s ním připojí, čeká na potvrzení"
+  },
+  "z_3260": {
+   "source": "each server that joins with it is CONFIRMED AUTOMATICALLY",
+   "text": "každý server, který se s ním připojí, je POTVRZEN AUTOMATICKY"
+  },
+  "z_3261": {
+   "source": "the Key Vault secret ID is to be https://<vault>/secrets/<name>/ (without a version, so the gateway takes each new one)",
+   "text": "ID tajemství Key Vault má být https://<vault>/secrets/<name>/ (bez verze, aby brána převzala každé nové)"
+  },
+  "z_3262": {
+   "source": "this acme has no signed package of the agent (a release carries it; one made from a source tree is never sent to an agent)",
+   "text": "toto acme nemá podepsaný balíček agenta (nese ho vydání; balíček sestavený ze zdrojového stromu se agentovi nikdy neposílá)"
+  },
+  "z_3263": {
+   "source": "the StartTLS extended request (1.3.6.1.4.1.1466.20037), message 1",
+   "text": "rozšířený požadavek StartTLS (1.3.6.1.4.1.1466.20037), zpráva 1"
+  },
+  "z_3264": {
+   "source": "SSLRequest (sequence 1: the capabilities it shares with CLIENT_SSL, utf8mb4) - no user, no password",
+   "text": "SSLRequest (sekvence 1: schopnosti sdílené s CLIENT_SSL, utf8mb4) – bez uživatele, bez hesla"
+  },
+  "z_3265": {
+   "source": "X.224 Connection Request asking for TLS (RDP_NEG_REQ: PROTOCOL_SSL | PROTOCOL_HYBRID | PROTOCOL_HYBRID_EX)",
+   "text": "X.224 Connection Request s žádostí o TLS (RDP_NEG_REQ: PROTOCOL_SSL | PROTOCOL_HYBRID | PROTOCOL_HYBRID_EX)"
+  },
+  "z_3266": {
+   "source": "The key kept now is replaced",
+   "text": "Nynější klíč se nahradí"
+  },
+  "z_3267": {
+   "source": ", so until the new public half is on the server, backups cannot sign in there.",
+   "text": ", takže dokud na serveru nebude nová veřejná polovina, zálohy se tam nepřihlásí."
+  },
+  "z_3268": {
+   "source": "The one kept now is replaced",
+   "text": "Nynější se nahradí"
+  },
+  "z_3269": {
+   "source": ": the server has to be given the new certificate.",
+   "text": ": server musí dostat nový certifikát."
+  },
+  "z_3270": {
+   "source": "A key and a certificate for it are made here; the key stays on this machine.",
+   "text": "Zde se vytvoří klíč a certifikát k němu; klíč zůstane na tomto stroji."
+  },
+  "z_3271": {
+   "source": "is no longer trusted for the mail server. The others stay.",
+   "text": "už není pro poštovní server důvěryhodný. Ostatní zůstávají."
   }
  },
  "patterns": {
@@ -82024,7 +82632,7 @@
   },
   "p1083": {
    "source": "{0} already has a token in use: only a full administrator replaces it (or the person, on the enrolment pages)",
-   "text": "{0} už má používaný token: nahradit ho může jen plný administrátor (nebo sám člověk na stránkách registrace)"
+   "text": "{0} už má používaný token: nahradit ho může jen plný správce (nebo sám člověk na stránkách registrace)"
   },
   "p1084": {
    "source": "{0} answers again (seen from {1})",
@@ -91988,7 +92596,7 @@
   },
   "px3411": {
    "source": "{0} still reach{1} a database with TLS - perhaps this one: switch them off first",
-   "text": "{0} se stále {1} k databázi přes TLS – možná k této: nejdřív je vypněte"
+   "text": "{0} se stále připojují k databázi přes TLS – možná k této: nejdřív je vypněte"
   },
   "px3412": {
    "source": "{0}: acme's certificate left the PostgreSQL of {1}",
@@ -95192,7 +95800,7 @@
   },
   "psup026": {
    "source": "{0}: only a full administrator sets {1} of a certificate (where a file is written)",
-   "text": "{0}: {1} certifikátu nastavuje jen plný administrátor (kam se zapisuje soubor)"
+   "text": "{0}: {1} certifikátu nastavuje jen plný správce (kam se zapisuje soubor)"
   },
   "pres0001": {
    "source": "\"{0}\" is not an SCM certificate ID",
@@ -108221,6 +108829,1178 @@
   "pz_1096": {
    "source": "the hold on serial {0} released",
    "text": "pozastavení sériového čísla {0} uvolněno"
+  },
+  "pz_1097": {
+   "source": "{0} is not a kind discovered on {1} ({2})",
+   "text": "{0} není druh zjišťovaný na {1} ({2})"
+  },
+  "pz_1098": {
+   "source": "{0} is not a Windows server: only the agent of a Windows member server of the domain asks a Microsoft CA",
+   "text": "{0} není server Windows: Microsoft CA žádá jen agent na členském serveru Windows v doméně"
+  },
+  "pz_1099": {
+   "source": "the builder's state: {0} is not of its shape",
+   "text": "stav návrháře: {0} nemá jeho tvar"
+  },
+  "pz_1100": {
+   "source": "the builder's state is {0} bytes at most",
+   "text": "stav návrháře má nejvýše {0} bajtů"
+  },
+  "pz_1101": {
+   "source": "the policy design of the agent of target {0} was saved by {1} (version {2}{3}, {4} entries) - acme never sends it: root applies it on the server",
+   "text": "návrh zásad agenta cíle {0} uložil {1} (verze {2}{3}, {4} {4:položka|položky|položek}) – acme ho nikdy neposílá: na serveru ho použije root"
+  },
+  "pz_1102": {
+   "source": "the policy design of the agent of target {0} was saved by {1} (version {2}{3}, {4} entry) - acme never sends it: root applies it on the server",
+   "text": "návrh zásad agenta cíle {0} uložil {1} (verze {2}{3}, {4} položka) – acme ho nikdy neposílá: na serveru ho použije root"
+  },
+  "pz_1103": {
+   "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} days, at most {4} servers){5}",
+   "text": "registrační kód „{0}“ vytvořil {1} ({2}, {3} {3:den|dny|dní}, nejvýše {4} {4:server|servery|serverů}){5}"
+  },
+  "pz_1104": {
+   "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} day, at most {4} servers){5}",
+   "text": "registrační kód „{0}“ vytvořil {1} ({2}, {3} den, nejvýše {4} {4:server|servery|serverů}){5}"
+  },
+  "pz_1105": {
+   "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} days, at most {4} server){5}",
+   "text": "registrační kód „{0}“ vytvořil {1} ({2}, {3} {3:den|dny|dní}, nejvýše {4} server){5}"
+  },
+  "pz_1106": {
+   "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} day, at most {4} server){5}",
+   "text": "registrační kód „{0}“ vytvořil {1} ({2}, {3} den, nejvýše {4} server){5}"
+  },
+  "pz_1107": {
+   "source": "the enrollment code \"{0}\" was revoked by {1} ({2} servers joined with it) - no other server joins with it",
+   "text": "registrační kód „{0}“ zrušil {1} (připojilo se s ním {2} {2:server|servery|serverů}) – žádný další server se s ním nepřipojí"
+  },
+  "pz_1108": {
+   "source": "the enrollment code \"{0}\" was revoked by {1} ({2} server joined with it) - no other server joins with it",
+   "text": "registrační kód „{0}“ zrušil {1} (připojil se s ním {2} server) – žádný další server se s ním nepřipojí"
+  },
+  "pz_1109": {
+   "source": "the target could not be made: {0}",
+   "text": "cíl se nepodařilo vytvořit: {0}"
+  },
+  "pz_1110": {
+   "source": "an agent from {0} was refused by the enrollment code \"{1}\": {2}",
+   "text": "registrační kód „{1}“ odmítl agenta z {0}: {2}"
+  },
+  "pz_1111": {
+   "source": "a server enrolled with {0}: target {1} ({2}, {3}, {4}, key {5}…){6}",
+   "text": "server se zaregistroval s {0}: cíl {1} ({2}, {3}, {4}, klíč {5}…){6}"
+  },
+  "pz_1112": {
+   "source": "the agent answered HTTP {0}, not JSON",
+   "text": "agent odpověděl HTTP {0}, ne JSON"
+  },
+  "pz_1113": {
+   "source": "signing in to the connector {0}: {1}",
+   "text": "přihlášení ke konektoru {0}: {1}"
+  },
+  "pz_1114": {
+   "source": "the agent made no request: {0}",
+   "text": "agent nevytvořil žádnou žádost: {0}"
+  },
+  "pz_1115": {
+   "source": "the agent did not take its new certificate: {0}",
+   "text": "agent nepřijal svůj nový certifikát: {0}"
+  },
+  "pz_1116": {
+   "source": "the agent of {0} did not connect to {1}: {2}",
+   "text": "agent cíle {0} se nepřipojil k {1}: {2}"
+  },
+  "pz_1117": {
+   "source": "the agent runs {0} already - {1} is not newer",
+   "text": "agent už běží ve verzi {0} – {1} není novější"
+  },
+  "pz_1118": {
+   "source": "a join code for the agent of target {0} was made by {1} ({2}, an hour, once)",
+   "text": "připojovací kód pro agenta cíle {0} vytvořil {1} ({2}, na hodinu, jednou)"
+  },
+  "pz_1119": {
+   "source": "the agent did not take its certificate: {0}",
+   "text": "agent nepřijal svůj certifikát: {0}"
+  },
+  "pz_1120": {
+   "source": "authority {0} released the hold on serial {1} - {2}",
+   "text": "autorita {0} uvolnila pozastavení sériového čísla {1} – {2}"
+  },
+  "pz_1121": {
+   "source": "a file of {0} MB at most is shown",
+   "text": "zobrazí se soubor nejvýše o {0} MB"
+  },
+  "pz_1122": {
+   "source": "the same credentials go only with the same module: {0} is {1}, the copy {2}",
+   "text": "stejné přihlašovací údaje platí jen pro stejný modul: {0} je {1}, kopie {2}"
+  },
+  "pz_1123": {
+   "source": "the module {0} of {1} is missing (taken away, or it did not load)",
+   "text": "modul {0} objektu {1} chybí (odebrán, nebo se nenačetl)"
+  },
+  "pz_1124": {
+   "source": "{0} team(s) made from the directory groups {1} by {2}: {3}",
+   "text": "{0} {0:tým vytvořen|týmy vytvořeny|týmů vytvořeno} ze skupin adresáře {1}, vytvořil {2}: {3}"
+  },
+  "pz_1125": {
+   "source": "{0} team(s) made from the directory groups",
+   "text": "{0} {0:tým vytvořen|týmy vytvořeny|týmů vytvořeno} ze skupin adresáře"
+  },
+  "pz_1126": {
+   "source": "{0} is not a key of a member ({1})",
+   "text": "{0} není klíč člena ({1})"
+  },
+  "pz_1127": {
+   "source": "{0} may sign for {1}, which its parent may not (the parent's name constraints) - a certificate it signed there would be refused by every client",
+   "text": "{0} smí podepisovat pro {1}, což jeho nadřazená autorita nesmí (omezení jmen nadřazené) – certifikát, který by tam podepsala, by odmítl každý klient"
+  },
+  "pz_1128": {
+   "source": "{0} holds no certificate, request, CRL or key that can be read",
+   "text": "{0} neobsahuje žádný čitelný certifikát, žádost, CRL ani klíč"
+  },
+  "pz_1129": {
+   "source": "{0} holds no certificate, request, CRL or key that can be read: {1}",
+   "text": "{0} neobsahuje žádný čitelný certifikát, žádost, CRL ani klíč: {1}"
+  },
+  "pz_1130": {
+   "source": "signing in to the connector {0} ({1}): {2}",
+   "text": "přihlášení ke konektoru {0} ({1}): {2}"
+  },
+  "pz_1131": {
+   "source": "the agent cannot speak {0} - test it directly or through a connector over SSH",
+   "text": "agent neumí {0} – testujte přímo nebo přes konektor po SSH"
+  },
+  "pz_1132": {
+   "source": "module {0}/{1}: the default version {2} by {3}",
+   "text": "modul {0}/{1}: výchozí verze {2}, nastavil {3}"
+  },
+  "pz_1133": {
+   "source": "the CSR {0} made has names the certificate does not ask for: {1}",
+   "text": "CSR, které vytvořil {0}, obsahuje jména, o která certifikát nežádá: {1}"
+  },
+  "pz_1134": {
+   "source": "the CSR {0} made has the common name {1}, which is not one of the names ({2}) - the CA refuses that",
+   "text": "CSR, které vytvořil {0}, má common name {1}, které není mezi jmény ({2}) – to CA odmítne"
+  },
+  "pz_1135": {
+   "source": "the target {0} ({1}) does not make keys any more - let acme make the key (the certificate → Edit → Key)",
+   "text": "cíl {0} ({1}) už klíče nevytváří – nechte klíč vytvořit acme (certifikát → Upravit → Klíč)"
+  },
+  "pz_1136": {
+   "source": "the mail did not go: {0}",
+   "text": "e-mail neodešel: {0}"
+  },
+  "pz_1137": {
+   "source": "no such function: {0} ({1})",
+   "text": "taková funkce neexistuje: {0} ({1})"
+  },
+  "pz_1138": {
+   "source": "a template is {0} bytes at most, without NUL",
+   "text": "šablona má nejvýše {0} bajtů, bez NUL"
+  },
+  "pz_1139": {
+   "source": "the agents' group {0} was {1} by {2} ({3} member(s))",
+   "text": "skupina agentů {0}: {1}, provedl {2} ({3} {3:člen|členové|členů})"
+  },
+  "pz_1140": {
+   "source": "the agent asking to join as target {0} was refused by {1} (key {2}…)",
+   "text": "agenta, který se chtěl připojit jako cíl {0}, odmítl {1} (klíč {2}…)"
+  },
+  "pz_1141": {
+   "source": "{0} revokes {1} from the portal ({2}), approved by {3}",
+   "text": "{0} odvolává {1} z portálu ({2}), schválil {3}"
+  },
+  "pz_1142": {
+   "source": "{0} - it waits for approval",
+   "text": "{0} – čeká na schválení"
+  },
+  "pz_1143": {
+   "source": "{0} - it waits for {1}",
+   "text": "{0} – čeká na {1}"
+  },
+  "pz_1144": {
+   "source": "{0} - issued without approval",
+   "text": "{0} – vystaveno bez schválení"
+  },
+  "pz_1145": {
+   "source": "a subject field is off, fixed or person, not {0}",
+   "text": "pole subjektu je vypnuto, pevné nebo osoba, ne {0}"
+  },
+  "pz_1146": {
+   "source": "{0}: {1} is words, not {2}",
+   "text": "{0}: {1} jsou slova, ne {2}"
+  },
+  "pz_1147": {
+   "source": "{0}:{1} showed no host key through the agent of {2}",
+   "text": "{0}:{1} neukázal přes agenta cíle {2} žádný klíč hostitele"
+  },
+  "pz_1148": {
+   "source": "{0}:{1} showed no host key through the agent of {2}: {3}",
+   "text": "{0}:{1} neukázal přes agenta cíle {2} žádný klíč hostitele: {3}"
+  },
+  "pz_1149": {
+   "source": "{0}:{1} showed no host key to {2}: {3}",
+   "text": "{0}:{1} neukázal {2} žádný klíč hostitele: {3}"
+  },
+  "pz_1150": {
+   "source": "the target {0} (its agent the connector) is switched off",
+   "text": "cíl {0} (jeho agent je konektorem) je vypnutý"
+  },
+  "pz_1151": {
+   "source": "the agent of {0} runs no command - it only connects (allow connect)",
+   "text": "agent cíle {0} nespouští žádné příkazy – jen se připojuje (allow connect)"
+  },
+  "pz_1152": {
+   "source": "the first line names the columns, \"name\" among them: {0}",
+   "text": "první řádek pojmenovává sloupce, mezi nimi „name“: {0}"
+  },
+  "pz_1153": {
+   "source": "{0} is not a column ({1})",
+   "text": "{0} není sloupec ({1})"
+  },
+  "pz_1154": {
+   "source": "{0} is not a role, an old right or a capability",
+   "text": "{0} není role, staré právo ani oprávnění"
+  },
+  "pz_1155": {
+   "source": "only the one who asked, or a manager of the team {0}, ends it",
+   "text": "ukončit to může jen ten, kdo žádal, nebo správce týmu {0}"
+  },
+  "pz_1156": {
+   "source": "{0} was refused by the limits of the team {1}: {2}",
+   "text": "{0} odmítnuto limity týmu {1}: {2}"
+  },
+  "pz_1157": {
+   "source": "{0}: {1} is not a name",
+   "text": "{0}: {1} není jméno"
+  },
+  "pz_1158": {
+   "source": "pairs: {0} is not the name of a source",
+   "text": "dvojice: {0} není jméno zdroje"
+  },
+  "pz_1159": {
+   "source": "pairs: {0} sources at most",
+   "text": "dvojice: nejvýše {0} {0:zdroj|zdroje|zdrojů}"
+  },
+  "pz_1160": {
+   "source": "{0} may not use the administration - stop viewing as them",
+   "text": "{0} nesmí používat administraci – ukončete zobrazení jeho očima"
+  },
+  "pz_1161": {
+   "source": "{0} is switched off - they see nothing",
+   "text": "{0} je vypnutý – nevidí nic"
+  },
+  "pz_1162": {
+   "source": "{0} has no account of the administration - open the portal as them",
+   "text": "{0} nemá účet administrace – otevřete portál jako on"
+  },
+  "pz_1163": {
+   "source": "{0} may not use the administration (none of their groups gives a role there) - open the portal as them",
+   "text": "{0} nesmí používat administraci (žádná z jeho skupin tam nedává roli) – otevřete portál jako on"
+  },
+  "pz_1164": {
+   "source": "{0} went back to the network it had before ({1}): {2}",
+   "text": "{0} se vrátil k síti, kterou měl předtím ({1}): {2}"
+  },
+  "pz_1165": {
+   "source": "the system of {0} was updated, but the restart it needs did not happen: {1}",
+   "text": "systém uzlu {0} byl aktualizován, ale potřebný restart neproběhl: {1}"
+  },
+  "pz_1166": {
+   "source": "sending {0} is not set up (Settings → {1})",
+   "text": "odesílání {0} není nastaveno (Nastavení → {1})"
+  },
+  "pz_1167": {
+   "source": "{0} made a new SSH token for {1}",
+   "text": "{0} vytvořil nový SSH token pro {1}"
+  },
+  "pz_1168": {
+   "source": "{0} made an SSH token for {1}",
+   "text": "{0} vytvořil SSH token pro {1}"
+  },
+  "pz_1169": {
+   "source": "{0} made a new SSH token for {1} (codes by {2} to {3})",
+   "text": "{0} vytvořil nový SSH token pro {1} (kódy přes {2} na {3})"
+  },
+  "pz_1170": {
+   "source": "{0} made an SSH token for {1} (codes by {2} to {3})",
+   "text": "{0} vytvořil SSH token pro {1} (kódy přes {2} na {3})"
+  },
+  "pz_1171": {
+   "source": "{0} removed the SSH token of {1}",
+   "text": "{0} odebral SSH token uživatele {1}"
+  },
+  "pz_1172": {
+   "source": "the SSH code for {0} could not be sent ({1}): {2}",
+   "text": "SSH kód pro {0} se nepodařilo odeslat ({1}): {2}"
+  },
+  "pz_1173": {
+   "source": "{0} typed a wrong code for SSH on {1} (asked again): {2}",
+   "text": "{0} zadal chybný kód pro SSH na {1} (zeptáno znovu): {2}"
+  },
+  "pz_1174": {
+   "source": "{0} asked for the SELinux report of {1}",
+   "text": "{0} si vyžádal report SELinuxu uzlu {1}"
+  },
+  "pz_1175": {
+   "source": "{0} set the cap of wrong directory passwords: {1}",
+   "text": "{0} nastavil limit chybných hesel adresáře: {1}"
+  },
+  "pz_1176": {
+   "source": "{0} looked at every attribute of {1} in {2}, to choose where the e-mail address and the mobile number are read",
+   "text": "{0} prohlížel všechny atributy {1} v {2}, aby zvolil, odkud se čte e-mailová adresa a číslo mobilu"
+  },
+  "pz_1177": {
+   "source": "the keytab in the file: {0}",
+   "text": "keytab v souboru: {0}"
+  },
+  "pz_1178": {
+   "source": "the keytab was kept: {0}",
+   "text": "keytab byl ponechán: {0}"
+  },
+  "pz_1179": {
+   "source": "the last authority was kept: {0}",
+   "text": "poslední autorita byla ponechána: {0}"
+  },
+  "pz_1180": {
+   "source": "{0} made a new key for the sign-in by the load balancer - the one before is no longer taken",
+   "text": "{0} vytvořil nový klíč pro přihlašování přes load balancer – předchozí se už nepřijímá"
+  },
+  "pz_1181": {
+   "source": "{0} cannot sign in here: a one-time code is needed, and the directory has {1}",
+   "text": "{0} se zde nemůže přihlásit: je potřeba jednorázový kód a adresář má {1}"
+  },
+  "pz_1182": {
+   "source": "{0} could not sign in to the enrolment pages: the second step it had set up is gone without a reset",
+   "text": "{0} se nemohl přihlásit na stránky registrace: druhý krok, který měl nastavený, zmizel bez resetu"
+  },
+  "pz_1183": {
+   "source": "a sign-in by the load balancer was refused (from {0}, for {1}): {2}",
+   "text": "přihlášení přes load balancer bylo odmítnuto (z {0}, pro {1}): {2}"
+  },
+  "pz_1184": {
+   "source": "{0} could not sign in {1} from {2}: the second step it had set up is gone without a reset",
+   "text": "{0} se nemohl přihlásit {1} z {2}: druhý krok, který měl nastavený, zmizel bez resetu"
+  },
+  "pz_1185": {
+   "source": "{0}: {1} sign-in(s) to {2} ended - {3}",
+   "text": "{0}: {1} {1:přihlášení|přihlášení|přihlášení} do {2} {1:ukončeno|ukončena|ukončeno} – {3}"
+  },
+  "pz_1186": {
+   "source": "a browser that cannot be checked is signed out now on {0}: {1} sign-in(s) not watched until now are watched again",
+   "text": "prohlížeč, který nelze ověřit, je nyní na {0} odhlášen: {1} {1:přihlášení|přihlášení|přihlášení} dosud nehlídaných se opět hlídá"
+  },
+  "pz_1187": {
+   "source": "{0}: the card they signed in with is out - the sign-in to {1} waits {2} s for it ({3}, from {4})",
+   "text": "{0}: karta, kterou se přihlásil, je vytažená – přihlášení do {1} na ni čeká {2} s ({3}, z {4})"
+  },
+  "pz_1188": {
+   "source": "the card of {0}'s sign-in to {1} was found in this browser after all - it is watched again (from {2})",
+   "text": "karta přihlášení uživatele {0} do {1} se v tomto prohlížeči přece jen našla – opět se hlídá (z {2})"
+  },
+  "pz_1189": {
+   "source": "{0} chose what the nodes do when they lose each other: {1}",
+   "text": "{0} zvolil, co uzly dělají, když se navzájem ztratí: {1}"
+  },
+  "pz_1190": {
+   "source": "{0} chose what the nodes do about their clocks: {1}",
+   "text": "{0} zvolil, co uzly dělají se svými hodinami: {1}"
+  },
+  "pz_1191": {
+   "source": "{0}: {1} looks after its database server {2} through acme-db-agent ({3}:{4}) from now on",
+   "text": "{0}: {1} od nynějška spravuje svůj databázový server {2} přes acme-db-agent ({3}:{4})"
+  },
+  "pz_1192": {
+   "source": "{0}: the MariaDB of {1} was given a certificate from acme's authority (acme-db-agent)",
+   "text": "{0}: MariaDB uzlu {1} dostala certifikát od autority acme (acme-db-agent)"
+  },
+  "pz_1193": {
+   "source": "{0}: renewed for acme-db-agent: {1}",
+   "text": "{0}: obnoveno pro acme-db-agent: {1}"
+  },
+  "pz_1194": {
+   "source": "{0}: a passkey not known here was given from {1}",
+   "text": "{0}: z {1} byla předložena passkey, která zde není známa"
+  },
+  "pz_1195": {
+   "source": "{0}: a passkey's signature did not hold, from {1}",
+   "text": "{0}: podpis passkey neplatil, z {1}"
+  },
+  "pz_1196": {
+   "source": "{0}: the counter of the passkey {1} went back ({2} after {3}) - it may have been copied",
+   "text": "{0}: čítač passkey {1} se vrátil zpět ({2} po {3}) – mohla být zkopírována"
+  },
+  "pz_1197": {
+   "source": "{0} took the SELinux report of {1}",
+   "text": "{0} si stáhl report SELinuxu uzlu {1}"
+  },
+  "pz_1198": {
+   "source": "{0} took the SELinux report",
+   "text": "{0} si stáhl report SELinuxu"
+  },
+  "pz_1199": {
+   "source": "{0} took the SELinux report - without {1}",
+   "text": "{0} si stáhl report SELinuxu – bez {1}"
+  },
+  "pz_1200": {
+   "source": "{0} made a new SSH key for {1} on {2} ({3}) - its private half handed to the page once, kept nowhere",
+   "text": "{0} vytvořil nový SSH klíč pro {1} na {2} ({3}) – jeho soukromá část byla předána stránce jednou a nikde se neuchovává"
+  },
+  "pz_1201": {
+   "source": "a bundle for the other node (slot {0}) was made again on the command line - it carries the key that opens every secret",
+   "text": "balíček pro druhý uzel (slot {0}) byl znovu vytvořen na příkazové řádce – nese klíč, který otevírá všechna tajemství"
+  },
+  "pz_1202": {
+   "source": "the VIP address: {0}, on the command line",
+   "text": "adresa VIP: {0}, na příkazové řádce"
+  },
+  "pz_1203": {
+   "source": "{0} set the password policy of the local users (command line)",
+   "text": "{0} nastavil zásady hesel místních uživatelů (příkazová řádka)"
+  },
+  "pz_1204": {
+   "source": "{0} gave back to the system the password policy of the local users (command line)",
+   "text": "{0} vrátil zásady hesel místních uživatelů systému (příkazová řádka)"
+  },
+  "pz_1205": {
+   "source": "root on {0} made a new key for the sign-in by the load balancer - the one before is no longer taken",
+   "text": "root na {0} vytvořil nový klíč pro přihlašování přes load balancer – předchozí se už nepřijímá"
+  },
+  "pz_1206": {
+   "source": "the e-mail address ({0}) and the mobile number ({1}) of {2} set on the command line",
+   "text": "e-mailová adresa ({0}) a číslo mobilu ({1}) uživatele {2} nastaveny na příkazové řádce"
+  },
+  "pz_1207": {
+   "source": "Plesk could not {0}: {1}",
+   "text": "Plesk nedokázal {0}: {1}"
+  },
+  "pz_1208": {
+   "source": "{0} over SSH: {1}",
+   "text": "{0} přes SSH: {1}"
+  },
+  "pz_1209": {
+   "source": "{0} is not the address of the PowerDNS API",
+   "text": "{0} není adresa PowerDNS API"
+  },
+  "pz_1210": {
+   "source": "{0}: {1} refuses {2} as it is: {3}",
+   "text": "{0}: {1} odmítá {2} v tomto stavu: {3}"
+  },
+  "pz_1211": {
+   "source": "{0} said nothing more in time (after: {1})",
+   "text": "{0} už včas nic dalšího neřekl (po: {1})"
+  },
+  "pz_1212": {
+   "source": "{0} closed the connection (after: {1})",
+   "text": "{0} uzavřel spojení (po: {1})"
+  },
+  "pz_1213": {
+   "source": "openssl failed ({0}): {1}",
+   "text": "openssl selhal ({0}): {1}"
+  },
+  "pz_1214": {
+   "source": "an ACME source does not take the reason {0} - choose another (keyCompromise, superseded, cessationOfOperation, affiliationChanged, privilegeWithdrawn, unspecified)",
+   "text": "zdroj ACME nepřijímá důvod {0} – zvolte jiný (keyCompromise, superseded, cessationOfOperation, affiliationChanged, privilegeWithdrawn, unspecified)"
+  },
+  "pz_1215": {
+   "source": "IPA refused {0}: {1}",
+   "text": "IPA odmítla {0}: {1}"
+  },
+  "pz_1216": {
+   "source": "RPC to the CA: {0}",
+   "text": "RPC k CA: {0}"
+  },
+  "pz_1217": {
+   "source": "SSLmarket refused {0} ({1})",
+   "text": "SSLmarket odmítl {0} ({1})"
+  },
+  "pz_1218": {
+   "source": "SSLmarket refused {0} ({1}): {2}",
+   "text": "SSLmarket odmítl {0} ({1}): {2}"
+  },
+  "pz_1219": {
+   "source": "{0}: ACOS said {1}",
+   "text": "{0}: ACOS odpověděl {1}"
+  },
+  "pz_1220": {
+   "source": "{0}: a key the agent makes cannot be written as {1} - it writes {2} (or let acme make the key)",
+   "text": "{0}: klíč, který vytváří agent, nelze zapsat jako {1} – agent zapisuje {2} (nebo nechte klíč vytvořit acme)"
+  },
+  "pz_1221": {
+   "source": "\"{0}\" cannot be read as a command",
+   "text": "„{0}“ nelze přečíst jako příkaz"
+  },
+  "pz_1222": {
+   "source": "\"{0}\": one unit a line where there are alternatives",
+   "text": "„{0}“: kde jsou alternativy, jedna jednotka na řádek"
+  },
+  "pz_1223": {
+   "source": "\"{0}\": systemctl {1} is not one the agent does ({2})",
+   "text": "„{0}“: systemctl {1} agent neprovádí ({2})"
+  },
+  "pz_1224": {
+   "source": "\"{0}\": -Name without a service",
+   "text": "„{0}“: -Name bez služby"
+  },
+  "pz_1225": {
+   "source": "\"{0}\": {1} {2} is not one the agent does ({3} [-Name] NAME [-Force])",
+   "text": "„{0}“: {1} {2} agent neprovádí ({3} [-Name] NAME [-Force])"
+  },
+  "pz_1226": {
+   "source": "\"{0}\": {1} is not the name of a service",
+   "text": "„{0}“: {1} není jméno služby"
+  },
+  "pz_1227": {
+   "source": "\"{0}\": which service? ({1} NAME)",
+   "text": "„{0}“: která služba? ({1} NAME)"
+  },
+  "pz_1228": {
+   "source": "\"{0}\": a service is only restarted or started by the agent (Restart-Service NAME)",
+   "text": "„{0}“: agent službu jen restartuje nebo spouští (Restart-Service NAME)"
+  },
+  "pz_1229": {
+   "source": "\"{0}\": net stop / net start is not what the agent runs - use Restart-Service {1} (one line: the service restarted)",
+   "text": "„{0}“: net stop / net start agent nespouští – použijte Restart-Service {1} (jeden řádek: služba restartována)"
+  },
+  "pz_1230": {
+   "source": "\"{0}\": a .bat or .cmd runs in cmd.exe (a shell) - write it as a PowerShell script (.ps1) the policy allows",
+   "text": "„{0}“: .bat nebo .cmd běží v cmd.exe (shell) – napište ho jako skript PowerShellu (.ps1), který zásady povolují"
+  },
+  "pz_1231": {
+   "source": "the agent on the server knows no Windows role (it is older than acme {0}): update it, then deploy again",
+   "text": "agent na serveru nezná žádnou roli Windows (je starší než acme {0}): aktualizujte ho a pak nasaďte znovu"
+  },
+  "pz_1232": {
+   "source": "the agent on the server does not know {0}: update it",
+   "text": "agent na serveru nezná {0}: aktualizujte ho"
+  },
+  "pz_1233": {
+   "source": "the Controller gave no session on signing in (no {0} and csrftoken cookies)",
+   "text": "Controller při přihlášení nevrátil žádnou relaci (žádné cookies {0} a csrftoken)"
+  },
+  "pz_1234": {
+   "source": "the Controller gave no uuid for {0}",
+   "text": "Controller nevrátil uuid pro {0}"
+  },
+  "pz_1235": {
+   "source": "{0}: ACM said {1} {2}",
+   "text": "{0}: ACM odpověděl {1} {2}"
+  },
+  "pz_1236": {
+   "source": "\"{0}\" is not a name for the gateway (letters, digits, _ . -)",
+   "text": "„{0}“ není jméno pro bránu (písmena, číslice, _ . -)"
+  },
+  "pz_1237": {
+   "source": "the gateway {0} has no managed identity: it reads Key Vault through one (give it a user-assigned identity first)",
+   "text": "brána {0} nemá spravovanou identitu: Key Vault čte přes ni (nejdřív jí přiřaďte identitu přiřazenou uživatelem)"
+  },
+  "pz_1238": {
+   "source": "the gateway {0} is still {1} - see the portal",
+   "text": "brána {0} je stále {1} – podívejte se do portálu"
+  },
+  "pz_1239": {
+   "source": "the web app {0} has no hostname {1} (add it there first)",
+   "text": "webová aplikace {0} nemá hostname {1} (nejdřív ho tam přidejte)"
+  },
+  "pz_1240": {
+   "source": "the WAF has no service \"{0}\"",
+   "text": "WAF nemá službu „{0}“"
+  },
+  "pz_1241": {
+   "source": "the WAF did not say the SSL security of {0}",
+   "text": "WAF neuvedl nastavení SSL security pro {0}"
+  },
+  "pz_1242": {
+   "source": "the pull zone {0} has no hostname {1} (add it there first)",
+   "text": "pull zóna {0} nemá hostname {1} (nejdřív ho tam přidejte)"
+  },
+  "pz_1243": {
+   "source": "{0}: the ASA said \"{1}\"",
+   "text": "{0}: ASA odpověděla „{1}“"
+  },
+  "pz_1244": {
+   "source": "the answer is not the ASA's show version: {0}",
+   "text": "odpověď není show version od ASA: {0}"
+  },
+  "pz_1245": {
+   "source": "the ASA did not say the PKCS#12 import completed: {0}",
+   "text": "ASA nepotvrdila dokončení importu PKCS#12: {0}"
+  },
+  "pz_1246": {
+   "source": "the FMC has no decryption policy \"{0}\"",
+   "text": "FMC nemá decryption policy „{0}“"
+  },
+  "pz_1247": {
+   "source": "FDM gave no id for {0}",
+   "text": "FDM nevrátilo id pro {0}"
+  },
+  "pz_1248": {
+   "source": "the deployment {0} ended {1}: {2}",
+   "text": "nasazení {0} skončilo {1}: {2}"
+  },
+  "pz_1249": {
+   "source": "the deployment {0} is still {1} - see the Device Manager",
+   "text": "nasazení {0} je stále {1} – podívejte se do Device Manageru"
+  },
+  "pz_1250": {
+   "source": "not a role of ISE: {0}",
+   "text": "není to role ISE: {0}"
+  },
+  "pz_1251": {
+   "source": "{0}: cPanel said {1}",
+   "text": "{0}: cPanel odpověděl {1}"
+  },
+  "pz_1252": {
+   "source": "{0}: WHM said {1}",
+   "text": "{0}: WHM odpověděl {1}"
+  },
+  "pz_1253": {
+   "source": "DigitalOcean gave no id for {0}",
+   "text": "DigitalOcean nevrátil id pro {0}"
+  },
+  "pz_1254": {
+   "source": "the load balancer {0} has no HTTPS forwarding rule",
+   "text": "load balancer {0} nemá žádné pravidlo přesměrování HTTPS"
+  },
+  "pz_1255": {
+   "source": "DirectAdmin has no domain \"{0}\" here",
+   "text": "DirectAdmin zde nemá doménu „{0}“"
+  },
+  "pz_1256": {
+   "source": "DirectAdmin does not let acme in ({0})",
+   "text": "DirectAdmin acme nepouští dovnitř ({0})"
+  },
+  "pz_1257": {
+   "source": "{0}: DirectAdmin said {1}",
+   "text": "{0}: DirectAdmin odpověděl {1}"
+  },
+  "pz_1258": {
+   "source": "Flowmon gave no id for the TLS setting {0}",
+   "text": "Flowmon nevrátil id nastavení TLS {0}"
+  },
+  "pz_1259": {
+   "source": "Flowmon did not sign in {0} ({1})",
+   "text": "Flowmon nepřihlásil {0} ({1})"
+  },
+  "pz_1260": {
+   "source": "{0}: FortiADC said error {1}",
+   "text": "{0}: FortiADC hlásí chybu {1}"
+  },
+  "pz_1261": {
+   "source": "FortiADC has no {0} \"{1}\"",
+   "text": "FortiADC nemá {0} „{1}“"
+  },
+  "pz_1262": {
+   "source": "{0} - nothing was changed. Fill in the target's SSH sign-in (an administrator who may change VPN certificates in that VDOM) and acme replaces it in the FortiOS CLI",
+   "text": "{0} – nic se nezměnilo. Vyplňte přihlášení cíle přes SSH (administrátor, který smí v tom VDOM měnit certifikáty VPN) a acme ho vymění v CLI FortiOS"
+  },
+  "pz_1263": {
+   "source": "{0}: FortiWeb said error {1}",
+   "text": "{0}: FortiWeb hlásí chybu {1}"
+  },
+  "pz_1264": {
+   "source": "reading the server policy {0}: FortiWeb said {1}",
+   "text": "čtení server policy {0}: FortiWeb odpověděl {1}"
+  },
+  "pz_1265": {
+   "source": "FortiWeb has no server policy \"{0}\"",
+   "text": "FortiWeb nemá server policy „{0}“"
+  },
+  "pz_1266": {
+   "source": "\"{0}\" is not a Hestia user",
+   "text": "„{0}“ není uživatel Hestie"
+  },
+  "pz_1267": {
+   "source": "{0} now has NO SSL: Hestia's own Let's Encrypt was turned off for it and the new certificate was refused ({1}) - turn Let's Encrypt on again in Hestia, or deploy again",
+   "text": "{0} nyní NEMÁ SSL: vlastní Let's Encrypt Hestie pro ni byl vypnut a nový certifikát byl odmítnut ({1}) – zapněte v Hestii Let's Encrypt znovu, nebo nasaďte znovu"
+  },
+  "pz_1268": {
+   "source": "no private folder could be made on the server (mktemp -d): {0}",
+   "text": "na serveru se nepodařilo vytvořit soukromou složku (mktemp -d): {0}"
+  },
+  "pz_1269": {
+   "source": "Hetzner gave no id for {0}",
+   "text": "Hetzner nevrátil id pro {0}"
+  },
+  "pz_1270": {
+   "source": "the load balancer {0} has no HTTPS service",
+   "text": "load balancer {0} nemá žádnou službu HTTPS"
+  },
+  "pz_1271": {
+   "source": "ISPConfig has no website \"{0}\"",
+   "text": "ISPConfig nemá web „{0}“"
+  },
+  "pz_1272": {
+   "source": "{0}: ISPConfig gave no JSON (is the Remote API on, and the address the panel's?)",
+   "text": "{0}: ISPConfig nevrátil JSON (je zapnuté Remote API a je to adresa panelu?)"
+  },
+  "pz_1273": {
+   "source": "{0}: Junos said {1}",
+   "text": "{0}: Junos odpověděl {1}"
+  },
+  "pz_1274": {
+   "source": "\"{0}\" is not a Junos name",
+   "text": "„{0}“ není jméno v Junos"
+  },
+  "pz_1275": {
+   "source": "{0} (the candidate configuration may hold acme's lines: \"rollback 0\" in the CLI)",
+   "text": "{0} (kandidátní konfigurace může obsahovat řádky od acme: „rollback 0“ v CLI)"
+  },
+  "pz_1276": {
+   "source": "{0} does not answer as a Kong Admin API",
+   "text": "{0} neodpovídá jako Kong Admin API"
+  },
+  "pz_1277": {
+   "source": "this XCC makes {0} keys only - choose that key type for the certificate",
+   "text": "toto XCC vytváří jen klíče {0} – zvolte pro certifikát tento typ klíče"
+  },
+  "pz_1278": {
+   "source": "{0} is a link: no copy kept there",
+   "text": "{0} je odkaz: žádná kopie se tam neuchovává"
+  },
+  "pz_1279": {
+   "source": "Nginx Proxy Manager gave no id for {0}",
+   "text": "Nginx Proxy Manager nevrátil id pro {0}"
+  },
+  "pz_1280": {
+   "source": "NSX has no virtual server \"{0}\"",
+   "text": "NSX nemá virtuální server „{0}“"
+  },
+  "pz_1281": {
+   "source": "the virtual server {0} has no client SSL binding (it does not serve HTTPS): give it a client SSL profile in NSX first",
+   "text": "virtuální server {0} nemá vazbu klientského SSL (neobsluhuje HTTPS): nejdřív mu v NSX přidejte klientský SSL profil"
+  },
+  "pz_1282": {
+   "source": "Nutanix takes ECDSA P-256/P-384/P-521 and RSA 2048/4096 keys, not {0}",
+   "text": "Nutanix přijímá klíče ECDSA P-256/P-384/P-521 a RSA 2048/4096, ne {0}"
+  },
+  "pz_1283": {
+   "source": "Prism Central has no cluster named \"{0}\"",
+   "text": "Prism Central nemá cluster se jménem „{0}“"
+  },
+  "pz_1284": {
+   "source": "{0}: Plesk did not answer in XML",
+   "text": "{0}: Plesk neodpověděl v XML"
+  },
+  "pz_1285": {
+   "source": "{0}: Plesk said {1}",
+   "text": "{0}: Plesk odpověděl {1}"
+  },
+  "pz_1286": {
+   "source": "{0}: the Entities.xml of the answer is not XML",
+   "text": "{0}: Entities.xml v odpovědi není XML"
+  },
+  "pz_1287": {
+   "source": "{0}: the firewall answered with a tar file without Entities.xml",
+   "text": "{0}: firewall odpověděl souborem tar bez Entities.xml"
+  },
+  "pz_1288": {
+   "source": "signed in, but sudo does not work: {0}",
+   "text": "přihlášeno, ale sudo nefunguje: {0}"
+  },
+  "pz_1289": {
+   "source": "{0} is a connector: certificates go to the targets reached through it, not to it",
+   "text": "{0} je konektor: certifikáty jdou na cíle dostupné přes něj, ne na něj"
+  },
+  "pz_1290": {
+   "source": "{0}: midclt said {1}",
+   "text": "{0}: midclt odpověděl {1}"
+  },
+  "pz_1291": {
+   "source": "{0}: Virtualmin said {1}",
+   "text": "{0}: Virtualmin odpověděl {1}"
+  },
+  "pz_1292": {
+   "source": "{0}: ACM said {1} {2} - {3}",
+   "text": "{0}: ACM odpověděl {1} {2} – {3}"
+  },
+  "pz_1293": {
+   "source": "ACM cannot change the key type on a re-import ({0} has {1}, this certificate {2}): keep the key type, or import it as a new certificate (another Certificate ARN, or delete {3} first) and point the services using it at the new one",
+   "text": "ACM nedokáže při opětovném importu změnit typ klíče ({0} má {1}, tento certifikát {2}): ponechte typ klíče, nebo ho importujte jako nový certifikát (jiné Certificate ARN, nebo nejdřív smažte {3}) a služby, které ho používají, nasměrujte na nový"
+  },
+  "pz_1294": {
+   "source": "ACM cannot change the key type on a re-import ({0} has {1}, this certificate {2}): keep the key type, or import it as a new certificate (another Certificate ARN, or delete {3} first) and point the services using it at the new one - used by {4}",
+   "text": "ACM nedokáže při opětovném importu změnit typ klíče ({0} má {1}, tento certifikát {2}): ponechte typ klíče, nebo ho importujte jako nový certifikát (jiné Certificate ARN, nebo nejdřív smažte {3}) a služby, které ho používají, nasměrujte na nový – používá ho {4}"
+  },
+  "pz_1295": {
+   "source": "the download failed (HTTP {0})",
+   "text": "stahování selhalo (HTTP {0})"
+  },
+  "pz_1296": {
+   "source": "that file is bigger than this page takes ({0} MB sent, at most {1} MB)",
+   "text": "soubor je větší, než tato stránka přijme (odesláno {0} MB, nejvýše {1} MB)"
+  },
+  "pz_1297": {
+   "source": "its own PostgreSQL, copied from {0}",
+   "text": "vlastní PostgreSQL, zkopírovaná z {0}"
+  },
+  "pz_1298": {
+   "source": "{0} - with these boxes",
+   "text": "{0} – s těmito poli"
+  },
+  "pz_1299": {
+   "source": "{0} will be read from {1} - save to keep it",
+   "text": "{0} se bude číst z {1} – uložením to zachováte"
+  },
+  "pz_1300": {
+   "source": "{0} attributes · {1} ms",
+   "text": "{0} {0:atribut|atributy|atributů} · {1} ms"
+  },
+  "pz_1301": {
+   "source": "({0} min ago)",
+   "text": "(před {0} min)"
+  },
+  "pz_1302": {
+   "source": "{0} (with its key)",
+   "text": "{0} (s jeho klíčem)"
+  },
+  "pz_1303": {
+   "source": "Upload it on the page Modules, or put it into /etc/acme/plugins/{0}/ and restart acme.",
+   "text": "Nahrajte ho na stránce Moduly, nebo ho vložte do /etc/acme/plugins/{0}/ a restartujte acme."
+  },
+  "pz_1304": {
+   "source": "then: acme --renew {0} issues it now (a new key - never this one's)",
+   "text": "potom: acme --renew {0} ho vystaví hned (nový klíč – nikdy klíč tohoto)"
+  },
+  "pz_1305": {
+   "source": "its SSH key: acme --{0}-key {1} make (or own FILE)",
+   "text": "jeho SSH klíč: acme --{0}-key {1} make (nebo own SOUBOR)"
+  },
+  "pz_1306": {
+   "source": "its tags ({0}) are in the API call",
+   "text": "jeho štítky ({0}) jsou ve volání API"
+  },
+  "pz_1307": {
+   "source": "its phone ({0}) is in the API call",
+   "text": "jeho telefon ({0}) je ve volání API"
+  },
+  "pz_1308": {
+   "source": "the cookie: the session of a signed-in administrator (the browser's {0})",
+   "text": "cookie: relace přihlášeného administrátora ({0} prohlížeče)"
+  },
+  "pz_1309": {
+   "source": "· taken away: {0}",
+   "text": "· odebráno: {0}"
+  },
+  "pz_1310": {
+   "source": "signed in to {0}: IOS XE {1}; {2} trustpoints, the HTTPS server uses {3}",
+   "text": "přihlášeno k {0}: IOS XE {1}; trustpointů: {2}, HTTPS server používá {3}"
+  },
+  "pz_1311": {
+   "source": "signed in to {0} ({1}): NX-OS {2}; {3} trustpoints",
+   "text": "přihlášeno k {0} ({1}): NX-OS {2}; trustpointů: {3}"
+  },
+  "pz_1312": {
+   "source": "signed in to {0}: {1}; {2} trustpoints",
+   "text": "přihlášeno k {0}: {1}; trustpointů: {2}"
+  },
+  "pz_1313": {
+   "source": "signed in to {0}: {1}; {2} trustpoint",
+   "text": "přihlášeno k {0}: {1}; trustpointů: {2}"
+  },
+  "pz_1314": {
+   "source": "signed in to {0} ({1}): AOS-CX {2}; {3} certificates",
+   "text": "přihlášeno k {0} ({1}): AOS-CX {2}; certifikátů: {3}"
+  },
+  "pz_1315": {
+   "source": "signed in to Central ({0}); {1} certificates in its store",
+   "text": "přihlášeno do Central ({0}); certifikátů v úložišti: {1}"
+  },
+  "pz_1316": {
+   "source": "signed in to Aria Suite Lifecycle {0}; {1} certificates in the Locker",
+   "text": "přihlášeno do Aria Suite Lifecycle {0}; certifikátů v Lockeru: {1}"
+  },
+  "pz_1317": {
+   "source": "signed in to NSX Manager {0}; {1} certificates",
+   "text": "přihlášeno do NSX Manageru {0}; certifikátů: {1}"
+  },
+  "pz_1318": {
+   "source": "{0} CA certificates added to the trust store",
+   "text": "do úložiště důvěry přidáno certifikátů CA: {0}"
+  },
+  "pz_1319": {
+   "source": "Caddy has {0} certificates loaded through its API{1} - {2}",
+   "text": "Caddy má přes své API načteno certifikátů: {0}{1} – {2}"
+  },
+  "pz_1320": {
+   "source": "{0} CAs the agent of {1} lists",
+   "text": "CA, které vypíše agent cíle {1}: {0}"
+  },
+  "pz_1321": {
+   "source": "{0} CA the agent of {1} lists",
+   "text": "CA, které vypíše agent cíle {1}: {0}"
+  },
+  "pz_1322": {
+   "source": "the agent of {0} reaches {1}: {2} templates{3}",
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}{3}"
+  },
+  "pz_1323": {
+   "source": "the agent of {0} reaches {1}: {2} template; {3} is offered",
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3}"
+  },
+  "pz_1324": {
+   "source": "the agent of {0} reaches {1}: {2} template; {3} is offered - but the agent's policy does not allow it",
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3} – ale zásady agenta ji nepovolují"
+  },
+  "pz_1325": {
+   "source": "the agent of {0} reaches {1}: {2} templates; {3} is offered",
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3}"
+  },
+  "pz_1326": {
+   "source": "the agent of {0} reaches {1}: {2} templates; {3} is offered - but the agent's policy does not allow it",
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3} – ale zásady agenta ji nepovolují"
+  },
+  "pz_1327": {
+   "source": "the CA refused the sign-in of {0} with NTLM (wrong password, a locked account, or NTLM not allowed for it): {1}",
+   "text": "CA odmítla přihlášení {0} přes NTLM (špatné heslo, zamčený účet, nebo pro něj není NTLM povoleno): {1}"
+  },
+  "pz_1328": {
+   "source": "the CA refused the sign-in of {0} with NTLM (wrong password, a locked account, or NTLM not allowed for it) after {1}: {2}",
+   "text": "CA odmítla přihlášení {0} přes NTLM (špatné heslo, zamčený účet, nebo pro něj není NTLM povoleno) po {1}: {2}"
+  },
+  "pz_1329": {
+   "source": "a key of an algorithm not taken ({0})",
+   "text": "klíč s nepřijímaným algoritmem ({0})"
+  },
+  "pz_1330": {
+   "source": "a key of a kind not taken (kty {0}, alg {1})",
+   "text": "klíč nepřijímaného druhu (kty {0}, alg {1})"
+  },
+  "pz_1331": {
+   "source": "for the team {0}",
+   "text": "pro tým {0}"
+  },
+  "pz_1332": {
+   "source": "a capability is one of {0}",
+   "text": "oprávnění je jedno z: {0}"
+  },
+  "pz_1333": {
+   "source": "a part of the governance is one of {0}",
+   "text": "část správy je jedna z: {0}"
+  },
+  "pz_1334": {
+   "source": "a review of the team {0} is open already",
+   "text": "revize týmu {0} je už otevřená"
+  },
+  "pz_1335": {
+   "source": "a {0} cannot be restored",
+   "text": "{0} nelze obnovit"
+  },
+  "pz_1336": {
+   "source": "acme has no {0} here",
+   "text": "acme zde nemá {0}"
+  },
+  "pz_1337": {
+   "source": "no capability {0}",
+   "text": "žádné oprávnění {0}"
+  },
+  "pz_1338": {
+   "source": "nobody called {0} is in the directory under {1}",
+   "text": "v adresáři pod {1} nikdo se jménem {0} není"
+  },
+  "pz_1339": {
+   "source": "sending {0} is not set up now",
+   "text": "odesílání {0} teď není nastaveno"
+  },
+  "pz_1340": {
+   "source": "target {0} is no target with acme-agent",
+   "text": "cíl {0} není cíl s acme-agentem"
+  },
+  "pz_1341": {
+   "source": "that run has no {0} file",
+   "text": "tento běh nemá soubor {0}"
+  },
+  "pz_1342": {
+   "source": "the agent did not answer the job in {0} s",
+   "text": "agent na úlohu neodpověděl do {0} s"
+  },
+  "pz_1343": {
+   "source": "the agent of {0} has no saved design",
+   "text": "agent cíle {0} nemá uložený návrh"
+  },
+  "pz_1344": {
+   "source": "the agent of {0} has not joined",
+   "text": "agent cíle {0} se nepřipojil"
+  },
+  "pz_1345": {
+   "source": "the agent of {0} has not joined yet",
+   "text": "agent cíle {0} se ještě nepřipojil"
+  },
+  "pz_1346": {
+   "source": "the agent saw no certificate at {0}",
+   "text": "agent na {0} neviděl žádný certifikát"
+  },
+  "pz_1347": {
+   "source": "the check of the card of {0}'s sign-in to {1} was blocked: {2} (https://<this name>:{3}) - every header that sets a policy for the page must let the port's https picture in; the card cannot be checked until it does (from {4})",
+   "text": "kontrola karty přihlášení uživatele {0} do {1} byla zablokována: {2} (https://<toto jméno>:{3}) – každá hlavička, která stránce nastavuje zásady, musí pustit obrázek z https tohoto portu; dokud to neudělá, kartu nelze zkontrolovat (z {4})"
+  },
+  "pz_1348": {
+   "source": "the connector {0} is switched off",
+   "text": "konektor {0} je vypnutý"
+  },
+  "pz_1349": {
+   "source": "the gateway {0} has no listener {1}",
+   "text": "brána {0} nemá listener {1}"
+  },
+  "pz_1350": {
+   "source": "the keys are changed every {0} to {1} days",
+   "text": "klíče se mění každých {0} až {1} dní"
+  },
+  "pz_1351": {
+   "source": "the kind of a report is one of {0}",
+   "text": "druh reportu je jeden z: {0}"
+  },
+  "pz_1352": {
+   "source": "the other node was told {0} is at {1} again",
+   "text": "druhému uzlu bylo znovu sděleno, že {0} je na {1}"
+  },
+  "pz_1353": {
+   "source": "the password policy of the local users of acme 1.0.42 is set as the policy of Settings -> Local users -> Password policy: at least {0} characters, {1} kinds, {2}",
+   "text": "zásady hesel místních uživatelů z acme 1.0.42 jsou nastaveny jako zásady v Nastavení -> Místní uživatelé -> Zásady hesel: nejméně {0} znaků, {1} druhy, {2}"
+  },
+  "pz_1354": {
+   "source": "the role {0} is not in the catalog any more",
+   "text": "role {0} už v katalogu není"
+  },
+  "pz_1355": {
+   "source": "the task {0} has not finished in {1} s",
+   "text": "úloha {0} neskončila do {1} s"
+  },
+  "pz_1356": {
+   "source": "the task {0} failed",
+   "text": "úloha {0} selhala"
+  },
+  "pz_1357": {
+   "source": "the task {0} failed: {1}",
+   "text": "úloha {0} selhala: {1}"
+  },
+  "pz_1358": {
+   "source": "the task {0} canceled",
+   "text": "úloha {0} zrušena"
+  },
+  "pz_1359": {
+   "source": "the task {0} canceled: {1}",
+   "text": "úloha {0} zrušena: {1}"
+  },
+  "pz_1360": {
+   "source": "the task {0} cancelled",
+   "text": "úloha {0} zrušena"
+  },
+  "pz_1361": {
+   "source": "the task {0} cancelled: {1}",
+   "text": "úloha {0} zrušena: {1}"
+  },
+  "pz_1362": {
+   "source": "the {0} has a space or a line break in it",
+   "text": "{0} obsahuje mezeru nebo zalomení řádku"
+  },
+  "pz_1363": {
+   "source": "there is a template called {0} already",
+   "text": "šablona se jménem {0} už existuje"
+  },
+  "pz_1364": {
+   "source": "this device runs ArubaOS {0} - the target is for AOS 8 ({1}); {2}",
+   "text": "toto zařízení běží na ArubaOS {0} – cíl je pro AOS 8 ({1}); {2}"
+  },
+  "pz_1365": {
+   "source": "uploaded module {0} taken away by {1}",
+   "text": "nahraný modul {0} odebral {1}"
+  },
+  "pz_1366": {
+   "source": "you hold what {0} gives on the team {1} already",
+   "text": "to, co dává {0}, v týmu {1} už máte"
+  },
+  "pz_1367": {
+   "source": "{0} cleared the count of wrong directory passwords for {1}",
+   "text": "{0} vynuloval počet chybných hesel adresáře pro {1}"
+  },
+  "pz_1368": {
+   "source": "{0} groups at most",
+   "text": "nejvýše {0} {0:skupina|skupiny|skupin}"
+  },
+  "pz_1369": {
+   "source": "{0} has no list to load for {1}",
+   "text": "{0} nemá pro {1} žádný seznam k načtení"
+  },
+  "pz_1370": {
+   "source": "{0} has not finished in 120 s",
+   "text": "{0} neskončilo do 120 s"
+  },
+  "pz_1371": {
+   "source": "{0} has not finished in {1} s",
+   "text": "{0} neskončilo do {1} s"
+  },
+  "pz_1372": {
+   "source": "{0} is not a role",
+   "text": "{0} není role"
+  },
+  "pz_1373": {
+   "source": "{0} is not a server id",
+   "text": "{0} není id serveru"
+  },
+  "pz_1374": {
+   "source": "{0} is not a {1} acme puts on a command line",
+   "text": "{0} není {1}, který acme dává na příkazovou řádku"
+  },
+  "pz_1375": {
+   "source": "{0} is not in this review",
+   "text": "{0} v této revizi není"
+  },
+  "pz_1376": {
+   "source": "{0} is not the name of a normal user",
+   "text": "{0} není jméno běžného uživatele"
+  },
+  "pz_1377": {
+   "source": "{0} left the cluster on the command line and answers alone",
+   "text": "{0} opustil cluster na příkazové řádce a odpovídá sám"
+  },
+  "pz_1378": {
+   "source": "{0} looked at every attribute of {1} in {2}",
+   "text": "{0} prohlížel všechny atributy {1} v {2}"
+  },
+  "pz_1379": {
+   "source": "{0} runs the deployment of {1} to {2} from the portal",
+   "text": "{0} spouští nasazení {1} na {2} z portálu"
+  },
+  "pz_1380": {
+   "source": "{0} sent a line longer than {1} bytes",
+   "text": "{0} poslal řádek delší než {1} bajtů"
+  },
+  "pz_1381": {
+   "source": "{0} teams at most at once",
+   "text": "nejvýše {0} {0:tým|týmy|týmů} najednou"
+  },
+  "pz_1382": {
+   "source": "{0} templates at most",
+   "text": "nejvýše {0} {0:šablona|šablony|šablon}"
+  },
+  "pz_1383": {
+   "source": "{0} was taken off the list of nodes on the command line",
+   "text": "{0} byl odebrán ze seznamu uzlů na příkazové řádce"
+  },
+  "pz_1384": {
+   "source": "{0} set the password policy of the local users",
+   "text": "{0} nastavil zásady hesel místních uživatelů"
+  },
+  "pz_1385": {
+   "source": "{0} set the password policy of the local users: {1}",
+   "text": "{0} nastavil zásady hesel místních uživatelů: {1}"
+  },
+  "pz_1386": {
+   "source": "{0} gave back to the system the password policy of the local users",
+   "text": "{0} vrátil zásady hesel místních uživatelů systému"
+  },
+  "pz_1387": {
+   "source": "{0}: Windows files have no owner (who reads them is the policy's readers= of their folder)",
+   "text": "{0}: soubory Windows nemají vlastníka (kdo je čte, určuje readers= jejich složky v zásadách)"
+  },
+  "pz_1388": {
+   "source": "{0}: {1} no longer looks after its database server through acme-db-agent ({2}); {3}",
+   "text": "{0}: {1} už nespravuje svůj databázový server přes acme-db-agent ({2}); {3}"
+  },
+  "pz_1389": {
+   "source": "{0}: {1} no longer looks after its database server through acme-db-agent ({2}) - {3}; {4}",
+   "text": "{0}: {1} už nespravuje svůj databázový server přes acme-db-agent ({2}) – {3}; {4}"
   }
  },
  "rich": {
@@ -108698,7 +110478,7 @@
   },
   "r0119": {
    "source": "This account may not change the settings. A full administrator can change that under <i>Accounts</i>.",
-   "text": "Tento účet nesmí měnit nastavení. Plný administrátor to může změnit v sekci <i>Účty</i>."
+   "text": "Tento účet nesmí měnit nastavení. Plný správce to může změnit v sekci <i>Účty</i>."
   },
   "r0120": {
    "source": "This daemon’s own events as well (a token made, a setting changed), as <code>acme</code> lines. isemon does not read those; they are for whatever else collects the syslog.",
@@ -109123,6 +110903,30 @@
   "rz_2": {
    "source": "What SELinux refuses on each node when it is enforcing, and what acme needs of it: its own module (acme_server), the labels of its files, the boolean that lets the pages ask the daemon, the ports of sshd and PostgreSQL. Looked at every half hour; what is put right and the steps - made ready and permissive, enforcing, permissive again - are done by each node's root only when asked here or with <code>sudo acme --selinux</code>.",
    "text": "Co SELinux na kterém uzlu odepírá, když vynucuje, a co od něj acme potřebuje: vlastní modul (acme_server), štítky svých souborů, boolean, kterým stránky smějí žádat démona, porty sshd a PostgreSQL. Kontroluje se každou půlhodinu; nápravu i kroky – připravit a permissive, enforcing, zpět na permissive – dělá root daného uzlu, jen když se o to požádá tady nebo příkazem <code>sudo acme --selinux</code>."
+  },
+  "rz_3": {
+   "source": "<b>{0}</b> is no longer trusted for the mail server. The others stay.",
+   "text": "<b>{0}</b> už není pro poštovní server důvěryhodný. Ostatní zůstávají."
+  },
+  "rz_4": {
+   "source": "A fresh ed25519 pair is made here. The private half stays on this machine and the public half is shown for you to put on the server.<br><br><b>The key kept now is replaced</b>, so until the new public half is on the server, backups cannot sign in there.",
+   "text": "Zde se vytvoří nový pár ed25519. Soukromá polovina zůstane na tomto stroji a veřejná se ukáže, abyste ji dali na server.<br><br><b>Nynější klíč se nahradí</b>, takže dokud na serveru nebude nová veřejná polovina, zálohy se tam nepřihlásí."
+  },
+  "rz_5": {
+   "source": "A key and a certificate for it are made here; the key stays on this machine.<br><br><b>The one kept now is replaced</b>: the server has to be given the new certificate.",
+   "text": "Zde se vytvoří klíč a certifikát k němu; klíč zůstane na tomto stroji.<br><br><b>Nynější se nahradí</b>: server musí dostat nový certifikát."
+  },
+  "rz_6": {
+   "source": "<b>{0}</b> is no longer trusted for the SMS gateway. The others stay.",
+   "text": "<b>{0}</b> už není pro SMS bránu důvěryhodný. Ostatní zůstávají."
+  },
+  "rz_7": {
+   "source": "<b>{0}</b> group(s). Press a role beside one to put it in that role; press it again to take it out. More than one group may hold a role, and somebody in several gets the highest.",
+   "text": "<b>{0}</b> {0:skupina|skupiny|skupin}. Stiskem role vedle skupiny ji do role přidáte; dalším stiskem ji vyjmete. Roli může mít víc skupin a kdo je v několika, dostane nejvyšší."
+  },
+  "rz_8": {
+   "source": "<b>{0}</b> group(s). Press a role beside one to put it in that role; press it again to take it out. More than one group may hold a role, and somebody in several gets the highest. This is as many as are fetched at once — there may be more: type part of a name above and press <i>Find the groups</i> again.",
+   "text": "<b>{0}</b> {0:skupina|skupiny|skupin}. Stiskem role vedle skupiny ji do role přidáte; dalším stiskem ji vyjmete. Roli může mít víc skupin a kdo je v několika, dostane nejvyšší. Víc se najednou nenačte — může jich být víc: napište výše část jména a znovu stiskněte <i>Najít skupiny</i>."
   }
  }
 }
