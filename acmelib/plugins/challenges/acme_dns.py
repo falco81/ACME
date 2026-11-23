@@ -66,6 +66,13 @@ class AcmeDns(DnsChallenge):
             for key in (base, '*.' + base, name):
                 if key in accts:
                     return accts[key]
+            # Hunt w3: a key written otherwise (Example.com, example.com., příklad.cz) is the
+            # same name - the order's names come lower case, without the dot, in IDNA form
+            same = {D.ascii_name(k): v for k, v in accts.items() if isinstance(k, str)} \
+                if isinstance(accts, dict) else {}
+            for key in (base, '*.' + base):
+                if key in same:
+                    return same[key]
         if not self.c('username') or not self.c('subdomain'):
             raise PluginError('no acme-dns account for %s' % base, retry=False)
         return {'username': self.c('username'), 'password': self.c('password', ''),

@@ -575,7 +575,9 @@ def test(store, b):
     """A name looked up through a set - every server of it, each with how long
     it took, what it said and what it answered. b: {name} of a set kept, or
     the set's fields (a form not saved), qname, qtype."""
-    qname = D.norm(str(b.get('qname') or '').strip())
+    # a name with letters beyond ASCII in its IDNA form, as DNS carries it (Hunt w3: příklad.cz
+    # was refused as "which name?")
+    qname = D.ascii_name(str(b.get('qname') or '').strip())
     if not qname or not re.match(r'^[A-Za-z0-9_*]([A-Za-z0-9_.*-]{0,252})\Z', qname):
         raise ValueError('which name? (www.example.com)')
     qtype = str(b.get('qtype') or 'A').strip().upper()

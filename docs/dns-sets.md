@@ -111,4 +111,5 @@ yet. Every change is an event (Settings: "the DNS set ... was added by ...").
     acme --dns-assign validation default
     acme --dns-set-del "Company DNS" --yes
 
-The console has it under Certificates → DNS sets.
+`--note ""` takes a set's note away. The console has it under Certificates → DNS sets
+(the sets - look a name up through one, change, delete, add - and which set each function asks).

@@ -182,7 +182,7 @@
       }).catch(kit.fail).then(function () { busy(b, false); });
     }}], 'medium');
   }
-  function renewRequest(c, csr, kit) {
+  function renewRequest(c, csr, kit, tail) {
     modal('The request of ' + c.name, function (body) {
       body.appendChild(note('Its own key, its own name: have it signed by the CA above it, then Install the answer… in its popup.'));
       var ta = kit.areaBox(csr, '', 10, 'mono ct-csr');
@@ -194,7 +194,7 @@
       cp.onclick = function () { copyText(csr, cp, 'on the clipboard'); };
       row.appendChild(cp);
       var dl = cmdButton('Download', 'download', 'small');
-      dl.onclick = function () { saveText(csr, fileName(c, '-renewal.csr')); };
+      dl.onclick = function () { saveText(csr, fileName(c, tail || '-renewal.csr')); };
       row.appendChild(dl);
       body.appendChild(row);
     }, [{words: 'Close', close: true}], 'medium');
@@ -269,6 +269,8 @@
       var at = list.length - 1;     /* before the primary button (Sign a CSR) */
       var add = [{words: 'Edit…', icon: 'edit', go: function () { kit.over(function () { caEdit(c, d, kit); }, back); }}];
       if (!c.pending) add.push({words: 'Renew its certificate…', icon: 'refresh', go: function () { kit.over(function () { caRenew(c, d, kit); }, back); }});
+      /* the request of one made for a CA elsewhere (w3), to be shown again */
+      if (c.pending && c.csr_pem) add.push({words: 'Show the request', icon: 'download', go: function () { kit.over(function () { renewRequest(c, c.csr_pem, kit, '.csr'); }, back); }});
       if (c.renew_csr_pem || c.pending) add.push({words: 'Install the answer…', icon: 'upload', go: function () { kit.over(function () { caInstall(c, kit); }, back); }});
       Array.prototype.splice.apply(list, [Math.max(1, at), 0].concat(add));
     },

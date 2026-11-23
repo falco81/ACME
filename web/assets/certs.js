@@ -8278,12 +8278,17 @@ function caCreate(parent) {
 }
 function caCreateForm(parent) {
   var f = {};
+  /* 'elsewhere' (w3): an intermediate whose certificate a CA elsewhere signs - POST cas/request */
+  var isReq = parent === 'elsewhere';
+  if (isReq) parent = undefined;
   var isRoot = parent === null;
-  var title = isRoot ? 'A new root authority' : 'A new intermediate authority';
+  var title = isReq ? 'A request for a CA elsewhere' : (isRoot ? 'A new root authority' : 'A new intermediate authority');
   modal(title, function (body) {
-    body.appendChild(el('p', 'note', isRoot
+    body.appendChild(el('p', 'note', isReq
+      ? 'An intermediate signed by a CA elsewhere - your corporate root, AD CS (the Subordinate Certification Authority template). Its key is made here and never leaves acme; you get its request to have signed there, and it signs nothing until you install the answer.'
+      : (isRoot
       ? 'A root signs itself and is what your machines trust. Keep it for signing intermediates and issue certificates from those: a root that is never used directly is one that never has to be replaced.'
-      : 'An intermediate is signed by the authority above it and issues the certificates. Machines that trust the root trust it too.'));
+      : 'An intermediate is signed by the authority above it and issues the certificates. Machines that trust the root trust it too.')));
     var g = el('div', 'formgrid');
     f.name = textBox('', isRoot ? 'Example Root CA' : 'Example Issuing CA', '');
     noI18n(f.name);
@@ -8291,7 +8296,7 @@ function caCreateForm(parent) {
     ni.classList.add('ct-req');
     g.appendChild(ni);
     guardName(f.name, true, CAS.map(function (c) { return c.name; }));
-    if (!isRoot) {
+    if (!isRoot && !isReq) {
       var signers = CAS.filter(caSigns);
       var dca = defaultOf(signers);
       f.parent = selectBox(caPairs(signers.length ? signers : CAS), parent ? String(parent.id) : (dca ? String(dca.id) : (CAS[0] ? String(CAS[0].id) : '')));
@@ -8300,8 +8305,10 @@ function caCreateForm(parent) {
     }
     f.key = selectBox(KEY_TYPES.filter(function (k) { return k[0] !== 'ed25519'; }).map(function (k) { return [k[0], k[1]]; }), isRoot ? 'ec-384' : 'ec-256');
     g.appendChild(formField('Key', f.key));
-    f.days = numberBox(isRoot ? 3650 : 1825, '', 1, 36500);
-    g.appendChild(formField('Valid for (days)', f.days, isRoot ? '10 years is usual for a root.' : 'Shorter than the root above it.'));
+    if (!isReq) {
+      f.days = numberBox(isRoot ? 3650 : 1825, '', 1, 36500);
+      g.appendChild(formField('Valid for (days)', f.days, isRoot ? '10 years is usual for a root.' : 'Shorter than the root above it.'));
+    }
     f.path = numberBox(isRoot ? '' : 0, 'no limit', 0, 9);
     g.appendChild(formField('Path length', f.path, 'How many authorities may still come under it. 0: it signs only certificates. Empty: no limit.'));
     body.appendChild(g);
@@ -8337,6 +8344,19 @@ function caCreateForm(parent) {
     var subject = {};
     ['CN', 'O', 'OU', 'C', 'ST', 'L'].forEach(function (k) { if (f[k].value.trim()) subject[k] = f[k].value.trim(); });
     busy(b, true);
+    if (isReq) {
+      capi('cas/request', {name: f.name.value.trim(), subject: subject, key_type: f.key.value,
+        path_len: f.path.value === '' ? null : Number(f.path.value),
+        crl_days: Number(f.crlDays.value || 7), crl_url: f.crlUrl.value.trim(), aia_url: f.aia.value.trim(),
+        published: !!f.pub._get(),
+        name_constraints: f.nc.value.split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean)}, 120).then(function (d) {
+        toast(said(d, 'created'), 'good');
+        closeModal();
+        loadCas();
+        caRequestShown(d.name || f.name.value.trim(), d.csr_pem || '');
+      }).catch(fail).then(function () { busy(b, false); });
+      return;
+    }
     capi('cas/create', {name: f.name.value.trim(), subject: subject, key_type: f.key.value, days: Number(f.days.value || 3650),
       parent_id: f.parent ? Number(f.parent.value) : null, path_len: f.path.value === '' ? null : Number(f.path.value),
       crl_days: Number(f.crlDays.value || 7), crl_url: f.crlUrl.value.trim(), aia_url: f.aia.value.trim(),
@@ -8347,6 +8367,24 @@ function caCreateForm(parent) {
       loadCas();
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'medium');
+}
+function caRequestShown(name, csr) {
+  /* The request of an authority for a CA elsewhere (w3), to copy or download. */
+  modal('The request of ' + name, function (body) {
+    body.appendChild(el('p', 'note', 'Its own key, its own name: have it signed by the CA above it, then Install the answer… in its popup.'));
+    var ta = areaBox(csr, '', 10, 'mono ct-csr');
+    ta.readOnly = true;
+    noI18n(ta);
+    body.appendChild(ta);
+    var row = el('div', 'btnrow');
+    var cp = cmdButton('Copy', 'copy', 'small');
+    cp.onclick = function () { copyText(csr, cp, 'on the clipboard'); };
+    row.appendChild(cp);
+    var dl = cmdButton('Download', 'download', 'small');
+    dl.onclick = function () { saveText(String(name || 'ca').replace(/[^A-Za-z0-9._-]+/g, '_') + '.csr', csr, 'application/pkcs10'); };
+    row.appendChild(dl);
+    body.appendChild(row);
+  }, [{words: 'Close', close: true}], 'medium');
 }
 function caImport() {
   var f = {};
@@ -11285,6 +11323,7 @@ if ($('ct-q')) qSuggest($('ct-q'), 'certs');
 on('ca-root', 'click', function () { caCreate(null); });
 on('ca-inter', 'click', function () { caCreate(undefined); });
 on('ca-import', 'click', function () { caImport(); });
+on('ca-request', 'click', function () { caCreate('elsewhere'); });
 on('ca-sign', 'click', function () { signCsr(null); });
 on('src-add', 'click', function () { modEdit('sources'); });
 on('val-add', 'click', function () { modEdit('validation'); });

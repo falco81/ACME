@@ -19,7 +19,7 @@ process, their steps printed as they come. --json answers JSON.
     authorities    --cas --ca-show --ca-create --ca-sub --ca-import --ca-revoke --ca-crl
                    --ca-unrevoke --ca-export --ca-sign --ca-del --ca-default --ca-publish
                    --ca-pki-urls --ca-pki-check --ca-edit --ca-renew --ca-versions
-                   --ca-install-cert
+                   --ca-install-cert --ca-request
     DNS server     --dns-records --dns-add --dns-del
 
 A module's settings are --set KEY=VALUE (again for more), checked against the
@@ -55,9 +55,10 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'validation_show', 'validation_add', 'validation_edit', 'validation_del',
         'validation_test', 'validation_action',
         'target_show', 'target_add', 'target_edit', 'target_del', 'target_action',
+        'source_list', 'validation_list', 'target_list',
         'source_default', 'validation_default', 'target_default', 'ca_default',
         'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check',
-        'ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert',
+        'ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert', 'ca_request',
         'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key',
         # 1.0.141: read-only views of the pages (What happens, Show a certificate, a
         # deployment's preview and test)
@@ -135,7 +136,8 @@ def add_args(p):
     g.add_argument('--challenge', metavar='NAME', help='with --cert-add, --cert-edit: how its '
                    'names are proved (acme --validations)')
     g.add_argument('--key-type', metavar='TYPE', help='with --cert-add, --cert-edit, '
-                   '--selfsigned, --ca-create, --ca-sub: ec-256 ec-384 rsa-2048 rsa-3072 '
+                   '--selfsigned, --ca-create, --ca-sub, --ca-request: ec-256 ec-384 rsa-2048 '
+                   'rsa-3072 '
                    'rsa-4096 ed25519')
     g.add_argument('--key-type-alt', metavar='TYPE|none', help='with --cert-add, --cert-edit: '
                    'a dual certificate - a twin of the same names with this key type too '
@@ -185,7 +187,7 @@ def add_args(p):
     g.add_argument('--variant', metavar='main|alt', default='main', help='with --export: of a '
                    'dual certificate the main one or its twin (alt; or ec, rsa) [main]')
     g.add_argument('--out', metavar='FILE', help='with --export, --csr, --ca-export, --ca-crl, '
-                   '--ca-sign: where it goes (- for stdout)')
+                   '--ca-sign, --ca-request: where it goes (- for stdout)')
     g.add_argument('--selfsigned', metavar='NAME', help='a self-signed certificate for --names, '
                    'made now')
     g.add_argument('--jobs', action='store_true', help='the jobs, newest first (--limit)')
@@ -237,6 +239,12 @@ def add_args(p):
         g.add_argument('--%s-action' % word, dest='%s_action' % word, nargs=2,
                        metavar=('NAME', 'ACTION'), help='one of its module\'s actions (acme '
                        '--plugin KIND says which), e.g. --validation-action web prepare')
+        if fam != 'check':
+            g.add_argument('--%s-list' % word, dest='%s_list' % word, nargs=2,
+                           metavar=('NAME', 'FIELD'),
+                           help='the list a field of its form picks from (the page\'s "Load '
+                                'the list"), read-only; --set KEY=VALUE: the form\'s other '
+                                'values (a deployment\'s options) over the saved ones')
         g.add_argument('--%s-discover' % word, dest='%s_discover' % word, metavar='NAME',
                        help='find its settings from the account (read-only): what the module '
                             'reads there, shown; --fill puts it into the settings left empty '
@@ -376,7 +384,8 @@ def add_args(p):
     g.add_argument('--parent', metavar='CA', help='with --ca-sub: the authority that signs it; '
                    'with --team-add/-edit: the team it is under (- the top level), with '
                    '--team-del: where the teams below it go')
-    g.add_argument('--subject', metavar='DN', help='with --ca-create, --ca-sub: "CN=Example '
+    g.add_argument('--subject', metavar='DN', help='with --ca-create, --ca-sub, --ca-request: '
+                   '"CN=Example '
                    'Root,O=Example"')
     g.add_argument('--ca-import', metavar='FILE', help='an authority from a file (PEM or PFX, '
                    'with its key; --key FILE, --name, --password)')
@@ -416,6 +425,10 @@ def add_args(p):
     g.add_argument('--ca-versions', metavar='CA', help='every certificate it has had')
     g.add_argument('--ca-install-cert', nargs=2, metavar=('CA', 'FILE'), help='the certificate '
                    'a CA elsewhere signed for it (its first, or a renewal\'s answer)')
+    g.add_argument('--ca-request', metavar='NAME', help='a new intermediate whose certificate a '
+                   'CA elsewhere signs (AD CS: the SubCA template): its key made here, its '
+                   'request printed (or --out); --subject, --key-type, --set as --ca-create; '
+                   'then --ca-install-cert')
 
     g = p.add_argument_group('CERTIFICATES: ACME\'S OWN DNS SERVER')
     g.add_argument('--dns-records', action='store_true', help='what acme\'s own DNS server '
@@ -783,6 +796,8 @@ class Cli(object):
                 return self.fam_del(fam, getattr(a, '%s_del' % word))
             if getattr(a, '%s_action' % word, None):
                 return self.fam_action(fam, *getattr(a, '%s_action' % word))
+            if getattr(a, '%s_list' % word, None):
+                return self.fam_list(fam, *getattr(a, '%s_list' % word))
             if getattr(a, '%s_discover' % word, None):
                 return self.fam_discover(fam, getattr(a, '%s_discover' % word))
             if fam != 'target' and getattr(a, '%s_test' % word, None):
@@ -812,7 +827,7 @@ class Cli(object):
                  ('ca_crl', self.ca_crl), ('ca_export', self.ca_export),
                  ('ca_sign', self.ca_sign), ('ca_del', self.ca_del), ('ca_show', self.ca_show),
                  ('ca_publish', self.ca_publish), ('ca_pki_urls', self.ca_pki_urls),
-                 ('ca_pki_check', self.ca_pki_check),
+                 ('ca_pki_check', self.ca_pki_check), ('ca_request', self.ca_request),
                  ('import_file', self.do_import), ('renew', self.renew),
                  ('revoke', self.revoke), ('csr_answer', self.csr_answer), ('csr', self.csr),
                  ('cert_keep', self.cert_keep), ('approve', self.approve),
@@ -2024,6 +2039,35 @@ class Cli(object):
             print(self.pal.ok_line(got['said']) if got['ok'] else self.pal.bad_line(got['said']))
         return 0 if got['ok'] else 1
 
+    def fam_list(self, fam, name, field):
+        """--source-list NAME FIELD (--validation-, --target-): the list a field of the type
+        "catalog" picks from - the page's "Load the list" (POST /api/<family>/catalog, the
+        same rights, read-only); --set KEY=VALUE: the form's other values over the saved ones
+        (a deployment's options: the gateway whose listeners are listed)."""
+        word, path, _o = FAMILIES[fam]
+        row = self.fam_row(fam, name)
+        cfg = {}
+        for k, op, v in self.sets():
+            if op != '=':
+                raise SystemExit('acme: --%s-list takes --set KEY=VALUE only' % word)
+            cfg[k] = v
+        body = {'id': row['id'], 'field': field}
+        if cfg:
+            body['config'] = cfg
+        got = self.api('POST', '/api/%s/catalog' % path, body)
+        if self.json:
+            self.out(got)
+            return 0
+        for st in got.get('steps') or []:
+            print('  ' + self.pal.dim(str(st)))
+        rows = [[('* ' if o[0] == got.get('pick') else '  ') + o[0], o[1]]
+                for o in got.get('options') or []]
+        if rows:
+            self.table(rows, ['VALUE', 'WHAT'])
+        print(self.pal.ok_line('%s: %s (%s)' % (field, got.get('said') or len(rows),
+                                                '--set %s=VALUE' % field)))
+        return 0
+
     def fam_discover(self, fam, name):
         """--source-discover NAME (--validation-, --target-): what discovery finds
         (api_discover.py, read-only), shown; --fill saves it into the empty settings."""
@@ -3170,6 +3214,38 @@ class Cli(object):
         return self.done('authority %s made (id %s)%s' % (
             name, got.get('id'), (', under %s' % a.parent) if a.ca_sub else ''), got)
 
+    def ca_request(self):
+        """An intermediate for a CA elsewhere (w3): its key made here, its request given out."""
+        a = self.args
+        name = a.ca_request
+        subj = {}
+        for part in (a.subject or 'CN=%s' % name).split(','):
+            if '=' in part:
+                k, v = part.split('=', 1)
+                subj[k.strip()] = v.strip()
+        body = {'name': name, 'subject': subj, 'key_type': a.key_type or 'ec-384'}
+        body = self._ca_extra(body)
+        if 'days' in body:
+            raise SystemExit('acme: the days of --ca-request are the CA\'s above it to give')
+        got = self.api('POST', '/api/cas/request', body=body)
+        then = 'have it signed there (AD CS: certreq -submit -attrib ' \
+            '"CertificateTemplate:SubCA" FILE), then acme --ca-install-cert %s ANSWER' % name
+        if a.out and a.out != '-':
+            self._write(a.out, got['csr_pem'].encode('ascii'), 0o644)
+            return self.done('%s written: the request of the authority %s - %s' % (
+                a.out, name, then), dict(got, file=a.out))
+        if self.json:
+            self.out(got)
+            return 0
+        if a.out == '-':
+            self._stdout(got['csr_pem'].encode('ascii'))
+            return 0
+        self.done('authority %s made (id %s), waiting for its certificate' % (name, got.get('id')))
+        sys.stdout.write(got['csr_pem'] if got['csr_pem'].endswith('\n') else
+                         got['csr_pem'] + '\n')
+        print('  then: %s' % then)
+        return 0
+
     def ca_import(self):
         a = self.args
         data = self.files[a.ca_import]
@@ -3368,7 +3444,7 @@ def run(args):
     # --cert-check and --dry-run let it by - the certificate was made, imported or the job run,
     # and only then "nothing of it was saved", exit 2)
     if getattr(args, 'set', None) and acting and not re.search(
-            r'(_add|_edit|_test|_discover)$|^(ca_create|ca_sub|ca_sign|ca_renew|'
+            r'(_add|_edit|_test|_discover|_list)$|^(ca_create|ca_sub|ca_request|ca_sign|ca_renew|'
             r'ca_edit|deploy_preview|deploy_dry_run)$', acting[0]):
         raise SystemExit('acme: --set does not go with --%s - nothing was done (the settings: '
                          'acme --set KEY=VALUE on its own)' % _opt(acting[0]))

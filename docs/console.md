@@ -83,12 +83,17 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   a CSR and its answer, revoke, delete; add one; renew every one due now),
   the jobs (followed live, stopped), the live log of the certificates, the
   sources, validations and targets (show, add, change, rename, switch off,
-  try, a module's actions such as *Prepare the hosts*, delete), the
+  try, a module's actions such as *Prepare the hosts*, *Load a list of its form* -
+  the page's *Load the list*, `acme --target-list` -, delete), the
   deployments (add, run, change, switch off, take away), acme's own
-  authorities (show, new root, new intermediate, import, change it - its
-  name, days, CRL / CA certificate / OCSP addresses, key usages, note, switched
-  off, `acme --ca-edit` -, CRL, export, sign a CSR, revoke, release a hold,
-  renew, its versions, delete), acme's own DNS server (its records) and the modules
+  authorities (show, new root, new intermediate, a request for a CA elsewhere,
+  import, change it - its name, days, CRL / CA certificate / OCSP addresses, key
+  usages, note, switched off, `acme --ca-edit` -, CRL, export, sign a CSR,
+  revoke or put on hold, release a hold, renew, install the certificate a CA
+  elsewhere signed, its versions, delete), acme's own DNS server (its records), the **DNS
+  sets** (`n`: the sets and the set each function asks; a set - look a name up
+  through it, change, delete, a new one; which set a function asks - as
+  Settings → DNS, `acme --dns-set-*`, `--dns-assign`) and the modules
   (what each takes). Since 1.0.77 also: **Tests** (`t`: add, change, try, run,
   its SSH key, delete), a certificate's **tests** (attach, run, after which
   deployment, switched off for that certificate, take off), **Run the tests**

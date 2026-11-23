@@ -724,11 +724,13 @@ class DnsPersist(Challenge):
 
     auth_port = 53
 
-    def txt(self, rr):
+    def txt(self, rr, _hops=0):
         """The TXT values at a name: from the zone's own name servers first (1.0.22) - a
         resolver keeps "no such record" from a look made before the record was written
         (its negative cache, often an hour), so a record just written read as missing -
-        else as the validation checks' resolvers see them."""
+        else as the validation checks' resolvers see them. A CNAME at the name is
+        followed, as the CA's resolver follows it (Hunt w3: the name servers asked
+        without recursion gave the CNAME only, and the record read as missing)."""
         try:
             zone = D.find_zone(rr, self.resolvers(), timeout=self.guide_timeout)
             servers = D.zone_servers(zone, self.resolvers(), timeout=self.guide_timeout) \
@@ -738,9 +740,18 @@ class DnsPersist(Challenge):
         for _ns, addrs in servers[:4]:
             for a in addrs[:2]:
                 try:
-                    return list(D.txt_at(a, rr, port=self.auth_port, timeout=self.guide_timeout))
+                    got = list(D.txt_at(a, rr, port=self.auth_port, timeout=self.guide_timeout))
+                    if got or _hops >= 8:
+                        return got
+                    m = D.query(a, rr, 5, port=self.auth_port, timeout=self.guide_timeout,
+                                rd=False)
                 except (D.DnsError, D.FormErr, OSError):
                     continue
+                to = [D.norm(r.text) for r in m.answer
+                      if r.rtype == 5 and D.norm(r.name) == D.norm(rr)]
+                if to and to[0] != D.norm(rr):
+                    return self.txt(to[0], _hops + 1)
+                return got
         m = D.ask_any(self.resolvers(), rr, 16, self.guide_timeout)
         if m.rcode == D.NXDOMAIN:
             return []

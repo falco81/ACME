@@ -114,7 +114,10 @@ class CiscoAsaTarget(HttpTarget):
                                  {'Content-Type': 'text/plain', 'Accept': 'text/plain'},
                                  what=what)
         except PluginError as e:
-            raise PluginError(str(e), detail=None if hide else e.detail, retry=e.retry)
+            # the one-time password out of the words too (hunt w3: an ASA answering an error
+            # page echoes the commands - the PKCS#12's password went into the job's error)
+            raise PluginError(str(e).replace(hide, '…') if hide else str(e),
+                              detail=None if hide else e.detail, retry=e.retry)
         out = text(d)
         if hide:
             out = out.replace(hide, '…')

@@ -6,7 +6,9 @@ certificate as an SSL key and certificate under a dated name, points the virtual
 you list at it in place of the older acme one (`PATCH /api/virtualservice/<uuid>`), and -
 when asked - makes it the certificate of the Controller's own portal. Older acme
 certificates beyond *keep* are deleted (Avi refuses one still in use). It signs out at the
-end. A dual certificate (EC + RSA) gives a virtual service one of each kind.
+end. A dual certificate (EC + RSA) gives a virtual service one of each kind; a single one takes the
+place of the virtual service's certificate of the same kind (RSA or EC) and leaves the one
+of the other kind.
 
 For Avi Vantage / NSX Advanced Load Balancer / VMware Avi Load Balancer Controllers with
 the REST API (versions that take `X-Avi-Version`, e.g. 20.x, 21.x, 22.x and later).

@@ -18,7 +18,7 @@ deployed to the devices, older acme objects no rule uses deleted.
          the rule as read, each reference {"id": <older acme object>} made the new one's
     GET  /api/fmc_config/v1/domain/<d>/deployment/deployabledevices?expanded=true
     POST /api/fmc_config/v1/domain/<d>/deployment/deploymentrequests
-         {"type": "DeploymentRequest", "ignoreWarning": true, "deviceList": [ids]}
+         {"type": "DeploymentRequest", "ignoreWarning": true, "deviceList": [ids], "version"}
     DELETE /api/fmc_config/v1/domain/<d>/object/internalcertificates/<id>
 
 Checked against (the user's collection of the vendor's documents, api-docs/cisco_fmc/notes.md):
@@ -290,7 +290,7 @@ class CiscoFmcTarget(HttpTarget):
         st, d = self.api('GET', '/deployment/deployabledevices?expanded=true',
                          what='listing the devices with changes')
         want = set(lines(options.get('devices')))
-        ids, names = [], []
+        ids, names, vers = [], [], []
         for it in d.get('items') or []:
             if not isinstance(it, dict):
                 continue
@@ -301,14 +301,21 @@ class CiscoFmcTarget(HttpTarget):
             if dev.get('id'):
                 ids.append(text(dev['id']))
                 names.append(nm)
+                if text(it.get('version')).strip().isdigit():
+                    vers.append(int(text(it['version']).strip()))
         if not ids:
             self.ctx.step('no device has changes to deploy%s' % (
                 ' among ' + ', '.join(sorted(want)) if want else ''), 'warn')
             return
-        self.api('POST', '/deployment/deploymentrequests', {
-            'type': 'DeploymentRequest', 'ignoreWarning': True, 'deviceList': ids,
-            'deploymentNote': 'acme: a renewed certificate'},
-            what='asking for the deployment')
+        body = {'type': 'DeploymentRequest', 'ignoreWarning': True, 'deviceList': ids,
+                'deploymentNote': 'acme: a renewed certificate'}
+        if vers:
+            # the version of the changes to deploy, as deployabledevices said it (hunt w3: a
+            # request without it - the field the FMC's DeploymentRequest asks for - could be
+            # refused; Cisco's Terraform provider sends the newest one)
+            body['version'] = str(max(vers))
+        self.api('POST', '/deployment/deploymentrequests', body,
+                 what='asking for the deployment')
         self.ctx.step('deployment asked for %s' % ', '.join(names), 'ok')
         did.append('deployed to %s' % ', '.join(names))
 

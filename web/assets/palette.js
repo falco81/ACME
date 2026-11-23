@@ -69,7 +69,7 @@ function staticItems() {
   /* the page's own buttons: the ones that make something */
   var ACTS = [['ct-add', 'certs'], ['ct-import', 'certs'], ['ct-onlineimport', 'certs'], ['ct-self', 'certs'], ['ct-csr', 'certs'],
               ['ct-tests', 'certs'], ['ct-view', 'certs'], ['src-add', 'sources'], ['val-add', 'validation'], ['tg-add', 'targets'],
-              ['ts-add', 'tests'], ['ca-root', 'cas'], ['ca-inter', 'cas'], ['ca-import', 'cas'], ['ca-sign', 'cas'], ['log-read', 'events']];
+              ['ts-add', 'tests'], ['ca-root', 'cas'], ['ca-inter', 'cas'], ['ca-import', 'cas'], ['ca-request', 'cas'], ['ca-sign', 'cas'], ['log-read', 'events']];
   if (window.acmeTrash && typeof window.acmeTrash.open === 'function' && document.querySelector('#ctl-nav [data-pane]')) {
     out.push({kind: 'action', key: 'act:trash', label: 'Open the trash', sub: '', icon: 'trash', go: function () { window.acmeTrash.open(); }});
   }

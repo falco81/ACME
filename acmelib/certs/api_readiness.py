@@ -183,7 +183,9 @@ def _acme_dns_register(h, s):
     b = h.body()
     names = []
     for n in (b.get('names') or []):
-        n = D.norm(str(n).strip().lstrip('*.'))
+        # in IDNA form (Hunt w3): an account kept under "příklad.cz" was not found for the
+        # order's xn--pklad-zsa96e.cz, nor is the CNAME's name written so in DNS
+        n = D.ascii_name(str(n).strip().lstrip('*.'))
         if n and n not in names:
             names.append(n)
     if len(names) > 50:

@@ -252,13 +252,50 @@ def nc_normalize(items):
         v = v.strip()
         if t == 'IP':
             try:
-                net = ipaddress.ip_network(v, strict=False)
+                net = _ip_net(v)
             except ValueError:
                 raise PkiError('not a network: %s (write it as 10.0.0.0/8)' % v, retry=False)
             v = '%s/%s' % (net.network_address, net.netmask)
         elif not re.match(r'^[A-Za-z0-9.*@_-]+$', v):
             raise PkiError('a name constraint acme cannot write: %s' % raw, retry=False)
         out.append('%s;%s:%s' % (which, t, v))
+    return out
+
+
+def _ip_net(v):
+    """A network of a name constraint as acme keeps it: 10.0.0.0/8, 10.0.0.0/255.0.0.0, and
+    for IPv6 fd00::/8 or fd00::/ff00:: - the mask form is what openssl writes and reads, and
+    Python's ip_network takes it for IPv4 only (w3: an authority with an IPv6 constraint
+    signed no IPv6 name - a ValueError - and had no intermediate with one)."""
+    v = str(v or '').strip()
+    addr, _sep, mask = v.partition('/')
+    if mask and not mask.isdigit():
+        m = ipaddress.ip_address(mask)
+        a = ipaddress.ip_address(addr)
+        if m.version != a.version:
+            raise ValueError('a mask of another IP version: %s' % v)
+        bits = bin(int(m))[2:].zfill(m.max_prefixlen)
+        if '01' in bits:
+            raise ValueError('not a mask: %s' % mask)
+        return ipaddress.ip_network((a, bits.count('1')), strict=False)
+    return ipaddress.ip_network(v, strict=False)
+
+
+def _nc_openssl(nc):
+    """Name constraints as openssl's config takes them: an IP network as address/mask (w3:
+    those of an imported authority, or one installed from a CA elsewhere, are kept as
+    10.0.0.0/8 - its renewal and every intermediate under it failed: bad ip address)."""
+    out = []
+    for item in nc or []:
+        which, _s, rest = str(item).partition(';')
+        t, _s2, v = rest.partition(':')
+        if t == 'IP':
+            try:
+                net = _ip_net(v)
+                item = '%s;IP:%s/%s' % (which, net.network_address, net.netmask)
+            except ValueError:
+                pass
+        out.append(item)
     return out
 
 
@@ -273,7 +310,7 @@ def _nc_inside(child, parent, who='it'):
             continue
         t, v = rest.split(':', 1)
         if t == 'IP':
-            net = ipaddress.ip_network(v, strict=False)
+            net = _ip_net(v)
             probes = [(t, str(net.network_address)), (t, str(net.broadcast_address))]
         else:
             probes = [(t, v.lstrip('.') if t == 'DNS' else v)]
@@ -334,7 +371,7 @@ def _nc_allows(nc, typed):
                 return name.endswith(base)
             return name == base or name.endswith('.' + base)
         if t == 'IP':
-            net = ipaddress.ip_network(rv, strict=False)
+            net = _ip_net(rv)
             ip = ipaddress.ip_address(v)
             return ip.version == net.version and ip in net
         if t == 'email':
@@ -391,7 +428,7 @@ def _ca_lines(path_len, nc, ski=None, key_usage=None):
              'subjectKeyIdentifier = ' + (ski if ski else 'hash'),
              'authorityKeyIdentifier = keyid:always']
     if nc:
-        lines.append('nameConstraints = critical, ' + ', '.join(nc))
+        lines.append('nameConstraints = critical, ' + ', '.join(_nc_openssl(nc)))
     return lines
 
 

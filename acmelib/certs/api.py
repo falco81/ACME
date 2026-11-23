@@ -2085,6 +2085,42 @@ def _ca_create(h, s):
             'aia_url': (filled or {}).get('aia_url', '')}
 
 
+@api('POST', '/api/cas/request', 'fulladmin')
+def _ca_request(h, s):
+    """{name, subject, key_type?, path_len?, crl_days?, crl_url?, aia_url?, ocsp_url?,
+    name_constraints?, published?} - an intermediate whose certificate a CA elsewhere signs
+    (AD CS: the Subordinate Certification Authority template): its key made here, its request
+    given out; it signs nothing until its certificate is installed (cas/install_cert). w3: the
+    pages, the command line and the console had no way to make one (ca_csr) - docs/own-ca.md
+    "Under a CA elsewhere" named it."""
+    b = h.body()
+    ca = _lib('ca')
+    subject = _subject_of(b.get('subject') or {})
+    if not subject.get('CN'):
+        raise ValueError('the subject needs a CN (the authority\'s name as people see it)')
+    name = S.clean_name(b.get('name'), 'the authority\'s name') if b.get('name') else \
+        S.safe_name(subject.get('CN'), _names_in(h.store, 'cert_cas'))
+    kt = str(b.get('key_type') or 'ec-384')
+    if kt not in schema.KEY_TYPES:
+        raise ValueError('the key type is one of %s' % ', '.join(schema.KEY_TYPES))
+    pl = None if b.get('path_len') in (None, '') else int(b['path_len'])
+    if pl is not None and pl < 0:
+        pl = None                       # -1: no limit
+    ident, csr = call(ca.ca_csr, h.store, name, subject, key_type=kt, path_len=pl,
+                      crl_days=int(b.get('crl_days') or 7), crl_url=_text(b, 'crl_url', 500),
+                      aia_url=_text(b, 'aia_url', 500), ocsp_url=_text(b, 'ocsp_url', 500),
+                      name_constraints=_list(b.get('name_constraints'), 'name_constraints'),
+                      by=who(s))
+    filled = _published_new(h.store, ident, b, who(s))
+    h.store.add_event('certificates', 'authority %s made by %s: its request for a CA elsewhere is '
+                      'waiting to be signed there' % (name, who(s)), who=who(s))
+    return {'id': ident, 'name': name, 'csr_pem': csr, 'pending': True,
+            'published': bool(filled), 'crl_url': (filled or {}).get('crl_url', ''),
+            'aia_url': (filled or {}).get('aia_url', ''),
+            'message': 'the request of %s is made - have it signed by the CA above it and '
+                       'install what comes back' % name}
+
+
 def _published_new(store, ident, b, by):
     """A new authority's publishing: its own switch (published: on unless said
     otherwise) and, with publishing on, acme's own addresses where none were given."""

@@ -6,7 +6,8 @@ certifikát jako SSL klíč a certifikát pod jménem s datem, nasměruje na ně
 služby místo starší položky acme (`PATCH /api/virtualservice/<uuid>`) a - je-li zapnuto -
 z něj udělá certifikát vlastního portálu Controlleru. Starší certifikáty acme nad počet
 *ponechat* smaže (Avi nesmaže certifikát, který se používá). Na konci se odhlásí. Duální
-certifikát (EC + RSA) dá virtuální službě jeden od každého druhu.
+certifikát (EC + RSA) dá virtuální službě jeden od každého druhu; jeden certifikát nahradí
+certifikát virtuální služby stejného druhu (RSA nebo EC) a ten druhého druhu ponechá.
 
 Pro Controllery Avi Vantage / NSX Advanced Load Balancer / VMware Avi Load Balancer s REST
 API (verze s hlavičkou `X-Avi-Version`, např. 20.x, 21.x, 22.x a novější).

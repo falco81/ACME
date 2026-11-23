@@ -73,8 +73,9 @@ def _fields(a, base=None):
         b['tls_name'] = a.tls_name
     if a.dns_timeout is not None:
         b['timeout'] = a.dns_timeout
-    if a.note:
-        b['note'] = a.note
+    import sys
+    if a.note or any(x == '--note' or x.startswith('--note=') for x in sys.argv[1:]):
+        b['note'] = a.note or ''        # "" takes it away, as on the page (Hunt w3)
     return b
 
 

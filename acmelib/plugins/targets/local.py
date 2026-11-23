@@ -79,6 +79,10 @@ class LocalTarget(Base):
         if not full.startswith(base + os.sep):
             raise PluginError('%s is outside %s' % (rel, base), retry=False)
         d = os.path.dirname(full)
+        # checked before the folders are made too: a link inside the folder made them outside
+        # it (makedirs followed it), and only then was the file refused
+        if not os.path.realpath(d).startswith(base + os.sep) and os.path.realpath(d) != base:
+            raise PluginError('%s leads outside %s (a link)' % (rel, base), retry=False)
         os.makedirs(d, mode=0o750, exist_ok=True)
         if not os.path.realpath(d).startswith(base + os.sep) and os.path.realpath(d) != base:
             raise PluginError('%s leads outside %s (a link)' % (rel, base), retry=False)

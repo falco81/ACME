@@ -52,6 +52,14 @@ def uuid_of(ref):
     return text(ref).split('#', 1)[0].rstrip('/').rsplit('/', 1)[-1]
 
 
+def key_kind(obj):
+    """'ec' / 'rsa' - the kind of an SSL key and certificate's key (its key_params.algorithm,
+    SSL_KEY_ALGORITHM_EC / _RSA), '' when not said."""
+    kp = obj.get('key_params') if isinstance(obj, dict) else None
+    a = text((kp or {}).get('algorithm') if isinstance(kp, dict) else '').upper()
+    return 'ec' if a.endswith('_EC') else ('rsa' if a.endswith('_RSA') else '')
+
+
 class AviTarget(HttpTarget):
     kind = 'avi'
     title = 'VMware Avi Load Balancer (NSX ALB)'
@@ -237,6 +245,8 @@ class AviTarget(HttpTarget):
                                 if x.get('name') != name and ours(x.get('name'), prefix))
             new = set(uuid_of(r) for r in refs)
             names = dict((x.get('uuid'), x.get('name')) for x in listed or [])
+            algos = dict((x.get('uuid'), key_kind(x)) for x in listed or [])
+            fams = set(family_of(b) for b, _n, _p in wanted)
             for vs_name in lines(options.get('virtual_services')):
                 vs = self.find('virtualservice', vs_name)
                 if vs is None:
@@ -244,8 +254,16 @@ class AviTarget(HttpTarget):
                                       % (vs_name, self.c('tenant') or 'admin'), retry=False)
                 cur = list(vs.get('ssl_key_and_certificate_refs') or [])
                 keep = [r for r in cur if uuid_of(r) not in mine and uuid_of(r) not in new]
-                if len(refs) == 2 or len(keep) > 1:
+                kinds = [algos.get(uuid_of(r)) for r in keep]
+                if len(refs) == 2:
                     keep = []           # one of each kind at most: ours take both places
+                elif keep and all(kinds):
+                    # one of each kind at most (hunt w3: the VS's other certificate of the same
+                    # kind as ours was kept beside it - the Controller refused two RSA ones, an
+                    # EC one dropped the RSA one the VS also had): the one of the other kind stays
+                    keep = [r for r, k in zip(keep, kinds) if k not in fams][:1]
+                elif len(keep) > 1:
+                    keep = []
                 if [uuid_of(r) for r in cur] == [uuid_of(r) for r in keep + refs]:
                     self.ctx.step('%s uses %s already' % (vs_name, wanted[0][1]))
                     continue

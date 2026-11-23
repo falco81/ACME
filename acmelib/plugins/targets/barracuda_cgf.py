@@ -41,11 +41,12 @@ replaces the content of the entry the services already use.
 from __future__ import annotations
 
 import base64
+import hashlib
 import re
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
-    HttpTarget, PluginError, field, lines, text, as_bool, norm_fp, fp_of, family_of,
+    HttpTarget, PluginError, field, lines, text, as_bool, norm_fp, fp_of, family_of, pem_to_der,
     split_hostport, http_fields, tls_fields, verify_fields)
 
 NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$')
@@ -75,6 +76,15 @@ def fingerprints_of(d):
                 walk(x)
     walk(d)
     return out
+
+
+def holds(d, bundle):
+    """Whether an entry's answer says the bundle's certificate - by its SHA-256, SHA-1 or MD5
+    fingerprint, whichever the answer gives (hunt w3: only SHA-256 was compared, so an entry
+    saying a SHA-1 fingerprint was "not the new certificate" after every import - an error)."""
+    der = pem_to_der(bundle.cert_pem)
+    mine = {norm_fp(fp_of(bundle)), hashlib.sha1(der).hexdigest(), hashlib.md5(der).hexdigest()}
+    return bool(mine & set(fingerprints_of(d)))
 
 
 class BarracudaCgfTarget(HttpTarget):
@@ -195,12 +205,11 @@ class BarracudaCgfTarget(HttpTarget):
         if not NAME_RE.match(name):
             raise PluginError('"%s" is not a Certificate Store entry name (letters, digits, '
                               '. _ -)' % name, retry=False)
-        fp = norm_fp(fp_of(bundle))
         cur = self.entry(name)
         if self.unchanged(bundle, options, present=lambda: cur is not None and
-                          fp in fingerprints_of(cur)):
+                          holds(cur, bundle)):
             return self.same(bundle, 'in the entry %s' % name)
-        if cur is not None and fp in fingerprints_of(cur) and not as_bool(options.get('force')):
+        if cur is not None and holds(cur, bundle) and not as_bool(options.get('force')):
             self.ctx.step('the entry %s holds this certificate already' % name, 'ok')
             self.remember(bundle, options)
             return 'already in %s' % name
@@ -240,7 +249,7 @@ class BarracudaCgfTarget(HttpTarget):
         if after is None:
             raise PluginError('the entry %s is gone after the import' % name)
         got = fingerprints_of(after)
-        if got and fp not in got:
+        if got and not holds(after, bundle):
             raise PluginError('the entry %s does not hold the new certificate after the import '
                               '(the change may wait to be activated in Firewall Admin)' % name,
                               detail=text(after)[:4000])

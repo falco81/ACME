@@ -48,15 +48,24 @@ A new authority makes its first (empty) CRL at once.
 
 ### Under a CA elsewhere
 
-*Request for a CA elsewhere* (`ca_csr`) makes the key here and gives a CSR
-(asking for `CA:TRUE` and `keyCertSign`); have it signed - on AD CS with the
-*Subordinate Certification Authority* template:
+*Request for a CA elsewhere* (*Authorities*; `POST /api/cas/request {name,
+subject, key_type, path_len, crl_days, crl_url, aia_url, ocsp_url,
+name_constraints, published}`; `acme --ca-request NAME --subject DN [--key-type
+ec-384] [--set path_len=0 ...] [--out FILE]`; the console's *+ a request for a CA
+elsewhere*; `ca_csr` in the code) makes the key here and gives a CSR (asking
+for `CA:TRUE` and `keyCertSign`; its validity is the CA's above it to give);
+have it signed - on AD CS with the *Subordinate Certification Authority*
+template:
 
     certreq -submit -attrib "CertificateTemplate:SubCA" acme-intermediate.csr
 
-and *install* what comes back (`ca_install_cert`: PEM, DER or a P7B with the
-chain). Until then the authority waits and signs nothing. The authority is
-marked *external* when its parent is not one of acme's.
+and *install* what comes back (*Install the answer…* in its popup, `acme
+--ca-install-cert CA FILE`, the console's *Install the certificate a CA
+elsewhere signed*; `ca_install_cert`: PEM, DER or a P7B with the chain). Until
+then the authority waits and signs nothing; its popup shows the request again
+(*Show the request*, *Export → csr*). The authority is marked *external* when
+its parent is not one of acme's. Its name constraints are acme's own check
+before it signs - the request does not ask the CA above for them.
 
 ### Importing one
 
@@ -78,7 +87,9 @@ Every certificate gets
 * subjectKeyIdentifier and authorityKeyIdentifier,
 * the authority's CRL, CA certificate and OCSP addresses,
 * the names of the request (or of the profile) as subjectAltName,
-* TLS Feature `status_request` with *must staple*.
+* TLS Feature `status_request` (*must staple*) only when the profile asks for it
+  (`must_staple`): acme runs no OCSP responder, and a client refuses a must-staple
+  certificate whose server staples no OCSP answer.
 
 The profile of `ca_sign(store, ca_id, csr_pem, days, profile)`:
 

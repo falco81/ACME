@@ -547,11 +547,17 @@ class MsAdcsRpcIssuer(Issuer):
             try:
                 got = der.certs_from_pkcs7(data) if data[:1] == b'\x30' and b'\x06\x09\x2a\x86' \
                     b'\x48\x86\xf7\x0d\x01\x07\x02' in data[:40] else [der.cert_der(data)]
+                # each one read (w3): an empty PKCS#7 or a certificate cut short at the AIA
+                # address was an IndexError / DerError past this - the certificate the CA had
+                # just issued was not taken, and the next try asked the CA for another one
+                c = der.Cert(got[0])
+                for x in got[1:]:
+                    der.Cert(x)
             except (der.DerError, ValueError, IndexError):
+                self._say('what %s sent does not read as a certificate - not used' % url, 'warn')
                 break
             out += [x for x in got if x not in out]
             cur = got[0]
-            c = der.Cert(cur)
             if c.subject_der == c.issuer_der:
                 break
         if not out:

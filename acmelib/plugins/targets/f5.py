@@ -18,7 +18,7 @@ from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, alt_of,
-    family_of, label_of, text)
+    family_of, label_of, text, variants_of)
 
 CHUNK = 512 * 1024
 # A partition, a profile (1.0.101): BIG-IP's names - letters, digits, _ . - and : (a name made
@@ -184,10 +184,26 @@ class F5Target(HttpTarget):
         c = str(cert or '')
         return c.startswith(prefix) and bool(re.match(r'^\d{8}-[0-9a-f]+$', c[len(prefix):]))
 
-    def point_profile(self, profile, part, cert, key, chain, prefix, create, more=()):
+    def cert_kind(self, cert):
+        """'rsa' / 'ec' - the kind of a certificate's key on the BIG-IP (its keyType,
+        rsa-public / ec-public), '' when it cannot be read."""
+        try:
+            st, hd, d = self.req('GET', '/mgmt/tm/sys/crypto/cert/%s' % tilde(text(cert)),
+                                 ok=(200, 404), what='reading %s' % cert)
+        except PluginError:
+            return ''
+        kt = text((d or {}).get('keyType') if isinstance(d, dict) else '').lower()
+        return 'ec' if kt.startswith('ec') else ('rsa' if kt.startswith('rsa') else '')
+
+    def point_profile(self, profile, part, cert, key, chain, prefix, create, more=(),
+                      fams=()):
         """The profile's cert-key-chain entry of acme's certificate pointed at it;
         `more`: [(cert, key, chain, prefix, name)] - a dual certificate's twin, an
-        entry of its own (found by its prefix, else by its name, else added)."""
+        entry of its own (found by its prefix, else by its name, else added).
+        `fams`: the kinds of their keys ('ec' / 'rsa'), the main one's first - with no acme
+        entry yet, a profile of several entries has the one of the same kind replaced (hunt
+        w3: an EC certificate went into the RSA "default" entry beside another EC one, and
+        the BIG-IP refused a profile with two keys of one kind)."""
         if not profile.startswith('/'):
             profile = '/%s/%s' % (part, profile)
         url = '/mgmt/tm/ltm/profile/client-ssl/%s' % tilde(profile)
@@ -218,6 +234,24 @@ class F5Target(HttpTarget):
             if self._ours(e.get('cert'), prefix):
                 idx = i
                 break
+        fams = list(fams or [])
+        kinds = {}
+
+        def same_kind(fam, taken):
+            """The entry (not acme's, not taken) whose key is of the kind `fam`, or None."""
+            if not fam or len(chains) < 2:
+                return None
+            for i, e in enumerate(chains):
+                if i in taken or self._ours(e.get('cert'), prefix) or \
+                        any(self._ours(e.get('cert'), p2) for p2 in twins):
+                    continue
+                if i not in kinds:
+                    kinds[i] = self.cert_kind(e.get('cert')) if e.get('cert') else ''
+                if kinds[i] == fam:
+                    return i
+            return None
+        if idx is None:
+            idx = same_kind(fams[0] if fams else '', ())
         if idx is None:
             for i, e in enumerate(chains):
                 if e.get('name') == 'default':
@@ -245,10 +279,13 @@ class F5Target(HttpTarget):
             changed = True
         else:
             changed = put(idx, entry, 'default') or changed
-        for e2, p2, n2 in extra:
+        for n, (e2, p2, n2) in enumerate(extra):
             j = next((i for i, e in enumerate(chains) if self._ours(e.get('cert'), p2)), None)
             if j is None:
                 j = next((i for i, e in enumerate(chains) if e.get('name') == n2), None)
+            if j is None:
+                j = same_kind(fams[n + 1] if len(fams) > n + 1 else '',
+                              () if idx is None else (idx,))
             if j is None:
                 chains.append(dict(e2, name=n2))
                 changed = True
@@ -336,7 +373,8 @@ class F5Target(HttpTarget):
             for p in lines(options.get('profiles')):
                 how = self.point_profile(p, part, cert_path, cert_path, chain_path,
                                          '/%s/%s' % (part, prefix),
-                                         as_bool(options.get('create_profile')), more)
+                                         as_bool(options.get('create_profile')), more,
+                                         [family_of(b) for b in variants_of(bundle)])
                 self.ctx.step('profile %s %s' % (p, how), 'ok')
                 did.append('%s %s' % (p, how))
             self.cleanup(part, prefix, name, self.keep(options))

@@ -19,7 +19,8 @@ Sources:
     https://github.com/acmesh-official/acme.sh/blob/master/deploy/fritzbox.sh
 Uncertain: the box answers the upload with a page, not a status; it is
 taken as done when the page speaks of the SSL certificate without an error
-(as acme.sh does). Older FRITZ!OS takes RSA keys only.
+(as acme.sh does). Older FRITZ!OS takes RSA keys only; the key is sent
+in its own type's form (BEGIN RSA / EC PRIVATE KEY).
 """
 from __future__ import annotations
 
@@ -115,7 +116,13 @@ class FritzBoxTarget(HttpTarget):
         if not as_bool(options.get('force')) and self.served_now(bundle):
             self.remember(bundle, options)
             return self.same(bundle, 'served by the FRITZ!Box')
-        pem = bundle.as_format('key-rsa') + bundle.as_format('fullchain-pem')
+        try:
+            key = bundle.as_format('key-rsa')
+        except PluginError:
+            # an EC key in its own form (SEC1, as acme.sh sends it): key-rsa refused every
+            # EC key, which FRITZ!OS 7.24+ takes
+            key = bundle.as_format('key-traditional')
+        pem = key + bundle.as_format('fullchain-pem')
         self.login()
         try:
             body, ctype = multipart([('sid', self.sid), ('BoxCertPassword', ''),

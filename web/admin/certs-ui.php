@@ -116,6 +116,8 @@ function acme_certs_tab_panels(): void
               title="A new intermediate authority, signed by one of the authorities here.">Create an intermediate</button>
       <button class="btn cmd" id="ca-import" data-icon="upload"
               title="An authority you already have - its certificate and its key - to issue from here.">Import an authority</button>
+      <button class="btn cmd" id="ca-request" data-icon="download"
+              title="An intermediate whose certificate a CA elsewhere signs (AD CS: the SubCA template): its key made here, its request given out.">Request for a CA elsewhere</button>
       <button class="btn cmd" id="ca-sign" data-icon="key"
               title="A request made elsewhere signed by one of the authorities here - the default one first.">Sign a CSR</button>
     </div>

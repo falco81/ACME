@@ -19,6 +19,7 @@ and what the pages can do, it can do.
          a Authorities (show, CRL, export, sign a CSR, revoke, delete; new root,
                         new intermediate, import)
          d acme's DNS server (its records: add, delete)
+         n DNS sets (a name looked up through one, change, delete, add; the set of a function)
          0 Modules (Enter: what one takes)
          f Find anything   y The expiry calendar   p Request profiles from a template
          v Show what a file holds (acme --inspect); on a certificate: What happens
@@ -113,7 +114,7 @@ def menu(con):
         ('a', 'Authorities of acme\'s own', lambda: cas(con)),
         ('d', 'acme\'s own DNS server', lambda: dns(con)),
         ('n', 'DNS sets: which DNS servers each function asks (Settings → DNS)',
-         lambda: con.act('--dns-sets')),
+         lambda: dns_sets(con)),
         ('0', 'Modules (Enter: what one takes)', lambda: modules(con)),
         # 1.0.141: the viewer of the pages (Show a certificate), acme --inspect
         ('v', 'Show what a file holds: a certificate, a chain, a CSR, a CRL, a key, PFX…',
@@ -385,8 +386,15 @@ def fam_do(con, fam, r):
              'Make it the default %s' % word)]
     if fam == 'challenge' and r.get('kind') == 'http_local':
         opts.append(('check', 'Check a name (HTTP-01 from here)'))
-    if (_plugin(con, fam, r.get('kind')) or {}).get('discover'):
+    mod = _plugin(con, fam, r.get('kind')) or {}
+    if mod.get('discover'):
         opts.append(('discover', 'Find the settings from the account'))
+    # the page's "Load the list" of a field of its form (acme --target-list NAME FIELD)
+    lists = [f for f in (mod.get('fields') or []) + (mod.get('deploy_fields') or [])
+             if f.get('type') == 'catalog'] if fam != 'check' else []
+    if lists:
+        opts.append(('list', 'Load a list of its form (%s)' % ', '.join(
+            f.get('label') or f['key'] for f in lists)))
     for a in r.get('actions') or []:
         opts.append(('act:' + a['key'], a.get('label') or a['key']))
     if fam == 'target' and r.get('kind') != CONNECTOR:
@@ -428,6 +436,12 @@ def fam_do(con, fam, r):
                        'empty? Nothing set is replaced; a list is chosen by its settings '
                        '(Change its settings).' % name, 'Fill it in'):
             con.act('--%s-discover' % word, name, '--fill')
+    elif what == 'list':
+        key = lists[0]['key'] if len(lists) == 1 else con.choose(
+            'Load a list', [(f['key'], f.get('label') or f['key']) for f in lists],
+            'the field whose list is loaded')
+        if key:
+            con.live(lambda: (con.cmd('--%s-list' % word, name, key), con.pause()))
     elif what == 'rename':
         new = con.ask_one('Rename %s' % name, 'its new name', name)
         if new and new != name:
@@ -837,6 +851,7 @@ def cas(con):
     def load():
         return [{'name': '+ a new root authority', '_new': 'root'},
                 {'name': '+ a new intermediate', '_new': 'sub'},
+                {'name': '+ a request for a CA elsewhere', '_new': 'request'},
                 {'name': '+ import one (a file)', '_new': 'import'}] + \
             con._rows(con.out('--cas'), 'rows')
 
@@ -851,6 +866,8 @@ def cas(con):
     def do(r):
         if r.get('_new') in ('root', 'sub'):
             return ca_new(con, r['_new'])
+        if r.get('_new') == 'request':
+            return ca_request(con)
         if r.get('_new') == 'import':
             got = con.form('Import an authority', [
                 {'key': 'file', 'label': 'the file', 'need': True,
@@ -909,6 +926,28 @@ def ca_new(con, how):
     if got.get('crl_url'):
         args += ['--set', 'crl_url=%s' % got['crl_url']]
     con.act(*args)
+
+
+def ca_request(con):
+    """acme --ca-request (w3): an intermediate whose certificate a CA elsewhere signs - its key
+    made here, its request written into a file; its answer installed from the authority's
+    menu."""
+    got = con.form('A request for a CA elsewhere', [
+        {'key': 'name', 'label': 'its name', 'need': True},
+        {'key': 'subject', 'label': 'subject', 'need': True,
+         'value': 'CN=Example Issuing CA,O=Example', 'help': 'CN=..,O=..,OU=..,C=..'},
+        {'key': 'key_type', 'label': 'key', 'kind': 'choice', 'options': [
+            ('ec-384', 'EC P-384'), ('ec-256', 'EC P-256'), ('rsa-4096', 'RSA 4096'),
+            ('rsa-3072', 'RSA 3072')]},
+        {'key': 'out', 'label': 'the request into', 'need': True, 'value': '/root/subca.csr',
+         'help': 'Have it signed there (AD CS: the Subordinate Certification Authority '
+                 'template), then install the answer from its menu.'}],
+        'Its key is made here and never leaves acme; it signs nothing until its certificate is '
+        'installed.')
+    if not got:
+        return
+    con.act('--ca-request', got['name'], '--subject', got['subject'], '--key-type',
+            got['key_type'], '--out', got['out'])
 
 
 def ca_edit(con, name):
@@ -972,6 +1011,7 @@ def ca_do(con, r):
                              ('revoke', 'Revoke something it signed'),
                              ('unrevoke', 'Release a certificate on hold'),
                              ('renew', 'Renew its certificate (the same key)'),
+                             ('install', 'Install the certificate a CA elsewhere signed'),
                              ('versions', 'Every certificate it has had'),
                              ('default', 'No default authority any more' if r.get('is_default')
                               else 'Make it the default authority'),
@@ -1033,10 +1073,17 @@ def ca_do(con, r):
              'help': 'As --ca-show lists it (hex).'},
             {'key': 'reason', 'label': 'why', 'kind': 'choice', 'options': [
                 (x, x) for x in ('unspecified', 'keyCompromise', 'superseded',
-                                 'cessationOfOperation', 'affiliationChanged')]}])
-        if got and con.confirm('Revoke', 'Revoke serial %s signed by %s (%s)? It cannot be '
-                               'taken back.' % (got['serial'], name, got['reason']), 'Revoke it',
-                               danger=True):            # asked, as a certificate's (1.0.80)
+                                 'cessationOfOperation', 'affiliationChanged', 'CACompromise',
+                                 'certificateHold')]}])
+        # on hold too (w3): "Release a certificate on hold" was offered, putting one on hold not
+        if got and got['reason'] == 'certificateHold':
+            asked = 'Put serial %s signed by %s on hold? It can be released again.' % (
+                got['serial'], name)
+        elif got:
+            asked = 'Revoke serial %s signed by %s (%s)? It cannot be taken back.' % (
+                got['serial'], name, got['reason'])
+        # asked, as a certificate's (1.0.80)
+        if got and con.confirm('Revoke', asked, 'Revoke it', danger=True):
             con.act('--ca-revoke', name, got['serial'], '--reason', got['reason'], '--yes')
     elif what == 'unrevoke':
         serial = con.ask_one('Release a certificate on hold', 'its serial', '',
@@ -1047,6 +1094,12 @@ def ca_do(con, r):
         if con.confirm('Renew ' + name, 'Make the certificate of %s again with the same key '
                        'and subject? What it signed stays valid.' % name, 'Renew it'):
             con.act('--ca-renew', name)
+    elif what == 'install':
+        path = con.ask_one('The answer for ' + name, 'the file', '',
+                           'The certificate the CA elsewhere signed for it (PEM, DER or a P7B '
+                           'with the chain) - its first, or a renewal\'s answer.')
+        if path:
+            con.act('--ca-install-cert', name, path)
     elif what == 'versions':
         con.act('--ca-versions', name)
     elif what == 'del':
@@ -1094,6 +1147,112 @@ def dns(con):
             con.act('--dns-del', str(r['id']), '--yes')
     con.pick('acme\'s own DNS server', load, cols, do, 'no record',
              'Its zone and whether it listens: Settings → DNS server (acme --dns-records).')
+
+
+SYSTEM_SET, PUBLIC_SET = "The system's", 'Public'
+DNS_PROTOCOLS = [('udp', 'UDP, TCP when an answer is cut short'), ('tcp', 'TCP only'),
+                 ('dot', 'DNS over TLS (port 853)')]
+
+
+def dns_sets(con):
+    """Settings → DNS (Hunt w3: the console only listed them): the sets - a name tried
+    through one, changed, deleted, a new one - and which set each function asks
+    (acme --dns-sets, --dns-set-add/-edit/-del/-test, --dns-assign)."""
+    return con.sub('DNS sets', [
+        ('1', 'The sets and the set each function asks', lambda: con.act('--dns-sets')),
+        ('2', 'A set (Enter: try a name, change, delete; + add one)', lambda: dns_set_pick(con)),
+        ('3', 'Which set a function asks', lambda: dns_assign(con)),
+    ])
+
+
+def _dns_set_form(con, title, cur=None):
+    cur = cur or {}
+    fields = []
+    if cur.get('name') != PUBLIC_SET:               # "Public" keeps its name
+        fields.append({'key': 'name', 'label': 'name', 'value': cur.get('name') or '',
+                       'need': True})
+    fields += [
+        {'key': 'servers', 'label': 'servers', 'value': ', '.join(cur.get('servers') or []),
+         'need': True, 'help': 'Addresses, comma between them: 192.0.2.53, 192.0.2.53:5353, '
+                               '[2001:db8::53]:53.'},
+        {'key': 'protocol', 'label': 'protocol', 'kind': 'choice', 'options': DNS_PROTOCOLS,
+         'value': cur.get('protocol') or 'udp'},
+        {'key': 'tls_name', 'label': 'server name for TLS', 'value': cur.get('tls_name') or '',
+         'need': False, 'when': lambda v: v.get('protocol') == 'dot'},
+        {'key': 'timeout', 'label': 'timeout (s)', 'kind': 'number',
+         'value': '%g' % float(cur.get('timeout') or 3), 'range': (0.5, 30)},
+        {'key': 'note', 'label': 'note', 'value': cur.get('note') or '', 'need': False}]
+    got = con.form(title, fields)
+    if not got:
+        return None
+    args = ['--servers', got['servers'], '--protocol', got['protocol'],
+            '--dns-timeout', got.get('timeout') or '3']
+    if got.get('protocol') == 'dot':
+        args += ['--tls-name', got.get('tls_name') or '']
+    args += ['--note', (got.get('note') or '').strip()]
+    return (got.get('name') or cur.get('name') or '').strip(), args
+
+
+def dns_set_pick(con):
+    def load():
+        got = con.out('--dns-sets') or {}
+        used = got.get('used') or {}
+        return [{'name': '+ add a set', '_add': True}] + [
+            dict(s, _used=', '.join(used.get(s.get('name'), []))) for s in got.get('sets') or []]
+
+    cols = [('set', lambda r: r.get('name'), 24, lambda r: 'ok' if r.get('_add') else None),
+            ('servers', lambda r: ', '.join(r.get('servers') or []), 36, None),
+            ('protocol', lambda r: '' if r.get('_add') else (r.get('protocol') or 'udp'), 8,
+             None),
+            ('used for', lambda r: r.get('_used') or ('' if r.get('_add') else '-'), 30,
+             lambda r: 'dim')]
+
+    def do(r):
+        if r.get('_add'):
+            got = _dns_set_form(con, 'A new DNS set')
+            if got and got[0]:
+                con.act('--dns-set-add', got[0], *got[1])
+            return
+        name = r['name']
+        opts = [('test', 'Look a name up through it')]
+        if name != SYSTEM_SET:
+            opts.append(('edit', 'Change it'))
+        if name not in (SYSTEM_SET, PUBLIC_SET):
+            opts.append(('del', 'Delete it'))
+        what = con.choose(name, opts, ', '.join(r.get('servers') or []))
+        if what == 'test':
+            got = con.form('A name looked up through %s' % name, [
+                {'key': 'qname', 'label': 'name', 'value': '', 'need': True},
+                {'key': 'qtype', 'label': 'type', 'kind': 'choice', 'options': [
+                    (x, x) for x in ('A', 'AAAA', 'TXT', 'CNAME', 'NS', 'SOA', 'MX', 'CAA')]}])
+            if got and (got.get('qname') or '').strip():
+                con.act('--dns-set-test', name, got['qname'].strip(), got.get('qtype') or 'A')
+        elif what == 'edit':
+            got = _dns_set_form(con, 'The DNS set %s' % name, r)
+            if got:
+                more = ['--name', got[0]] if got[0] and got[0] != name else []
+                con.act('--dns-set-edit', name, *(got[1] + more))
+        elif what == 'del':
+            if con.confirm('Delete it', 'Delete the DNS set %s? The functions it was chosen '
+                           'for go back to their default.' % name, 'Delete', danger=True):
+                con.act('--dns-set-del', name, '--yes')
+    con.pick('DNS sets', load, cols, do, 'no set',
+             'Which DNS servers acme asks (acme --dns-sets) - docs/dns-sets.md.')
+
+
+def dns_assign(con):
+    got = con.out('--dns-sets') or {}
+    fns = got.get('purposes') or []
+    if not fns:
+        return
+    fn = con.choose('Which function', [(p['key'], '%s  (now: %s)' % (p['title'], p['set']))
+                                       for p in fns])
+    if not fn:
+        return
+    sets_ = [('default', 'its default')] + [(s['name'], s['name']) for s in got.get('sets') or []]
+    name = con.choose('The set it asks', sets_)
+    if name:
+        con.act('--dns-assign', fn, name)
 
 
 def modules(con):

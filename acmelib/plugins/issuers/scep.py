@@ -126,7 +126,11 @@ class ScepIssuer(Issuer):
             parsed = [p7.Cert(c) for c in certs]
         except (p7.DerError, ValueError, IndexError) as e:
             raise PluginError('the CA certificate from GetCACert does not read: %s' % e)
-        cas = [c for c in parsed if c.is_ca] or parsed
+        if not parsed:
+            # a PKCS#7 with no certificate in it (w3): an IndexError further on, in no words
+            raise PluginError('GetCACert sent a PKCS#7 with no certificate in it - check the SCEP '
+                              'address and the CA identifier')
+        cas =[c for c in parsed if c.is_ca] or parsed
         pin = self._pin()
         ca = None
         if pin:
