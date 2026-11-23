@@ -74,6 +74,12 @@ class HaproxyTarget(SshMixin, Base):
         return 'UNIX-CONNECT:' + s
 
     def runtime(self, s, command, check=True):
+        # 1.0.143: the Runtime API takes ";" and a line break as the end of a command - a path or
+        # a crt-list holding one ran a command of its own after acme's
+        if re.search(r'[;\r\n\x00]', command):
+            raise PluginError('a path or crt-list with ";" or a line break cannot go to the '
+                              'Runtime API: %s' % command[:200].encode('unicode_escape')
+                              .decode('ascii'), retry=False)
         rc, out, err = self.sh(s, 'echo %s | socat stdio %s' % (quote(command), quote(self.sock())),
                                check=False)
         if check and rc != 0:

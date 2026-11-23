@@ -78347,6 +78347,18 @@
   "z_3283": {
    "source": "your approval is recorded",
    "text": "vaše schválení je zaznamenáno"
+  },
+  "z_3284": {
+   "source": "Load a list of its form (%s)",
+   "text": "Načíst seznam z jeho formuláře (%s)"
+  },
+  "z_3285": {
+   "source": "Load a list",
+   "text": "Načíst seznam"
+  },
+  "z_3286": {
+   "source": "the field whose list is loaded",
+   "text": "pole, jehož seznam se načte"
   }
  },
  "patterns": {

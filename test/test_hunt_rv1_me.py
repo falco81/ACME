@@ -73,5 +73,20 @@ class ActivityMasked(unittest.TestCase):
                 self.assertIn(needle, f.read())
 
 
+class HaproxyRuntime(unittest.TestCase):
+    def test_separator_refused(self):
+        from acmelib.plugins.targets import haproxy
+        from acmelib.plugins.base import PluginError
+        cls = [v for v in vars(haproxy).values() if isinstance(v, type) and hasattr(v, 'runtime')][0]
+        obj = cls.__new__(cls)
+        obj.sh = lambda *a, **k: (0, 'Success!', '')
+        obj.sock = lambda: '/run/haproxy.sock'
+        obj.c = lambda k: ''
+        for bad in ('add ssl crt-list /x.txt /a.pem;shutdown frontend fe', 'set ssl cert /a\nshow info'):
+            with self.assertRaises(PluginError):
+                obj.runtime(None, bad)
+        self.assertEqual(obj.runtime(None, 'show ssl cert /a.pem')[0], 0)
+
+
 if __name__ == '__main__':
     unittest.main()
