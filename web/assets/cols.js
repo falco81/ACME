@@ -341,7 +341,7 @@ function colsSave() {
   /* Saved the moment a column is let go of, one save after another, so an
      older layout can never land after a newer one. */
   var send = function () {
-    return api('columns', {cols: COLS}).catch(function (e) {
+    return api('columns', {cols: COLS}).then(colsTellTabs, function (e) {
       if (e && e.status === 409) {
         /* Editing was switched off behind the page - the service restarted,
            or the sign-in is a new one. The page goes on believing it was on
@@ -380,6 +380,21 @@ function colsEditing(on) {
 function colsApplyAll() {
   Array.prototype.forEach.call(document.getElementsByTagName('table'), colsApply);
 }
+
+/* The other tabs of this browser (1.0.143): the whole layout is saved at once, so a tab opened
+   before a change here saved its own older copy over it with its next change - a column put
+   away in one tab came back. Told through the browser's storage, they take the layout as kept. */
+var COLS_TABS_KEY = 'acme.cols.saved';
+function colsTellTabs() {
+  try { localStorage.setItem(COLS_TABS_KEY, String(Date.now()) + ':' + Math.random()); } catch (e) { /* one tab only */ }
+}
+window.addEventListener('storage', function (e) {
+  if (e.key !== COLS_TABS_KEY || !e.newValue) return;
+  api('my-settings').then(function (now) {
+    colsTake((now.settings || {}).columns || {});
+    colsApplyAll();
+  }).catch(function () { /* the next load draws it */ });
+});
 
 function colsMine(table) {
   var key = table._colsKey;
@@ -814,6 +829,7 @@ function colsReset(whose) {
     if (mine) {
       Object.keys(COLS).forEach(function (k) { delete COLS[k]; });
       colsApplyAll();
+      colsTellTabs();
     }
     toast(mine ? 'Every table is back as it comes' : 'The columns of ' + whose
       + ' are back as they come; they see it at their next page load', 'good');
