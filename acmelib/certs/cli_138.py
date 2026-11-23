@@ -40,6 +40,8 @@ pages do.
     --who-can CAP TEAM|cert:NAME   the reverse: who may CAP there, and why
     --elevations [TEAM]            requests for a temporary role
     --elevation-approve ID [--why] / --elevation-decline ID --why / --elevation-end ID
+    --team-actions [TEAM]          the teams' actions waiting for an approval (approve_actions)
+    --team-action-approve ID [--why] / --team-action-decline ID --why
     --reviews [TEAM]               access reviews open now, or a team's
     --review-open TEAM / --review-answer ID WHO keep|out [--note]
     --team-templates / --team-template-save TEAM NAME [--template-members] /
@@ -65,7 +67,8 @@ KEYS = ('history', 'history_restore', 'trash', 'trash_restore', 'trash_purge',
         'fleet_drift', 'fleet_group_save', 'fleet_group_del', 'fleet_ask', 'fleet_update',
         'fleet_rollout',
         'team_health', 'team_gov', 'team_gov_set', 'team_notify_test', 'who_may', 'who_can',
-        'elevations', 'elevation_approve', 'elevation_decline', 'elevation_end', 'reviews',
+        'elevations', 'elevation_approve', 'elevation_decline', 'elevation_end',
+        'team_actions', 'team_action_approve', 'team_action_decline', 'reviews',
         'review_open', 'review_answer', 'team_templates', 'team_template_save',
         'team_template_del', 'team_from_template', 'teams_import_csv')
 # options of ours that go only with some of ours
@@ -75,7 +78,8 @@ WITH = {'fleet_members': ('fleet_group_save',), 'fleet_template': ('fleet_group_
 # options of other groups that some of ours read (refused beside the others of ours)
 SHARED = {'names': ('profile_dry_run',), 'issuer': ('fleet_takeover',),
           'name': ('trash_restore',), 'parent': ('team_from_template',),
-          'why': ('elevation_approve', 'elevation_decline'), 'note': ('review_answer',
+          'why': ('elevation_approve', 'elevation_decline', 'team_action_approve',
+                  'team_action_decline'), 'note': ('review_answer',
                                                                     'profile_end')}
 AGENT_VERBS = ('watch', 'watch-set', 'audit-verify', 'ack', 'rotate', 'served')
 GOV_KEYS = ('review', 'jit', 'sod', 'notify')
@@ -179,6 +183,14 @@ def add_args(p):
       help='a request for a temporary role declined (--why)')
     a('--elevation-end', dest='elevation_end', metavar='ID', type=int,
       help='a temporary role ended now')
+    a('--team-actions', dest='team_actions', nargs='?', const='', default=None, metavar='TEAM',
+      help='the actions asked on the portal that wait for an approval of their team '
+           '(approve_actions: revoke, delete, key, device) - TEAM: of that team and those '
+           'below it')
+    a('--team-action-approve', dest='team_action_approve', metavar='ID',
+      help='a waiting action approved (--why) - done once its team\'s rule is met')
+    a('--team-action-decline', dest='team_action_decline', metavar='ID',
+      help='a waiting action declined (--why, required)')
     a('--reviews', nargs='?', const='', default=None, metavar='TEAM',
       help='the access reviews open now (TEAM: the team\'s, its rule and history)')
     a('--review-open', dest='review_open', metavar='TEAM', help='an access review opened now')
@@ -204,7 +216,7 @@ def add_args(p):
 def _given(a, k):
     v = getattr(a, k, None)
     return v not in (None, False, '') or (k in ('history', 'fleet_drift', 'team_health',
-                                                'elevations', 'reviews',
+                                                'elevations', 'reviews', 'team_actions',
                                                 'profile_compliance') and v is not None)
 
 
@@ -970,6 +982,35 @@ def _elevation_decline(c, ident):
     return c.done(got.get('message') or 'declined', got)
 
 
+def _team_actions(c, team):
+    got = c.api('GET', '/api/teams/actions', args={'team': team} if team else None)
+    if _json(c, got):
+        return 0
+    rows = got.get('actions') or []
+    if not rows:
+        print('no action of a team waits for an approval')
+        return 0
+    c.table([[r['id'], r.get('team'), r.get('action'), _short(r.get('what'), 30),
+              _short(re.sub(r'^(portal|local):', '', str(r.get('by') or '')), 24),
+              _when(r.get('at')), 'yes' if r.get('may_approve') else 'no',
+              _short(r.get('words'), 40)] for r in rows],
+            ['id', 'team', 'action', 'what', 'asked by', 'asked', 'you may', 'said'])
+    print('acme --team-action-approve ID, --team-action-decline ID --why TEXT')
+    return 0
+
+
+def _team_action_approve(c, ident):
+    got = c.api('POST', '/api/teams/action_decide', body={
+        'id': ident, 'ok': True, 'why': getattr(c.args, 'why', None) or ''})
+    return c.done(got.get('message') or 'approved', got)
+
+
+def _team_action_decline(c, ident):
+    got = c.api('POST', '/api/teams/action_decide', body={
+        'id': ident, 'ok': False, 'why': getattr(c.args, 'why', None) or ''})
+    return c.done(got.get('message') or 'declined', got)
+
+
 def _elevation_end(c, ident):
     got = c.api('POST', '/api/teams/elevate_end', body={'id': ident})
     return c.done(got.get('message') or 'ended', got)
@@ -1660,6 +1701,32 @@ def gov_menu_items(con):
                     con.act('--elevation-decline', str(r['id']), '--why', why)
         return con.pick('Requests for a temporary role', load, cols, do, 'none waits')
 
+    def actions():
+        # the teams' actions asked on the portal that wait for an approval (hunt w2: the
+        # portal's "Waiting for you" only)
+        def load():
+            return [r for r in con._rows(con.out('--team-actions'), 'actions')
+                    if r.get('may_approve')]
+        cols = [('team', lambda r: r.get('team'), 16, None),
+                ('action', lambda r: r.get('action'), 8, None),
+                ('what', lambda r: r.get('what') or '', 26, None),
+                ('asked by', lambda r: re.sub(r'^(portal|local):', '', str(r.get('by') or '')),
+                 20, None),
+                ('said', lambda r: r.get('words') or '', 36, lambda r: 'dim')]
+
+        def do(r):
+            what = con.choose('%s: %s %s' % (r.get('team'), r.get('action'), r.get('what')),
+                              [('yes', 'Approve it'), ('no', 'Decline it')])
+            if what:
+                why = con.ask_one('Why', 'why', '', 'Said to who asked.', need=what == 'no')
+                if what == 'yes':
+                    con.act('--team-action-approve', str(r['id']),
+                            *(['--why', why] if why else []))
+                elif why:
+                    con.act('--team-action-decline', str(r['id']), '--why', why)
+        return con.pick('Actions of the teams waiting for an approval', load, cols, do,
+                        'none waits for you')
+
     def who_may():
         who = con.ask_one('Who may', 'person or team:NAME', '', 'local:jan, a user, a group - or '
                           'team:Web for the people of a team.')
@@ -1719,6 +1786,8 @@ def gov_menu_items(con):
             con.act('--teams-import-csv', path, '--yes')
     return [('7', 'The teams\' health', lambda: con.act('--team-health')),
             ('8', 'Requests for a temporary role to decide', decide),
+            ('a', 'Actions of the teams waiting for an approval (revoke, delete, a key)',
+             actions),
             ('9', 'Access reviews open now', lambda: con.act('--reviews')),
             ('w', 'Who may do what, and why', who_may),
             ('m', 'Team templates (Enter: a team from it, delete it)', templates),

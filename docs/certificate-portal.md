@@ -279,7 +279,10 @@ the team's lead and/or the team above it, two approvers, never one's own unless 
 action in `approve_actions` (revoke, delete, key, device), it is **asked for** instead: the
 answer is `{waits: true, action: {...}}`, the team's approvers find it under *Waiting for you*
 and approve it (`action_approve`) - a revocation or deletion is then done, a key is then taken
-once with the approval's id (`cert_download {..., action: ID}`).
+once with the approval's id (`cert_download {..., action: ID}`). An administrator approves or
+declines them too, by the same checks: `acme --team-actions`, `--team-action-approve ID`,
+`--team-action-decline ID --why TEXT` (the console: **o** → *Actions of the teams waiting for an
+approval*).
 
 | route (`?api=`) | needs | what |
 |---|---|---|

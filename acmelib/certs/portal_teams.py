@@ -443,8 +443,16 @@ def _action_approve(h):
     why = str(b.get('why') or '').strip()[:500]
     if not ok and not why:
         raise E.ApiError(400, 'say why it is declined - the person who asked is told')
+    rec, said = decide_action(me, rec, me.approver(), ok, why)
+    return {'action': _action_public(h.store, rec), 'message': said}
+
+
+def decide_action(me, rec, approver, ok, why):
+    """One approval (or decline) of a waiting action, done once approved in full -> (the record,
+    words). `me`: .store, .by, .name of who decides - the portal's, or the administration's
+    (POST /api/teams/action_decide, acme --team-action-approve)."""
     before = dict(rec)
-    rec = TP.action_approve(h.store, rec['id'], me.approver(), ok, why)
+    rec = TP.action_approve(me.store, rec['id'], approver, ok, why)
     said = ''
     if rec.get('state') == 'approved':
         try:
@@ -453,9 +461,9 @@ def _action_approve(h):
             # not done (a job working on the certificate, a revocation refused): it waits as
             # before this approval, to be approved again - kept 'approved', it was never done
             # and every approval after was refused ("it is approved already")
-            h.store.set_meta(TP.ACTION_META + before['id'], json.dumps(before, sort_keys=True))
+            me.store.set_meta(TP.ACTION_META + before['id'], json.dumps(before, sort_keys=True))
             raise
-        rec = TP._action_get(h.store, rec['id']) or rec
+        rec = TP._action_get(me.store, rec['id']) or rec
     elif rec.get('state') == 'declined':
         # no mail is sent for a team's action: the person who asked sees it, with the reason,
         # in the team's actions
@@ -464,7 +472,7 @@ def _action_approve(h):
     else:
         said = 'your approval is recorded - it waits for %d more' % (len(rec.get('needed') or [])
                                                                    or 1)
-    return {'action': _action_public(h.store, rec), 'message': said}
+    return rec, said
 
 
 # ---------------------------------------------------------------------------

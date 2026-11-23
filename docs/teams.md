@@ -492,7 +492,8 @@ administration), the portal's routes at the end of `acmelib/certs/portal_teams.p
 
 The command line and the console have all of it but *View as* (a sign-in of the pages):
 `acme --team-health`, `--team-gov`, `--team-gov-set TEAM JSON|-`, `--team-notify-test`,
-`--who-may`, `--who-can`, `--elevations`, `--elevation-approve/-decline/-end`, `--reviews`,
+`--who-may`, `--who-can`, `--elevations`, `--elevation-approve/-decline/-end`,
+`--team-actions`, `--team-action-approve/-decline`, `--reviews`,
 `--review-open`, `--review-answer`, `--team-templates`, `--team-template-save TEAM NAME
 [--template-members]`, `--team-from-template`, `--team-template-del`, `--teams-import-csv`
 ([command-line.md](command-line.md)); the webhooks are set sealed through `acme --api POST

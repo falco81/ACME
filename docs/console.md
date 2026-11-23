@@ -174,8 +174,10 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   its capabilities, its description - or deletes it (taken off the members who have it):
   `acme --role-add NAME --caps .. [--description ..] [--name NEW]`, `--role-del NAME
   [--strip]`. It has, since 1.0.140, the teams' health (`7`), the requests for a
-  temporary role to decide (`8`: approve, or decline with why), the access reviews open now
-  (`9`), *Who may do what, and why* (`w`), the team templates (`m`: Enter on one makes a
+  temporary role to decide (`8`: approve, or decline with why), the actions of the teams
+  waiting for an approval (`a`: a revocation, a deletion or a key asked on the portal - approve,
+  or decline with why; `--team-actions`, `--team-action-approve/-decline`), the access reviews
+  open now (`9`), *Who may do what, and why* (`w`), the team templates (`m`: Enter on one makes a
   new team from it or deletes it - `--team-from-template`, `--team-template-del`), *Who can do
   one thing in a team or on a certificate* (`n`, `--who-can`) and *Teams from a CSV file* (`i`:
   each row said first, then made - `--teams-import-csv`); a team's own menu its

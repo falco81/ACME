@@ -15,6 +15,10 @@ The governance of teams in the administration (1.0.138, docs/teams.md "Governanc
     POST /api/teams/elevate {team, role, hours, reason}
     POST /api/teams/elevate_decide {id, ok, why}       never one's own; team.members
     POST /api/teams/elevate_end {id}
+    GET  /api/teams/actions[?team=&state=]   the actions of the teams waiting for an approval
+                                             (approve_actions: revoke, delete, key, device)
+    POST /api/teams/action_decide {id, ok, why}   approved (done once its rule is met) or
+                                             declined - as the portal's action_approve
     GET  /api/teams/reviews?team=            the access reviews of a team (its history)
     POST /api/teams/review_open {team}       (full, or team.members on it)
     POST /api/teams/review_answer {id, who, keep, note}
@@ -182,6 +186,53 @@ def _elevate_decide(h, s):
 def _elevate_end(h, s):
     got = G.elevation_end(h.store, h.body().get('id'), G.actor_admin(h.store, s))
     return {'elevation': got, 'message': 'ended'}
+
+
+# ---- the teams' actions waiting for an approval (approve_actions) -------------------------
+# The portal's "Waiting for you" (portal_teams.py inbox / action_approve) in the administration,
+# for the command line and the console (hunt w2: a revocation, a deletion, a key or a device's
+# deletion asked on the portal waited for the team's approvers only - acme --approve had no
+# such form). The same checks: the level its rule names, never one's own, never twice.
+@A.api('GET', '/api/teams/actions', 'certadmin')
+def _actions(h, s):
+    from acmelib.certs import portal_teams as PT
+    from acmelib.certs import teampolicy as TP
+    team = _need_seen(h, s, h.arg('team')) if h.arg('team') else None
+    state = str(h.arg('state') or 'waiting').strip()
+    if state not in ('waiting', 'approved', 'declined', 'done', 'all'):
+        raise E.ApiError(400, 'the state is one of waiting, approved, declined, done, all')
+    seen = _seen(h, s)
+    ap = TP.approver_admin(h.store, s)
+    rows = []
+    for rec in TP.actions(h.store, team, None if state == 'all' else state):
+        if seen is not None and not T.owner_in(seen, rec.get('team')):
+            continue
+        one = PT._action_public(h.store, rec)
+        one['may_approve'] = rec.get('state') == 'waiting' and \
+            TP.may_approve_action_now(h.store, rec, ap)
+        rows.append(one)
+    return {'actions': rows[:500]}
+
+
+@A.api('POST', '/api/teams/action_decide', 'certadmin')
+def _action_decide(h, s):
+    from acmelib.certs import portal_teams as PT
+    from acmelib.certs import teampolicy as TP
+    b = h.body()
+    rec = TP._action_get(h.store, str(b.get('id') or '').strip())
+    if not rec:
+        raise E.ApiError(404, 'there is no such action waiting')
+    _need_seen(h, s, rec.get('team'))
+    ok = A._flag(b.get('ok'))
+    why = str(b.get('why') or '').strip()[:500]
+    if not ok and not why:
+        raise E.ApiError(400, 'say why it is declined - the person who asked is told')
+
+    class _Me(object):
+        store = h.store
+        by = name = A.who(s)
+    rec, said = PT.decide_action(_Me, rec, TP.approver_admin(h.store, s), ok, why)
+    return {'action': PT._action_public(h.store, rec), 'message': said}
 
 
 # ---- access reviews -----------------------------------------------------------------------
