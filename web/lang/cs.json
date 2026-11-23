@@ -78359,6 +78359,30 @@
   "z_3286": {
    "source": "the field whose list is loaded",
    "text": "pole, jehož seznam se načte"
+  },
+  "z_3287": {
+   "source": "GetCACert sent a PKCS#7 with no certificate in it - check the SCEP address and the CA identifier",
+   "text": "GetCACert poslal PKCS#7 bez certifikátu – zkontrolujte adresu SCEP a identifikátor CA"
+  },
+  "z_3288": {
+   "source": "Request for a CA elsewhere",
+   "text": "Žádost pro jinou CA"
+  },
+  "z_3289": {
+   "source": "An intermediate whose certificate a CA elsewhere signs (AD CS: the SubCA template): its key made here, its request given out.",
+   "text": "Podřízená autorita, jejíž certifikát podepíše jiná CA (AD CS: šablona SubCA): klíč se vytvoří zde, vydá se její žádost."
+  },
+  "z_3290": {
+   "source": "A request for a CA elsewhere",
+   "text": "Žádost pro jinou CA"
+  },
+  "z_3291": {
+   "source": "An intermediate signed by a CA elsewhere - your corporate root, AD CS (the Subordinate Certification Authority template). Its key is made here and never leaves acme; you get its request to have signed there, and it signs nothing until you install the answer.",
+   "text": "Podřízená autorita podepsaná jinou CA – vaší firemní kořenovou, AD CS (šablona Subordinate Certification Authority). Její klíč se vytvoří zde a acme nikdy neopustí; dostanete její žádost k podpisu tam a nic nepodepíše, dokud nenainstalujete odpověď."
+  },
+  "z_3292": {
+   "source": "The request of ",
+   "text": "Žádost autority "
   }
  },
  "patterns": {
@@ -110077,6 +110101,30 @@
   "pz_1393": {
    "source": "{0}: not updated before",
    "text": "{0}: dříve neaktualizováno"
+  },
+  "pz_1394": {
+   "source": "what {0} sent does not read as a certificate - not used",
+   "text": "to, co poslala adresa {0}, nelze přečíst jako certifikát – nepoužito"
+  },
+  "pz_1395": {
+   "source": "a mask of another IP version: {0}",
+   "text": "maska jiné verze IP: {0}"
+  },
+  "pz_1396": {
+   "source": "not a mask: {0}",
+   "text": "není to maska: {0}"
+  },
+  "pz_1397": {
+   "source": "authority {0} made by {1}: its request for a CA elsewhere is waiting to be signed there",
+   "text": "autoritu {0} vytvořil(a) {1}: její žádost pro jinou CA čeká na podpis tam"
+  },
+  "pz_1398": {
+   "source": "the request of {0} is made - have it signed by the CA above it and install what comes back",
+   "text": "žádost autority {0} je vytvořena – nechte ji podepsat nadřazenou CA a nainstalujte, co se vrátí"
+  },
+  "pz_1399": {
+   "source": "a path or crt-list with \";\" or a line break cannot go to the Runtime API: {0}",
+   "text": "cestu nebo crt-list se „;“ nebo koncem řádku nelze poslat do Runtime API: {0}"
   }
  },
  "rich": {
