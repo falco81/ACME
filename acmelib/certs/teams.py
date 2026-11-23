@@ -133,10 +133,27 @@ ROLE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,59}\Z')
 ROLES_MOST = 200
 
 
+_VER_MEMO = {}              # (id(store), generation) -> (when, version): one look a second
+
+
 def _version(store):
     """What changes when a team or a role does: the tree and the people's capabilities are
     computed again (kept per store, a generation bumped by every save here, and 30 s at most
-    for what another node or an import wrote)."""
+    for what another node or an import wrote). Asked once a second at most (1.0.143): a page
+    asked it twenty times, three statements each."""
+    key = (id(store), _GEN[0])
+    now = time.monotonic()
+    hit = _VER_MEMO.get(key)
+    if hit is not None and now - hit[0] < 1.0:
+        return hit[1]
+    got = _version_read(store)
+    if len(_VER_MEMO) > 64:
+        _VER_MEMO.clear()
+    _VER_MEMO[key] = (now, got)
+    return got
+
+
+def _version_read(store):
     try:
         a = store.db.row('SELECT COUNT(*) AS n, MAX(updated) AS u, MAX(id) AS i FROM cert_teams')
         b = store.db.row('SELECT COUNT(*) AS n, MAX(updated) AS u, MAX(id) AS i FROM cert_roles')
