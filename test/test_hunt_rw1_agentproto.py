@@ -267,6 +267,7 @@ class LiveJoinWindow(unittest.TestCase):
                 time.sleep(0.2)
             self.assertTrue(got.get('pending'), got)
             G.confirm(STORE, row, ag.cli('fingerprint').stdout.strip(), 'tester')
+            G.look(STORE, row, 'tester')
             self.assertTrue(ag.wait('joined'), ag.status())
         finally:
             ag.stop()
