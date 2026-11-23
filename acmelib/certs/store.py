@@ -956,7 +956,10 @@ def clean_names(names):
                     raise ValueError('%r: ß, ς and the joiners are written two ways in DNS - '
                                      'give the name in its xn-- form' % n)
                 try:
-                    n = star + (n[len(star):]).encode('idna').decode('ascii')
+                    # the last dot written as an ideographic or full-width one (。 ． ｡ - a
+                    # Chinese or Japanese keyboard): IDNA turns it into "." - taken away as the
+                    # ASCII one is (hunt v2: "example.com." was kept beside example.com)
+                    n = star + (n[len(star):]).encode('idna').decode('ascii').rstrip('.')
                 except UnicodeError:
                     raise ValueError('%r is not a DNS name' % n)
             if len(n) > 253 or not DNS_RE.match(n):

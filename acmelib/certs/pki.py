@@ -1100,7 +1100,8 @@ def _idna(name):
                 labels.append(lab.encode('idna').decode('ascii'))
             except UnicodeError:
                 raise PkiError('a name that cannot be written in DNS: %s' % name)
-    out = '.'.join(labels)
+    # a last dot written as an ideographic or full-width one (。 ．): IDNA made it "." (hunt v2)
+    out = '.'.join(labels).rstrip('.')
     if not re.match(r'^[A-Za-z0-9*_.-]+$', out) or len(out) > 253:
         raise PkiError('not a DNS name: %s' % name)
     return out

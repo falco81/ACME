@@ -140,13 +140,16 @@ function form(t, kept) {
   var src = function () { return (t.sources || []).filter(function (s) { return s.name === f.issuer.value; })[0] || {}; };
   var values = function () {
     return {template: t.id, name: f.name.value.trim(), suffixes: f.suffixes.value.split(/[\s,;]+/).filter(Boolean),
-            issuer: f.issuer.value, challenge: f.chal && !f.chalRow.hidden ? f.chal.value : ''};
+            issuer: f.issuer.value, challenge: f.chal && !f.chalRow.hidden ? f.chal.value : '',
+            /* the description the person saw (the template's words in the page's language) -
+               the new profile keeps it as its own words, as it keeps the name (hunt v2) */
+            description: tr(t.about || '')};
   };
   var ask = debounce(function () {
     var my = ++ticket, v = values();
     var sufs = v.suffixes.length ? v.suffixes : ['example.com'];
     prev.classList.add('busy');
-    api('reqprofiles/template_preview', {template: t.id, issuer: v.issuer, challenge: v.challenge, suffixes: sufs, name: v.name})
+    api('reqprofiles/template_preview', {template: t.id, issuer: v.issuer, challenge: v.challenge, suffixes: sufs, name: v.name, description: v.description})
       .then(function (d) { if (my === ticket) { last = d; drawPreview(d); } })
       .catch(function (e) { if (my === ticket) { last = null; drawError(e); } });
   }, 200);

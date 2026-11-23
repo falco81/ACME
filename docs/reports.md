@@ -34,7 +34,9 @@ first 5 000 rows, the CSV every row (at most 50 000).
   kept, each file to download.
 - On its day and hour the **node that leads** the cluster (the renewer's lease) makes and mails
   it; `meta` `reports:period:<id>` is claimed once per week or month, so two nodes never both
-  send, and a node that was down catches up later in the same period.
+  send, and a node that was down catches up later in the same period. When acme was down
+  over the moment and starts again only in the next week or month (before that one's moment),
+  the report missed is made once after the start (1.0.141); a period further back is not.
 - With **mail switched off**, nothing is mailed: the run is made and kept and says *mail is
   switched off*; the pane says so too.
 - Each save, run, mailing, download and deletion is an event (kind *certificates*).

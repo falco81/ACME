@@ -113,7 +113,10 @@ def _deployguard(h, s):
     out = guard_view(h.store, row, s)
     out['cas'] = [{k: c[k] for k in ('fp', 'title', 'subject', 'root', 'kind', 'sources', 'certs',
                                      'here', 'not_after')} for c in DG.known_cas(h.store, row)]
-    out['names'] = DG.deployed_names(h.store, row)
+    # only the names of the certificates the session sees (hunt v2): a session kept to its
+    # teams was given every name deployed there, other teams' too - as the portal's builder was
+    from acmelib.certs import teams
+    out['names'] = DG.deployed_names(h.store, row, teams.scope(h.store, s, 'view'))
     return out
 
 

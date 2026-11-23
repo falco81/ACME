@@ -99,9 +99,19 @@ def downgrade_new_use(store, version):
     governance (separation of duties, temporary roles, access reviews, its notification
     channels) is not known before 1.0.138 - "never approve your own request" would be dropped
     without a word; agents still on an earlier command key would refuse an older acme, which
-    signs with the current one only. Without them, going back is as before."""
+    signs with the current one only. Without them, going back is as before.
+    And before 1.0.140 (hunt v2): agents whose policy guards what they deploy (allow issuer,
+    allow names, require key local) - an older acme sends them neither the CAs the policy allows
+    nor the PKCS#12's password, so they would refuse what it deploys."""
+    guarded = downgrade_guarded_agents(store) if _ver_tuple(version) < (1, 0, 140) else []
+    if guarded:
+        guarded = ['acme %s does not know the lines of an agent\'s policy that guard what it '
+                   'deploys (allow issuer, allow names, require key local), and does not send '
+                   'what the agent checks with them - these agents would refuse its deployments '
+                   '(%s): take the lines out of their policy first'
+                   % (version, ', '.join(sorted(guarded)[:10]))]
     if _ver_tuple(version) >= (1, 0, 138):
-        return []
+        return guarded
     based, governed = [], []
 
     def blob(v):
@@ -146,7 +156,21 @@ def downgrade_new_use(store, version):
         words.append('acme %s does not know the governance of teams (%s) - separation of duties, '
                      'temporary roles, access reviews and team channels would be dropped without '
                      'a word: switch it off first' % (version, ', '.join(sorted(governed)[:10])))
-    return words
+    return words + guarded
+
+
+def downgrade_guarded_agents(store):
+    """The agents whose policy, as they last said it, guards what they deploy (1.0.140)."""
+    out = []
+    try:
+        from acmelib.certs import agents as _ag, agent_deployguard as _dg
+        for r in _ag.rows(store):
+            pol = _ag.state(store, r['id']).get('policy')
+            if _dg.guard_of(pol):
+                out.append(str(r['name']))
+    except Exception:                                   # noqa: BLE001 - no agents here
+        return []
+    return out
 
 
 def downgrade_why_not(store, version):

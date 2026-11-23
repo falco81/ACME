@@ -80,6 +80,33 @@ from acmelib.certs import agent_policy as P
 from acmelib.plugins.base import PluginError
 
 
+class _Seer(object):
+    """A session of the administration as portal_teams._others_hidden reads a member: `all`, or
+    the teams (lower case) whose certificates it sees."""
+
+    def __init__(self, store, s):
+        from acmelib.certs import teams
+        self.store = store
+        self.sc = teams.scope(store, s, 'view')
+        self.all = self.sc is None
+
+    def reach(self, _cap):
+        return self.sc or ()
+
+
+def _seen_only(store, s, out):
+    """What a target's agent says, as a session kept to its teams sees it (hunt v2): the
+    certificates of the agent's server of other teams (and of none) not named - the builder's
+    needs and "Allowed names", the certificates whose key the agent makes, a discovery's
+    certificates acme holds - as the Targets list (targets_seen) and the portal
+    (_others_hidden) already said them."""
+    me = _Seer(store, s)
+    if me.all or not isinstance(out, dict):
+        return out
+    from acmelib.certs import portal_teams
+    return portal_teams._others_hidden(me, out)
+
+
 def _row(h, b=None):
     ref = (b or {}).get('id') if b is not None else h.arg('id')
     try:
@@ -120,7 +147,7 @@ def _agents(h, s):
     rows = []
     for r in G.rows(h.store):
         try:
-            rows.append(G.info(h.store, r))
+            rows.append(_seen_only(h.store, s, G.info(h.store, r)))
         except Exception as e:                          # noqa: BLE001
             rows.append({'id': r['id'], 'name': r['name'], 'state': 'new', 'error': str(e)[:200]})
     st = E.web_status() if hasattr(E, 'web_status') else {}
@@ -152,7 +179,7 @@ def _one(h, s):
     out['ca'] = G.ca_public(h.store)
     out['port'] = G.active_port()
     out['design'] = P.design_view(h.store, row, out.get('policy'))
-    return out
+    return _seen_only(h.store, s, out)
 
 
 @A.api('GET', '/api/agents/updates')
@@ -162,7 +189,7 @@ def _updates(h, s):
 
 @A.api('GET', '/api/agents/builder')
 def _builder(h, s):
-    return P.builder(h.store, _row(h))
+    return _seen_only(h.store, s, P.builder(h.store, _row(h)))
 
 
 @A.api('GET', '/api/agents/adcs', 'certadmin')
@@ -188,9 +215,17 @@ def _discover(h, s):
     row = G.target_row(h.store, ref)
     if str(h.arg('cached') or '') in ('1', 'true', 'yes'):
         got = agent_discover.cached(h.store, row)
-        return {'discovery': got, 'target': row['name']}
-    return {'discovery': agent_discover.run(h.store, row, h.arg('kind') or None, A.who(s)),
-            'target': row['name']}
+        return {'discovery': _seen_disc(h.store, s, got), 'target': row['name']}
+    return {'discovery': _seen_disc(h.store, s, agent_discover.run(
+        h.store, row, h.arg('kind') or None, A.who(s))), 'target': row['name']}
+
+
+def _seen_disc(store, s, got):
+    me = _Seer(store, s)
+    if me.all or not isinstance(got, dict):
+        return got
+    from acmelib.certs import portal_teams
+    return portal_teams._disc_hidden(me, got)
 
 
 @A.api('GET', '/api/agents/design')

@@ -1049,6 +1049,39 @@ def due_period(sched, now=None):
     return key, ts
 
 
+def missed_period(sched, now=None):
+    """(the key of the period before this one, its moment) when its moment came after the schedule
+    was set - or (None, None). A report whose moment fell while the daemon was down, and the daemon
+    started again only in the next period, was never made (1.0.141): _reports_tick makes it once,
+    when that period's key is not the one made last."""
+    sched = _sched(sched)
+    if sched['every'] == 'off':
+        return None, None
+    now = now or _now()
+    n = datetime.datetime.fromtimestamp(now)
+    if sched['every'] == 'weekly':
+        start = (n - datetime.timedelta(days=n.isoweekday() - 1)).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        prev = start - datetime.timedelta(days=7)
+        at = prev + datetime.timedelta(days=min(7, max(1, sched['day'])) - 1,
+                                       hours=sched['hour'])
+        key = 'w:%04d-%02d' % tuple(prev.isocalendar()[:2])
+    else:
+        y, m = (n.year, n.month - 1) if n.month > 1 else (n.year - 1, 12)
+        at = datetime.datetime(y, m, min(28, max(1, sched['day'])), sched['hour'])
+        key = 'm:%04d-%02d' % (y, m)
+    ts = time.mktime(at.timetuple())
+    if now < ts or ts < sched['since']:
+        return None, None
+    return key, ts
+
+
+def _made(got, key):
+    """Whether the period `key` (or a later one of the same kind) was made already."""
+    got = str(got or '')
+    return got == key or (got[:2] == key[:2] and len(got) == len(key) and got > key)
+
+
 def _reports_tick(store):
     for r in rows(store):
         p = public(r)
@@ -1056,9 +1089,12 @@ def _reports_tick(store):
             continue
         key, _at = due_period(r.get('schedule'))
         if not key:
+            # this period's moment not come yet: the last one's, missed while the daemon was down
+            key, _at = missed_period(r.get('schedule'))
+        if not key:
             continue
         mk = 'reports:period:%d' % r['id']
-        if store.get_meta(mk) == key or not E.claim_once(store, mk, key):
+        if _made(store.get_meta(mk), key) or not E.claim_once(store, mk, key):
             continue
         try:
             run(store, r, 'the schedule', send=bool(p['recipients']))

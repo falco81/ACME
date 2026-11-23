@@ -1303,8 +1303,16 @@ def where(store, s, right='view', col='owner'):
 
 def deny(store, s, what, right):
     who = str(s.get('name') or '?')
-    store.add_event('certificates', '%s was refused: %s (needs the right %s on its team)' % (
-        who, what, right), 'warn', who=who)
+    by = s.get('view_as_by')
+    if by:
+        # a full administrator viewing the pages as a member (hunt v2): the refusal was theirs,
+        # never noted as the member's own attempt (as viewas.refused notes a write)
+        store.add_event('certificates', '%s, viewing the pages as %s (read-only), was refused: '
+                        '%s (needs the right %s on its team)' % (by, who, what, right), 'warn',
+                        who=str(by)[:190])
+    else:
+        store.add_event('certificates', '%s was refused: %s (needs the right %s on its team)' % (
+            who, what, right), 'warn', who=who)
     if right in CAPS:
         raise E.ApiError(403, 'you may not do that with this certificate: its team does not '
                               'give you "%s" (%s)' % (right, CAP_WORDS[right]))

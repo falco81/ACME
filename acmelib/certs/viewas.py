@@ -30,7 +30,8 @@ OWN_PATHS = ('/api/teams/view_as', '/api/teams/view_as_stop', '/api/auth/logout'
 FREE_POSTS = ('/api/teams/view_as_stop', '/api/auth/logout', '/api/portal/logout',
               '/api/portal/view_as_stop')
 # Reads that hand out a file (a key, the database, a backup): refused too.
-BLOCKED_GETS = ('/api/db/download', '/api/rbackup/download', '/api/export')
+BLOCKED_GETS = ('/api/db/download', '/api/rbackup/download', '/api/export',
+                '/api/reports/download')     # a report's file, noted as the member's (hunt v2)
 CODE_META = 'teams:viewas:'
 CODE_S = 120
 MOST_H = 2

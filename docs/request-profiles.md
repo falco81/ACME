@@ -77,6 +77,10 @@ What a template sets is fitted, never forced:
 - the source offered first is the default source when it is of the kind the template prefers
   (public or your own), else the first that fits; a validation is the default one.
 
+The new profile's name and description are the template's words as the page showed them - in
+Czech on the Czech page - and are the profile's own from then on (changed in its editor as any
+other); the command line and the console keep the English ones unless `--note` says otherwise.
+
 A name taken is refused (*a template never changes one*). On the command line: `acme
 --profile-templates`, `acme --profile-from-template ID --name NAME --names DOMAIN,DOMAIN
 [--issuer SOURCE] [--challenge VALIDATION] [--note DESCRIPTION]`; in the console *Certificates →

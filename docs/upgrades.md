@@ -301,8 +301,15 @@ or a team has governance switched on (separation of duties, temporary roles,
 access reviews, team channels - an older version would drop them without a
 word, "never approve your own request" among them), or a target agent still
 pins an earlier command key of acme's (an older acme signs with the current key
-only - the agent would refuse every job). Each is named; with none of them,
-going back is as before.
+only - the agent would refuse every job). Below 1.0.140 (1.0.141) it is also
+refused while a target agent's policy guards what it deploys (`allow issuer`,
+`allow names`, `require key local`): an older acme sends it neither the CAs the
+policy allows nor the PKCS#12's password, and the agent would refuse its
+deployments - take the lines out first. Each is named; with none of them,
+going back is as before. What else 1.0.140 keeps (the reports and their runs,
+a team's digest, the calendar's links, a switch of a key waiting for the
+renewal) an older version leaves alone: it is not made or sent meanwhile, and
+is there again after the next upgrade.
 
 **The package against the database.** Fetched or given, the older package is
 checked like an upgrade's (signed, every file) and then against this

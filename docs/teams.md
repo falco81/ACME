@@ -555,7 +555,9 @@ A **full administrator** sees the pages as a chosen member would, **read-only**:
 
 While viewing as, **every write is refused on the server** before any route runs (`403`
 "read-only: you are viewing the pages as … - nothing is changed"), and so are the downloads of
-the database, a backup and the configuration; only *Stop viewing as* and *Sign out* go through.
+the database, a backup, the configuration and a periodic report's file; only *Stop viewing as*
+and *Sign out* go through. A certificate the member may not see, looked at meanwhile, is noted as
+refused to you (viewing as them), never as the member's own attempt.
 A banner on every page says whom you see as, with **Stop viewing as** (the portal's: Sign out).
 Starting, stopping and every write refused are events (naming the member's teams, so they are in
 each team's Activity too). A certificate administrator may not view as anybody.
