@@ -141,17 +141,20 @@ def _contact(t):
 def save(store, team, v, by):
     t = _team(store, team)
     clean_v = clean(store, t, v)
-    ex = _extras(t)
-    before = config(t)
     when = (clean_v['every'], clean_v['day'], clean_v['hour'], clean_v['on'])
-    if before.get('since') and (before['every'], before['day'], before['hour'], before['on']) \
-            == when:
-        clean_v['since'] = before['since']
-    else:
-        clean_v['since'] = _now()          # the first one at the next moment chosen, not at once
-    ex['digest'] = clean_v
-    store.db.update('cert_teams', t['id'], {'extras': json.dumps(ex, sort_keys=True),
-                                            'updated': _now(), 'updated_by': str(by)[:190]})
+
+    def change(t_, ex):
+        before = config(t_)
+        if before.get('since') and (before['every'], before['day'], before['hour'],
+                                    before['on']) == when:
+            clean_v['since'] = before['since']
+        else:
+            clean_v['since'] = _now()      # the first one at the next moment chosen, not at once
+        ex['digest'] = clean_v
+    # only over the extras that were read (hunt w6, teamgov.extras_change): the team's access
+    # reviews or separation of duties saved at the same moment were written over
+    from acmelib.certs import teamgov
+    t, _ex = teamgov.extras_change(store, t['name'], change, by)
     T.changed()
     store.add_event('certificates', 'the team %s: the digest %s by %s (%s, %s)' % (
         t['name'], 'switched on' if clean_v['on'] else 'set (off)', by,

@@ -245,46 +245,65 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
     held_rows = []
     # what this session may do with each (hunt Rt5): the page offers only that
     caps_of = _lib('teams').cert_caps_of(store, s) if s is not None else None
-    for r in rows:
-        one = S.cert_public(r)
-        if caps_of is not None:
-            one['caps'] = caps_of(r)
-        one['deploys'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ?',
-                                            (r['id'],), 0) or 0)
-        one['deploys_failed'] = int(store.db.value(
-            "SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ? AND state = 'failed'",
-            (r['id'],), 0) or 0)
-        # Deployments whose target is switched off (1.0.23): said in the list.
-        one['deploys_target_off'] = int(store.db.value(
-            'SELECT COUNT(*) FROM cert_deploys d JOIN cert_targets t ON t.name = d.target '
-            'WHERE d.cert_id = ? AND t.enabled = 0', (r['id'],), 0) or 0)
-        # Its latest job (1.0.26): the list's "Last job" opens it - a job's window
-        # closed while it ran can be opened again from there.
-        from acmelib.certs import portal as _portal
-        one['last_job'] = _portal.last_job(store, r['id'])
-        one['deploy_hold'] = S.deploy_hold(store, r['id']) is not None   # the console (1.0.88)
-        # out of the waiting state with its approval never noted (1.0.107): offered Approve
-        # and Decline as a waiting one, and tagged in the list
-        full = r
-        if r.get('state') != 'pending-approval' and _portal.approval_missing(store, r):
-            one['stuck'] = True
-            full = S.cert_need(store, r['id'])          # its cert_pem (not in the list's columns)
-        if r.get('state') == 'pending-approval' or one.get('stuck'):
-            # whose names it asks for (1.0.102) - the certificates read once for the list
-            if not held_rows:
-                held_rows.extend([_portal.holder_rows(store), _portal.defined_teams(store)])
-            held = _portal.held_of(store, r, held_rows[0])
-            one.update(_portal.held_public(store, r, held_rows[0], held_rows[1], held))
-            if s is not None:
-                # whether its Approve (and Decline) would be refused here, and why (offered,
-                # then refused)
-                one['may_approve'], one['approve_why'] = _portal.admin_may_approve(
-                    store, r, s, held, held_rows[1])
-                one['may_decline'], one['decline_why'] = _portal.admin_may_decline(store, full, s)
-        out.append(one)
+    from acmelib.certs import portal as _portal
+    # The page's deployments counted, its last jobs, its holds and what the portal kept read for
+    # the whole page at once (hunt w6): six statements a certificate, 6000 for a page of 1000.
+    ids = [int(r['id']) for r in rows]
+    dcounts = {}
+    for at in range(0, len(ids), 400):
+        part = ids[at:at + 400]
+        if not part:
+            continue
+        for d in store.db.rows(
+                "SELECT d.cert_id, COUNT(*) AS n, SUM(CASE WHEN d.state = 'failed' THEN 1 ELSE 0 "
+                "END) AS f, SUM(CASE WHEN t.enabled = 0 THEN 1 ELSE 0 END) AS o FROM cert_deploys "
+                "d LEFT JOIN cert_targets t ON t.name = d.target WHERE d.cert_id IN (%s) GROUP BY "
+                "d.cert_id" % ', '.join('?' * len(part)), tuple(part)):
+            dcounts[int(d['cert_id'])] = d
+    held_ids = S.meta_ids(store, S.HOLD_KEY) if rows else set()
+    with _portal.prefetched(store, ids):
+        for r in rows:
+            out.append(_cert_list_row(store, s, r, caps_of, dcounts, held_ids, held_rows))
     # the days before the end of one without its own (hunt Rt5: the page said 30 always)
     return {'rows': out, 'total': total, 'page': page, 'per': per,
             'renew_days_default': renewer.renew_days({})}
+
+
+def _cert_list_row(store, s, r, caps_of, dcounts, held_ids, held_rows):
+    """One row of cert_list."""
+    from acmelib.certs import portal as _portal
+    one = S.cert_public(r)
+    if caps_of is not None:
+        one['caps'] = caps_of(r)
+    dc = dcounts.get(int(r['id'])) or {}
+    one['deploys'] = int(dc.get('n') or 0)
+    one['deploys_failed'] = int(dc.get('f') or 0)
+    # Deployments whose target is switched off (1.0.23): said in the list.
+    one['deploys_target_off'] = int(dc.get('o') or 0)
+    # Its latest job (1.0.26): the list's "Last job" opens it - a job's window
+    # closed while it ran can be opened again from there.
+    one['last_job'] = _portal.last_job(store, r['id'])
+    one['deploy_hold'] = int(r['id']) in held_ids and \
+        S.deploy_hold(store, r['id']) is not None   # the console (1.0.88)
+    # out of the waiting state with its approval never noted (1.0.107): offered Approve
+    # and Decline as a waiting one, and tagged in the list
+    full = r
+    if r.get('state') != 'pending-approval' and _portal.approval_missing(store, r):
+        one['stuck'] = True
+        full = S.cert_need(store, r['id'])          # its cert_pem (not in the list's columns)
+    if r.get('state') == 'pending-approval' or one.get('stuck'):
+        # whose names it asks for (1.0.102) - the certificates read once for the list
+        if not held_rows:
+            held_rows.extend([_portal.holder_rows(store), _portal.defined_teams(store)])
+        held = _portal.held_of(store, r, held_rows[0])
+        one.update(_portal.held_public(store, r, held_rows[0], held_rows[1], held))
+        if s is not None:
+            # whether its Approve (and Decline) would be refused here, and why (offered,
+            # then refused)
+            one['may_approve'], one['approve_why'] = _portal.admin_may_approve(
+                store, r, s, held, held_rows[1])
+            one['may_decline'], one['decline_why'] = _portal.admin_may_decline(store, full, s)
+    return one
 
 
 # span -> (bars, days a bar, what a bar is)
@@ -969,21 +988,26 @@ def cert_drop(store, row, by):
     """A certificate gone from acme: its deployments, versions, finished jobs and
     what the portal kept of who asked for it (nothing on the targets, nothing at the CA)."""
     db = store.db
-    tested = [r['test'] for r in db.rows('SELECT test FROM cert_checks WHERE cert_id = ?',
-                                         (row['id'],))]
-    db.run('DELETE FROM cert_checks WHERE cert_id = ?', (row['id'],))
-    db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
-    db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
-    # Its jobs that are over go with it (1.0.19); one still at work stays until it ends.
-    db.run("DELETE FROM cert_jobs WHERE cert_id = ? AND state NOT IN ('queued', 'running')",
-           (row['id'],))
-    db.run('DELETE FROM certs WHERE id = ?', (row['id'],))
-    # Who asked for it on the portal (portal.META) goes with it (1.0.19): kept, a
-    # certificate given the same id later (MariaDB counts from the highest one left
-    # after a restart) was that person's - their mail, their profile, its PFX.
-    # ...and the rest of its rows in meta (S.CERT_META; by its tests' names, 1.0.96)
-    S.cert_meta_drop(store, row['id'])
-    db.run('DELETE FROM meta WHERE k = ?', (S.HOLD_KEY % int(row['id']),))
+    # All of it or nothing, the certificate's row first (hunt w6): a stop in the middle left the
+    # certificate without its deployments, tests and versions - and a second Delete sent at once
+    # (a double click, two administrators) found it gone and still said "deleted" again.
+    with db.transaction():
+        if not db.run('DELETE FROM certs WHERE id = ?', (row['id'],)):
+            return False
+        tested = [r['test'] for r in db.rows('SELECT test FROM cert_checks WHERE cert_id = ?',
+                                             (row['id'],))]
+        db.run('DELETE FROM cert_checks WHERE cert_id = ?', (row['id'],))
+        db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
+        db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
+        # Its jobs that are over go with it (1.0.19); one still at work stays until it ends.
+        db.run("DELETE FROM cert_jobs WHERE cert_id = ? AND state NOT IN ('queued', 'running')",
+               (row['id'],))
+        # Who asked for it on the portal (portal.META) goes with it (1.0.19): kept, a
+        # certificate given the same id later (MariaDB counts from the highest one left
+        # after a restart) was that person's - their mail, their profile, its PFX.
+        # ...and the rest of its rows in meta (S.CERT_META; by its tests' names, 1.0.96)
+        S.cert_meta_drop(store, row['id'])
+        db.run('DELETE FROM meta WHERE k = ?', (S.HOLD_KEY % int(row['id']),))
     store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
                     'warn', who=by)
     # the tests acme made from its deployments, attached to nothing now, go with it
@@ -994,6 +1018,7 @@ def cert_drop(store, row, by):
                             'with it' % (n, row['name']), who=by)
     except Exception:                                   # noqa: BLE001
         pass
+    return True
 
 
 def revocable(store, row):
@@ -1035,7 +1060,8 @@ def _cert_delete(h, s):
         raise E.ApiError(409, 'a job is working on %s: stop it first' % row['name'])
     by = who(s)
     if not _flag(b.get('revoke'), 0):
-        cert_drop(h.store, row, by)
+        if not cert_drop(h.store, row, by):
+            raise LookupError('there is no certificate %s - it was deleted meanwhile' % row['name'])
         return {'message': '%s deleted' % row['name']}
     # Revoked first, at its CA, then deleted (1.0.21) - in one job: a revocation
     # that fails leaves the certificate here, as it was, and says why.
@@ -2542,6 +2568,10 @@ def family_rows(store, family, full=False):
         'SELECT * FROM %s ORDER BY %s' % (table, store.db.name_order()))]
 
 
+FAMILY_WORD = {'issuer': 'source', 'challenge': 'validation', 'target': 'target',
+               'check': 'test'}
+
+
 def family_save(store, family, b, by):
     table = S.TABLE_OF[family]
     t = time.time()
@@ -2556,6 +2586,10 @@ def family_save(store, family, b, by):
     kind = str(b.get('kind') or (row or {}).get('kind') or '')
     cls = S.given_class(family, kind, b.get('config'), row)
     if cls is None and (not row or kind != row.get('kind')):
+        if not kind:
+            # nothing said of which module (hunt w6): 'there is no target module ""'
+            raise ValueError('a new %s needs its module (kind) - acme --plugins lists them'
+                             % FAMILY_WORD.get(family, family))
         raise ValueError('there is no %s module "%s"' % (family, kind))
     if isinstance(b.get('config'), dict) and S.VERSION_KEY in b['config']:
         # the version of the module it uses (1.0.32): one that is there, or none
@@ -2725,6 +2759,33 @@ def _device_kind_kept(store, row, cls):
                      'first' % (row['name'], ', '.join(used[:10]), cls.title or cls.kind))
 
 
+def _field_kind_check(f, v, what):
+    """A module's setting of the kind its field is (hunt w6): `true` or a number saved as a
+    list (the tests of an SSH relay) made deleting any test fail - "the request is not in the
+    shape this takes". The pages send a list as a list or lines, a number and on/off as
+    such."""
+    t = f.get('type') or 'text'
+    if v is None:
+        return
+    if t == 'list':
+        bad = not isinstance(v, (list, str)) or (
+            isinstance(v, list) and any(isinstance(x, (list, dict)) or x is None for x in v))
+        words = '%s is a list'
+    elif t == 'bool':
+        bad = isinstance(v, (list, dict))
+        words = '%s is on or off'
+    elif t == 'number':
+        bad = isinstance(v, (list, dict))
+        words = '%s is a number'
+    else:
+        return
+    if bad:
+        e = ValueError(words % what)
+        e.field = f.get('key') or ''
+        e.label = str(what)
+        raise e
+
+
 def _family_fill(store, family, table, row, name, kind, cls, given, fields, secrets_, by):
     old_cfg = S.jload(row.get('config'), {}) or {}
     if given is not None:
@@ -2732,6 +2793,10 @@ def _family_fill(store, family, table, row, name, kind, cls, given, fields, secr
             old_cfg = {}            # another module: nothing of the old one's kept
         cfg = S.config_seal(given, old_cfg, '%s:%s' % (table, row['id']), secrets_)
         if cls is not None:
+            for f in cls.fields or []:
+                k = f.get('key')
+                if k and cfg.get(k) != old_cfg.get(k):
+                    _field_kind_check(f, cfg.get(k), f.get('label') or k)
             for f in cls.fields or []:
                 if f.get('required') and field_shown(f, cfg) and \
                         cfg.get(f['key']) in (None, '') and f.get('default') in (None, ''):
@@ -2787,8 +2852,8 @@ def _renamed(store, family, old, new):
         C.test_meta_drop(store, old)
         for r in db.rows("SELECT id, config FROM cert_tests WHERE kind = 'ssh_relay'"):
             cfg = S.jload(r['config'], {}) or {}
-            if old in (cfg.get('tests') or []):
-                cfg['tests'] = [new if x == old else x for x in cfg['tests']]
+            if old in S.relay_tests(cfg):
+                cfg['tests'] = [new if x == old else x for x in S.relay_tests(cfg)]
                 db.update('cert_tests', r['id'], {'config': json.dumps(cfg)})
     elif family == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
@@ -2869,7 +2934,7 @@ def family_uses(store, family, row):
             cert(r, 'tested by it', True, r['id'])
         for r in db.rows("SELECT id, name, config FROM cert_tests WHERE kind = 'ssh_relay' "
                          "ORDER BY name"):
-            if name in ((S.jload(r.get('config'), {}) or {}).get('tests') or []):
+            if name in S.relay_tests(S.jload(r.get('config'), {})):
                 out.append({'where': 'test', 'name': r['name'], 'id': r['id'],
                             'said': 'in the tests it runs', 'free': True})
     else:
@@ -2968,7 +3033,7 @@ def _unbind(store, family, row, uses, by):
         elif family == 'check' and u['where'] == 'test':
             r = store.db.row('SELECT config FROM cert_tests WHERE id = ?', (u['id'],))
             cfg = S.jload((r or {}).get('config'), {}) or {}
-            cfg['tests'] = [x for x in (cfg.get('tests') or []) if x != row['name']]
+            cfg['tests'] = [x for x in S.relay_tests(cfg) if x != row['name']]
             store.db.update('cert_tests', u['id'], {'config': json.dumps(cfg)})
             store.add_event('certificates', 'the test %s taken out of %s by %s' % (
                 row['name'], u['name'], by), who=by)
@@ -3110,6 +3175,10 @@ def family_test(store, family, b, by, echo=None):
     kind = str(b.get('kind') or (row or {}).get('kind') or '')
     cls = S.given_class(family, kind, b.get('config'), row)
     if cls is None:
+        if not kind and not row:
+            # neither an id nor a module said (hunt w6): 'there is no target module ""'
+            raise ValueError('which %s: its id - or a module (kind) and its settings to try'
+                             % FAMILY_WORD.get(family, family))
         raise ValueError('there is no %s module "%s"' % (family, kind))
     cfg = S.plugin_config(family, row) if row and row.get('kind') == kind else {}
     for k, v in (_dict(b.get('config'), 'config') or {}).items():

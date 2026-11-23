@@ -305,7 +305,10 @@ def _work(job, fn):
             job.step('%s: %s' % (type(e).__name__, e), 'bad')
             E.log('a certificate job (%s %s) broke: %s\n%s' % (job.kind, job.id, e,
                                                                 traceback.format_exc()), 'error')
-            job.finish(False, str(e))
+            # what it ended with said as its step says it (hunt w6): a KeyError ended "'x'", a
+            # refused connection "[Errno 111] Connection refused"
+            job.finish(False, said_plainly(e) if isinstance(e, OSError) and e.strerror
+                       else '%s: %s' % (type(e).__name__, e))
             return job
         if isinstance(got, tuple):
             ok, said = got[0], got[1] if len(got) > 1 else ''

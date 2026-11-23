@@ -80,25 +80,46 @@ def _team_row(store, team):
     return t
 
 
+def extras_change(store, team, change, by):
+    """change(t, extras) - the team's extras changed in place - written only over the extras
+    that were read, read and changed again when another wrote them meanwhile (hunt w6): the
+    reviews, the elevation, the separation of duties, the channels and the digest are parts of
+    one column, and two of them saved at once each wrote the whole column over the other's -
+    the separation of duties one administrator had just set was gone unsaid. -> (t, extras)."""
+    for _round in range(20):
+        t = _team_row(store, team)
+        raw = t.get('extras')
+        ex = extras_of(t)
+        change(t, ex)
+        new = json.dumps(ex, sort_keys=True) if ex else None
+        if store.db.run('UPDATE cert_teams SET extras = ?, updated = ?, updated_by = ? WHERE '
+                        'id = ? AND %s' % ('extras IS NULL' if raw is None else 'extras = ?'),
+                        [new, _now(), _who_by(by), t['id']] + ([] if raw is None else [raw])):
+            return t, ex
+        time.sleep(0.02)
+    raise E.ApiError(409, 'the team %s was changed while it was written - try again'
+                     % str(team)[:120])
+
+
 def set_extras(store, team, key, value, by):
     """One part of a team's extras saved (None or {} takes it away) - an event says what."""
     if key not in EXTRA_KEYS:
         raise ValueError('a part of the governance is one of %s' % ', '.join(EXTRA_KEYS))
-    t = _team_row(store, team)
-    ex = extras_of(t)
+    _team_row(store, team)
     clean = {'review': clean_review, 'jit': clean_jit, 'sod': lambda v: clean_sod(store, v),
              'notify': clean_notify}[key](value)
-    before = ex.get(key)
-    if clean:
-        if key == 'notify' and not (before or {}).get('since'):
-            clean['since'] = _now()
-        elif key == 'notify':
-            clean['since'] = before.get('since')
-        ex[key] = clean
-    else:
-        ex.pop(key, None)
-    store.db.update('cert_teams', t['id'], {'extras': json.dumps(ex, sort_keys=True) if ex else None,
-                                            'updated': _now(), 'updated_by': _who_by(by)})
+
+    def change(_t, ex):
+        before = ex.get(key)
+        if clean:
+            if key == 'notify' and not (before or {}).get('since'):
+                clean['since'] = _now()
+            elif key == 'notify':
+                clean['since'] = before.get('since')
+            ex[key] = clean
+        else:
+            ex.pop(key, None)
+    t, _ex = extras_change(store, team, change, by)
     T.changed()
     words = {'review': 'access reviews', 'jit': 'just-in-time elevation',
              'sod': 'separation of duties', 'notify': 'notification channels'}[key]

@@ -334,6 +334,18 @@ def save_profile(store, b, by, why='', keep_ends=True):
     old = profile_get(store, b.get('old_name')) if b.get('old_name') else None
     if b.get('old_name') and not old:
         raise LookupError('there is no request profile %s' % b.get('old_name'))
+    if old and b.get('was_updated') not in (None, ''):
+        # saved by someone else since the page read it (hunt w6): refused, not written over
+        try:
+            was = float(b.get('was_updated'))
+        except (TypeError, ValueError):
+            raise ValueError('was_updated is the time the profile was read (its "updated")')
+        if abs(float(old.get('updated') or 0) - was) > 1e-6:
+            raise E.ApiError(409, 'the request profile %s was changed by %s meanwhile (%s) - '
+                                  'load it again; what you changed is not saved' % (
+                                      old['name'], old.get('updated_by') or 'someone',
+                                      time.strftime('%d-%m-%Y %H:%M:%S',
+                                                    time.localtime(float(old.get('updated') or 0)))))
     name = S.clean_name(b.get('name'), 'the profile\'s name')
     other = profile_get(store, name)
     if other and (not old or other['id'] != old['id']):
@@ -395,18 +407,32 @@ def save_profile(store, b, by, why='', keep_ends=True):
                 raise ValueError('the profile %s is based on it and would not fit: %s'
                                  % (r['name'], getattr(e, 'message', None) or str(e)))
     before = dict(old) if old else None
+    # The profile and its version in one transaction, written only over the row that was read
+    # (hunt w6): two saves at once each wrote the profile, and the first one's version then
+    # recorded the second one's settings under the first one's name (the second's "nothing
+    # changed"); a stop between the two writes left a change with no version of it.
+    with store.db.transaction():
+        if old:
+            keys = list(row)
+            was = old.get('updated')
+            if not store.db.run('UPDATE cert_req_profiles SET %s WHERE id = ? AND %s' % (
+                    ', '.join('%s = ?' % k for k in keys),
+                    'updated IS NULL' if was is None else 'updated = ?'),
+                    [row[k] for k in keys] + [old['id']] + ([] if was is None else [was])):
+                raise E.ApiError(409, 'the request profile %s was changed by someone else at '
+                                      'the same moment - load it again' % old['name'])
+            if old['name'] != name:
+                asked_follow(store, old['name'], name)
+                RM.renamed(store, old['name'], name)
+        else:
+            row.update(created=time.time(), created_by=str(by)[:190])
+            store.db.insert('cert_req_profiles', row)
+        RM.record(store, before, name, by, why)
     if old:
-        store.db.update('cert_req_profiles', old['id'], row)
-        if old['name'] != name:
-            asked_follow(store, old['name'], name)
-            RM.renamed(store, old['name'], name)
         store.add_event('certificates', 'the request profile %s changed by %s%s' % (
             name, by, (' (was %s)' % old['name']) if old['name'] != name else ''), who=by)
     else:
-        row.update(created=time.time(), created_by=str(by)[:190])
-        store.db.insert('cert_req_profiles', row)
         store.add_event('certificates', 'the request profile %s added by %s' % (name, by), who=by)
-    RM.record(store, before, name, by, why)
     return public(store, profile_get(store, name))
 
 

@@ -124,7 +124,10 @@ STALE_WORK = ('acme-rbackup-', 'acme-putback-', 'acme-download-', 'acme-dl-', 'a
               'acme-verify-', 'acme-restore-', 'acme-sql-', 'acme-upload-',
               # (1.0.127) the command line's: a copy with its key opened (secrets.key in clear
               # beside it), and the files it took in to be read (a copy, the .key beside it)
-              'acme-bundle-', '.acme-cli-')
+              'acme-bundle-', '.acme-cli-',
+              # (1.0.144) the copy of the whole SQLite database a backup reads at one moment,
+              # the account key of a client of an ACME authority, a TSIG key for nsupdate
+              '.acme-snapshot-', 'acme-acme-', 'acme-dns-')
 # The files sent from the pages to be put back, kept an hour (1.0.127): taken away only at the
 # next upload - one never put back stayed for good (an unlocked backup: every private key).
 STALE_UPLOADS = ('rbackup-uploads', 'db-uploads')

@@ -602,10 +602,17 @@ def approve_step(store, row, approver, ok, why):
         entry['levels'] = sorted(levels & want)
     else:
         entry['levels'] = sorted(levels & want)
-    _record(store, row['id'], entry)
+    kept = _record(store, row['id'], entry)
     if not ok:
         return {'complete': True, 'needed': [], 'rule': rule}
-    approvals.append(entry)
+    # counted from what is kept now, this approval with it (hunt w6): two approvers at the same
+    # moment each read the approvals before the other's was written and counted only their own
+    # - both recorded, neither let it through, and it waited for a third for good
+    if isinstance(kept, dict):
+        approvals = _of_team(store, [x for x in kept.get('approvals') or []
+                                     if isinstance(x, dict) and not x.get('over')], team)
+    else:
+        approvals.append(entry)
     done, needed, _c = _evaluate(rule, approvals)
     if not done:
         store.add_event('certificates', '%s approved %s for the team %s - it waits for %s more '

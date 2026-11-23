@@ -14,6 +14,10 @@ import os
 import random
 import sys
 import tempfile
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))

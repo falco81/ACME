@@ -1375,15 +1375,23 @@ class AgentHop(object):
         self.store, self.row = store, row
         self.host = row['name']
         self.d = tempfile.mkdtemp(prefix='acme-agenthop-')
-        os.chmod(self.d, 0o700)
-        self.sock_path = os.path.join(self.d, 's')
-        self.relay = os.path.join(self.d, 'relay.py')
-        with open(self.relay, 'w') as f:
-            f.write(AGENT_RELAY)
-        self.srv = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-        self.srv.bind(self.sock_path)
-        os.chmod(self.sock_path, 0o600)
-        self.srv.listen(4)
+        self.srv = None
+        try:
+            os.chmod(self.d, 0o700)
+            self.sock_path = os.path.join(self.d, 's')
+            self.relay = os.path.join(self.d, 'relay.py')
+            with open(self.relay, 'w') as f:
+                f.write(AGENT_RELAY)
+            self.srv = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            self.srv.bind(self.sock_path)
+            os.chmod(self.sock_path, 0o600)
+            self.srv.listen(4)
+        except BaseException:
+            # the folder and the socket not left behind when it cannot listen
+            if self.srv is not None:
+                self.srv.close()
+            shutil.rmtree(self.d, ignore_errors=True)
+            raise
         self.open = True
         self.said = ''
         threading.Thread(target=self._serve, daemon=True, name='agent-hop').start()
@@ -1414,8 +1422,13 @@ class AgentHop(object):
             except base.PluginError as e:
                 self.said = str(e)
                 return
-            agents.agent_mod().relay(far, conn, 600)
-            far.close()
+            try:
+                agents.agent_mod().relay(far, conn, 600)
+            finally:
+                try:
+                    far.close()
+                except OSError:
+                    pass
         finally:
             try:
                 conn.close()
@@ -1454,6 +1467,14 @@ class AgentHop(object):
 
     def close(self):
         self.open = False
+        # shut down first: a close alone does not wake the thread waiting in accept() - it
+        # waited for good, holding the socket, one thread more for every connection through
+        # an agent in the long-running daemon
+        import socket as _socket
+        try:
+            self.srv.shutdown(_socket.SHUT_RDWR)
+        except OSError:
+            pass
         try:
             self.srv.close()
         except OSError:

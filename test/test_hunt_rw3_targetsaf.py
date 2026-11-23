@@ -22,6 +22,10 @@ import json
 import os
 import sys
 import unittest
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)

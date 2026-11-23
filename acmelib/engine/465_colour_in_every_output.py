@@ -5368,6 +5368,16 @@ def run_daemon():
     return 0
 
 
+ERRNO_SAID = re.compile(r"\[Errno -?\d+\] ([^:'\n]+)(?:: '([^'\n]*)')?")
+
+
+def errno_said(text):
+    """Python's "[Errno 2] No such file or directory: '/x'" said as "/x: no such file or
+    directory" (hunt w6): `acme --import /x` said only Python's words, the number first."""
+    return ERRNO_SAID.sub(lambda m: '%s: %s' % (m.group(2), m.group(1).strip().lower())
+                          if m.group(2) else m.group(1).strip().lower(), text)
+
+
 def entry():
     """The command: run as a script, or imported by /usr/local/bin/acme so its
     compiled form is kept (1.0.136) - a run no longer compiles 1.6 MB first."""
@@ -5389,8 +5399,13 @@ def entry():
             sys.exit(0)
         if '--daemon' in sys.argv:
             raise                       # the service keeps its whole trace
-        sys.stderr.write('acme: %s\n' % e)
+        sys.stderr.write('acme: %s\n' % errno_said(str(e)))
         sys.exit(1)
+    except SystemExit as e:
+        if isinstance(e.code, str) and '[Errno' in e.code and '--daemon' not in sys.argv:
+            sys.stderr.write(errno_said(e.code) + '\n')
+            sys.exit(1)
+        raise
     except BrokenPipeError:
         sys.exit(0)
 

@@ -1570,6 +1570,14 @@ def team_get(store, name):
     n = _low(name)
     if not n:
         return None
+    # its own name as it is kept first, one row by the unique index (hunt w6): every team read for
+    # each certificate asked - the renewer's warnings of 1000 certificates read 500 teams each
+    try:
+        got = store.db.row('SELECT * FROM cert_teams WHERE name = ?', (str(name).strip(),))
+    except Exception:                                   # noqa: BLE001
+        got = None
+    if got and _low(got.get('name')) == n:
+        return got
     for t in team_rows(store):
         if _low(t['name']) == n:
             return t
@@ -1758,10 +1766,27 @@ def _enroll_follow(store, old, new):
             store.set_meta(r['k'], json.dumps(ec, sort_keys=True))
 
 
+def _not_changed_since(old, was):
+    """409 when the team was saved since the page read it (`was_updated`: its `updated` then,
+    hunt w6) - its members, limits and words would be written over with the page's."""
+    try:
+        was = float(was)
+    except (TypeError, ValueError):
+        raise ValueError('was_updated is the time the team was read (its "updated")')
+    now = float(old.get('updated') or 0)
+    if abs(now - was) > 1e-6:
+        raise E.ApiError(409, 'the team %s was changed by %s meanwhile (%s) - load it again; '
+                              'what you changed is not saved' % (
+                                  old['name'], old.get('updated_by') or 'someone',
+                                  time.strftime('%d-%m-%Y %H:%M:%S', time.localtime(now))))
+
+
 def save_team(store, b, by):
     old = team_get(store, b.get('old_name')) if b.get('old_name') else None
     if b.get('old_name') and not old:
         raise LookupError('there is no owner %s' % b.get('old_name'))
+    if old and b.get('was_updated') not in (None, ''):
+        _not_changed_since(old, b.get('was_updated'))
     name = S.clean_name(b.get('name'), 'the owner\'s name')
     other = team_get(store, name)
     if other and (not old or other['id'] != old['id']):
@@ -1809,7 +1834,17 @@ def save_team(store, b, by):
         if policy != policy_of(old):
             what.append('its limits %s' % (json.dumps(policy, sort_keys=True) if policy
                                            else 'taken off'))
-        store.db.update('cert_teams', old['id'], row)
+        # written only over the row that was read (hunt w6): the page sends the whole team -
+        # its members too - and two administrators saving at once each wrote their own over
+        # the other's: a member one of them added (or removed) was gone (or back) unsaid
+        keys = list(row)
+        was = old.get('updated')
+        if not store.db.run('UPDATE cert_teams SET %s WHERE id = ? AND %s' % (
+                ', '.join('%s = ?' % k for k in keys),
+                'updated IS NULL' if was is None else 'updated = ?'),
+                [row[k] for k in keys] + [old['id']] + ([] if was is None else [was])):
+            raise E.ApiError(409, 'the team %s was changed by someone else at the same moment '
+                                  '- load it again' % old['name'])
         if old['name'] != name:
             store.db.run('UPDATE certs SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                          (name, _low(old['name'])))

@@ -1218,9 +1218,14 @@
              members: (t.members || []).map(cleanMember)};
     Object.keys(ch || {}).forEach(function (k) { b[k] = ch[k]; });
     if (ch && ch.members) b.members = ch.members.map(cleanMember);
+    /* the team as it was read: saved by someone else since, refused - not written over (hunt w6) */
+    if (t.updated) b.was_updated = t.updated;
     return call('teams/save', b).then(function (r) {
       toast(r.message || 'saved', 'good');
       return refresh(b.name);
+    }, function (e) {
+      if (e && e.status === 409) refresh(t.name);
+      throw e;
     });
   }
 
@@ -2248,6 +2253,7 @@
                       contact_phone: f.phone.value.trim(), note: f.note.value.trim(),
                       members: (t.members || []).map(cleanMember)};
           if (!isNew) body.old_name = t.name;
+          if (!isNew && t.updated) body.was_updated = t.updated;
           busy(b, true);
           call('teams/save', body).then(function (r) {
             toast(r.message || 'saved', 'good');
@@ -2255,7 +2261,10 @@
             if (body.parent) UI.open[low(body.parent)] = true;
             if (isNew) UI.tab = 'overview';
             return refresh(body.name);
-          }).catch(oops).then(function () { busy(b, false); });
+          }).catch(function (e) {
+            if (e && e.status === 409 && !isNew) { closeModal(); refresh(t.name); }
+            oops(e);
+          }).then(function () { busy(b, false); });
         }}], 'medium');
   }
   /* a select of the teams, indented as the tree (never the team itself or one below it) */

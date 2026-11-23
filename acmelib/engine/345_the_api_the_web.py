@@ -22,6 +22,17 @@ class ApiError(Exception):
         self.extra = extra or {}
 
 
+def is_taken_already(e):
+    """Whether an error is a unique key of the database refusing a second row (hunt w6):
+    SQLite's IntegrityError "UNIQUE constraint failed", PostgreSQL's UniqueViolation, MariaDB's
+    1062 "Duplicate entry"."""
+    if not any(c.__name__ == 'IntegrityError' for c in type(e).__mro__):
+        return False
+    said = str(e)
+    return bool(re.search(r'UNIQUE constraint|duplicate key|Duplicate entry|\b1062\b', said)) or \
+        type(e).__name__ == 'UniqueViolation'
+
+
 def api_token(make=False):
     if make:
         RUN_DIR.mkdir(parents=True, exist_ok=True)
@@ -109,6 +120,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             raise ApiError(400, 'the length of the body is not a number')
         if n > 8 * 1024 * 1024:
             raise ApiError(413, 'that is more than this takes')
+        self._taken = True
         raw = self.rfile.read(n) if n else b''
         try:
             # NaN and Infinity are not numbers anybody means (1.0.103).
@@ -136,6 +148,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         if n > most:
             raise ApiError(413, 'that file is bigger than this takes')
         left = n
+        self._taken = True
         with open(str(path), 'wb') as out:
             while left > 0:
                 lump = self.rfile.read(min(left, 1 << 20))
@@ -186,9 +199,41 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.route('POST')
 
     def route(self, method):
+        try:
+            self._route(method)
+        finally:
+            self._unread_taken()
+
+    def _unread_taken(self):
+        """The body of a request answered without reading it - refused for its token, its
+        role, a switched-off sign-in (hunt w6) - read and dropped: left unread, the connection
+        was closed under it and the page's relay, still sending, got a reset in place of the
+        words (a file of a few hundred kB refused said only that the service did not answer)."""
+        if self.__dict__.get('_taken') or '_body' in self.__dict__:
+            return
+        try:
+            n = int(self.headers.get('Content-Length') or 0)
+        except (TypeError, ValueError):
+            n = -1
+        if n == 0:
+            return
+        if n < 0 or n > 8 * 1024 * 1024:
+            self.close_connection = True
+            return
+        try:
+            while n > 0:
+                lump = self.rfile.read(min(n, 1 << 20))
+                if not lump:
+                    break
+                n -= len(lump)
+        except OSError:
+            self.close_connection = True
+
+    def _route(self, method):
         # A body of its own for each request (1.0.146): on a kept-alive
         # connection the handler is the same, and the last one's was read again.
         self.__dict__.pop('_body', None)
+        self.__dict__.pop('_taken', None)
         url = urlparse(self.path)
         self.args = {k: v[-1] for k, v in parse_qs(url.query).items()}
         path = url.path.rstrip('/')
@@ -285,6 +330,14 @@ class ApiHandler(BaseHTTPRequestHandler):
                 log('%s %s: a value the database cannot keep: %s' % (method, path, e), 'info')
                 self.send_json({'ok': False, 'error': 'a value is too big or of the wrong kind '
                                                       'for the database'}, 400)
+                return
+            if is_taken_already(e):
+                # The same thing saved twice at once (hunt w6): a double click on Add, two
+                # administrators adding one name - both passed the look for the name, the
+                # database's unique key refused the second. Said so, not "it broke".
+                log('%s %s: saved twice at the same moment: %s' % (method, path, e), 'info')
+                self.send_json({'ok': False, 'error': 'one of that name was saved at the same '
+                                                      'moment - load the list again'}, 409)
                 return
             log('the API broke on %s %s: %s\n%s' % (method, path, e, traceback.format_exc()),
                 'error')

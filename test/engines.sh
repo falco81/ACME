@@ -32,6 +32,11 @@ fails=0
 say()  { printf '%-9s %s\n' "$1" "$2"; }
 must() { local out; if out=$(eval "$2" 2>&1); then say "$1" "ok   $3"; else say "$1" "FAIL $3"; [ -n "${VERBOSE:-}" ] && printf "%s\n" "$out" | tail -5 | sed "s/^/          /"; fails=$((fails+1)); fi; }
 has_certs=0
+# Stopped half way (Ctrl+C, a failed check that ends the script): the daemon and the folder of
+# the engine being tried are not left behind.
+work='' pid=''
+trap '[ -n "$pid" ] && kill "$pid" 2>/dev/null; [ -n "$work" ] && rm -rf "$work"' EXIT
+trap 'exit 130' INT TERM
 zcat "$backup" | grep -q '"name": "web"' && has_certs=1
 
 for engine in $engines; do
@@ -88,9 +93,9 @@ for engine in $engines; do
     must "$engine" "python3 '$acme' --events | grep -q 'imported a configuration'" "the events read back"
     must "$engine" "python3 '$acme' --backup" "a copy made"
     [ "$has_certs" = 1 ] && must "$engine" "zcat \$(ls -t '$work'/state/backups/*.json.gz | head -1) | grep -q '\"table\": \"cert_versions\"'" "... with the certificates in it"
-    kill "$pid"; wait "$pid" 2>/dev/null
+    kill "$pid"; wait "$pid" 2>/dev/null; pid=''
     python3 "$acme" --del-user enginetest --yes >/dev/null 2>&1
-    rm -rf "$work"
+    rm -rf "$work"; work=''
 done
 echo
 [ "$fails" -eq 0 ] && echo "all engines passed" || echo "$fails check(s) failed"

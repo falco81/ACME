@@ -10,6 +10,10 @@ everywhere (db_path, 1.0.2).
 import os
 import sys
 import tempfile
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -251,6 +251,16 @@ def _config_seal_clear(place, clear):
                       'sealed: %s' % (place, e), 'warn', every=3600)
 
 
+def relay_tests(cfg):
+    """The tests an SSH relay runs (its `tests`) as a list of names, whatever was kept (hunt
+    w6): `true` kept there by the API made the list of tests and deleting any test fail."""
+    got = (cfg if isinstance(cfg, dict) else {}).get('tests')
+    if isinstance(got, str):
+        got = got.splitlines()
+    return [str(x).strip() for x in got if isinstance(x, (str, int))] \
+        if isinstance(got, list) else []
+
+
 def config_seal(new, old, place, secrets):
     """The settings to keep: each secret sealed for its place; a secret given
     as "" (or not at all) keeps the one that is set."""
@@ -685,7 +695,7 @@ def plugin_public(store, family, row, full=False):
         n = int(store.db.value('SELECT COUNT(*) FROM cert_checks WHERE test = ?',
                                (row['name'],), 0) or 0)
         for r in store.db.rows("SELECT config FROM cert_tests WHERE kind = 'ssh_relay'"):
-            if row['name'] in ((jload(r.get('config'), {}) or {}).get('tests') or []):
+            if row['name'] in relay_tests(jload(r.get('config'), {})):
                 n += 1
         if row.get('kind') == 'ssh_relay':
             n += via_users(store, row['name'], 'check')
@@ -1418,6 +1428,41 @@ def current_revoked(store, cert):
     return cert.get('state') == 'revoked' or bool(fp and fp in revoked_fps(store, cert['id']))
 
 
+def meta_ids(store, pattern):
+    """The certificate ids `pattern` ('certs:...:%d', CERT_META) has a row of in meta - one
+    statement for a whole list or look (hunt w6), where asking each certificate was one each:
+    the renewer's look asked 30000 deployments' holds every five minutes. Only which ids have
+    one; the value is read as before (deploy_hold, _revoked_meta)."""
+    pre = pattern.split('%d', 1)[0]
+    out = set()
+    for r in store.db.rows("SELECT k FROM meta WHERE k LIKE ? ESCAPE '!'",
+                           (E.like_escaped(pre) + '%',)):
+        k = str(r.get('k') or '')
+        tail = k[len(pre):]
+        if k.startswith(pre) and tail.isdigit():
+            out.add(int(tail))
+    return out
+
+
+def revoked_maybe(store):
+    """The ids of the certificates current_revoked may be true of other than by their state: a
+    version revoked, or revoked fingerprints written in meta - for every other one it is false
+    unless the certificate is 'revoked' itself (hunt w6: two statements a certificate)."""
+    out = {int(r['cert_id']) for r in store.db.rows(
+        'SELECT DISTINCT cert_id FROM cert_versions WHERE revoked IS NOT NULL AND '
+        'fingerprint IS NOT NULL') if r.get('cert_id') is not None}
+    return out | meta_ids(store, CERT_META['revkeys'])
+
+
+def current_revoked_of(store, cert, maybe):
+    """current_revoked with `maybe` (revoked_maybe, read once for many): the same answer."""
+    if cert.get('state') == 'revoked':
+        return True
+    if maybe is not None and int(cert['id']) not in maybe:
+        return False
+    return current_revoked(store, cert)
+
+
 def cert_key(row, variant=''):
     """The certificate's private key (PEM), or None; `variant` 'alt': its twin's."""
     if variant == 'alt':
@@ -1510,24 +1555,50 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
     t = now()
     # the number taken again when another process took it in the meantime (1.0.80): two jobs
     # saving at once - the second one's certificate was lost to the unique key
-    for attempt in range(6):
-        version = next_version(store, row)
+    def put(version):
         sealed = E.seal_secret(key_pem, key_place(row['id'], version)) if key_pem else None
+        store.db.insert('cert_versions', {
+            'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem,
+            'chain_pem': chain, 'key_sealed': sealed,
+            'serial': str(info.get('serial') or '')[:190],
+            'fingerprint': str(info.get('sha256') or '')[:190],
+            'not_before': info.get('not_before'), 'not_after': info.get('not_after'),
+            'issuer_dn': info.get('issuer_dn') or '', 'created': t, 'why': str(why)[:60],
+            'by_who': str(by or '')[:190], 'revoked': None, 'variant': ''})
+        store.db.update('certs', row['id'], made(version, sealed))
+
+    def made(version, sealed):
+        return _main_fields(row, info, cert_pem, chain, sealed, version, t, by, extra)
+    version = _version_written(store, row, put)
+    prune_versions(store, row['id'], version)
+    return version
+
+
+def _version_written(store, row, put):
+    """put(version) - the version's row and the certificate's row written in one transaction
+    (hunt w6), its number taken again when another process took it meanwhile. Written one by
+    one, a renewal saved beside an import (or a CSR's answer) took the next number, wrote the
+    certificate's row - and the one before then wrote its own older version over it: the
+    certificate held version 5 while 6 was the newest, its key, its PEM and its deployments
+    one version back; and a stop between the two writes left a version the certificate did
+    not hold."""
+    outer = bool(getattr(store.db, 'in_tx', False))
+    for attempt in range(6):
         try:
-            store.db.insert('cert_versions', {
-                'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem,
-                'chain_pem': chain, 'key_sealed': sealed,
-                'serial': str(info.get('serial') or '')[:190],
-                'fingerprint': str(info.get('sha256') or '')[:190],
-                'not_before': info.get('not_before'), 'not_after': info.get('not_after'),
-                'issuer_dn': info.get('issuer_dn') or '', 'created': t, 'why': str(why)[:60],
-                'by_who': str(by or '')[:190], 'revoked': None, 'variant': ''})
-            break
+            with store.db.transaction():
+                version = next_version(store, row)
+                put(version)
+            return version
         except Exception as e:                          # noqa: BLE001
             if attempt == 5 or not re.search(r'unique|duplicate|integrity|1062', str(e) +
                                              type(e).__name__, re.I):
                 raise
+            if outer and store.db.engine == 'postgres':
+                raise                                   # the transaction around it is lost
             time.sleep(0.05 * (attempt + 1))
+
+
+def _main_fields(row, info, cert_pem, chain, sealed, version, t, by, extra):
     fields = {
         'cert_pem': cert_pem, 'chain_pem': chain, 'key_sealed': sealed,
         'serial': str(info.get('serial') or '')[:190],
@@ -1550,9 +1621,7 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
         fields['csr_pending'] = None
     if extra:
         fields.update(extra)
-    store.db.update('certs', row['id'], fields)
-    prune_versions(store, row['id'], version)
-    return version
+    return fields
 
 
 def next_version(store, row):
@@ -1573,37 +1642,31 @@ def save_alt(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=None, 
     chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
     t = now()
     # the number taken again when another process took it in the meantime (1.0.80): two jobs
-    # saving at once - the second one's certificate was lost to the unique key
-    for attempt in range(6):
-        version = next_version(store, row)
+    # saving at once - the second one's certificate was lost to the unique key; written with
+    # the certificate's row in one transaction (hunt w6, _version_written)
+    def put(version):
         sealed = E.seal_secret(key_pem, key_place(row['id'], version, 'alt')) if key_pem else None
-        try:
-            store.db.insert('cert_versions', {
-                'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem,
-                'chain_pem': chain, 'key_sealed': sealed,
-                'serial': str(info.get('serial') or '')[:190],
-                'fingerprint': str(info.get('sha256') or '')[:190],
-                'not_before': info.get('not_before'), 'not_after': info.get('not_after'),
-                'issuer_dn': info.get('issuer_dn') or '', 'created': t, 'why': str(why)[:60],
-                'by_who': str(by or '')[:190], 'revoked': None, 'variant': 'alt'})
-            break
-        except Exception as e:                          # noqa: BLE001
-            if attempt == 5 or not re.search(r'unique|duplicate|integrity|1062', str(e) +
-                                             type(e).__name__, re.I):
-                raise
-            time.sleep(0.05 * (attempt + 1))
-    fields = {
-        'alt_cert_pem': cert_pem, 'alt_chain_pem': chain, 'alt_key_sealed': sealed,
-        'alt_serial': str(info.get('serial') or '')[:190],
-        'alt_fingerprint': str(info.get('sha256') or '')[:190],
-        'alt_not_before': info.get('not_before'), 'alt_not_after': info.get('not_after'),
-        'alt_issuer_dn': info.get('issuer_dn') or '', 'alt_version': version,
-        'alt_state': 'ok', 'alt_error': '', 'alt_fails': 0, 'alt_next_try': None,
-        'alt_ari': '{}',
-        'updated': t, 'updated_by': str(by or '')[:190]}
-    if extra:
-        fields.update(extra)
-    store.db.update('certs', row['id'], fields)
+        store.db.insert('cert_versions', {
+            'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem,
+            'chain_pem': chain, 'key_sealed': sealed,
+            'serial': str(info.get('serial') or '')[:190],
+            'fingerprint': str(info.get('sha256') or '')[:190],
+            'not_before': info.get('not_before'), 'not_after': info.get('not_after'),
+            'issuer_dn': info.get('issuer_dn') or '', 'created': t, 'why': str(why)[:60],
+            'by_who': str(by or '')[:190], 'revoked': None, 'variant': 'alt'})
+        fields = {
+            'alt_cert_pem': cert_pem, 'alt_chain_pem': chain, 'alt_key_sealed': sealed,
+            'alt_serial': str(info.get('serial') or '')[:190],
+            'alt_fingerprint': str(info.get('sha256') or '')[:190],
+            'alt_not_before': info.get('not_before'), 'alt_not_after': info.get('not_after'),
+            'alt_issuer_dn': info.get('issuer_dn') or '', 'alt_version': version,
+            'alt_state': 'ok', 'alt_error': '', 'alt_fails': 0, 'alt_next_try': None,
+            'alt_ari': '{}',
+            'updated': t, 'updated_by': str(by or '')[:190]}
+        if extra:
+            fields.update(extra)
+        store.db.update('certs', row['id'], fields)
+    version = _version_written(store, row, put)
     prune_versions(store, row['id'])
     return version
 

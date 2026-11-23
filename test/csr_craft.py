@@ -6,6 +6,10 @@ import base64
 import os
 import subprocess
 import tempfile
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
 
 UPN_SAN = 'subjectAltName=otherName:1.3.6.1.4.1.311.20.2.3;UTF8:administrator@corp.test'
 SMARTCARD_EKU = 'extendedKeyUsage=clientAuth,1.3.6.1.4.1.311.20.2.2'

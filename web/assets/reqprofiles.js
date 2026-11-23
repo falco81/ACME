@@ -1111,6 +1111,8 @@
         {words: isNew ? 'Add it' : 'Save', cls: 'primary', icon: isNew ? 'add' : 'save', go: function (b) {
           var out = collect();
           if (!isNew) out.old_name = orig.name;
+          /* the profile as it was read: saved by someone else since, refused - not written over (hunt w6) */
+          if (!isNew && orig.updated) out.was_updated = orig.updated;
           f.said.className = 'said';
           f.said.textContent = '';
           busy(b, true);

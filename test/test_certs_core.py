@@ -34,6 +34,11 @@ import socket
 import subprocess
 import sys
 import tempfile
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
+import threading
 import time
 import unittest
 import urllib.error
@@ -101,6 +106,10 @@ class CertsCore(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp(prefix='acme-certs-test-')
+        # The daemon stopped and the folder removed even when what follows fails half way
+        # (tearDownClass is not called then) - once, whichever comes first.
+        if hasattr(cls, 'addClassCleanup'):
+            cls.addClassCleanup(CertsCore._stop_and_remove.__func__, cls, cls.tmp)
         for d in ('state', 'run', 'log', 'plugins/targets', 'out'):
             os.makedirs(os.path.join(cls.tmp, d), exist_ok=True)
         with open(os.path.join(cls.tmp, 'plugins/targets/fake_target.py'), 'w') as f:
@@ -146,6 +155,16 @@ class CertsCore(unittest.TestCase):
                 time.sleep(0.3)
         else:
             raise RuntimeError('the daemon did not answer within a minute')
+        # the daemon's output read (the last of it kept), or it stops at a full pipe
+        cls.daemon_tail = b''
+
+        def drain(out=cls.daemon.stdout, owner=cls):
+            try:
+                for chunk in iter(lambda: out.read1(4096), b''):
+                    owner.daemon_tail = (owner.daemon_tail + chunk)[-65536:]
+            except (OSError, ValueError):
+                pass
+        threading.Thread(target=drain, daemon=True).start()
         with open(os.path.join(cls.tmp, 'run', 'api-token')) as f:
             cls.token = f.read().strip()
         cls.admin = cls.login('tester')
@@ -154,6 +173,10 @@ class CertsCore(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        CertsCore._stop_and_remove.__func__(cls, getattr(cls, 'tmp', None))
+
+    @classmethod
+    def _stop_and_remove(cls, tmp):
         d = getattr(cls, 'daemon', None)
         if d is not None and d.poll() is None:
             d.send_signal(signal.SIGTERM)
@@ -161,10 +184,18 @@ class CertsCore(unittest.TestCase):
                 d.wait(20)
             except subprocess.TimeoutExpired:
                 d.kill()
+                d.wait(10)
+        if d is not None and d.stdout is not None:
+            try:
+                d.stdout.close()
+            except OSError:
+                pass
+        if not tmp or not os.path.isdir(tmp):
+            return
         if os.environ.get('ACME_TEST_KEEP'):
-            print('kept: %s' % cls.tmp)
+            print('kept: %s' % tmp)
         else:
-            shutil.rmtree(cls.tmp, ignore_errors=True)
+            shutil.rmtree(tmp, ignore_errors=True)
 
     # ---- asking ---------------------------------------------------------------------------
     @classmethod

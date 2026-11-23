@@ -282,6 +282,34 @@ def main_due(row, t=None):
     return ''
 
 
+# What the look reads of every certificate (hunt w6): not the certificates, chains and keys
+# themselves - whether there is one is all it asks of them (main_due, alt_due), and a row it acts
+# on is read whole again. Every PEM of 20000 certificates was 150 MB every five minutes.
+_SCAN_BLOBS = ('cert_pem', 'chain_pem', 'key_sealed', 'alt_cert_pem', 'alt_chain_pem',
+               'alt_key_sealed', 'csr_pending', 'csr_given')
+_SCAN_COLS = []
+
+
+def _scan_cols():
+    if not _SCAN_COLS:
+        from acmelib.certs import schema
+        cols = re.findall(r'(\w+) \{', dict(schema.SCHEMA)['certs'])
+        _SCAN_COLS.append(', '.join(
+            [c for c in cols if c not in _SCAN_BLOBS] +
+            ["CASE WHEN COALESCE(%s, '') = '' THEN NULL ELSE 'x' END AS %s" % (c, c)
+             for c in _SCAN_BLOBS]))
+    return _SCAN_COLS[0]
+
+
+def _ari_stale(row, variant=''):
+    """Whether ari_refresh would ask the issuer's renewal window of this row now."""
+    ari = S.jload(row.get('alt_ari' if variant == 'alt' else 'ari'), {}) or {}
+    try:
+        return time.time() - float(ari.get('checked') or 0) >= ARI_EVERY
+    except (TypeError, ValueError, AttributeError):
+        return True
+
+
 def ari_refresh(store, row, variant=''):
     """The renewal window the issuer suggests, asked at most every 6 hours - for
     the main certificate, or (`variant` 'alt') for the twin of a dual one."""
@@ -1242,12 +1270,17 @@ def scan(store, by='the renewer'):
             fleet.tick(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-fleet', 'the agents\' fleet: %s' % e, 'warn', every=3600)
-    rows = store.db.rows("SELECT * FROM certs WHERE COALESCE(enabled, 1) <> 0 AND "
-                         "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
+    rows = store.db.rows("SELECT %s FROM certs WHERE COALESCE(enabled, 1) <> 0 AND "
+                         "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''"
+                         % _scan_cols())
     for r in rows:
         try:
             dual = bool(r.get('key_type_alt')) and S.issuer_dual(store, r.get('issuer'), r)
-            if r.get('cert_pem') and r.get('state') in ('ok', 'due'):
+            # asked (and the row read again) only when one of the windows is to be asked again
+            # (hunt w6): every certificate was read twice more each look, 40000 statements
+            # every five minutes for 20000 - ari_refresh reads the row again itself
+            if r.get('cert_pem') and r.get('state') in ('ok', 'due') and (
+                    _ari_stale(r) or (dual and r.get('alt_cert_pem') and _ari_stale(r, 'alt'))):
                 ari_refresh(store, r)
                 if dual and r.get('alt_cert_pem'):
                     ari_refresh(store, S.cert_get(store, r['id']) or r, 'alt')
@@ -1305,16 +1338,23 @@ def scan(store, by='the renewer'):
         "c.cert_pem IS NOT NULL AND c.state IN ('ok', 'due', 'failed')")
     todo = {}
     revoked_now = {}
+    # which certificates may hold a revoked one, which have their deployments held: read once
+    # (hunt w6) - each deployment asked three statements, 100000 a look for 30000 of them
+    maybe_revoked = S.revoked_maybe(store)
+    held_ids = S.meta_ids(store, S.HOLD_KEY)
     for d in deps:
         # holding a revoked one (1.0.80): not deployed until a new one is issued
         if d['cert_id'] not in revoked_now:
-            crow = store.db.row('SELECT id, state, fingerprint FROM certs WHERE id = ?',
-                                (d['cert_id'],)) or {}
-            revoked_now[d['cert_id']] = bool(crow) and S.current_revoked(store, crow)
+            if int(d['cert_id']) not in maybe_revoked:
+                revoked_now[d['cert_id']] = False      # its state is ok, due or failed (above)
+            else:
+                crow = store.db.row('SELECT id, state, fingerprint FROM certs WHERE id = ?',
+                                    (d['cert_id'],)) or {}
+                revoked_now[d['cert_id']] = bool(crow) and S.current_revoked(store, crow)
         if revoked_now[d['cert_id']]:
             continue
         # held since its source was changed (1.0.86): only Deploy now puts the new one there
-        if S.deploy_held(store, {'id': d['cert_id'], 'version': d.get('cur_version'),
+        if int(d['cert_id']) in held_ids and S.deploy_held(store, {'id': d['cert_id'], 'version': d.get('cur_version'),
                                  'alt_version': d.get('cur_alt_version'),
                                  'key_type_alt': d.get('cur_key_type_alt'),
                                  'alt_cert_pem': 'x' if d.get('cur_has_alt') else None}):
@@ -1571,6 +1611,7 @@ def alerts(store):
     # ...only one something will try again (1.0.102: the certificate switched off or revoked,
     # its target switched off - the scan deploys none of them, and the alert stayed for good)
     held_revoked = {}
+    maybe_revoked = None
     for d in store.db.rows("SELECT d.id, d.target, d.last_error, d.cert_id, c.name, c.state, "
                            "c.fingerprint FROM cert_deploys d "
                            "JOIN certs c ON c.id = d.cert_id WHERE d.state = 'failed' AND "
@@ -1579,8 +1620,12 @@ def alerts(store):
                            "AND NOT EXISTS (SELECT 1 FROM cert_targets t WHERE t.name = d.target "
                            "AND COALESCE(t.enabled, 1) = 0)"):
         if d['cert_id'] not in held_revoked:
-            held_revoked[d['cert_id']] = S.current_revoked(
-                store, {'id': d['cert_id'], 'state': d['state'], 'fingerprint': d['fingerprint']})
+            if maybe_revoked is None:
+                # read once (hunt w6): two statements for each certificate of a failed one
+                maybe_revoked = S.revoked_maybe(store)
+            held_revoked[d['cert_id']] = S.current_revoked_of(
+                store, {'id': d['cert_id'], 'state': d['state'], 'fingerprint': d['fingerprint']},
+                maybe_revoked)
         if held_revoked[d['cert_id']]:
             continue
         out.append({'key': 'cert-deploy:%s' % d['id'], 'level': 'bad',

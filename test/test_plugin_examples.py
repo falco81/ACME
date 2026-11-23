@@ -13,6 +13,10 @@ import re
 import shutil
 import sys
 import tempfile
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))

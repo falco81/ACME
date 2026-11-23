@@ -1901,11 +1901,19 @@ def put_back(snap):
                 pass
         else:
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
-            with os.fdopen(fd, 'wb') as f:
-                f.write(was[0])
-                f.flush()
-                os.fchmod(f.fileno(), was[1])     # the file itself (1.0.205)
-            os.replace(tmp, p)
+            try:
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(was[0])
+                    f.flush()
+                    os.fchmod(f.fileno(), was[1])     # the file itself (1.0.205)
+                os.replace(tmp, p)
+            except BaseException:
+                # not left beside it (a full disk): a stray file in nginx's folder
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
             # Its SELinux label too, not the folder's (1.0.57).
             if shutil.which('restorecon'):
                 subprocess.run(['restorecon', p], capture_output=True)
@@ -2743,15 +2751,23 @@ def fw_apply(f, said):
             new = fw_into(old, lines, f['on'])
             if new != old:
                 fd, tmp = tempfile.mkstemp(prefix='.acme-fw-', dir=os.path.dirname(path))
-                with os.fdopen(fd, 'w') as fh:
-                    fh.write(new if new.endswith('\n') else new + '\n')
-                test = subprocess.run([restore, '--test', tmp], capture_output=True, text=True)
-                if test.returncode != 0:
-                    os.unlink(tmp)
-                    raise Refused('%s would not take the file, so it was left as it was: %s' % (
-                        restore, fw_said(test.stderr)))
-                os.chmod(tmp, os.stat(path).st_mode & 0o777)
-                os.replace(tmp, path)
+                try:
+                    with os.fdopen(fd, 'w') as fh:
+                        fh.write(new if new.endswith('\n') else new + '\n')
+                    test = subprocess.run([restore, '--test', tmp], capture_output=True,
+                                          text=True)
+                    if test.returncode != 0:
+                        raise Refused('%s would not take the file, so it was left as it was: %s'
+                                      % (restore, fw_said(test.stderr)))
+                    os.chmod(tmp, os.stat(path).st_mode & 0o777)
+                    os.replace(tmp, path)
+                except BaseException:
+                    # the half-written or refused file not left beside the rules
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
+                    raise
                 if shutil.which('restorecon'):
                     subprocess.run(['restorecon', path], capture_output=True)
                 said.append('%s: kept over a reboot' % path)

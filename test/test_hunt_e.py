@@ -9,6 +9,10 @@ import os
 import secrets
 import sys
 import tempfile
+try:
+    import tmpclean  # noqa: F401,E402  (what the tests make taken away at exit, also when stopped)
+except ImportError:
+    from test import tmpclean  # noqa: F401,E402
 import time
 import unittest
 

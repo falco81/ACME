@@ -176,6 +176,9 @@ INDEXES = [
     'CREATE INDEX IF NOT EXISTS cert_ca_issued_ca ON cert_ca_issued (ca_id, serial)',
     'CREATE INDEX IF NOT EXISTS cert_ca_versions_ca ON cert_ca_versions (ca_id, version)',
     'CREATE INDEX IF NOT EXISTS dns_records_name ON dns_records (name, rtype)',
+    # hunt w6: the certificates whose key an agent's server makes, asked once for every agent of
+    # Agents and Fleet - each a scan of every certificate (3 s with 1000 agents, 20000 certs)
+    'CREATE INDEX IF NOT EXISTS certs_csr_from ON certs (csr_from)',
 ]
 
 # A dual certificate (docs/certificates.md "Dual certificates"): the main key
