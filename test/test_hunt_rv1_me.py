@@ -88,5 +88,36 @@ class HaproxyRuntime(unittest.TestCase):
         self.assertEqual(obj.runtime(None, 'show ssl cert /a.pem')[0], 0)
 
 
+class TeamsVersionPerRequest(unittest.TestCase):
+    """1.0.144: within one request the teams' version is read once - again after a write."""
+    def test_memo(self):
+        from acmelib.certs import teams as T
+        asked = []
+
+        class Db:
+            writes = 0
+
+            def row(self, sql, args=()):
+                asked.append(sql)
+                return {'tn': 1}
+        class St:
+            db = Db()
+        T._REQ.on = False
+        T._version(St)
+        T._version(St)
+        self.assertEqual(len(asked), 2)            # outside a request: every time
+        T.request_begin()
+        T._version(St)
+        T._version(St)
+        self.assertEqual(len(asked), 3)            # once in a request
+        St.db.writes += 1
+        T._version(St)
+        self.assertEqual(len(asked), 4)            # again after a write
+        T.request_begin()
+        T._version(St)
+        self.assertEqual(len(asked), 5)            # again in the next request
+        T._REQ.on = False
+
+
 if __name__ == '__main__':
     unittest.main()

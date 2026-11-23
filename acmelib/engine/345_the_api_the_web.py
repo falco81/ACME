@@ -199,6 +199,12 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.route('POST')
 
     def route(self, method):
+        # a request of its own: what it read of teams and roles is read again (1.0.144)
+        try:
+            from acmelib.certs import teams as _teams_req
+            _teams_req.request_begin()
+        except Exception:                               # noqa: BLE001
+            pass
         try:
             self._route(method)
         finally:

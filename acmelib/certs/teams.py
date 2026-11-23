@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 
 from acmelib import engine as E
@@ -133,11 +134,34 @@ ROLE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,59}\Z')
 ROLES_MOST = 200
 
 
+_REQ = threading.local()     # one HTTP request of this thread: its look at the version, kept
+
+
+def request_begin():
+    """A request starts in this thread (the engine's route): the version is looked at again."""
+    _REQ.memo = None
+    _REQ.on = True
+
+
 def _version(store):
     """What changes when a team or a role does: the tree and the people's capabilities are
     computed again (kept per store, a generation bumped by every save here, and 30 s at most
     for what another node or an import wrote). One statement (1.0.143): a page asked it some
-    twenty times, three statements each."""
+    twenty times, three statements each. Within one request it is looked at once (1.0.144:
+    the portal's Teams page asked it some two thousand times) - again after anything the
+    request itself wrote; outside a request (the scheduler, the command line) every time."""
+    if getattr(_REQ, 'on', False):
+        key = (id(store), _GEN[0], getattr(store.db, 'writes', 0))
+        memo = getattr(_REQ, 'memo', None)
+        if memo is not None and memo[0] == key:
+            return memo[1]
+        got = _version_now(store)
+        _REQ.memo = (key, got)
+        return got
+    return _version_now(store)
+
+
+def _version_now(store):
     try:
         r = store.db.row(
             'SELECT (SELECT COUNT(*) FROM cert_teams) AS tn, (SELECT MAX(updated) FROM cert_teams) '

@@ -655,6 +655,10 @@ class Db(object):
                                        'server closed the connection'))
 
     def query(self, sql, args=(), fetch=True):
+        if not fetch:
+            # what was written through this connection (1.0.144): a request's cache of what
+            # does not change under it (teams._version) asks this, so its own writes count
+            self.writes = getattr(self, 'writes', 0) + 1
         try:
             return self._query(sql, args, fetch)
         except Exception as e:
@@ -1197,6 +1201,7 @@ END $f$""")
             return 0
         sql = 'INSERT INTO %s (%s) VALUES (%s)' % (table, ', '.join(keys),
                                                    ', '.join('?' for _ in keys))
+        self.writes = getattr(self, 'writes', 0) + 1
         with self._pinned(), self.lock:
             if self.conn is None:
                 self.connect()
