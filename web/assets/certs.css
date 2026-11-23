@@ -166,12 +166,19 @@ table.ct-cmaptable select{min-width:0;width:100%;max-width:460px}
 table.ct-cmaptable td:first-child{white-space:nowrap;width:1%}
 table.ct-cmaptable td:last-child{width:30%}
 .scroll.ct-cmapwrap,.scroll.lt-held.ct-cmapwrap{overflow:visible;max-height:none}
+/* A long name breaks (1.0.142): the name-by-name table of the wizard and its review grew past
+   the popup's right edge - a name of 100 and more characters, or a narrow window */
+table.ct-cmaptable td:first-child > .mono{display:inline-block;width:max-content;max-width:440px;white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
+.ct-wbody table.plain.tight td > span.mono{white-space:normal;overflow-wrap:anywhere}
 @media (max-width:700px){
   table.ct-cmaptable thead{display:none}
   table.ct-cmaptable, table.ct-cmaptable tbody, table.ct-cmaptable tr, table.ct-cmaptable td{display:block;width:100%}
   table.ct-cmaptable tr{padding:8px 0;border-bottom:1px solid var(--line)}
   table.ct-cmaptable td{padding:2px 0;border:0}
   table.ct-cmaptable td:first-child{white-space:normal;overflow-wrap:anywhere;width:100%;font-weight:600}
+  /* the name itself too (1.0.142): a table's mono cell does not wrap, and a long name ran out
+     of the popup's right edge */
+  table.ct-cmaptable td:first-child > .mono{white-space:normal;max-width:100%}
   table.ct-cmaptable td:last-child{width:100%}
   table.ct-cmaptable td:last-child:empty{display:none}
   table.ct-cmaptable select{max-width:none}
@@ -1075,6 +1082,9 @@ td.acc-role{white-space:nowrap}
 @media (max-width: 640px) {
   .ct-name { white-space: nowrap; }
   table td > .ct-names { min-width: 150px; }
+  /* ...but in a popup a name longer than the popup is wide breaks (1.0.142): the names of the
+     certificate's wizard ran out of its right edge at 390 px */
+  #modal-body .ct-name { white-space: normal; }
 }
 /* chmod as tick boxes (deployfiles.js, 1.0.65) */
 .df-row .df-modebtn{width:100%;min-width:76px;height:38px;padding:7px 10px;justify-content:center;font-size:13px;border-radius:8px;line-height:1.2}

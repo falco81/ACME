@@ -77591,6 +77591,86 @@
   "z_3094": {
    "source": "released",
    "text": "uvolněno"
+  },
+  "z_3095": {
+   "source": "say which servers to ask first",
+   "text": "nejdřív uveďte, kterých serverů se ptát"
+  },
+  "z_3096": {
+   "source": "say where to look (the base) first: DC=example,DC=local",
+   "text": "nejdřív uveďte, kde hledat (bázi): DC=example,DC=local"
+  },
+  "z_3097": {
+   "source": "the port is 1 to 65535 and the time a number of seconds",
+   "text": "port je 1 až 65535 a čas počet sekund"
+  },
+  "z_3098": {
+   "source": "that is not a name",
+   "text": "to není jméno"
+  },
+  "z_3099": {
+   "source": "a webhook is one address (https://...)",
+   "text": "webhook je jedna adresa (https://...)"
+  },
+  "z_3100": {
+   "source": "a webhook's address starts with https://",
+   "text": "adresa webhooku začíná https://"
+  },
+  "z_3101": {
+   "source": "a webhook's address carries no user or password",
+   "text": "adresa webhooku nenese uživatele ani heslo"
+  },
+  "z_3102": {
+   "source": "say which roles may be asked for",
+   "text": "uveďte, o které role se smí žádat"
+  },
+  "z_3103": {
+   "source": "the days to answer are at most the days between reviews",
+   "text": "dní na odpověď je nejvýš tolik, kolik dní je mezi revizemi"
+  },
+  "z_3104": {
+   "source": "for how many hours?",
+   "text": "na kolik hodin?"
+  },
+  "z_3105": {
+   "source": "an exclusive pair is two roles or capabilities",
+   "text": "vylučující se dvojice jsou dvě role nebo oprávnění"
+  },
+  "z_3106": {
+   "source": "a pair is of two different roles or capabilities",
+   "text": "dvojice je ze dvou různých rolí nebo oprávnění"
+  },
+  "z_3107": {
+   "source": "the file is too big (2 MB at most)",
+   "text": "soubor je příliš velký (nejvýš 2 MB)"
+  },
+  "z_3108": {
+   "source": "at most 50 addresses",
+   "text": "nejvýš 50 adres"
+  },
+  "z_3109": {
+   "source": "a report is made weekly, monthly or only by hand (off)",
+   "text": "report se dělá týdně, měsíčně nebo jen ručně (vypnuto)"
+  },
+  "z_3110": {
+   "source": "a digest goes weekly or daily",
+   "text": "souhrn chodí týdně nebo denně"
+  },
+  "z_3111": {
+   "source": "a failed deployment goes to oncall, manager, team or nobody",
+   "text": "nepovedené nasazení jde držiteli pohotovosti, manažerovi, týmu nebo nikomu"
+  },
+  "z_3112": {
+   "source": "200 users at most",
+   "text": "nejvýš 200 uživatelů"
+  },
+  "z_3113": {
+   "source": "200 certificates at most at once",
+   "text": "nejvýš 200 certifikátů najednou"
+  },
+  "z_3114": {
+   "source": "no certificate given",
+   "text": "nebyl dán žádný certifikát"
   }
  },
  "patterns": {

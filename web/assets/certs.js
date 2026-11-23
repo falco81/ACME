@@ -5794,6 +5794,10 @@ function certWizard(cert, detail, opts) {
     paintWhys();
     compatNow().then(function () { if (modalStill(tick)) { forced(); drawRows(); paintWhys(); } });
     read = function () {
+      /* Names pasted into "Paste many…" and not added yet are added (1.0.142): Next left them
+         in the box - "it needs at least one name", or a certificate with only the names of
+         the rows. */
+      if (!paste.hidden && String(pta.value || '').trim()) pasteGo.onclick();
       W.d.sans = W.d.sans.filter(function (x, i) { return String(x.value || '').trim() || (i === 0 && W.d.sans.length === 1); });
       W.d.names = names().join('\n');
       W.d.name = name.value.trim() || (names()[0] ? certName(names()[0]) : '');
