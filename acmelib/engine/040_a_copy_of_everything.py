@@ -42,7 +42,10 @@ def dump_tables(db, out, tables=None, child=False):
     import gzip
     # A file already open may be given (1.0.101): root writing into a
     # folder the service's account can write opens it itself, never by name.
-    with gzip.open(out if hasattr(out, 'write') else str(out), 'wt', encoding='utf-8') as f:
+    # Every table read at one moment (1.0.143): read one by one, a renewal committed
+    # between two of them left the certificate older than its own versions and jobs.
+    with db.snapshot() as src, \
+            gzip.open(out if hasattr(out, 'write') else str(out), 'wt', encoding='utf-8') as f:
         f.write(json.dumps({'acme': __version__, 'schema': SCHEMA_VERSION,
                             'made': time.time(), 'engine': db.engine,
                             'machine': machine_info()}, default=str) + '\n')
@@ -53,12 +56,12 @@ def dump_tables(db, out, tables=None, child=False):
                 if table in ('meta', 'settings'):
                     # Not the pieces of an uploaded package (1.0.57): up to
                     # 90 MB read whole into memory with every copy.
-                    rows = (db.rows("SELECT * FROM meta WHERE k NOT LIKE 'upgrade:piece:%'")
-                            if table == 'meta' else db.rows('SELECT * FROM settings')) \
+                    rows = (src.rows("SELECT * FROM meta WHERE k NOT LIKE 'upgrade:piece:%'")
+                            if table == 'meta' else src.rows('SELECT * FROM settings')) \
                         if last == 0 else []
                     last = 1
                 else:
-                    rows = db.rows('SELECT * FROM %s WHERE id > ? ORDER BY id LIMIT 2000'
+                    rows = src.rows('SELECT * FROM %s WHERE id > ? ORDER BY id LIMIT 2000'
                                    % table, (last,))
                     if rows:
                         last = rows[-1]['id']

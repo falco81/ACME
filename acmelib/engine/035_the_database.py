@@ -874,6 +874,98 @@ class Db(object):
                     except Exception:                   # noqa: BLE001
                         pass
 
+    @contextlib.contextmanager
+    def snapshot(self):
+        """Every read under it sees the database as it was at one moment (1.0.143): a copy
+        read the tables one by one, and a renewal committed in between left its certificate
+        older in the copy than its versions and jobs. Gives the Db to read from - this one,
+        or (SQLite not in WAL mode) a copy of the file made at once. Nothing written is
+        waited for: WAL, REPEATABLE READ and InnoDB's consistent snapshot let the writers
+        go on meanwhile."""
+        if self.engine == 'sqlite' and self.path is not None:
+            mode = ''
+            try:
+                mode = str(self.value('PRAGMA journal_mode') or '').lower()
+            except Exception:                           # noqa: BLE001
+                pass
+            if mode != 'wal':
+                # A read transaction would hold every writer off for the whole copy here:
+                # the file copied by SQLite's own backup (one step, a moment), and read.
+                with self._sqlite_copy() as other:
+                    yield other
+                return
+        with self._pinned(), self.lock:
+            if getattr(self, 'in_tx', False):
+                yield self
+                return
+            if self.conn is None:
+                self.connect()
+            if self.engine == 'mariadb':
+                try:
+                    other = [r['TABLE_NAME'] for r in self.rows(
+                        "SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES WHERE "
+                        "TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' AND "
+                        "ENGINE <> 'InnoDB'") if r['TABLE_NAME'] in TABLES]
+                    if other:
+                        log_sparing('db-snapshot-innodb', 'the copy is not of one moment for '
+                                    '%s: not InnoDB tables' % ', '.join(other), 'warn')
+                except Exception:                       # noqa: BLE001
+                    pass
+                self.run(RawSql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ'))
+                begin = 'START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY'
+            elif self.engine == 'postgres':
+                begin = 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY'
+            else:
+                begin = 'BEGIN'
+            self.run(RawSql(begin))
+            self.in_tx = True
+            try:
+                if self.engine == 'sqlite':
+                    # The moment taken now: a deferred BEGIN takes it at the first read.
+                    self.value('SELECT COUNT(*) FROM sqlite_master')
+                yield self
+                self.run(RawSql('COMMIT'))
+            except BaseException:
+                self.in_tx = False
+                try:
+                    if self.conn is not None:
+                        self.run(RawSql('ROLLBACK'))
+                except Exception:                       # noqa: BLE001
+                    self.close(lane_only=True)
+                raise
+            finally:
+                self.in_tx = False
+
+    @contextlib.contextmanager
+    def _sqlite_copy(self):
+        import tempfile
+        where = str(self.path.parent)
+        try:
+            fd, tmp = tempfile.mkstemp(prefix='.acme-snapshot-', suffix='.sqlite', dir=where)
+        except OSError:
+            fd, tmp = tempfile.mkstemp(prefix='acme-snapshot-', suffix='.sqlite')
+        os.close(fd)
+        other = None
+        try:
+            with self._pinned(), self.lock:
+                if self.conn is None:
+                    self.connect()
+                dst = sqlite3.connect(tmp)
+                try:
+                    self.conn.backup(dst)
+                finally:
+                    dst.close()
+            other = Db('sqlite', path=tmp)
+            yield other
+        finally:
+            if other is not None:
+                other.close()
+            for p in (tmp, tmp + '-wal', tmp + '-shm'):
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
     # ---- the tables ----------------------------------------------------------
     def make_tables(self):
         with self.unlimited():
