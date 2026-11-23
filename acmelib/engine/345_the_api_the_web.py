@@ -118,8 +118,11 @@ class ApiHandler(BaseHTTPRequestHandler):
     # pages send their whole head at once. From the connection's start for its first request;
     # for one more on a kept-alive connection, from its first byte (waited for `timeout`).
     head_s = 15
+    # ...and the body of a request answered without reading it, read and dropped within this.
+    drop_s = 30
     # No Python version on the daemon's answers (hunt w7): "Server: acme", nothing more.
-    sys_version = ''
+    def version_string(self):
+        return self.server_version
 
     def setup(self):
         BaseHTTPRequestHandler.setup(self)
@@ -305,14 +308,27 @@ class ApiHandler(BaseHTTPRequestHandler):
         if n < 0 or n > 8 * 1024 * 1024:
             self.close_connection = True
             return
+        # Within drop_s all told (hunt w7): read a lump at a time with the usual timeout, a body
+        # trickled in by anybody without the key - refused for it - kept its thread for ever.
+        end = time.monotonic() + self.drop_s
         try:
             while n > 0:
-                lump = self.rfile.read(min(n, 1 << 20))
+                left = end - time.monotonic()
+                if left <= 0:
+                    self.close_connection = True
+                    return
+                self.connection.settimeout(min(left, self.timeout))
+                lump = self.rfile.read1(min(n, 1 << 20))       # one read of the socket at most
                 if not lump:
                     break
                 n -= len(lump)
         except OSError:
             self.close_connection = True
+        finally:
+            try:
+                self.connection.settimeout(self.timeout)
+            except OSError:
+                pass
 
     def _route(self, method):
         # A body of its own for each request (1.0.146): on a kept-alive
@@ -323,13 +339,16 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.args = {k: v[-1] for k, v in parse_qs(url.query).items()}
         path = url.path.rstrip('/')
         self.route_path = path
-        if path != '/api/health':
-            want = api_token()
-            given = str(self.headers.get('X-Acme-Token') or '')
-            # As bytes (1.0.149): an API key with a letter beyond ASCII raised
-            # TypeError there, and the connection was dropped with a trace.
-            if not want or not hmac.compare_digest(want.encode('utf-8'),
-                                                   given.encode('utf-8', 'replace')):
+        want = api_token()
+        given = str(self.headers.get('X-Acme-Token') or '')
+        # As bytes (1.0.149): an API key with a letter beyond ASCII raised
+        # TypeError there, and the connection was dropped with a trace.
+        if not want or not hmac.compare_digest(want.encode('utf-8'),
+                                               given.encode('utf-8', 'replace')):
+            # Not kept open for the next request (hunt w7): a quick request without the key
+            # every 59 s held a connection, and its thread, for ever.
+            self.close_connection = True
+            if path != '/api/health':
                 return self.send_json({'ok': False, 'error': 'not this API’s token'}, 403)
         fn = ROUTES.get((method, path))
         if not fn:
