@@ -78391,6 +78391,14 @@
   "z_3294": {
    "source": "What to send",
    "text": "Co poslat"
+  },
+  "z_3295": {
+   "source": "from no request profile",
+   "text": "ze žádného profilu žádosti"
+  },
+  "z_3296": {
+   "source": "no names at all",
+   "text": "vůbec žádná jména"
   }
  },
  "patterns": {
