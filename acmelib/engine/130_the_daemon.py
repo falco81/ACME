@@ -1301,11 +1301,8 @@ def db_make(c, admin_user, admin_password):
                                connect_timeout=int(c.get('db_timeout_s') or 10), autocommit=True)
         try:
             cur = conn.cursor()
-            # Byte for byte, as the wizard's SQL and docs/the-database.md make it (hunt w7):
-            # utf8mb4_unicode_ci left every text column but the names comparing without case
-            # and accents on a database made here alone.
             cur.execute('CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 '
-                        'COLLATE utf8mb4_bin' % name)
+                        'COLLATE utf8mb4_unicode_ci' % name)
             done.append('the database %s' % name)
             local = host in ('localhost', '127.0.0.1', '::1')
             try:

@@ -1556,7 +1556,10 @@ def views(store, s, tkey=None):
     ids = {r['id'] for r in seen}
     pre = _default_key(s, '')
     defaults = {}
-    for m in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (pre + '%',)):
+    # escaped (hunt w7): PostgreSQL and MariaDB took the backslash of CORP\novak for LIKE's
+    # escape - the view that opens by itself was never found for such a name there
+    for m in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ? ESCAPE '!'",
+                           (E.like_escaped(pre) + '%',)):
         if not str(m['k']).startswith(pre):
             continue
         try:

@@ -26,7 +26,7 @@ column a later version adds is added at start. The types:
 | | SQLite | MariaDB | PostgreSQL |
 |---|---|---|---|
 | a row's number | `INTEGER PRIMARY KEY AUTOINCREMENT` | `BIGINT AUTO_INCREMENT` | `BIGSERIAL` |
-| a name looked up by (unique) | `TEXT` | `VARCHAR(190)` compared byte for byte (`utf8mb4_bin`); `meta`'s keys 255 | `TEXT` |
+| a name looked up by (unique) | `TEXT` | `VARCHAR(190)` compared byte for byte (`utf8mb4_bin`); `meta`'s keys, DNS record names and a DNS set's server name for TLS 255 | `TEXT` |
 | a big text - a PEM, a job's steps, JSON | `TEXT` | `MEDIUMTEXT` (16 MB) | `TEXT` |
 | a moment (epoch seconds) | `REAL` | `DOUBLE` | `DOUBLE PRECISION` |
 

@@ -120,22 +120,32 @@ class ApiHandler(BaseHTTPRequestHandler):
     head_s = 15
     # ...and the body of a request answered without reading it, read and dropped within this.
     drop_s = 30
+    # ...and a kept-alive connection that asked without the key, open this long at most.
+    keyless_s = 45
+
     # No Python version on the daemon's answers (hunt w7): "Server: acme", nothing more.
     def version_string(self):
         return self.server_version
 
     def setup(self):
         BaseHTTPRequestHandler.setup(self)
-        self._head_t0 = time.monotonic()
+        self._head_t0 = self._conn_t0 = time.monotonic()
         self._head_end = None
+        self._keyless = False
         self.rfile = _HeadClock(self.rfile, self)
 
     def handle_one_request(self):
         t0, self._head_t0 = self._head_t0, None
         if t0 is None:
             # one more request on a kept-alive connection: its first byte waited for as before
+            wait = self.timeout
+            if self._keyless:
+                wait = min(wait, self._conn_t0 + self.keyless_s - time.monotonic())
+                if wait <= 0:
+                    self.close_connection = True
+                    return
             try:
-                self.connection.settimeout(self.timeout)
+                self.connection.settimeout(wait)
                 if not self.rfile.peek(1):
                     self.close_connection = True
                     return
@@ -345,9 +355,9 @@ class ApiHandler(BaseHTTPRequestHandler):
         # TypeError there, and the connection was dropped with a trace.
         if not want or not hmac.compare_digest(want.encode('utf-8'),
                                                given.encode('utf-8', 'replace')):
-            # Not kept open for the next request (hunt w7): a quick request without the key
-            # every 59 s held a connection, and its thread, for ever.
-            self.close_connection = True
+            # Kept open for keyless_s all told at most (hunt w7): a quick request without the
+            # key every 59 s held a connection, and its thread, for ever.
+            self._keyless = True
             if path != '/api/health':
                 return self.send_json({'ok': False, 'error': 'not this API’s token'}, 403)
         fn = ROUTES.get((method, path))
