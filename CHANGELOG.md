@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.142 - not released
+## 1.0.142 - 2026-11-24
 
 - Target agents: with an agent's policy saying `allow issuer`, every deployment to it, its What happens and the agent's "What it deploys" read and parsed the CA chains of up to 5000 certificates again for each call (the page once for each of up to 200 deployments) - minutes on a big installation; each CA's certificate is now read once and only the newest 5000 certificates are asked of the database.
 - Target agents: a switch to a key made on the server waiting for the next renewal stayed behind when its certificate was deleted (a certificate given the same number later could be switched by it) and was lost by an export and import of the configuration and by the trash; it now goes with its certificate.
