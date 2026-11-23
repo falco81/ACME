@@ -5374,8 +5374,10 @@ ERRNO_SAID = re.compile(r"\[Errno -?\d+\] ([^:'\n]+)(?:: '([^'\n]*)')?")
 def errno_said(text):
     """Python's "[Errno 2] No such file or directory: '/x'" said as "/x: no such file or
     directory" (hunt w6): `acme --import /x` said only Python's words, the number first."""
-    return ERRNO_SAID.sub(lambda m: '%s: %s' % (m.group(2), m.group(1).strip().lower())
+    said = ERRNO_SAID.sub(lambda m: '%s: %s' % (m.group(2), m.group(1).strip().lower())
                           if m.group(2) else m.group(1).strip().lower(), text)
+    # "/x: /x: no such file..." - the file named before the words already
+    return re.sub(r"(?<![^\s])(\S+): \1: ", r"\1: ", said) if said != text else said
 
 
 def entry():

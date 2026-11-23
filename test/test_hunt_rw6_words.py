@@ -117,6 +117,8 @@ class Daemon(unittest.TestCase):
         self.assertEqual(acme.errno_said('x:443 could not be reached: [Errno 111] Connection '
                                          'refused'), 'x:443 could not be reached: connection refused')
         self.assertEqual(acme.errno_said('nothing to change'), 'nothing to change')
+        self.assertEqual(acme.errno_said("acme: /p/x: [Errno 2] No such file or directory: "
+                                         "'/p/x'"), 'acme: /p/x: no such file or directory')
 
     # ---- a module's setting of the wrong kind ------------------------------------------------
     def relay(self, name, tests):
@@ -216,6 +218,30 @@ class JobWords(unittest.TestCase):
             self.assertEqual(jobs._work(Job(), refused).said, 'Connection refused')
         finally:
             jobs._lease_give, jobs.E.log = saved
+
+
+class AgentWords(unittest.TestCase):
+    def test_allow_issuer_file_not_there(self):
+        import subprocess
+        import tempfile
+        d = tempfile.mkdtemp(prefix='w6-agent-')
+        try:
+            env = dict(os.environ, ACME_AGENT_ETC=os.path.join(d, 'etc'),
+                       ACME_AGENT_STATE=os.path.join(d, 'st'),
+                       ACME_AGENT_ROOT_STATE=os.path.join(d, 'rst'),
+                       ACME_AGENT_RUN=os.path.join(d, 'run'), ACME_AGENT_NO_SYSTEMD='1',
+                       ACME_AGENT_USER='root')
+            for x in ('etc', 'st', 'rst', 'run'):
+                os.makedirs(os.path.join(d, x))
+            r = subprocess.run([sys.executable, os.path.join(TCC.ROOT, 'deploy', 'agent',
+                                                             'acme_agent.py'),
+                                'allow', 'issuer', os.path.join(d, 'ca.pem')],
+                               env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn('there is no file %s' % os.path.join(d, 'ca.pem'), r.stderr)
+        finally:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == '__main__':

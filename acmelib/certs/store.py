@@ -633,9 +633,10 @@ def plugin_config(family, row):
                        secret_fields(cls))
 
 
-def plugin_public(store, family, row, full=False):
+def plugin_public(store, family, row, full=False, pre=None):
     """A row as it is shown; `full`: to a full administrator (its secrets as dots
-    and their last two characters - dots alone otherwise)."""
+    and their last two characters - dots alone otherwise). `pre`: what a whole list read once
+    (plugin_list_pre) - the same answer."""
     cls = row_class(family, row)
     cfg, is_set = config_masked(jload(row.get('config'), {}), secret_fields(cls),
                                 '%s:%s' % (TABLE_OF[family], row['id']), full)
@@ -667,7 +668,7 @@ def plugin_public(store, family, row, full=False):
                'written': out['persist_written'] > 0}
         out['actions'] = [a for a in out['actions'] if not a.get('needs') or has.get(a['needs'])]
     from acmelib.certs import defaults as DF
-    dflt = DF.default_name(store, family)
+    dflt = pre['default'] if pre and 'default' in pre else DF.default_name(store, family)
     out['is_default'] = bool(dflt) and dflt == row.get('name')
     if family == 'issuer':
         out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM certs WHERE issuer = ?',
@@ -701,8 +702,11 @@ def plugin_public(store, family, row, full=False):
             n += via_users(store, row['name'], 'check')
         out['used_by'] = n
     else:
-        out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE target = ?',
-                                            (row['name'],), 0) or 0)
+        if pre and isinstance(pre.get('used'), dict):
+            out['used_by'] = int(pre['used'].get(row['name']) or 0)
+        else:
+            out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE '
+                                                'target = ?', (row['name'],), 0) or 0)
         if row.get('kind') == 'ssh_connector':
             out['used_by'] += via_users(store, row['name'], 'target')
         # the certificate whose key its device makes (certs.csr_from, one a device - 1.0.96:
@@ -711,6 +715,17 @@ def plugin_public(store, family, row, full=False):
             out['key_of'] = str(store.db.value('SELECT name FROM certs WHERE csr_from = ? '
                                                'ORDER BY name', (row['name'],), '') or '')
     return out
+
+
+def plugin_list_pre(store, family):
+    """What plugin_public asks of every row of a list, read once for the list (hunt w6): two
+    statements a target, 6000 for the Targets page of 3000."""
+    from acmelib.certs import defaults as DF
+    pre = {'default': DF.default_name(store, family)}
+    if family == 'target':
+        pre['used'] = {r['target']: int(r['n'] or 0) for r in store.db.rows(
+            'SELECT target, COUNT(*) AS n FROM cert_deploys GROUP BY target')}
+    return pre
 
 
 def over_validation_renamed(store, old, new):
@@ -1764,8 +1779,19 @@ def bundle_of(row, version_row_=None, variant=None):
 # ---------------------------------------------------------------------------
 # Deployments
 # ---------------------------------------------------------------------------
-def deploy_secrets(store, row):
-    t = plugin_row(store, 'target', row.get('target'))
+def _deploy_target(store, row, targets=None):
+    """plugin_row of the deployment's target - from `targets` ({name: row}, filled as it goes)
+    where a list asks the same targets again and again (hunt w6)."""
+    name = row.get('target')
+    if targets is None:
+        return plugin_row(store, 'target', name)
+    if name not in targets:
+        targets[name] = plugin_row(store, 'target', name)
+    return targets[name]
+
+
+def deploy_secrets(store, row, targets=None):
+    t = _deploy_target(store, row, targets)
     cls = row_class('target', t) if t else None
     return secret_fields(cls, 'deploy_fields')
 
@@ -1775,15 +1801,22 @@ def deploy_options(store, row):
                        deploy_secrets(store, row))
 
 
-def deploy_public(store, row, full=False):
-    opts, is_set = config_masked(jload(row.get('options'), {}), deploy_secrets(store, row),
+def deploy_public(store, row, full=False, targets=None):
+    """`targets`: {name: row} kept for a whole list (_deploy_target) - the same answer."""
+    opts, is_set = config_masked(jload(row.get('options'), {}),
+                                 deploy_secrets(store, row, targets),
                                  'cert_deploys:%s' % row['id'], full)
     out = {k: v for k, v in row.items() if k != 'options'}
     out['options'] = opts
     out['secret_set'] = is_set
     # Its target switched off (1.0.23): said with the deployment, where the certificate is.
-    trow = store.db.row('SELECT enabled, kind FROM cert_targets WHERE name = ?',
-                        (row.get('target'),))
+    if targets is None:
+        trow = store.db.row('SELECT enabled, kind FROM cert_targets WHERE name = ?',
+                            (row.get('target'),))
+    else:
+        trow = _deploy_target(store, row, targets)
+        if trow and trow.get('name') != row.get('target'):
+            trow = None                 # found by its id (plugin_row), not by this name
     out['target_off'] = bool(trow) and not int(trow.get('enabled') if trow.get('enabled')
                                                is not None else 1)
     if trow and trow.get('kind') in ('agent', 'agent_windows'):

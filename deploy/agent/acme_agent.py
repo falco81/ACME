@@ -6771,6 +6771,12 @@ def policy_words(words):
                 raise SystemExit('acme-agent: %s holds no certificate openssl reads' % rest[0])
             print('note: %s is %s (SHA-256 %s)' % (rest[0], cn or '?', fp))
             return 'allow issuer sha256=%s' % fp
+        if not rest[0].startswith('sha256=') and ('/' in rest[0] or os.sep in rest[0] or re.search(
+                r'\.(pem|crt|cer)$', rest[0], re.I)):
+            # hunt w6: a file not there was told "allow issuer sha256=HEX (... allow issuer
+            # FILE.pem takes it from the file)" - as if a file were not what it was given
+            raise SystemExit('acme-agent: there is no file %s (allow issuer CA.pem | sha256=HEX)'
+                             % rest[0])
         return 'allow issuer %s' % rest[0]
     if what == 'names':
         if not rest:

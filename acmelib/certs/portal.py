@@ -643,7 +643,7 @@ def holder_rows(store):
     - read once for a whole list (1.0.102), not once a row. Revoked and declined ones, and
     ones run out (not_after past), hold none."""
     now = time.time()
-    out = []
+    out = _HolderRows()
     for r in store.db.rows("SELECT id, owner, names, state, not_after FROM certs WHERE "
                            "state NOT IN ('revoked', 'declined')"):
         try:
@@ -655,6 +655,28 @@ def holder_rows(store):
         out.append((r.get('id'), str(r.get('owner') or '').strip(), r.get('state'),
                     [str(x).lower() for x in (S.jload(r.get('names'), []) or [])]))
     return out
+
+
+class _HolderRows(list):
+    """holder_rows(): the rows, and (_holder_index) where each name is - made once for a list."""
+    ix = None
+
+
+def _holder_index(rows):
+    """({name: {row}}, {the parent of a name: {row}}) - a name as _covers compares it."""
+    if getattr(rows, 'ix', None) is not None:
+        return rows.ix
+    exact, parent = {}, {}
+    for at, one in enumerate(rows):
+        for t in one[3]:
+            t = str(t).lower().rstrip('.')
+            exact.setdefault(t, set()).add(at)
+            if '.' in t:
+                parent.setdefault(t.split('.', 1)[1], set()).add(at)
+    got = (exact, parent)
+    if isinstance(rows, _HolderRows):
+        rows.ix = got
+    return got
 
 
 def holders(store, names, who, exclude=None, waiting=True, rows=None, unowned=False):
@@ -670,7 +692,21 @@ def holders(store, names, who, exclude=None, waiting=True, rows=None, unowned=Fa
     out = {}
     if not want:
         return out
-    for rid, owner, state, theirs in (holder_rows(store) if rows is None else rows):
+    rows = holder_rows(store) if rows is None else rows
+    # Only the certificates that may hold one of these looked at (hunt w6): every certificate's
+    # every name was compared with each name asked - a list of 1000 with 70 requests waiting
+    # took seconds. Looked at in the same order: the answer is the same, its order too.
+    ix = _holder_index(rows)
+    picks = set()
+    for n in want:
+        h = n.rstrip('.')
+        picks |= ix[0].get(h, set())
+        if '.' in h:
+            picks |= ix[0].get('*.' + h.split('.', 1)[1], set())
+        if h.startswith('*.'):
+            picks |= ix[1].get(h[2:], set())
+    for at in sorted(picks):
+        rid, owner, state, theirs = rows[at]
         if exclude is not None and rid == exclude:
             continue
         if not waiting and state == WAITING:

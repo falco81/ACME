@@ -2564,8 +2564,9 @@ def targets_seen(store, s, rows):
 
 def family_rows(store, family, full=False):
     table = S.TABLE_OF[family]
-    return [S.plugin_public(store, family, r, full) for r in store.db.rows(
-        'SELECT * FROM %s ORDER BY %s' % (table, store.db.name_order()))]
+    rows = store.db.rows('SELECT * FROM %s ORDER BY %s' % (table, store.db.name_order()))
+    pre = S.plugin_list_pre(store, family) if rows else None
+    return [S.plugin_public(store, family, r, full, pre=pre) for r in rows]
 
 
 FAMILY_WORD = {'issuer': 'source', 'challenge': 'validation', 'target': 'target',
@@ -3690,8 +3691,9 @@ def deploy_rows(store, target='', cert='', full=False):
         % (' WHERE ' + ' AND '.join(where) if where else ''), args)
     out = []
     kinds = {r['name']: r['kind'] for r in store.db.rows('SELECT name, kind FROM cert_targets')}
+    targets = {}            # each target read once for the list (hunt w6), not three times a row
     for r in rows:
-        one = S.deploy_public(store, r, full)
+        one = S.deploy_public(store, r, full, targets=targets)
         one['target_kind'] = kinds.get(r['target'])
         gen = S.generation({'version': r.get('cert_version'),
                             'alt_version': r.get('cert_alt_version'),

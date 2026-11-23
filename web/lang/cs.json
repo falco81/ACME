@@ -78399,6 +78399,18 @@
   "z_3296": {
    "source": "no names at all",
    "text": "vůbec žádná jména"
+  },
+  "z_3297": {
+   "source": "was_updated is the time the team was read (its \"updated\")",
+   "text": "was_updated je čas, kdy byl tým načten (jeho „updated“)"
+  },
+  "z_3298": {
+   "source": "was_updated is the time the profile was read (its \"updated\")",
+   "text": "was_updated je čas, kdy byl profil načten (jeho „updated“)"
+  },
+  "z_3299": {
+   "source": "one of that name was saved at the same moment - load the list again",
+   "text": "ve stejnou chvíli se uložilo něco se stejným názvem – načtěte seznam znovu"
   }
  },
  "patterns": {
@@ -110161,6 +110173,30 @@
   "pz_1404": {
    "source": "{0} ended the sign-in of {1} from {2} on the command line",
    "text": "{0} ukončil přihlášení {1} z {2} na příkazové řádce"
+  },
+  "pz_1405": {
+   "source": "the team {0} was changed by someone else at the same moment - load it again",
+   "text": "tým {0} ve stejnou chvíli změnil někdo jiný – načtěte ho znovu"
+  },
+  "pz_1406": {
+   "source": "the team {0} was changed by {1} meanwhile ({2}) - load it again; what you changed is not saved",
+   "text": "tým {0} mezitím změnil {1} ({2}) – načtěte ho znovu; vaše změny se neuložily"
+  },
+  "pz_1407": {
+   "source": "the request profile {0} was changed by someone else at the same moment - load it again",
+   "text": "profil žádosti {0} ve stejnou chvíli změnil někdo jiný – načtěte ho znovu"
+  },
+  "pz_1408": {
+   "source": "the request profile {0} was changed by {1} meanwhile ({2}) - load it again; what you changed is not saved",
+   "text": "profil žádosti {0} mezitím změnil {1} ({2}) – načtěte ho znovu; vaše změny se neuložily"
+  },
+  "pz_1409": {
+   "source": "the team {0} was changed while it was written - try again",
+   "text": "tým {0} se změnil právě při ukládání – zkuste to znovu"
+  },
+  "pz_1410": {
+   "source": "there is no certificate {0} - it was deleted meanwhile",
+   "text": "certifikát {0} neexistuje – mezitím byl smazán"
   }
  },
  "rich": {
