@@ -254,7 +254,9 @@ only reads (`/api/certs/parse|dry_run|export`, `/api/cas/export|pki_check`,
 `/api/certs/compat`, `/api/certs/inspect`, the actions that only read of `/api/db` (`job`, `download_ticket`,
 `check`, `tune_plan`), `/api/rbackup` (`job`, `list`, `verified`, `restore_md`), `/api/texts`
 and `/api/metrics` (`preview`), `/api/firewall` (`rule_check`), `/api/directories`
-(`lookup`)). GET is never refused. What only reads is not
+(`lookup`), and the previews and plans: `/api/certs/plan|check|run_plan`,
+`/api/history/preview`, `/api/trash/preview`, `/api/reports/preview`, `/api/teams/digest_preview`,
+`/api/reqprofiles/dryrun|template_preview`, `/api/fleet/takeover_preview`). GET is never refused. What only reads is not
 written down for the report either. Each of these is matched as the whole path (1.0.101) -
 only `/api/auth/`, `/api/acme-push/` and `/api/ha` cover what is under them: until then
 `/api/portal/cert` (the sign-in with a certificate) let every certificate write of the portal

@@ -485,6 +485,13 @@ def _onoff(v):
     return 'on' if v not in (0, '0', False, None) else 'off'
 
 
+# every verb, said alike whether none or a wrong one was given (hunt w2: the first left out
+# watch, watch-set, audit-verify, ack, rotate, served and "all keys")
+TARGET_AGENT_USAGE = ('acme: --target-agent NAME show|code|confirm FP|look|policy|system|renew|'
+                      'update|forget|design|adcs-templates|discover|watch|watch-set|'
+                      'audit-verify|ack|rotate|served (or: all update|keys|keys-rotate; '
+                      'enroll new|list|revoke; waiting)')
+
 def _short(v, most=60):
     if isinstance(v, (list, tuple)):
         v = ', '.join(str(x) for x in v)
@@ -2381,9 +2388,7 @@ class Cli(object):
         if words == ['enroll']:
             return self.target_agents_enroll('list', [])
         if len(words) < 2:
-            raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|system|'
-                             'renew|update|forget|design|adcs-templates|discover (or: all update; '
-                             'enroll new|list|revoke; waiting)')
+            raise SystemExit(TARGET_AGENT_USAGE)
         name, what, rest = words[0], words[1], words[2:]
         if name == 'all' and what == 'update':
             return self.target_agents_update()
@@ -2395,7 +2400,14 @@ class Cli(object):
         try:
             row = G.target_row(self.store, name)
         except LookupError as e:
-            raise SystemExit('acme: %s' % e)
+            from acmelib.certs import store as S
+            other = S.plugin_row(self.store, 'target', name)
+            if other:
+                # it said "there is no target with acme-agent of that name" of a target that
+                # is there, of another kind (hunt w2)
+                raise SystemExit('acme: the target %s is a %s one, not a "Server with '
+                                 'acme-agent" (acme --targets)' % (other['name'], other['kind']))
+            raise SystemExit('acme: %s (acme --targets)' % e)
         try:
             if what == 'code':
                 got = G.code_new(self.store, row, self.WHO)
@@ -2443,9 +2455,7 @@ class Cli(object):
             elif what in cli_138.AGENT_VERBS:
                 return cli_138.agent_verb(self, row, what, rest)
             else:
-                raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'system|renew|update|forget|design|adcs-templates|discover|'
-                                 'watch|watch-set|audit-verify|ack|rotate|served')
+                raise SystemExit(TARGET_AGENT_USAGE)
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
         if what == 'system':
@@ -2963,11 +2973,16 @@ class Cli(object):
             self.out(got)
             return 0
         p = self.pal
-        print(p.head('deployment %s: %s to %s' % (row['id'], got.get('cert') or row['cert_id'],
-                                                  row['target'])))
+        cert = got.get('cert')
+        if not cert:
+            # a target that writes no files answers without the certificate's name: it said
+            # "deployment 2: 2 to wh" and "acme --run-plan  says" (hunt w2)
+            from acmelib.certs import store as S
+            cert = (S.cert_get(self.store, row['cert_id']) or {}).get('name') or row['cert_id']
+        print(p.head('deployment %s: %s to %s' % (row['id'], cert, row['target'])))
         if not got.get('supported'):
             print('  its target writes no files of its own to preview (acme --run-plan %s says '
-                  'what it does)' % (got.get('cert') or ''))
+                  'what it does)' % cert)
             return 0
         if not got.get('issued'):
             print(p.dim('  not issued yet: the sizes are guessed'))

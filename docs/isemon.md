@@ -11,7 +11,7 @@ failure, one running out - one event a line, program `acme-certs` (facility
 `daemon`), key=value fields:
 
 ```
-<29>Oct 22 15:31:02 acme1 acme-certs[812]: level=warn kind=certificates node=acme1 who="acme" msg="www.example.cz: the renewal failed - ..."
+<29>Oct 22 15:31:02 acme1 acme-certs[812]: level=warn kind=certificates node=acme1 who=acme msg="www.example.cz: the renewal failed - ..."
 ```
 
 A value with a space or a quote in it is in quotes, its quotes and

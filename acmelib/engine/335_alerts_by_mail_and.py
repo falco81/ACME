@@ -287,7 +287,9 @@ def alert_problems(store, lang='en'):
         elif now - float(m.get('at') or now) > MAINT_QUIET_S:
             add('maint:' + n, 'warn', n, _al(lang, 'Uzel %s je v údržbě už %s' % (n, _al_ago(float(m['at']), lang)),
                                               '%s has been in maintenance for %s' % (n, _al_ago(float(m['at']), lang))),
-                str(m.get('why') or '')[:300], 'maintenance')
+                # the part of Settings that has it (hunt w2: 'maintenance' and 'dir' were no
+                # part - the link of the mail and the page opened the first one)
+                str(m.get('why') or '')[:300], 'upgrade')
     beats = {n['name']: n for n in nodes}
     if not beats:
         try:
@@ -640,7 +642,7 @@ def alert_problems(store, lang='en'):
                         'The directory %s cannot be reached' % d),
                     _al(lang, 'Z uzlu %s neodpovídá žádný její server - přihlášení '
                               'administrátorů z ní neprojdou.' % n, 'None of its servers '
-                              'answers %s - administrators from it cannot sign in.' % n), 'dir')
+                              'answers %s - administrators from it cannot sign in.' % n), 'people')
     alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, now)
     if CONFIG.get('alerts_sms', 1) and (CONFIG.get('sms_mode') or 'off') != 'off':
         for n in names:
@@ -981,7 +983,10 @@ def alert_mail(new, still, gone, events, to, lang, test=False, left=0):
         subject = _al(lang, '[acme] Zkušební upozornění - %s', '[acme] A test alert - %s') % site
         band = AL_COLORS['info'][0]
         title = _al(lang, 'Upozornění chodí', 'Alerts come through')
-    elif new or still:
+    elif new or (still and not gone):
+        # Something over with nothing new is said as over (hunt w2): what is still wrong rides
+        # along in every mail of something over, so "✔ N over, M still so" was never sent -
+        # the mail of a problem that ended came as "✖ 1 problem - Something is wrong".
         n = len(new) + len(still)
         subject = (_al(lang, '[acme] %s %d %s - %s', '[acme] %s %d %s - %s')
                    % ('✖' if bad else '⚠', n, _al(lang, 'problém' if n == 1 else
@@ -1555,8 +1560,11 @@ def alerts_tick(daemon):
             if CONFIG.get('snmp') and CONFIG.get('snmp_traps'):
                 # SNMPv3 traps (1.0.182): what the alerts see, apart from the mails.
                 try:
-                    snmp_traps_tick(daemon, cur if cur is not None else
-                                    alert_problems(store, 'en'))
+                    # In English, as acmeAlertTable and /metrics (hunt w2): with the mails on
+                    # in Czech the traps' DisplayStrings were Czech, cut at 255 characters
+                    # (more bytes), and English again when the mails were switched off.
+                    snmp_traps_tick(daemon, cur if cur is not None and alerts_lang() == 'en'
+                                    else alert_problems(store, 'en'))
                 except Exception as e:              # noqa: BLE001
                     log_sparing('snmp-traps', 'SNMPv3 traps: %s' % e, 'warn', every=900)
             if CONFIG.get('report') and report_due():

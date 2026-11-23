@@ -441,6 +441,21 @@ on every node - and two first rows at once stopped the replication. A test alert
 or *Forget* on the node that does not send no longer writes back an older copy of
 what was sent.
 
+**The SMS gateway failing** (`alerts_sms`) counts every SMS acme sends - a code, a notice
+of the certificates, a report of the tests, a test SMS - not only the codes (1.0.143): a
+gateway that failed only the notices was never said. Three failed in a row (in the last six
+hours) is the alert; one that goes ends it. A code in what the gateway answered is not in it.
+
+The traps and `acme_alert` say each thing in English, as `acmeAlertTable` does, whatever
+language the mails are in (1.0.143: with the mails in Czech the traps were Czech too).
+
+**On the command line** (1.0.143), as the page: `acme --alerts` - what the alerts see wrong
+now (`--json`: as the page gets it); `acme --alerts check` - look now and mail what is new;
+`acme --alerts test` - a test mail to *Send them to*; `acme --alerts forget --yes` - forget
+what was sent (on the node that sends them). `acme --metrics-preview` prints what this node
+answers Prometheus now. The console has them under *Encryption, sending out, time, network,
+high security*.
+
 ## Periodic reports (1.0.140)
 
 Reports for management and audit (CSV, PDF, by schedule) are described in

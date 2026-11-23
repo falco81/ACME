@@ -41,6 +41,7 @@ import math
 import re
 import secrets
 import shlex
+import threading
 import time
 
 from acmelib.plugins.base import PluginError
@@ -62,6 +63,11 @@ WAIT_MIN = (0, 7 * 24 * 60)             # the rollout's wait after the canary (m
 CANARY_SHARE = 0.05                     # without a canary group: this share of the agents
 ROLLOUT_KEEP_S = 30 * 86400             # a rollout that ended is shown this long
 EXPIRY_SOON_S = 14 * 86400
+# The rollout's record read, changed and written back by the page's thread, the ring's job and
+# the renewer's tick: one at a time in this process (a ring's end was written over by the job's
+# id, and the rollout stayed in its ring for good).
+_RLOCK = threading.RLock()
+RING_LEFT_S = 600       # a ring with no job named this long after it began: left by a process gone
 
 # key, title, platform, the builder's templates it is made of (agent_policy), note
 BUILTIN = [
@@ -865,54 +871,111 @@ def rollout_plan(store, canary=''):
 
 
 def _run_ring(store, which, by):
-    """The update of one ring, as a job."""
+    """The update of one ring, as a job. The agents an earlier run of the ring updated (a
+    restart of acme, the leader changing in the middle of it) are not updated again."""
     from acmelib.certs import jobs
     G = _G()
 
     def fn(job):
-        r = _meta(store, M_ROLLOUT, {})
+        with _RLOCK:
+            r = _meta(store, M_ROLLOUT, {})
         ring = r.get(which) or []
-        res = r.setdefault('results', {})
+        res = dict(r.get('results') or {})
         bad = 0
         for x in ring:
             cur = _meta(store, M_ROLLOUT, {})
             if cur.get('id') != r.get('id') or cur.get('phase') == 'stopped':
                 job.step('the rollout was stopped', 'warn')
                 return False, 'stopped'
+            k = str(x['id'])
+            if k in res:
+                # tried by a run of this ring that did not end (acme stopped meanwhile)
+                bad += 0 if res[k].get('ok') else 1
+                job.step('%s: %s before' % (x['name'], 'updated' if res[k].get('ok') else
+                                            'not updated'), 'ok' if res[k].get('ok') else 'bad')
+                continue
             try:
                 row = G.target_row(store, x['id'])
                 G.update_agent(store, row, by)
-                res[str(x['id'])] = {'ok': True, 'at': time.time()}
+                res[k] = {'ok': True, 'at': time.time()}
                 job.step('%s: updated to %s' % (x['name'], r.get('version')), 'ok')
             except Exception as e:                      # noqa: BLE001
                 bad += 1
-                res[str(x['id'])] = {'ok': False, 'at': time.time(), 'said': str(e)[:300]}
+                res[k] = {'ok': False, 'at': time.time(), 'said': str(e)[:300]}
                 job.step('%s: %s' % (x['name'], e), 'bad')
-        cur = _meta(store, M_ROLLOUT, {})
-        if cur.get('id') == r.get('id') and cur.get('phase') != 'stopped':
-            cur.setdefault('results', {}).update(res)
-            if which == 'canary':
-                cur['phase'] = 'waiting'
-                cur['next_at'] = time.time() + 60 * int(cur.get('wait') or 0)
-            else:
-                cur['phase'] = 'done'
-                cur['ended'] = time.time()
-                store.add_event('certificates', 'the agents\' update rollout to %s is done: %d '
-                                'agent(s), %d failed' % (cur.get('version'), len(
-                                    cur.get('canary') or []) + len(cur.get('rest') or []),
-                                    len([v for v in cur['results'].values() if not v['ok']])),
-                                who=by)
-            _put(store, M_ROLLOUT, cur)
+            with _RLOCK:
+                # each agent's result kept at once: a run that does not end leaves them known
+                cur = _meta(store, M_ROLLOUT, {})
+                if cur.get('id') == r.get('id'):
+                    cur.setdefault('results', {})[k] = res[k]
+                    _put(store, M_ROLLOUT, cur)
+        with _RLOCK:
+            cur = _meta(store, M_ROLLOUT, {})
+            if cur.get('id') == r.get('id') and cur.get('phase') != 'stopped':
+                cur.setdefault('results', {}).update(res)
+                if which == 'canary':
+                    cur['phase'] = 'waiting'
+                    cur['next_at'] = time.time() + 60 * int(cur.get('wait') or 0)
+                else:
+                    cur['phase'] = 'done'
+                    cur['ended'] = time.time()
+                    store.add_event('certificates', 'the agents\' update rollout to %s is done: '
+                                    '%d agent(s), %d failed' % (cur.get('version'), len(
+                                        cur.get('canary') or []) + len(cur.get('rest') or []),
+                                        len([v for v in cur['results'].values()
+                                             if not v['ok']])), who=by)
+                _put(store, M_ROLLOUT, cur)
         return bad == 0, '%d of %d updated' % (len(ring) - bad, len(ring))
-    jid = jobs.submit(store, 'action', fn, by=by, said='the fleet\'s update rollout: the %s' % (
-        'canary ring' if which == 'canary' else 'rest of the agents'))
-    r = _meta(store, M_ROLLOUT, {})
-    r['job_' + which] = jid
-    _put(store, M_ROLLOUT, r)
+    with _RLOCK:
+        r = _meta(store, M_ROLLOUT, {})
+        r['ring_at'] = time.time()
+        r.pop('job_' + which, None)
+        _put(store, M_ROLLOUT, r)
+        jid = jobs.submit(store, 'action', fn, by=by, said='the fleet\'s update rollout: the %s' % (
+            'canary ring' if which == 'canary' else 'rest of the agents'))
+        r = _meta(store, M_ROLLOUT, {})
+        r['job_' + which] = jid
+        _put(store, M_ROLLOUT, r)
     return jid
 
 
+def _ring_left(store, r):
+    """Whether the ring under way (phase canary or rest) has no job running it any more: acme
+    stopped in the middle of it (its job marked failed at the start), or the node that ran it is
+    gone (the leader changed) - the ring would stay "under way" for good."""
+    from acmelib.certs import jobs
+    which = r.get('phase')
+    jid = r.get('job_' + which)
+    if not jid:
+        return time.time() - float(r.get('ring_at') or r.get('at') or 0) > RING_LEFT_S
+    row = store.db.row('SELECT id, node, state FROM cert_jobs WHERE id = ?', (int(jid),))
+    if not row or row.get('state') not in ('queued', 'running'):
+        return True
+    if row.get('node') == E_node():
+        with jobs._LOCK:
+            if int(jid) in jobs.RUNNING:
+                return False
+        # a rollout started on the command line runs its ring in that process
+        return not jobs.cli_alive(int(jid))
+    if not jobs._node_alive(store, row.get('node')):
+        store.db.update('cert_jobs', row['id'], {'state': 'failed', 'ok': 0,
+                                                 'finished': time.time(),
+                                                 'said': 'its node is gone'})
+        return True
+    return False
+
+
+def E_node():
+    from acmelib import engine as E
+    return E.node_name()
+
+
 def rollout_start(store, b, by):
+    with _RLOCK:                # the renewer's tick does not see the ring before its job
+        return _rollout_start(store, b, by)
+
+
+def _rollout_start(store, b, by):
     """An update in rings: the canary ring (a group, or 5 % of the agents) at once; the rest
     once the wait is over and - unless told otherwise - every canary agent answers with the
     new version."""
@@ -973,7 +1036,20 @@ def canary_health(store, r):
 
 def tick(store):
     """The rollout's next step (on the leader, with the agents' own tick)."""
+    with _RLOCK:
+        _tick(store)
+
+
+def _tick(store):
     r = _meta(store, M_ROLLOUT, {})
+    if r.get('phase') in ('canary', 'rest') and _ring_left(store, r):
+        store.add_event('certificates', (
+            'the agents\' update rollout to %s: the canary ring was left unfinished (acme '
+            'stopped, or its node is gone) - it goes on' if r['phase'] == 'canary' else
+            'the agents\' update rollout to %s: the rest of the agents was left unfinished '
+            '(acme stopped, or its node is gone) - it goes on') % r.get('version'), 'warn')
+        _run_ring(store, r['phase'], r.get('by') or 'acme')
+        return
     if r.get('phase') != 'waiting':
         return
     if time.time() < float(r.get('next_at') or 0):
@@ -996,6 +1072,11 @@ def tick(store):
 
 
 def rollout_step(store, do, by):
+    with _RLOCK:
+        return _rollout_step(store, do, by)
+
+
+def _rollout_step(store, do, by):
     r = _meta(store, M_ROLLOUT, {})
     if not r.get('phase'):
         raise LookupError('there is no rollout')

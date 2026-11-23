@@ -1117,6 +1117,9 @@ class Console(object):
         opts = []
         if local:
             opts.append(('pw', 'Set its password'))
+            # as the page's envelope button and acme --user-contact (hunt w2: not here)
+            opts.append(('contact', 'Its e-mail address and mobile number (the portal\'s '
+                         'one-time code)'))
         opts.append(('role', 'Change its role (now %s)' % u.get('role')))
         opts.append(('on', 'Switch it on again') if u.get('disabled') else
                     ('off', 'Switch it off'))
@@ -1129,6 +1132,17 @@ class Console(object):
             got = self.form('A new password for %s' % name, self._pw_fields())
             if got:
                 self.act('--passwd', name, env={'ACME_PASSWORD': got['pw']})
+        elif what == 'contact':
+            got = self.form('E-mail and mobile number of %s' % name, self._contact_fields(u),
+                            'Where the one-time code goes when %s signs in on the portal. '
+                            'Empty: none.' % name)
+            if got is not None:
+                mail, mobile = got['mail'].strip(), got['mobile'].strip()
+                if (mail, mobile) == ((u.get('mail') or '').strip(),
+                                      (u.get('mobile') or '').strip()):
+                    self.note('E-mail and mobile number', 'Nothing was changed.')
+                else:
+                    self.act('--user-contact', name, '--mail', mail, '--mobile', mobile)
         elif what == 'role':
             r = self.choose('The role of %s' % name, self.ROLES,
                             cur=[x[0] for x in self.ROLES].index(u.get('role'))
@@ -1152,6 +1166,23 @@ class Console(object):
                             'Delete it', danger=True):
                 self.act('--del-user', name, '--yes')   # asked above (1.0.52)
 
+    @staticmethod
+    def _contact_fields(u=None):
+        """An account's e-mail address and mobile number, checked as acme checks them."""
+        def checked(kind):
+            def check(v, _vals):
+                try:
+                    dest_checked(kind, v)
+                except ValueError as e:
+                    return str(e)
+                return None
+            return check
+        u = u or {}
+        return [{'key': 'mail', 'label': 'e-mail address', 'value': u.get('mail') or '',
+                 'check': checked('mail'), 'help': 'novak@example.cz - empty: none.'},
+                {'key': 'mobile', 'label': 'mobile number', 'value': u.get('mobile') or '',
+                 'check': checked('sms'), 'help': '+420 603 123 456 - empty: none.'}]
+
     def account_new(self):
         got = self.form('Make an account', [
             {'key': 'name', 'label': 'name', 'need': True,
@@ -1163,10 +1194,16 @@ class Console(object):
             {'key': 'role', 'label': 'role', 'kind': 'choice', 'value': 'readonly',
              'options': self.ROLES,
              'help': 'fulladmin may do everything; certadmin the certificates; readonly looks.'}]
-            + self._pw_fields())
+            + self._pw_fields() + [
+                {'key': 'note', 'label': 'note', 'help': 'Empty: none.'}]
+            # the page's new account has them (hunt w2): the portal's one-time code goes there
+            + self._contact_fields())
         if got:
-            self.act('--add-user', got['name'], '--role', got['role'],
-                     env={'ACME_PASSWORD': got['pw']})
+            args = ['--add-user', got['name'], '--role', got['role']]
+            for k in ('note', 'mail', 'mobile'):
+                if (got.get(k) or '').strip():
+                    args += ['--' + k, got[k].strip()]
+            self.act(*args, env={'ACME_PASSWORD': got['pw']})
 
     def mfa_switch(self):
         got = self.out('--users') or {}
@@ -2473,8 +2510,13 @@ class Console(object):
         for folder in (STATE_DIR / 'backups', STATE_DIR / 'dumps'):
             try:
                 for f in folder.iterdir():
-                    if f.is_file():
+                    # the key kept beside each copy (acme-....key) is no copy: listed, it was
+                    # offered to be put back "replacing everything" (hunt w2); an empty name
+                    # is a copy cut short, as the pages' list leaves it out
+                    if f.is_file() and not f.name.endswith('.key'):
                         st = f.stat()
+                        if not st.st_size:
+                            continue
                         out.append({'path': str(f), 'name': f.name, 'folder': folder.name,
                                     'at': st.st_mtime, 'bytes': st.st_size})
             except OSError:
@@ -2932,6 +2974,11 @@ class Console(object):
                  'A new key for the balancer', 'The one the balancer sends now is no longer taken '
                  '- put the new one into the balancer.', yes='Make it', no='Cancel') else None),
             ('25', 'isemon: the first full sync (every certificate, its history)', isemon_sync),
+            # Settings → Alerts and reports, Monitoring's preview (hunt w2)
+            ('26', 'The alerts: what they see wrong now', lambda: self.act('--alerts')),
+            ('27', 'The alerts: look now and mail what is new', lambda: self.act('--alerts', 'check')),
+            ('28', 'The alerts: a test mail to their addresses', lambda: self.act('--alerts', 'test')),
+            ('29', 'Prometheus: what this node answers now', lambda: self.act('--metrics-preview')),
         ])
 
     def m_upgrades(self):

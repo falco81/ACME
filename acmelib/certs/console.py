@@ -1696,7 +1696,8 @@ def teams_menu(con):
         ('1', 'The teams and units, as a tree (Enter: what to do with one)',
          lambda: teams_tree(con)),
         ('2', 'Add a team or a unit', lambda: team_add(con)),
-        ('3', 'Roles: what each gives (Enter: show)', lambda: roles_list(con)),
+        ('3', 'Roles: what each gives; your own added, changed, deleted',
+         lambda: roles_list(con)),
         ('4', 'What a person may, in which team, and why (the access check)',
          lambda: team_access(con)),
         ('5', 'What happened in a team', lambda: team_activity(con)),
@@ -1724,6 +1725,17 @@ def teams_tree(con):
     return con.pick('Owners and teams', load, cols, do, 'no team yet')
 
 
+def _mails_check(v, _vals):
+    """The addresses a team is told at, checked as acme checks them before saving (hunt w2:
+    a wrong one was refused only after the form had closed, what was typed lost)."""
+    from acmelib.certs import teams as T
+    try:
+        T.clean_mails(v)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
 def team_add(con, parent=''):
     teams = _teams(con)
     got = con.form('A team or a unit', [
@@ -1734,7 +1746,7 @@ def team_add(con, parent=''):
         {'key': 'parent', 'label': 'under', 'kind': 'choice', 'value': parent,
          'options': [('', '- (the top level)')] + [(t['name'], t['name']) for t in teams]},
         {'key': 'description', 'label': 'description'},
-        {'key': 'contact_mail', 'label': 'told at (e-mail)'}])
+        {'key': 'contact_mail', 'label': 'told at (e-mail)', 'check': _mails_check}])
     if not got:
         return
     args = ['--team-add', got['name'].strip(), '--team-kind', got['kind']]
@@ -1808,7 +1820,8 @@ def team_edit(con, r):
         {'key': 'kind', 'label': 'kind', 'kind': 'choice', 'value': r.get('kind') or 'team',
          'options': [('team', 'team'), ('unit', 'unit: teams below it'), ('person', 'person')]},
         {'key': 'description', 'label': 'description', 'value': r.get('description') or ''},
-        {'key': 'contact_mail', 'label': 'told at (e-mail)', 'value': r.get('contact_mail') or ''},
+        {'key': 'contact_mail', 'label': 'told at (e-mail)', 'value': r.get('contact_mail') or '',
+         'check': _mails_check},
         {'key': 'note', 'label': 'note', 'value': r.get('note') or '',
          'help': 'Empty: taken away.'}])
     if not got:
@@ -1978,19 +1991,86 @@ def team_del(con, r, teams):
 
 
 def roles_list(con):
+    """The roles; one of your own added, changed (renamed, its capabilities, its description) or
+    deleted - as the page's Roles and acme --role-add / --role-del (hunt w2: the console could
+    only show them)."""
     def load():
-        return _roles(con)
+        return [{'name': '+ add a role of your own', '_add': True}] + _roles(con)
 
-    cols = [('role', lambda r: r['name'], 22, None),
-            ('', lambda r: 'built in' if r.get('builtin') else 'own', 8, lambda r: 'dim'),
-            ('members', lambda r: r.get('used') or 0, 7, None),
+    cols = [('role', lambda r: r['name'], 22, lambda r: 'ok' if r.get('_add') else None),
+            ('', lambda r: '' if r.get('_add') else 'built in' if r.get('builtin') else 'own',
+             8, lambda r: 'dim'),
+            ('members', lambda r: '' if r.get('_add') else r.get('used') or 0, 7, None),
             ('capabilities', lambda r: ', '.join(r.get('caps') or []), 60, lambda r: 'dim')]
 
-    def do(r):
+    def show(r):
         con.note(r['name'], '%s\n\n%s\n\n%s' % (
             'built in' if r.get('builtin') else 'a role of your own (acme --role-add, --role-del)',
             r.get('description') or '-', '\n'.join(r.get('caps') or [])))
+
+    def do(r):
+        if r.get('_add'):
+            return role_form(con, None)
+        if r.get('builtin'):
+            return show(r)
+        what = con.choose(r['name'], [('show', 'Show it'),
+                                      ('edit', 'Change it: its name, capabilities, description'),
+                                      ('del', 'Delete it')],
+                          '%d member(s) have it' % int(r.get('used') or 0))
+        if what == 'show':
+            show(r)
+        elif what == 'edit':
+            role_form(con, r)
+        elif what == 'del':
+            used = int(r.get('used') or 0)
+            if con.confirm('Delete a role', 'The role %s is deleted%s.' % (
+                    r['name'], ' and taken off the %d member(s) who have it' % used
+                    if used else ''), 'Delete it', danger=True):
+                con.act('--role-del', r['name'], '--yes', *(['--strip'] if used else []))
+        return None
     return con.pick('Roles', load, cols, do, 'no role')
+
+
+def role_form(con, r):
+    got = con.out('--roles') or {}
+    caps = [c['id'] for c in (got.get('caps') or []) if isinstance(c, dict)]
+    builtin = {x['name'].lower() for x in con._rows(got, 'roles') if x.get('builtin')}
+    own = {x['name'].lower() for x in con._rows(got, 'roles') if not x.get('builtin')}
+    r = r or {}
+
+    def check_name(v, _vals):
+        from acmelib.certs import teams as T
+        v = v.strip()
+        if not T.ROLE_NAME_RE.match(v):
+            return 'letters, digits, spaces and . _ + - (60 at most), from a letter or a digit'
+        if v.lower() in builtin:
+            return '%s is a built-in role - choose another name' % v
+        if v.lower() in own and v.lower() != (r.get('name') or '').lower():
+            return 'there is a role called %s already' % v
+        return None
+
+    def check_caps(v, _vals):
+        words = [w for w in re.split(r'[\s,;+|]+', v) if w]
+        bad = [w for w in words if w.lower() not in caps and w.lower() not in
+               ('view', 'request', 'manage', 'approve', '*', 'all')]
+        if bad:
+            return 'no such capability: %s' % ', '.join(bad)
+        return None if words else 'at least one capability'
+    got = con.form(r.get('name') or 'A role of your own', [
+        {'key': 'name', 'label': 'its name', 'need': True, 'value': r.get('name') or '',
+         'check': check_name},
+        {'key': 'caps', 'label': 'capabilities (comma)', 'need': True, 'check': check_caps,
+         'value': ', '.join(r.get('caps') or []), 'help': ', '.join(caps)},
+        {'key': 'description', 'label': 'description', 'value': r.get('description') or ''}])
+    if not got:
+        return
+    name = got['name'].strip()
+    args = ['--role-add', r.get('name') or name, '--caps',
+            ','.join(w for w in re.split(r'[\s,;+|]+', got['caps']) if w),
+            '--description', (got.get('description') or '').strip()]
+    if r and name != r['name']:
+        args += ['--name', name]
+    con.act(*args)
 
 
 def team_access(con):

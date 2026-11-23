@@ -112,6 +112,10 @@ In a cluster **each node sends its own** (its config.json is its own); the file
 names carry the node's name, and each node takes away only its own old ones.
 Either node's newest backup holds the whole cluster's data.
 
+A scheduled backup that acme stopped in the middle of (a restart, an upgrade at
+night) is made again once acme is back, the same day - one that ended (sent or
+not) is not made twice.
+
 *Back up now* sends one at once; *Download one here* makes one and saves it on
 the computer you are sitting at. *What was sent* lists every backup with where
 it went, how long it took and what each destination said; Events has it too.

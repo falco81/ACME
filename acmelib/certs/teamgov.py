@@ -1411,6 +1411,10 @@ def _deliver(store, team, stage, subject, text, mails, hooks, wait=False):
             try:
                 st = _post_hook(url, '%s\n%s' % (subject, text), k)
                 out[k] = 'sent' if 200 <= st < 300 else 'answered %s' % st
+            except urllib.error.HTTPError as e:
+                # what it answered (hunt w2): a 4xx/5xx said only "not sent: HTTPError"
+                out[k] = 'answered %s' % e.code
+                E.log('the %s webhook of the team %s: %s' % (k, team, out[k]), 'warn')
             except Exception as e:                      # noqa: BLE001
                 # the address itself never in the words (it is a secret)
                 out[k] = 'not sent: %s' % (type(e).__name__ if 'http' in str(e).lower()

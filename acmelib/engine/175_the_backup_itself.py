@@ -617,6 +617,25 @@ def rb_due(store, last_day):
     return today if today != last_day else None
 
 
+def rb_left_unfinished(store, day):
+    """Whether this node took `day`'s scheduled backup (its rbackup_day row says so) but it never
+    ended: acme stopped in the middle of it (a restart, an upgrade at night) - no line of it in
+    this node's history. Without this the day's (the week's) backup was lost: the claim, kept
+    in the database, said it was done."""
+    if store.get_meta('rbackup_day:' + node_name()) != day:
+        return False
+    try:
+        since = time.mktime(datetime.strptime(day, '%Y-%m-%d').timetuple())
+    except ValueError:
+        return False
+    try:
+        mine = json.loads(store.get_meta(node_key('rbackup', 'runs')) or '[]')
+    except ValueError:
+        mine = []
+    return not any(isinstance(r, dict) and float(r.get('at') or 0) >= since and
+                   str(r.get('by') or '').startswith('acme (scheduled') for r in mine)
+
+
 RB_NOW_LIVE_S = 900
 
 
@@ -738,8 +757,9 @@ def rb_tick(daemon):
     # Marked done only once the database said whether it is this run's
     # (1.0.146): the database away just then left the day without a backup.
     claimed = claim_once(store, 'rbackup_day:' + node_name(), day)
+    first = not getattr(daemon, '_rb_day', '')
     daemon._rb_day = day
-    if not claimed:
+    if not claimed and not (first and rb_left_unfinished(store, day)):
         return
     if not any(t.get('enabled') for t in rb_targets(store)):
         return

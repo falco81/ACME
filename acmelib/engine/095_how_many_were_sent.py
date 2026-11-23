@@ -805,7 +805,25 @@ def tel_test():
 
 
 def sms_send(to, text):
-    """One SMS. Returns what the gateway said; raises SmsError."""
+    """One SMS. Returns what the gateway said; raises SmsError. How it went is told to the
+    alerts (sms_health) whoever sends it (hunt w2): only a code's SMS was counted, and a
+    gateway that failed every notice of the certificates by SMS was never an alert."""
+    if (CONFIG.get('sms_mode') or 'off') == 'off':
+        return _sms_send_now(to, text)
+    try:
+        got = _sms_send_now(to, text)
+    except SmsError as e:
+        said = str(e)
+        # a code (or any long number) of the text not in what the alerts say
+        for run in set(re.findall(r'\d{4,}', str(text or ''))):
+            said = said.replace(run, '******')
+        sms_health(False, said)
+        raise
+    sms_health(True)
+    return got
+
+
+def _sms_send_now(to, text):
     mode = CONFIG.get('sms_mode') or 'off'
     if mode == 'off':
         raise SmsError('sending SMS is switched off - Settings → Codes by mail and SMS')
@@ -1026,10 +1044,8 @@ def code_send(store, kind, to, code, purpose='admin', name='', lang=None, fmt=No
     def hide(t):
         return str(t).replace(str(code), '******') if code else str(t)
     try:
-        got = hide(code_send_now(store, kind, to, code, purpose, name, lang, fmt, display))
-        if kind == 'sms':
-            sms_health(True)                    # for the alerts (1.0.162)
-        return got
+        # (the SMS's health for the alerts is told by sms_send itself - hunt w2)
+        return hide(code_send_now(store, kind, to, code, purpose, name, lang, fmt, display))
     except MailError as e:
         new = MailError(hide(e), steps=e.steps, permanent=e.permanent)
         for k, v in vars(e).items():
@@ -1037,7 +1053,6 @@ def code_send(store, kind, to, code, purpose='admin', name='', lang=None, fmt=No
                 setattr(new, k, v)
         raise new
     except SmsError as e:
-        sms_health(False, hide(e))
         raise SmsError(hide(e))
 
 

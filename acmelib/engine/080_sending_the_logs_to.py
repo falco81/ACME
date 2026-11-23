@@ -8,7 +8,7 @@ from __future__ import annotations
 # one event a line, from the program `acme-certs`:
 #
 #   Oct 22 15:31:02 acme1 acme-certs[812]: level=warn kind=certificates
-#       node=acme1 who="acme" msg="www.example.cz: the renewal failed - ..."
+#       node=acme1 who=acme msg="www.example.cz: the renewal failed - ..."
 #
 # (one line; key=value, a value with a space or a quote in it in quotes, its
 # quotes and backslashes escaped) - and every other event of acme, with
@@ -64,6 +64,25 @@ def kv_quote(value):
     if said and re.match(r'^[A-Za-z0-9_.:@/+-]+\Z', said):
         return said
     return '"%s"' % said.replace('\\', '\\\\').replace('"', '\\"')
+
+
+def _kv_cut(cut):
+    """A key=value line cut short, with ...TRUNCATED - its last value's quotes closed (hunt
+    w2): cut inside msg="...", the line ended in an open quote (or a lone backslash that
+    escaped what followed), and a reader of key=value took the rest for that value."""
+    inside, esc = False, False
+    for ch in cut:
+        if esc:
+            esc = False
+        elif ch == '\\' and inside:
+            esc = True
+        elif ch == '"':
+            inside = not inside
+    if not inside:
+        return cut + ' ...TRUNCATED'
+    if esc:
+        cut = cut[:-1]
+    return cut + ' ...TRUNCATED"'
 
 
 def event_kv(kind, words, level, who, node='', fields=None):
@@ -300,7 +319,7 @@ class Shipper(object):
             return
         most = int(CONFIG.get('isemon_max_bytes') or 1800)
         if len(words.encode('utf-8')) > most:
-            words = words.encode('utf-8')[:most].decode('utf-8', 'ignore') + ' ...TRUNCATED'
+            words = _kv_cut(words.encode('utf-8')[:most].decode('utf-8', 'ignore'))
         line = '%s %s %s[%d]: %s' % (syslog_stamp(ts), self.host(), tag, os.getpid(),
                                      words.replace('\n', ' ').replace('\r', ' '))
         pri = SYSLOG_FACILITY.get(facility, 1) * 8 + 5          # notice

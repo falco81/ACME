@@ -549,13 +549,20 @@ def _feed(h):
 def _portal_entries(h):
     from acmelib.certs import portal as P
     s = P.portal_session(h)
-    rows = P.mine(h, s)
+    me = P._Me(h, s)
+    pairs = P.mine_sort(P.mine_rows(h, s, me))
+    rows = P.mine_public(h, s, pairs, me)
+    # when acme renews each, of the row as it is kept (hunt w2: the page's row has no renew
+    # days, no ARI window and no switch - a certificate with renew days of its own showed the
+    # default's day, and one switched off a renewal that never comes)
+    raw = {r['id']: r for r, _v in pairs}
     now = time.time()
     out = []
     for r in rows:
-        if not r.get('not_after') or r.get('state') in SKIP_STATES:
+        src = raw.get(r.get('id')) or r
+        if not src.get('not_after') or src.get('state') in SKIP_STATES:
             continue
-        one = entry(r, now)
+        one = entry(src, now)
         out.append(one)
     return s, rows, out
 

@@ -125,7 +125,10 @@ Before it starts the card shows who would be in the canary ring, who in the rest
 updated and why (no `allow self-update`, not answering, no signed package). *Go on now* skips the
 rest of the wait; *Stop* updates nobody else (the ones updated stay); *Start another* once it
 has ended. The next step is taken by the node that leads, with the agents' own tick; the rollout
-is kept in `meta` (`fleet:rollout`), so the other node of a cluster carries on.
+is kept in `meta` (`fleet:rollout`), so the other node of a cluster carries on. A ring left
+unfinished - acme stopped in the middle of it, or the node updating it is gone - goes on at the
+next tick (event *… was left unfinished … it goes on*); the agents it had updated (each one's
+result is kept as it comes) are not updated again.
 
 Events: *an update rollout of the agents to … was started*, *… is held*, *… was stopped*, *… is
 done*.

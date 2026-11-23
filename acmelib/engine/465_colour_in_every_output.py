@@ -736,6 +736,13 @@ def build_parser():
                    'manager would ask it')
     g.add_argument('--snmp-trap', action='store_true', help='a test trap from every node to the '
                    'receivers set')
+    # Settings → Alerts and reports, and Monitoring's preview, on the command line (hunt w2)
+    g.add_argument('--alerts', nargs='?', const='show', choices=('show', 'check', 'test', 'forget'),
+                   help='the alerts: what they see wrong now (show), look now and mail what is '
+                   'new (check), a test mail to their addresses (test), forget what was sent '
+                   '(forget, --yes) - as Settings → Alerts and reports')
+    g.add_argument('--metrics-preview', action='store_true', help='what this node answers '
+                   'Prometheus now (/metrics), as Settings → Monitoring shows it')
     g.add_argument('--snmp-mib', action='store_true', help='ACME-MIB, the objects the SNMPv3 '
                    'agent answers - to stdout, or into --out FILE')
     g.add_argument('--snmp-zabbix-template', action='store_true', help='the template "acme by '
@@ -4108,8 +4115,16 @@ def cli_main(argv=None):
     if args.import_config:
         try:
             raw = json.loads(Path(args.import_config).read_text())
-        except (OSError, ValueError) as e:
+        except OSError as e:
             raise SystemExit('acme: %s' % e)
+        except ValueError as e:
+            # it said only "Expecting value: line 1 column 1 (char 0)" (hunt w2)
+            raise SystemExit('acme: %s is not a configuration of acme (a JSON file of acme '
+                             '--export-config or of the pages\' export): %s'
+                             % (args.import_config, e))
+        if not isinstance(raw, dict):
+            raise SystemExit('acme: %s is not a configuration of acme (a JSON file of acme '
+                             '--export-config or of the pages\' export)' % args.import_config)
         if isinstance(raw, dict) and raw.get('kind') == CONFIG_BUNDLE_KIND:
             # Exported from the pages with the secrets: locked (1.0.136).
             try:
@@ -4239,6 +4254,15 @@ def cli_main(argv=None):
             print('the second step is asked for (admin_2fa); acme --reset-2fa NAME takes one away')
         return 0
 
+    def acct_said(args, pal, words, **extra):
+        """An account changed: said in a line, or with --json as JSON (the account options
+        printed text with --json, hunt w2)."""
+        if args.json:
+            out(dict(extra, ok=True, said=words))
+        else:
+            print(pal.ok_line(words))
+        return 0
+
     if args.user_contact:
         acc = store.account(args.user_contact)
         if not acc:
@@ -4260,8 +4284,9 @@ def cli_main(argv=None):
         store.add_event('accounts', 'the e-mail address (%s) and the mobile number (%s) of %s set '
                         'on the command line' % (mail or 'none', mobile or 'none', acc['name']),
                         who=who)
-        print(pal.ok_line('saved: %s %s' % (mail or '-', mobile or '-')))
-        return 0
+        return acct_said(args, pal, 'the e-mail address of %s: %s, its mobile number: %s'
+                         % (acc['name'], mail or 'none', mobile or 'none'),
+                         name=acc['name'], mail=mail, mobile=mobile)
 
     if args.add_user:
         try:
@@ -4278,8 +4303,9 @@ def cli_main(argv=None):
             raise SystemExit('acme: %s' % e)
         store.add_event('accounts', 'the account %s was made on the command line, as %s'
                         % (args.add_user, args.role or 'readonly'), who=who)
-        print(pal.ok_line('%s may now sign in, as %s' % (args.add_user, args.role or 'readonly')))
-        return 0
+        return acct_said(args, pal, '%s may now sign in, as %s'
+                         % (args.add_user, args.role or 'readonly'),
+                         name=args.add_user, role=args.role or 'readonly')
 
     if args.passwd:
         pw = ask_password('a new password for %s' % args.passwd)
@@ -4293,8 +4319,8 @@ def cli_main(argv=None):
         account_portal_end(store, args.passwd)
         store.add_event('accounts', 'the password of %s was set on the command line'
                         % args.passwd, who=who)
-        print(pal.ok_line('the password of %s is set' % args.passwd))
-        return 0
+        return acct_said(args, pal, 'the password of %s is set' % args.passwd,
+                         name=args.passwd)
 
     if args.reset_2fa:
         acc = store.account(args.reset_2fa)
@@ -4304,10 +4330,9 @@ def cli_main(argv=None):
         store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                      ('admin', acc['name'].lower()))
         account_portal_end(store, acc['name'])
-        print(pal.ok_line('the second step of %s is reset - set up again at the next sign-in'
-                          % acc['name']) if had else
-              pal.ok_line('%s had no second step set up' % acc['name']))
-        return 0
+        return acct_said(args, pal, 'the second step of %s is reset - set up again at the next '
+                         'sign-in' % acc['name'] if had else '%s had no second step set up'
+                         % acc['name'], name=acc['name'], reset=bool(had))
 
     for flag in ('set_role', 'del_user', 'disable_user', 'enable_user'):
         name = getattr(args, flag)
@@ -4338,8 +4363,12 @@ def cli_main(argv=None):
             raise SystemExit('acme: %s' % e)
         store.add_event('accounts', '%s: %s on the command line' % (name, flag.replace('_', ' ')),
                         who=who)
-        print(pal.ok_line('done'))
-        return 0
+        # what was done, said (it said only "done"), and JSON with --json (hunt w2)
+        return acct_said(args, pal, {
+            'set_role': 'the role of %s is %s now' % (acc['name'], args.role),
+            'del_user': 'the account %s is removed' % acc['name'],
+            'disable_user': '%s can no longer sign in' % acc['name'],
+            'enable_user': '%s may sign in again' % acc['name']}[flag], name=acc['name'])
 
     if args.backup:
         got = make_backup(store, 'on the command line')
@@ -4868,6 +4897,36 @@ def cli_main(argv=None):
     if args.snmp_test or args.snmp_trap:
         return asked('snmp', api('POST', '/api/snmp', {'action': 'trap' if args.snmp_trap else 'test',
                                                       'node': only}))
+    if args.alerts:
+        if args.alerts == 'forget':
+            cli_sure(args, 'what the alerts sent is forgotten - what is wrong now is mailed again')
+        got = api('GET', '/api/alerts') if args.alerts == 'show' else \
+            api('POST', '/api/alerts', {'action': args.alerts})
+        if args.json:
+            out(got)
+            return 0
+        if got.get('message'):
+            print(pal.ok_line(got['message']))
+        probs = got.get('problems') or []
+        if probs:
+            print(table([((p.get('level') or ''), p.get('key') or '', p.get('node') or '',
+                          p.get('title') or '', stamp(p['since']) if p.get('since') else '',
+                          'mailed' if p.get('sent') else '') for p in probs],
+                        ['level', 'key', 'node', 'what', 'since', ''], [5, 28, 10, 50, 19, 6]))
+        else:
+            print(pal.ok_line('nothing is wrong now'))
+        print(pal.dim('  %s · %s' % ('this node sends the alerts' if got.get('lead') else
+                                      'the other node sends the alerts',
+                                      ('to ' + ', '.join(got['to'])) if got.get('to') else
+                                      'no address to send them to')))
+        return 0
+    if args.metrics_preview:
+        got = api('POST', '/api/metrics', {'action': 'preview'})
+        if args.json:
+            out(got)
+        else:
+            sys.stdout.write(str(got.get('text') or ''))
+        return 0
     ca_pem = Path(args.ca).read_text() if args.ca else ''
     if args.db_tls:
         return shown(api('GET', '/api/dbtls'))

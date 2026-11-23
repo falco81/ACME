@@ -404,7 +404,7 @@ Enterprise teams (1.0.125):
     acme --team-edit NAME [--parent TEAM|-] [--policy '{}'] [--members 'group:Web=Requester+Deployer,local:jan=manage@2026-12-31']
     acme --team-del NAME [--parent TEAM|-]          its teams below moved there (- the top level)
     acme --roles                                   the roles and their capabilities
-    acme --role-add NAME --caps cert.view,cert.renew [--description ..] / --role-del NAME [--strip]
+    acme --role-add NAME --caps cert.view,cert.renew [--description ..] [--name NEW] / --role-del NAME [--strip]
     acme --team-access WHO                         what a person may in which team, and why
     acme --team-activity NAME [--below] [--limit N]   what happened in the team (its Activity tab)
     acme --teams-from-groups 'PKI-*' [--member-role Requester] [--parent TEAM] [--team-kind unit] [--yes]

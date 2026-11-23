@@ -78303,6 +78303,10 @@
   "z_3272": {
    "source": "one \"Name: value\" a line - kept sealed, as every secret",
    "text": "jedna hlavička „Název: hodnota“ na řádek – uloženo zašifrovaně, jako každé tajemství"
+  },
+  "z_3273": {
+   "source": "its node is gone",
+   "text": "jeho uzel zmizel"
   }
  },
  "patterns": {
@@ -110005,6 +110009,22 @@
   "pz_1389": {
    "source": "{0}: {1} no longer looks after its database server through acme-db-agent ({2}) - {3}; {4}",
    "text": "{0}: {1} už nespravuje svůj databázový server přes acme-db-agent ({2}) – {3}; {4}"
+  },
+  "pz_1390": {
+   "source": "the agents' update rollout to {0}: the canary ring was left unfinished (acme stopped, or its node is gone) - it goes on",
+   "text": "zavádění aktualizace agentů na {0}: vlna canary zůstala nedokončená (acme se zastavilo nebo jeho uzel zmizel) – pokračuje se"
+  },
+  "pz_1391": {
+   "source": "the agents' update rollout to {0}: the rest of the agents was left unfinished (acme stopped, or its node is gone) - it goes on",
+   "text": "zavádění aktualizace agentů na {0}: zbytek agentů zůstal nedokončený (acme se zastavilo nebo jeho uzel zmizel) – pokračuje se"
+  },
+  "pz_1392": {
+   "source": "{0}: updated before",
+   "text": "{0}: aktualizováno už dříve"
+  },
+  "pz_1393": {
+   "source": "{0}: not updated before",
+   "text": "{0}: dříve neaktualizováno"
   }
  },
  "rich": {

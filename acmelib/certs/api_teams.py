@@ -493,7 +493,8 @@ def add_args(p):
     g.add_argument('--roles', action='store_true', help='the roles: built in and your own, with '
                    'their capabilities')
     g.add_argument('--role-add', metavar='NAME', help='a role of your own (or changed): --caps '
-                   'cert.view,cert.request,..., --description')
+                   'cert.view,cert.request,..., --description, --name NEW (renamed: its members '
+                   'follow)')
     g.add_argument('--role-del', metavar='NAME', help='delete a role of your own; given to '
                    'members, with --strip')
     g.add_argument('--caps', metavar='LIST', help='with --role-add: capabilities, comma between '
@@ -656,6 +657,13 @@ def cli(c):
             b = {'name': a.role_add}
             if have:
                 b['old_name'] = have['name']
+            if getattr(a, 'name', None):
+                # renamed as on the page (its members and governance follow) - --name was
+                # dropped without a word and "changed" said (hunt w2)
+                if not have:
+                    raise SystemExit('acme: there is no role of your own called %s to rename '
+                                     '(acme --roles)' % a.role_add)
+                b['name'] = a.name.strip()
             if a.caps is not None:
                 b['caps'] = a.caps
             if a.description is not None:

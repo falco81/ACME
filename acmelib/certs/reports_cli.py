@@ -331,7 +331,11 @@ def _report_run(c, name):
     print(c.pal.ok_line(got['message']) if run['ok'] else c.pal.bad_line(got['message']))
     c.kv([('run', run['id']), ('rows', run['rows']),
           ('files', ', '.join('%s (%d B)' % (f['filename'], f['size']) for f in run['files'])),
-          ('sent to', ', '.join(run['sent_to']) or '-'), ('saved', ', '.join(paths) or '-')])
+          ('sent to', ', '.join(run['sent_to']) or '-')])
+    # each file saved on a line of its own, whole: the paths in one line were cut at 200
+    # characters ("…/st/r…") - the file could not be found from what was said (hunt w2)
+    for i, path in enumerate(paths or ['-']):
+        print('  %s %s' % (c.pal.info('%-16s' % ('saved' if not i else '')), path))
     if c.args.report_send and not got.get('mail_on'):
         print('  mail is switched off (Settings → Mail): nothing was sent')
     return 0 if run['ok'] else 1
@@ -544,6 +548,28 @@ def _con_reports(con):
     return con.pick('Reports', load, cols, do, 'no report yet')
 
 
+def _day_check(v, vals):
+    """Weekly: a day of the week (as the page offers and acme takes) - day 10 of a weekly report
+    passed the form and was refused after it closed, what was typed lost (hunt w2)."""
+    try:
+        n = int(str(v).strip())
+    except ValueError:
+        return None                     # the number check says it
+    if vals.get('every') == 'weekly' and not 1 <= n <= 7:
+        return 'a weekly one: 1 (Monday) to 7'
+    return None
+
+
+def _mails_check(v, _vals):
+    """The addresses, checked as acme checks them before saving."""
+    from acmelib.certs import teams as T
+    try:
+        T.clean_mails(v)
+    except ValueError as e:
+        return str(e)
+    return None
+
+
 def _con_report_form(con, r):
     r = r or {}
     s = r.get('schedule') or {}
@@ -562,13 +588,13 @@ def _con_report_form(con, r):
          'value': s.get('every') or 'off',
          'options': [('off', 'only by hand'), ('weekly', 'weekly'), ('monthly', 'monthly')]},
         {'key': 'day', 'label': 'day (week 1-7, month 1-28)', 'kind': 'number',
-         'value': str(s.get('day') or 1), 'range': (1, 28)},
+         'value': str(s.get('day') or 1), 'range': (1, 28), 'check': _day_check},
         {'key': 'hour', 'label': 'hour', 'kind': 'number', 'value': str(s.get('hour') if
                                                                          s.get('hour') is not None
                                                                          else 7),
          'range': (0, 23)},
         {'key': 'to', 'label': 'mailed to (comma)', 'value': ', '.join(
-            r.get('recipients') or []) if r else ''},
+            r.get('recipients') or []) if r else '', 'check': _mails_check},
         {'key': 'lang', 'label': 'language', 'kind': 'choice', 'value': r.get('lang') or '-',
          'options': [('-', 'the mails\' own'), ('cs', 'Czech'), ('en', 'English')]},
         {'key': 'keep', 'label': 'runs kept', 'kind': 'number', 'value': str(r.get('keep') or 12),

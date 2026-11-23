@@ -414,6 +414,7 @@ def mine_public(h, s, pairs, me=None):
     me = me or _Me(h, s)
     names, groups, tms, defined, ids = me.names, me.groups, me.tms, me.defined, me.ids
     held_rows = []
+    approver = []
 
     def public(st_, r, via):
         one = public_row(st_, r, via)
@@ -461,6 +462,14 @@ def mine_public(h, s, pairs, me=None):
                 one['may_approve'], one['approve_why'] = False, right_why
             else:
                 why = held_refused(st_, r, portal_may_owner(names, tms, defined), held, defined)
+                if not why and r.get('state') == WAITING:
+                    # as the approval would take it (hunt w2: one they had approved already,
+                    # of a team wanting two approvers, was offered Approve again - and refused)
+                    from acmelib.certs import teampolicy as TP
+                    if not approver:
+                        approver.append(TP.approver_portal(h, s))
+                    ok_now, why_now = TP.may_approve_now(st_, r, approver[0])
+                    why = '' if ok_now else why_now
                 one['may_approve'], one['approve_why'] = not why, why
         # whether its CA can revoke it (api.revocable, as the administration's Revoke): a
         # self-signed one was offered Revoke and its job failed "cannot revoke a certificate"

@@ -86,6 +86,8 @@ acme --lockouts              # who is locked out, on every node;  --lockouts-cle
 acme --set smtp_password=-   # a secret: asked for (or one line of stdin, or ACME_VALUE_SMTP_PASSWORD)
 acme --set backup_at=02:30 --node acme2      # a node's own setting for another node ('*': the cluster's)
 acme --siem-test / --proxy-test / --snmp-test / --snmp-trap / --isemon-test   # from every node
+acme --alerts                # what the alerts see wrong now;  check (look now, mail what is new) / test / forget --yes
+acme --metrics-preview       # what this node answers Prometheus now (/metrics)
 acme --db-tls ; acme --db-tls-probe verify-full ; acme --db-tls-apply server|connect --yes
 acme --isemon-tls ; acme --isemon-tls-probe isemon.example.cz:6514
 acme --tls-csr acme.example.cz --names acme.example.cz,acme1.example.cz   # then --tls-import

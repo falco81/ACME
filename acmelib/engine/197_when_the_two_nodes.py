@@ -788,7 +788,15 @@ SPLIT_READS = {'/api/certs/compat': None,
                '/api/sources/catalog': None, '/api/validations/catalog': None,
                '/api/targets/catalog': None,
                # Show a certificate (1.0.23): a file read and described, nothing kept
-               '/api/certs/inspect': None}
+               '/api/certs/inspect': None,
+               # The previews and plans of 1.0.138-1.0.140 (1.0.143): on the frozen node a
+               # version's or a deleted object's preview, a report's or a digest's preview, a
+               # profile's dry run, the readiness check and the run plan were refused as changes
+               '/api/certs/plan': None, '/api/certs/check': None, '/api/certs/run_plan': None,
+               '/api/history/preview': None, '/api/trash/preview': None,
+               '/api/reports/preview': None, '/api/teams/digest_preview': None,
+               '/api/reqprofiles/dryrun': None, '/api/reqprofiles/template_preview': None,
+               '/api/fleet/takeover_preview': None}
 
 
 def split_free_path(path, action=''):

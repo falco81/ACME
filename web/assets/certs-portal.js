@@ -462,6 +462,9 @@ function certDialog(id, fresh) {
     buttons.push({words: 'Approve', cls: 'primary', icon: 'check', disabled: noOk, title: noOk ? c.approve_why : '', go: function (b) {
       busy(b, true);
       api('cert-approve', {id: c.id, ok: 1}).then(function (d) {
+        /* one approval of the several its team wants (hunt w2: "approved", and Approve offered
+           again) - the server's words, how many more */
+        if (d && d.recorded) { toast(d.message || 'your approval is recorded', 'good'); closeModal(); load(); return; }
         toast(d && d.job_id ? 'approved - it is being issued' : 'approved', 'good');
         load();
       }).catch(oops).then(function () { busy(b, false); });

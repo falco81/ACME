@@ -1094,6 +1094,36 @@ def _made(got, key):
     return got == key or (got[:2] == key[:2] and len(got) == len(key) and got > key)
 
 
+_STARTED = time.time()          # this process's start: a claim of before was a process gone
+LEFT_S = 1800                   # a claim of another node, older and that node gone: never ended
+
+
+def _left_unmade(store, r, key, at):
+    """Whether the period `key` was taken for this report (reports:period) but its run was never
+    made: acme stopped in the middle of it (a restart, an upgrade), or the node that led then is
+    gone (the leader changed) - the period's report was lost, the claim saying it was done. Taken
+    again once, by one node."""
+    if store.get_meta('reports:period:%d' % r['id']) != key:
+        return False
+    if store.db.value("SELECT COUNT(*) FROM cert_report_runs WHERE report_id = ? AND "
+                      "by_who = 'the schedule' AND ts >= ?", (r['id'], float(at) - 1), 0):
+        return False
+    c = S.jload(store.get_meta('reports:claim:%d' % r['id']), {}) or {}
+    if not isinstance(c, dict) or c.get('key') != key:
+        return False                    # taken before 1.0.143 kept who took it: as before
+    if c.get('node') == E.node_name():
+        gone = float(c.get('at') or 0) < _STARTED
+    else:
+        from acmelib.certs import jobs
+        gone = time.time() - float(c.get('at') or 0) > LEFT_S and \
+            not jobs._node_alive(store, c.get('node'))
+    if not gone or not E.claim_once(store, 'reports:again:%d' % r['id'], key):
+        return False
+    E.log('the report %s of %s was left unmade (acme stopped, or its node is gone): made now'
+          % (public(r)['name'], key), 'warn')
+    return True
+
+
 def _reports_tick(store):
     for r in rows(store):
         p = public(r)
@@ -1106,8 +1136,15 @@ def _reports_tick(store):
         if not key:
             continue
         mk = 'reports:period:%d' % r['id']
-        if _made(store.get_meta(mk), key) or not E.claim_once(store, mk, key):
+        if _made(store.get_meta(mk), key):
+            if not _left_unmade(store, r, key, _at):
+                continue
+        elif not E.claim_once(store, mk, key):
             continue
+        else:
+            # who took the period, and when: a run that never ended is made again (_left_unmade)
+            store.set_meta('reports:claim:%d' % r['id'], json.dumps(
+                {'key': key, 'at': time.time(), 'node': E.node_name()}))
         try:
             run(store, r, 'the schedule', send=bool(p['recipients']))
         except Exception as e:                          # noqa: BLE001

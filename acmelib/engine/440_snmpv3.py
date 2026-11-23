@@ -465,6 +465,7 @@ class SnmpAgent(object):
     def configure(self):
         if not (CONFIG.get('snmp') and CONFIG.get('snmp_traps')):
             SNMP_STATE['trap_error'] = ''          # no traps, no trouble of them (1.0.78)
+        snmp_trap_error_tidy()
         want = bool(CONFIG.get('snmp'))
         try:
             port = int(CONFIG.get('snmp_port') or 161)
@@ -807,6 +808,20 @@ class SnmpAgent(object):
         if out and all(v == 'sent' for v in out.values()):
             SNMP_STATE['trap_error'] = ''
         return out
+
+
+def _snmp_trap_key(host, port):
+    return '%s:%d' % (host if ':' not in host else '[%s]' % host, port)
+
+
+def snmp_trap_error_tidy():
+    """The trouble of a receiver no longer in Where traps go is over (hunt w2): it stayed -
+    and the alert "SNMP traps do not go" with it - until some other alert sent a trap, for
+    good when that alert had been trapped already."""
+    err = str(SNMP_STATE.get('trap_error') or '')
+    if err and err.split(': ', 1)[0] not in {
+            _snmp_trap_key(h, p) for h, p in snmp_trap_targets(CONFIG.get('snmp_trap_to'))}:
+        SNMP_STATE['trap_error'] = ''
 
 
 def snmp_trap_targets(text, strict=False):

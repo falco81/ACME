@@ -59,8 +59,10 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   - a certificate: show it all, renew it now, deploy it now, export it into a
     file;
   - a job: every step, live; a target: try it;
-  - an account: set its password, change its role, switch it off / on, reset
-    its second step, show it, delete it;
+  - an account: set its password, its e-mail address and mobile number (where
+    the portal's one-time code goes, `acme --user-contact`), change its role,
+    switch it off / on, reset its second step, show it, delete it; a new one
+    takes a note, an e-mail address and a mobile number too, as on the page;
   - a directory: try it (and look somebody up), show it, change it, delete it;
   - a backup: what is in it, put it back.
 - Every action is the `acme …` command its window shows in its title, run as
@@ -147,7 +149,9 @@ It opens on the **live log** (every line); Esc goes to the main menu.
 - **Encryption, sending out, time, network, high security** (1.0.188): the
   encryption to the database server and to isemon looked at and tried, a
   test line to isemon and to the syslog servers, the proxy tried, SNMPv3
-  asked, and the rest of those pages; isemon's **first full sync** (1.0.77).
+  asked, and the rest of those pages; isemon's **first full sync** (1.0.77); what the
+  alerts see wrong now, a look now that mails what is new, a test alert, and what
+  Prometheus is answered (`--alerts`, `--metrics-preview`).
 
 - **History, trash, request profiles, the agent fleet** (`h`, 1.0.140 - what the pages got in
   1.0.138): the latest changes (Enter: the whole history of that object, or that version again),
@@ -165,7 +169,11 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   they follow, the canary ring - shows an update in rings with it first, or deletes it; *+ a new
   group* makes one (`acme --fleet-group-save NAME --fleet-members A,B --fleet-template REF|-
   --fleet-canary yes|no`, `--fleet-group-del`, `--fleet-rollout plan GROUP`).
-- **Owners and teams** (`o`) has, since 1.0.140, the teams' health (`7`), the requests for a
+- **Owners and teams** (`o`): *Roles* (`3`) adds a role of your own (*+ add a role of your
+  own*), and Enter on one of your own changes it in a form - its name (its members follow),
+  its capabilities, its description - or deletes it (taken off the members who have it):
+  `acme --role-add NAME --caps .. [--description ..] [--name NEW]`, `--role-del NAME
+  [--strip]`. It has, since 1.0.140, the teams' health (`7`), the requests for a
   temporary role to decide (`8`: approve, or decline with why), the access reviews open now
   (`9`), *Who may do what, and why* (`w`), the team templates (`m`: Enter on one makes a
   new team from it or deletes it - `--team-from-template`, `--team-template-del`), *Who can do
