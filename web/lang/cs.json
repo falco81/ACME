@@ -77579,6 +77579,18 @@
   "z_3091": {
    "source": "it was changed meanwhile - try again",
    "text": "mezitím se změnila – zkuste to znovu"
+  },
+  "z_3092": {
+   "source": "Release the hold: out of the CRL again",
+   "text": "Uvolnit pozastavení: znovu mimo CRL"
+  },
+  "z_3093": {
+   "source": "Release it",
+   "text": "Uvolnit"
+  },
+  "z_3094": {
+   "source": "released",
+   "text": "uvolněno"
   }
  },
  "patterns": {
@@ -108097,6 +108109,18 @@
   "pz_1093": {
    "source": "the report {0} could not be made: {1}",
    "text": "report {0} se nepodařilo vytvořit: {1}"
+  },
+  "pz_1094": {
+   "source": "Release {0}",
+   "text": "Uvolnit {0}"
+  },
+  "pz_1095": {
+   "source": "It is on hold. Released, it is valid again and a new CRL of {0} is made without it.",
+   "text": "Je pozastavený. Po uvolnění je znovu platný a vytvoří se nový CRL autority {0} bez něj."
+  },
+  "pz_1096": {
+   "source": "the hold on serial {0} released",
+   "text": "pozastavení sériového čísla {0} uvolněno"
   }
  },
  "rich": {

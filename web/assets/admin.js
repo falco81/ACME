@@ -6396,12 +6396,20 @@ $('ex-file').onchange = function () {
       body.appendChild(el('p', 'note', 'Directories and accounts of the same name are replaced; the settings, the certificates, the VIP address, who may reach the pages, the firewall and the mail server\'s authorities in it are saved. Your own account is left as it is.'));
       body.appendChild(el('p', 'note', 'Add to what is here: anything not in the file stays. Exactly the file: directories and accounts not in it are taken away, and settings not in it go back to their defaults - as when a whole configuration is put back.'));
     }, [{words: 'Close', close: true},
-        {words: 'Exactly the file', cls: 'danger', icon: 'upload', close: true, go: function () {
-          api('import', {config: conf, replace: true, passphrase: phrase ? phrase.value : ''}).then(function (d) { toast(d.message, 'good'); loadSettings(); }).catch(oops);
-        }},
-        {words: 'Add to what is here', cls: 'primary', icon: 'upload', close: true, go: function () {
-          api('import', {config: conf, passphrase: phrase ? phrase.value : ''}).then(function (d) { toast(d.message, 'good'); loadSettings(); }).catch(oops);
-        }}], 'medium');
+        {words: 'Exactly the file', cls: 'danger', icon: 'upload', go: function (b) { importGo(b, true); }},
+        {words: 'Add to what is here', cls: 'primary', icon: 'upload', go: function (b) { importGo(b, false); }}], 'medium');
+    /* Closed once the daemon took it (1.0.142): a wrong passphrase closed the popup first,
+       and the file had to be chosen again to type it once more. */
+    function importGo(b, replace) {
+      var ask = {config: conf, passphrase: phrase ? phrase.value : ''};
+      if (replace) ask.replace = true;
+      busy(b, true);
+      var tk = modalTicket();
+      api('import', ask).then(function (d) {
+        if (modalStill(tk)) closeModal(true);
+        toast(d.message, 'good'); loadSettings();
+      }).catch(oops).then(function () { busy(b, false); });
+    }
   }).catch(oops);
 };
 
@@ -15606,11 +15614,15 @@ function rbSshBlock(body, t, f, cur) {
         body2.appendChild(formField('Its passphrase, if it has one', pp));
         setTimeout(function () { area.focus(); }, 60);
       }, [{words: 'Close', close: true},
-          {words: 'Keep this key', cls: 'primary', close: true, go: function () {
+          {words: 'Keep this key', cls: 'primary', go: function (b) {
             var key = $('rb-paste-area').value, pass = $('rb-paste-pp').value;
+            /* closed once it is kept (1.0.142): a key refused, or its wrong passphrase, closed
+               the popup first and the key pasted into it went with it */
+            busy(b, true);
+            var tk = modalTicket();
             rbNeedSaved(t.kind, cur).then(function () { return api('rbackup', {action: 'key_paste', id: cur.id, key: key, passphrase: pass}); })
-              .then(function (x) { state.pub = x.pub; state.has = true; paint(); toast('the key was stored', 'good'); })
-              .catch(oops);
+              .then(function (x) { if (modalStill(tk)) closeModal(true); state.pub = x.pub; state.has = true; paint(); toast('the key was stored', 'good'); })
+              .catch(oops).then(function () { busy(b, false); });
           }}]);
     });
   };
@@ -15752,10 +15764,14 @@ function rbFtpsBlock(body, t, f, cur) {
         pw.id = 'rb-cert-pw';
         body2.appendChild(formField('The password of the key or of the PFX, if it has one', pw));
       }, [{words: 'Close', close: true},
-          {words: 'Keep this certificate', cls: 'primary', close: true, go: function () {
+          {words: 'Keep this certificate', cls: 'primary', go: function (b) {
             var text = $('rb-cert-area').value, pass = $('rb-cert-pw').value;
+            /* closed once it is kept (1.0.142), as the key's above */
+            busy(b, true);
+            var tk = modalTicket();
             rbNeedSaved(t.kind, cur).then(function () { return api('rbackup', {action: 'cert_given', id: cur.id, text: text, password: pass}); })
-              .then(function (x) { state.cert = x.cert; state.info = x.info; paint(); toast('the certificate was stored', 'good'); }).catch(oops);
+              .then(function (x) { if (modalStill(tk)) closeModal(true); state.cert = x.cert; state.info = x.info; paint(); toast('the certificate was stored', 'good'); })
+              .catch(oops).then(function () { busy(b, false); });
           }}]);
     });
   };
@@ -17539,9 +17555,16 @@ function skAdd() {
     body.appendChild(ppf);
     pick = skNodePicker(body);
     setTimeout(function () { area.focus(); }, 60);
-  }, [{words: 'Close', close: true}, {words: 'Add it', cls: 'primary', icon: 'add', close: true, go: function () {
+  }, [{words: 'Close', close: true}, {words: 'Add it', cls: 'primary', icon: 'add', go: function (b) {
     var nodes = pick();
-    api('sshkeys', {action: 'add', line: area.value.trim(), passphrase: pp.value, nodes: nodes, user: user}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
+    /* Closed once the daemon took it (1.0.142): a line it refused - or a wrong passphrase -
+       closed the popup first, and the key pasted into it was gone with it. */
+    busy(b, true);
+    var tk = modalTicket();
+    api('sshkeys', {action: 'add', line: area.value.trim(), passphrase: pp.value, nodes: nodes, user: user}).then(function (x) {
+      if (modalStill(tk)) closeModal(true);
+      toast(x.message, 'good'); skPoll(true);
+    }).catch(oops).then(function () { busy(b, false); });
   }}], 'medium');
 }
 function skDrop(row) {
@@ -18054,7 +18077,7 @@ function osuAdd(name, like) {
       var there = osuRows().by[name] || {};
       body.querySelectorAll('.osu-nodes input').forEach(function (c) { if (there[c.value]) { c.checked = false; c.disabled = true; } });
     }
-  }, [{words: 'Close', close: true}, {words: name ? 'Make it there' : 'Add the user', cls: 'primary', icon: 'add', go: function () {
+  }, [{words: 'Close', close: true}, {words: name ? 'Make it there' : 'Add the user', cls: 'primary', icon: 'add', go: function (b) {
     var n = nameI.value.trim(), p = pw(), nodes = pick();
     if (!/^[a-z_][a-z0-9_.-]{0,31}$/.test(n)) { toast('a name is small letters, digits, _ . and -, starting with a letter', 'warn'); return; }
     if (!p.ok) { toast(p.said, 'warn'); return; }
@@ -18062,10 +18085,13 @@ function osuAdd(name, like) {
     if (sudo.input.checked && !p.value) { toast('sudo asks for the user\'s own password - give them one, or they cannot use sudo', 'warn'); return; }
     if (!nodes.length) { toast('pick a node', 'warn'); return; }
     if (!name && osuRows().by[n]) { toast(n + ' is there already', 'warn'); return; }
+    /* pressed once (1.0.142): a second press while the first was on its way asked for the
+       same user again */
+    busy(b, true);
     api('osusers', {action: 'add', name: n, gecos: gecos.value.trim(), shell: shell.value, password: p.value,
                     must_change: !!(p.value && must.input.checked), sudo: sudo.input.checked, nodes: nodes}).then(function (x) {
       closeModal(); toast(x.message, 'good'); osuChanged();
-    }).catch(oops);
+    }).catch(oops).then(function () { busy(b, false); });
   }}], 'medium');
 }
 function osuEdit(name) {
