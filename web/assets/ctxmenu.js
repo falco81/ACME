@@ -533,6 +533,9 @@ function rowKey(w) {
 }
 function selRows() {
   if (!SEL.box || !SEL.box.isConnected) return [];
+  /* a list of a tab or a pane not shown (another tab opened): nothing picked there for the dock
+     and its Actions - they ran on rows nobody could see; picked again when it is shown */
+  if (SEL.box.offsetParent === null && !SEL.box.getClientRects().length) return [];
   var out = [];
   var rows = SEL.scope ? SEL.box.querySelectorAll(SEL.scope.row) : SEL.box.querySelectorAll('tbody > tr');
   Array.prototype.forEach.call(rows, function (r) {

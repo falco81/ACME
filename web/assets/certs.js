@@ -71,6 +71,8 @@ function forgetAll() {
 var countsSoon = null;
 function afterWrite(path) {
   forgetAll();
+  /* ...and the objects Ctrl+K finds (palette.js): this change is in them at once */
+  if (window.ACME_PALETTE && typeof window.ACME_PALETTE.refresh === 'function') window.ACME_PALETTE.refresh();
   /* The counts on the tabs (Certificates, Jobs) follow too. */
   clearTimeout(countsSoon);
   countsSoon = setTimeout(tabCounts, 400);
@@ -11062,7 +11064,9 @@ function drawPane(name, live) {
 CT.refresh = function () {
   LAST = {};
   var tab = typeof TAB === 'string' ? TAB : '';
-  if (tab === 'overview' || MY_TABS[tab]) liveRun(function () { drawTab(tab, true); });
+  /* moved: after a change of the person's own the list is drawn again on any page of it - on
+     the certificates' second page a certificate deleted stayed in the list until the next tick */
+  if (tab === 'overview' || MY_TABS[tab]) liveRun(function () { drawTab(tab, true, true); });
   if (tab === 'settings' && typeof PANE === 'string' && MY_PANES[PANE]) drawPane(PANE, true);
 };
 CT.draw = drawTab;

@@ -93,9 +93,15 @@ function staticItems() {
   });
   return out;
 }
+/* The daemon's serial (its last event, admin.js's tick): it moved - something was made, renamed or
+   deleted, here, in another tab or by somebody else - the objects are asked anew. They were kept a
+   minute whatever happened: a certificate deleted was still offered (its card a 404) and one
+   renamed was found only by its old name. */
+function serialNow() { try { return typeof SERIAL !== 'undefined' ? String(SERIAL) : ''; } catch (e) { return ''; } }
 function objectItems() {
-  if (CACHE.items && Date.now() - CACHE.at < 60000) return Promise.resolve(CACHE.items);
+  if (CACHE.items && Date.now() - CACHE.at < 60000 && CACHE.serial === serialNow()) return Promise.resolve(CACHE.items);
   if (CACHE.asking) return CACHE.asking;
+  var serial = serialNow();
   var safe = function (p) { return p.catch(function () { return null; }); };
   var have = !!window.ACME_CERTS;
   CACHE.asking = Promise.all([
@@ -146,6 +152,7 @@ function objectItems() {
     });
     CACHE.items = out;
     CACHE.at = Date.now();
+    CACHE.serial = serial;
     CACHE.asking = null;
     return out;
   });
