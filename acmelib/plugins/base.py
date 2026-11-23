@@ -103,6 +103,78 @@ class PluginError(Exception):
         self.lasting = lasting
 
 
+_SENT_SECRET = re.compile(r'(key|token|pass|secret|sig|auth|credential|session|cookie|code)',
+                          re.I)
+
+
+def sent_secrets(url='', headers=None, body=None):
+    """The secrets a request carried (1.0.143): its sign-in headers, the values of its
+    query and of its body (JSON or a form) under a name that says one - what an answer
+    echoing them must not put into an error (a vendor's "invalid token <the token>")."""
+    out = set()
+
+    def add(v):
+        v = str(v or '').strip()
+        if len(v) >= 6:
+            out.add(v)
+
+    for k, v in (headers or {}).items():
+        if _SENT_SECRET.search(str(k)):
+            v = str(v or '')
+            add(v)
+            add(v.split(' ', 1)[1] if ' ' in v else '')     # "Bearer T", "sso-key K:S"
+            for part in re.split(r'[\s,:=;]+', v)[1:]:
+                add(part)
+
+    def walk(o, depth=0):
+        if depth > 6:
+            return
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if isinstance(v, (dict, list)):
+                    walk(v, depth + 1)
+                elif _SENT_SECRET.search(str(k)) and isinstance(v, str):
+                    add(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v, depth + 1)
+
+    try:
+        import json
+        import urllib.parse
+        query = urllib.parse.urlsplit(str(url or '')).query
+        for k, v in urllib.parse.parse_qsl(query, keep_blank_values=False):
+            if _SENT_SECRET.search(k):
+                add(v)
+        if isinstance(body, (bytes, bytearray)):
+            body = bytes(body).decode('utf-8', 'replace')
+        if isinstance(body, (dict, list)):
+            walk(body)
+        elif isinstance(body, str) and body.strip()[:1] in ('{', '['):
+            try:
+                walk(json.loads(body))
+            except ValueError:
+                pass
+        elif isinstance(body, str) and '=' in body and len(body) < 65536:
+            for k, v in urllib.parse.parse_qsl(body, keep_blank_values=False):
+                if _SENT_SECRET.search(k):
+                    add(v)
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
+
+
+def without_sent(words, secrets):
+    """`words` with each of `secrets` (sent_secrets) as dots - the longest first."""
+    if words is None or not secrets:
+        return words
+    words = str(words)
+    for v in sorted(secrets, key=len, reverse=True):
+        if v in words:
+            words = words.replace(v, '•' * 8)
+    return words
+
+
 # ---------------------------------------------------------------------------
 # What a module is handed
 # ---------------------------------------------------------------------------

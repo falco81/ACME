@@ -31,7 +31,7 @@ import time
 import urllib.parse
 import warnings
 
-from acmelib.plugins.base import Target, PluginError, field
+from acmelib.plugins.base import Target, PluginError, field, sent_secrets, without_sent
 
 __all__ = [
     'PluginError', 'field', 'Base', 'HttpTarget', 'SshMixin',
@@ -955,8 +955,12 @@ class HttpTarget(Base):
                 parsed = raw
         good = ok if ok is not None else range(200, 300)
         if st not in good:
-            raise PluginError(self.http_error(st, parsed, raw, method, path, what),
-                              detail=text(raw)[:4000],
+            # what was sent to sign in, echoed in the answer ("invalid token <it>"), is
+            # not put into the error (1.0.143)
+            sent = sent_secrets(url, h, data)
+            raise PluginError(without_sent(self.http_error(st, parsed, raw, method, path, what),
+                                           sent),
+                              detail=without_sent(text(raw)[:4000], sent),
                               retry=st not in (400, 401, 403, 404, 405, 409, 422))
         return st, hd, parsed
 

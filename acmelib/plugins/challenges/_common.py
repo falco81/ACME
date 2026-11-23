@@ -29,7 +29,7 @@ import time
 
 from acmelib.plugins import limits
 from acmelib.plugins.base import (GENERIC_DISCOVERY, Challenge, Plugin, PluginError, field,
-                                 guide_of, guide_step)
+                                 guide_of, guide_step, sent_secrets, without_sent)
 from acmelib.plugins.challenges import _dns as D
 
 # A name connected to at an address of its own, in this thread only (a check of
@@ -231,7 +231,13 @@ def api(ctx, method, url, body=None, headers=None, who='the API', ok=(200, 201, 
     if status == 404 and missing_ok:
         return (status, parsed, rh) if with_headers else (status, parsed)
     if status not in ok:
-        raise said_error(who, status, parsed, got)
+        e = said_error(who, status, parsed, got)
+        # what was sent to sign in, echoed in the answer, is not put into the error (1.0.143)
+        sent = sent_secrets(url, h, data)
+        if sent:
+            e = PluginError(without_sent(str(e), sent), detail=without_sent(e.detail, sent),
+                            retry=e.retry, lasting=e.lasting)
+        raise e
     return (status, parsed, rh) if with_headers else (status, parsed)
 
 

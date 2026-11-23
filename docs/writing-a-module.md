@@ -30,7 +30,7 @@ reaches out goes through the **Context** acme hands the module (`self.ctx`):
 
 | | |
 |---|---|
-| `ctx.http(method, url, body=None, headers=None, timeout=30, verify=True, ca_pem=None, client_cert=None, proxy=True)` | → `(status, headers, body_bytes)`, header names lower case |
+| `ctx.http(method, url, body=None, headers=None, timeout=30, verify=True, ca_pem=None, client_cert=None, proxy=True)` | → `(status, headers, body_bytes)`, header names lower case; a user name and password in the address (`https://user:pw@host/`) are refused - send them in a header |
 | `ctx.ssh(conn)` | an SSH session: `s.run(cmd, input=None, timeout=120, check=True)` → `(rc, out, err)`, `s.put(data, path, mode=0o600, owner=None)`, `s.get(path)`; use as `with ctx.ssh(conn) as s:` |
 | `ctx.step(words, level)` | a line in the job (`info`, `ok`, `warn`, `bad`) |
 | `ctx.debug(words)` | a line only when debugging |

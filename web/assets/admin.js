@@ -4017,6 +4017,7 @@ function loadUsers() {
           }, reset: function () { loadUsers(); }});
         };
         role.classList.add('acc-rolebox', 'tone-' + roleTone(u.role));
+        role.setAttribute('aria-label', 'Role');     /* a box with a name (1.0.143) */
         r.appendChild(role);
       }
       tools.appendChild(info);
@@ -13181,6 +13182,7 @@ function drawFwAccess(d) {
     var box = el('textarea', 'mono fw-nets');
     box.rows = 2; box.spellcheck = false;
     box.placeholder = '10.0.0.0/8, 192.168.10.0/24, 2001:db8::/32';
+    box.setAttribute('aria-label', p[1]);         /* named by what it lets in (1.0.143) */
     box.value = st[p[0]].from.join(', ');
     box.disabled = !d.may;
     /* Into the draft as it is now (1.0.206), not the one this box was drawn from:
@@ -17250,6 +17252,7 @@ function drawSshKeys(live) {
     var wh = el('div', 'sk-who-row');
     wh.appendChild(el('span', 'k', 'Whose keys'));
     var sel = el('select', 'mono');
+    sel.setAttribute('aria-label', 'Whose keys');  /* named by the words beside it (1.0.143) */
     var o0 = el('option', '', 'root'); o0.value = 'root'; sel.appendChild(o0);
     users.forEach(function (u) { var o = noI18n(el('option', '', u)); o.value = u; sel.appendChild(o); });
     sel.value = SK.user;
@@ -19252,6 +19255,7 @@ function drawProxy() {
   var url = el('input');
   url.type = 'text';
   url.placeholder = 'https://github.com/';
+  url.setAttribute('aria-label', 'Address');
   url.style.flex = '1';
   url.style.minWidth = '260px';
   var go = cmdButton('Try it', 'play', 'primary');

@@ -216,6 +216,11 @@ function toast(words, kind) {
     node.setAttribute('role', 'status');
     document.body.appendChild(node);
   }
+  /* Said to a screen reader as well (1.0.143): the pages' own toast was no live region, so
+     "saved", "refused: ..." were never heard; a refusal at once, the rest when it is quiet. */
+  if (node.getAttribute('role') !== 'status') node.setAttribute('role', 'status');
+  node.setAttribute('aria-live', kind === 'bad' ? 'assertive' : 'polite');
+  node.setAttribute('aria-atomic', 'true');
   node.textContent = words;
   /* Over a popup: above its buttons, never over them (1.0.96: "Close" was under the
      refusal) - at the bottom of the window otherwise. */
@@ -227,6 +232,15 @@ function toast(words, kind) {
   node._away = setTimeout(function () { node.className = 'toast' + (kind ? ' ' + kind : ''); },
                           kind === 'bad' ? 6500 : 3200);
 }
+/* The page's toast a live region from the start (1.0.143), before it first says anything: a
+   region made live with its first words is not heard by every screen reader. */
+(function () {
+  var node = typeof document !== 'undefined' && document.getElementById('toast');
+  if (!node) return;
+  node.setAttribute('role', 'status');
+  node.setAttribute('aria-live', 'polite');
+  node.setAttribute('aria-atomic', 'true');
+})();
 /** A toast taken away at once (1.0.93): "choose the target" stayed over the footer after
     the target was chosen. */
 function toastAway() {
@@ -295,6 +309,44 @@ function labelsFromPlaceholders(root) {
   } catch (e) { }
 }
 document.addEventListener('DOMContentLoaded', function () { labelsFromPlaceholders(document); });
+/* ...and a box drawn later, outside a popup (1.0.143): the panes' and the tabs' own boxes (the
+   proxy's "Try it", a team's search) had no name at all. */
+function labelsFromPlaceholdersIn(n) {
+  if (!n || n.nodeType !== 1) return;
+  if (n.matches && n.matches('input[placeholder], textarea[placeholder]')) labelsFromPlaceholders(n.parentNode || n);
+  else if (n.querySelector && n.querySelector('input[placeholder], textarea[placeholder]')) labelsFromPlaceholders(n);
+}
+/* The popup is a dialog named by its title (1.0.143): a screen reader read it as part of the
+   page behind it, without its name. Every popup open, the one on top. */
+function modalAria() {
+  var box = $('modal-box');
+  if (!box) return;
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  if ($('modal-title')) box.setAttribute('aria-labelledby', 'modal-title');
+}
+/* The arrow keys along a row of tabs (1.0.143): role="tab" tells a screen reader to use them,
+   and on the main tabs, the settings' and most of the others they did nothing. Left and right,
+   Home and End move the focus to a tab; Enter or Space opens it, as before. A row of tabs that
+   handles its own keys (the fleet's) is left to it. */
+document.addEventListener('keydown', function (e) {
+  if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  if (!/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) return;
+  var t = e.target;
+  if (!t || !t.getAttribute || t.getAttribute('role') !== 'tab') return;
+  var list = t.parentNode && t.parentNode.getAttribute && t.parentNode.getAttribute('role') === 'tablist' ? t.parentNode
+    : (t.closest && t.closest('[role="tablist"]'));
+  if (!list) return;
+  var tabs = Array.prototype.filter.call(list.querySelectorAll('[role="tab"]'), function (b) {
+    return !b.hidden && !b.disabled && b.getClientRects().length && b.closest('[role="tablist"]') === list;
+  });
+  var at = tabs.indexOf(t);
+  if (at < 0 || tabs.length < 2) return;
+  var to = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+    : (at + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+  e.preventDefault();
+  try { tabs[to].focus(); } catch (x) { }
+});
 /* Enter in a box of a popup presses its one main button (1.0.80): "Make an account", the
    portal's new password... did nothing - unless the box (or its form) takes Enter itself, or
    there is no single main button that destroys nothing. */
@@ -323,6 +375,7 @@ function modal(title, build, buttons, narrow) {
   if ($('modal')) delete $('modal').dataset.cert;   /* whose window it is: drawn by certBody */
   MODAL_GEN += 1;
   $('modal-title').textContent = title;
+  modalAria();
   /* `narrow` is true for the small popup, or the name of another size. */
   $('modal-box').className = 'box' + (typeof narrow === 'string' ? ' ' + narrow
     : (narrow ? ' narrow' : ''));
@@ -553,7 +606,9 @@ function modalOverNow() {
   MODAL_IDS.forEach(function (id) { var e = $(id); if (e) e.id = id + '-under' + n; });
   cur.classList.add('under');
   var wrap = document.createElement('div');
-  wrap.innerHTML = '<div class="modal over" id="modal" hidden><div class="box" id="modal-box">'
+  var underBox = $('modal-box-under' + n), underTitle = $('modal-title-under' + n);
+  if (underBox && underTitle) underBox.setAttribute('aria-labelledby', underTitle.id);
+  wrap.innerHTML = '<div class="modal over" id="modal" hidden><div class="box" id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">'
     + '<div class="head"><h3 id="modal-title"></h3><button class="xbtn" id="modal-x" '
     + 'aria-label="Close"></button></div><div class="body" id="modal-body"></div>'
     + '<div class="foot" id="modal-foot"></div></div></div>';
@@ -663,6 +718,7 @@ function closeModal(sure) {
       if (e) e.id = id;
     });
     under.el.classList.remove('under');
+    modalAria();
     MODAL_CLOSE = under.close;
     MODAL_FROM = under.from;
   }
@@ -2284,7 +2340,7 @@ function longWordsFolded(root) {
       list.forEach(function (m) {
         if (m.type === 'attributes') { if (m.target.getAttribute('title')) nativeTipsAway(m.target); return; }
         Array.prototype.forEach.call(m.addedNodes, function (n) {
-          if (n.nodeType === 1) { nativeTipsAway(n); longWordsFolded(n); }
+          if (n.nodeType === 1) { nativeTipsAway(n); longWordsFolded(n); labelsFromPlaceholdersIn(n); }
         });
       });
     }).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['title']});

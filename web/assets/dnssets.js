@@ -125,6 +125,7 @@
       var pend = Object.prototype.hasOwnProperty.call(DS.uses, p.key);
       var sel = selectBox(pairs, pend ? DS.uses[p.key] : was);
       sel.id = 'dnss-use-' + p.key;
+      sel.setAttribute('aria-label', p.title);      /* named by its function (1.0.143) */
       Array.prototype.forEach.call(sel.options, function (o, i) { if (i > 0 && o.value !== d.system) noI18n(o); });
       sel.disabled = !full();
       tr.classList.toggle('changed', pend);

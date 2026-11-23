@@ -9,14 +9,19 @@
        monospace it is trying to get out of. */
     --face:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --bg:#0d1117; --panel:#161b22; --panel2:#1c222b; --line:#262c37;
-    --tx:#e6e9ef; --tx-dim:#8b94a3; --tx-mut:#5b6472;
+    --tx:#e6e9ef; --tx-dim:#8b94a3; --tx-mut:#828b9b;
     --ok:#3fb950; --warn:#d29922; --crit:#f85149; --info:#58a6ff;
-    --accent:#58a6ff; --violet:#a371f7; --load:#f0883e;
+    --accent:#58a6ff; --violet:#b28bf9; --load:#f0883e;
     --ok-bg:rgba(63,185,80,.12); --warn-bg:rgba(210,153,34,.12);
     --crit-bg:rgba(248,81,73,.13); --info-bg:rgba(88,166,255,.12);
     --violet-bg:rgba(163,113,247,.14);
     --r:14px;
   }
+  /* WCAG AA on the dark page (1.0.143): --tx-mut (#5b6472, the tables' headings, the tiles'
+     labels, "by hand", the time in the header) was 2.7-3.2:1 and --violet on its chip 3.9:1;
+     both are 4.5:1 or more on the panels now. A link no rule colours was the browser's own
+     blue - 1.5:1 on the dark page; it takes the pages' blue, and every rule of its own wins. */
+  :where(a:link, a:visited){color:var(--info)}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;background:var(--bg);color:var(--tx);
@@ -1796,6 +1801,7 @@
     body.print-modal #modal .body{overflow:visible;max-height:none}
     body.print-modal #modal .foot,body.print-modal #modal .xbtn{display:none !important}
     body{background:#fff;color:#000}
+    :root{--tx-mut:#5b6472}           /* on paper the darker grey reads better (1.0.143) */
     .noprint,header .btnrow,.langpick{display:none !important}
     .card{border:0;background:#fff}
     .codes span{background:#fff;color:#000;border-color:#999}

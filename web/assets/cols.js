@@ -520,16 +520,43 @@ function colsWire(table, head) {
 
 /* ---- the menu on a heading's right button, while editing ---------------- */
 var COLS_MENU = null;
-function colsMenuClose() {
-  if (COLS_MENU) { COLS_MENU.remove(); COLS_MENU = null; }
+function colsMenuClose(back) {
+  if (!COLS_MENU) return;
+  var from = COLS_MENU._from, byKeys = COLS_MENU._kb;
+  COLS_MENU.remove();
+  COLS_MENU = null;
+  /* back where it was opened from (1.0.143): Escape left the focus nowhere */
+  if (back && byKeys && from && from.isConnected && from.focus) { try { from.focus({preventScroll: true}); } catch (e) { } }
 }
 document.addEventListener('mousedown', function (e) {
   if (COLS_MENU && !COLS_MENU.contains(e.target)) colsMenuClose();
 }, true);
 document.addEventListener('keydown', function (e) {
-  if (COLS_MENU && e.key === 'Escape') colsMenuClose();
+  if (COLS_MENU && e.key === 'Escape') colsMenuClose(COLS_MENU.contains(document.activeElement));
 });
-window.addEventListener('resize', colsMenuClose);
+/* The column menu from the keyboard (1.0.143): only the right button opened it - the Menu key
+   and Shift+F10 on a row or a heading of a table did nothing while the columns were being
+   edited (the row's own menu steps aside then). The column of the focused cell, or the first. */
+document.addEventListener('keydown', function (e) {
+  if (!COLS_EDIT || COLS_MENU || e.defaultPrevented) return;
+  if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) return;
+  var t = document.activeElement;
+  if (!t || !t.closest || t.closest('input, textarea, select, [contenteditable]')) return;
+  var table = t.closest('table');
+  var head = table && colsHead(table);
+  if (!head || !table._colsKey) return;
+  var cell = t.closest('td, th');
+  var row = cell && cell.parentNode;
+  var th = null;
+  if (cell && row === head) th = cell;
+  else if (cell && row && row.cells.length === head.cells.length) th = head.cells[cell.cellIndex];
+  if (!th) th = Array.prototype.filter.call(head.cells, function (c) { return c.getClientRects().length; })[0];
+  if (!th) return;
+  e.preventDefault();
+  var r = (cell || t).getBoundingClientRect();
+  colsMenu(r.left + 8, Math.min(r.bottom - 4, window.innerHeight - 20), table, th, {from: t});
+});
+window.addEventListener('resize', function () { colsMenuClose(); });
 document.addEventListener('scroll', function (e) {
   if (COLS_MENU && !COLS_MENU.contains(e.target)) colsMenuClose();
 }, true);
@@ -555,7 +582,8 @@ function colsMenuName(th) {
   return 'Column ' + (Number(th.dataset.ci || 0) + 1) + ' (no heading)';
 }
 
-function colsMenu(x, y, table, th) {
+function colsMenu(x, y, table, th, kb) {
+  var from = kb && kb.from ? kb.from : (COLS_MENU ? COLS_MENU._from : document.activeElement);
   colsMenuClose();
   var head = colsHead(table);
   if (!head || !COLS_EDIT) return;
@@ -586,24 +614,27 @@ function colsMenu(x, y, table, th) {
     menu.appendChild(b);
     return b;
   };
-  var again = function () { colsMenu(x, y, table, th.isConnected ? th : head.cells[0]); };
+  var again = function () {
+    var on = COLS_MENU ? Array.prototype.indexOf.call(COLS_MENU.querySelectorAll('.cols-mi'), document.activeElement) : -1;
+    colsMenu(x, y, table, th.isConnected ? th : head.cells[0], {from: from, at: on, kb: !!(COLS_MENU && COLS_MENU._kb)});
+  };
   if (colsIsSpacer(th)) {
     item('Take this empty column away', 'trash', function () {
-      colsMenuClose();
+      colsMenuClose(true);
       colsDropSpacer(table, th.dataset.ck);
     });
   } else {
     item('Hide “' + colsMenuName(th) + '”', 'eye', function () {
-      colsMenuClose();
+      colsMenuClose(true);
       colsHide(table, th.dataset.ck, true);
     }, showing <= 1);
   }
   item('Add an empty column to the left', 'add', function () {
-    colsMenuClose();
+    colsMenuClose(true);
     colsAddSpacer(table, th, false);
   });
   item('Add an empty column to the right', 'add', function () {
-    colsMenuClose();
+    colsMenuClose(true);
     colsAddSpacer(table, th, true);
   });
   menu.appendChild(el('div', 'cols-msep'));
@@ -620,16 +651,43 @@ function colsMenu(x, y, table, th) {
     });
   menu.appendChild(el('div', 'cols-msep'));
   item('Put this table back as it comes', 'undo', function () {
-    colsMenuClose();
+    colsMenuClose(true);
     delete COLS[key];
     colsApply(table);
     colsSave();
   }, !COLS[key]);
   document.body.appendChild(menu);
   COLS_MENU = menu;
+  menu._from = from;
+  menu._kb = !!(kb && ('kb' in kb ? kb.kb : kb.from));
   var box = menu.getBoundingClientRect();
   menu.style.left = Math.max(8, Math.min(x, window.innerWidth - box.width - 8)) + 'px';
   menu.style.top = Math.max(8, Math.min(y, window.innerHeight - box.height - 8)) + 'px';
+  /* Used from the keyboard as every menu (1.0.143): the focus in it, the arrows, Home and End
+     along what can be pressed, Tab leaves it. A column ticked keeps the focus where it was. */
+  var live = function () {
+    return Array.prototype.filter.call(menu.querySelectorAll('.cols-mi'), function (b) { return !b.disabled; });
+  };
+  menu.addEventListener('keydown', function (e) {
+    var list = live();
+    var i = list.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!list.length) return;
+      var n = i < 0 ? (e.key === 'ArrowDown' ? 0 : list.length - 1)
+        : (i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length;
+      list[n].focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      if (list.length) list[e.key === 'Home' ? 0 : list.length - 1].focus();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      colsMenuClose(true);
+    }
+  });
+  var all = menu.querySelectorAll('.cols-mi');
+  var want = kb && kb.at >= 0 && all[kb.at] && !all[kb.at].disabled ? all[kb.at] : live()[0];
+  if (want) { try { want.focus({preventScroll: true}); } catch (e) { } }
 }
 
 /** The widths as they stand now, for a table that has none kept yet: an

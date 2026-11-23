@@ -66,6 +66,89 @@ class CheckHeaders(unittest.TestCase):
         self.assertFalse(hdrs['User-Agent'][2])
 
 
+class EchoCtx(object):
+    """A device that answers 401 with what it was sent, as some vendors' errors do."""
+    node = 'n'
+    settings = {}
+
+    def __init__(self):
+        self.steps = []
+
+    def step(self, words, level='info'):
+        self.steps.append(words)
+
+    def debug(self, words):
+        self.steps.append(words)
+
+    def cancelled(self):
+        return False
+
+    def http(self, method, url, body=None, headers=None, **kw):
+        echo = {'error': 'invalid credentials: %s %s %s' % (
+            url, json.dumps(headers), (body or b'').decode() if isinstance(body, bytes)
+            else body)}
+        return 401, {}, json.dumps(echo).encode()
+
+
+class EchoedSecrets(unittest.TestCase):
+    def test_helper(self):
+        from acmelib.plugins import base
+        got = base.sent_secrets('https://h/x?api_key=QUERYKEY1&page=2',
+                                {'Authorization': 'Bearer BEARER-TOK', 'Accept': 'x/y'},
+                                b'{"user": "admin", "password": "BODY-PW-1", "n": {"token": '
+                                b'"NESTED-T"}}')
+        self.assertTrue({'QUERYKEY1', 'BEARER-TOK', 'BODY-PW-1', 'NESTED-T'} <= got)
+        self.assertNotIn('admin', got)
+        self.assertNotIn('2', got)
+        self.assertIn('FORM-PW-9', base.sent_secrets('', {}, 'user=a&password=FORM-PW-9'))
+        self.assertEqual(base.without_sent('x BEARER-TOK y', got), 'x %s y' % ('•' * 8))
+
+    def test_target_error_without_the_echo(self):
+        from acmelib.plugins.targets._common import HttpTarget
+        from acmelib.plugins.base import PluginError
+
+        class T(HttpTarget):
+            kind = 'echo_test'
+
+            def auth_headers(self):
+                return {'Authorization': 'Bearer HDR-SECRET-1'}
+
+        t = T({'host': 'dev.example.test'}, EchoCtx())
+        with self.assertRaises(PluginError) as e:
+            t.req('POST', '/api/login?token=Q-SECRET-2', {'password': 'BODY-SECRET-3'})
+        blob = str(e.exception) + str(e.exception.detail)
+        for s in ('HDR-SECRET-1', 'Q-SECRET-2', 'BODY-SECRET-3'):
+            self.assertNotIn(s, blob)
+        self.assertIn('does not let acme in (401)', str(e.exception))
+
+    def test_challenge_error_without_the_echo(self):
+        from acmelib.plugins.challenges import _common as CC
+        from acmelib.plugins.base import PluginError
+        with self.assertRaises(PluginError) as e:
+            CC.api(EchoCtx(), 'POST', 'https://dns.example.test/v1?key=Q-SECRET-4',
+                   {'secret_key': 'BODY-SECRET-5'}, {'X-Api-Key': 'HDR-SECRET-6'},
+                   who='the DNS API')
+        blob = str(e.exception) + str(e.exception.detail)
+        for s in ('Q-SECRET-4', 'BODY-SECRET-5', 'HDR-SECRET-6'):
+            self.assertNotIn(s, blob)
+        self.assertIn('the DNS API said 401', str(e.exception))
+        self.assertFalse(e.exception.retry)
+
+
+class IapStageUrl(unittest.TestCase):
+    def test_secret_and_empty_is_tftp(self):
+        from acmelib.certs import store as S
+        cls = S.registry().get('target', 'aruba_iap')
+        f = [x for x in cls.fields if x['key'] == 'stage_url'][0]
+        self.assertEqual(f['type'], 'secret')
+        self.assertIn('stage_url', S.secret_fields(cls))
+        mod = cls({'stage_host': 'tftp.example.test', 'stage_dir': '/srv/tftp'}, None)
+        self.assertEqual(mod.url('x.pfx'), 'tftp://tftp.example.test/x.pfx')
+        mod = cls({'stage_host': 'h', 'stage_url': 'ftp://u:pw@{addr}/{dir}/{file}',
+                   'stage_dir': '/c'}, None)
+        self.assertEqual(mod.url('x.pfx'), 'ftp://u:pw@h/c/x.pfx')
+
+
 class UrlUserinfo(unittest.TestCase):
     def test_refused_without_the_password(self):
         from acmelib.certs import runtime as R

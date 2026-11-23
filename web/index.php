@@ -485,7 +485,7 @@ if ($title_ours) {
 </header>
 <div id="portal"></div>
 <div class="modal" id="modal" hidden>
-  <div class="box" id="modal-box">
+  <div class="box" id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="head"><h3 id="modal-title">…</h3>
       <button class="xbtn" id="modal-x" data-icon="close" aria-label="Close"></button></div>
     <div class="body" id="modal-body"></div>

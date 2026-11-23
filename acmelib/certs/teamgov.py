@@ -495,12 +495,17 @@ def elevation_ask(store, actor, team, role, hours, reason):
                               % name)
     if _norm(one['caps']) <= _norm(have) and not actor.get('all'):
         raise E.ApiError(409, 'you hold what %s gives on the team %s already' % (one['name'], name))
-    if not actor.get('all'):
-        # separation of duties with all they hold - through their groups too (hunt w4): given
-        # later, only their own names were looked at, and a Requester by a group of the
-        # directory was given Approver beside it
+    if not actor.get('all') and actor.get('groups'):
+        # separation of duties with what they hold through their groups (hunt w4): when it is
+        # given (elevation_decide), only the memberships of their own names are known - a
+        # Requester by a group of the directory was given Approver beside it. Refused now,
+        # where it is only their groups that make it clash (their own: when it is given).
         bad = sod_conflicts(store, name, have | one['caps'])
-        if bad:
+        if bad and not sod_conflicts(store, name, _requester_caps(store, {
+                'ids': json.dumps(sorted({_low(x) for x in (actor.get('ids') or [])} |
+                                         {_low(x) for x in (actor.get('names') or [])})),
+                'team': name,
+                'who': actor.get('who') or _low(actor.get('by'))}) | one['caps']):
             raise E.ApiError(403, sod_words(name, bad, _who_by(actor.get('by'))))
     for r in elevation_rows(store, name, below=False):
         if r['state'] in ('waiting', 'granted') and _low(r['role']) == _low(one['name']) and \

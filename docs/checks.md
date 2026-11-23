@@ -110,8 +110,9 @@ once, not at every run.
 | *Time limit*, *Fail when not trusted here* | |
 
 HTTPS also: *Ask over HTTP too*, *Method* (HEAD, GET, OPTIONS), *Path*, *Host
-header* (a virtual host other than the SNI), *More headers*, *Status expected*
-(`200,301-302`), *The answer holds* (GET).
+header* (a virtual host other than the SNI), *More headers* (one `Name: value` a line; kept
+sealed as a secret since 1.0.143 - an `Authorization` or a cookie may be there - and shown as
+dots in What happens), *Status expected* (`200,301-302`), *The answer holds* (GET).
 
 ## Through an SSH server
 

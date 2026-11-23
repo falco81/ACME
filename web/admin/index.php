@@ -963,7 +963,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       of a setting, every sign-in. Kept in the database, so it survives a restart.</p>
     <div class="btnrow filters">
       <input type="search" id="ev-q" placeholder="anything in an event…" style="flex:1;min-width:200px">
-      <select id="ev-kind"><option value="">everything</option></select>
+      <select id="ev-kind" aria-label="Kind"><option value="">everything</option></select>
       <span id="ev-time" title="How far back the events go."></span>
       <span class="spacer"></span>
       <button class="btn cmd fulladmin-only" id="log-read" data-icon="log"
@@ -1535,8 +1535,8 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         over and what the server said. Save the changes first.</p>
       <div class="btnrow admin-only filters">
         <input type="email" id="mail-to" placeholder="somebody@example.cz" style="flex:1;min-width:240px">
-        <select id="mail-test-kind"><option value="short">a short message</option><option value="code">a sample sign-in code (e-mail codes)</option></select>
-        <select id="mail-test-lang"><option value="cs">Čeština</option><option value="en">English</option></select>
+        <select id="mail-test-kind" aria-label="What to send"><option value="short">a short message</option><option value="code">a sample sign-in code (e-mail codes)</option></select>
+        <select id="mail-test-lang" aria-label="Language"><option value="cs">Čeština</option><option value="en">English</option></select>
         <select id="mail-test-via" title="With mail sent straight to the recipient's server: this once, every step shown here - or through the outgoing mail, as codes go: tried now, and tried again by itself while the other side does not take it yet (greylisting)." hidden><option value="queue">through the outgoing mail</option><option value="straight">straight, this once (to see every step)</option></select>
         <button class="btn cmd primary" id="mail-test" data-icon="mail">Send a test</button>
       </div>
@@ -1659,7 +1659,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div class="mq-chips" id="mq-chips"></div>
       <div class="btnrow filters" style="margin-top:12px">
         <input type="search" id="mq-q" placeholder="an address, a name, what the server said… (to:*@example.cz, state:waiting, kind:code…)" style="flex:1;min-width:260px">
-        <select id="mq-state">
+        <select id="mq-state" aria-label="State">
           <option value="">every state</option>
           <option value="open">waiting or failed</option>
           <option value="waiting">waiting for another try</option>
@@ -2044,7 +2044,7 @@ acme --upgrade-status                       # an upgrade started on these pages<
 </div><!-- /wrap -->
 
 <div class="modal" id="modal" hidden>
-  <div class="box" id="modal-box">
+  <div class="box" id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="head"><h3 id="modal-title">…</h3>
       <button class="xbtn" id="modal-x" data-icon="close" aria-label="Close"></button></div>
     <div class="body" id="modal-body"></div>

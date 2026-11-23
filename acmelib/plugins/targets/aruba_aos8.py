@@ -144,12 +144,15 @@ def stage_fields(device='controller', url=False, transfer=False):
     out += ssh_fields(sudo=False, prefix='stage_', user_default='acme', howto='linux',
                       try_command='id -un; uname -n')
     if url:
+        # 1.0.143: kept sealed - a password goes into it (ftp://user:password@...); a text
+        # in clear before, shown with the target and in a configuration exported without
+        # secrets. Empty: tftp://{addr}/{file} (url() below), as the default it had.
         out.append(field(
-            'stage_url', 'URL the AP fetches it from', 'text',
-            default='tftp://{addr}/{file}', advanced=True,
+            'stage_url', 'URL the AP fetches it from', 'secret', advanced=True,
             placeholder='ftp://user:password@{addr}/certs/{file}',
             help='Instant 8.7 and later: {addr} the address above, {file} the file name, '
-                 '{dir} the folder'))
+                 '{dir} the folder; empty: tftp://{addr}/{file} - kept sealed, as every '
+                 'secret'))
     return out
 
 

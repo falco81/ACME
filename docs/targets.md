@@ -3989,7 +3989,8 @@ of staging server, fetched by the AP:
 
 - **Instant 8.7 and later** (from 8.7.0.0 a certificate works only when assigned):
   `crypto pki-import format pfx cert-type ServerCert url <url> certname <name> psk <pw>`
-  (the URL from *URL the AP fetches it from*, default `tftp://{addr}/{file}`; the command
+  (the URL from *URL the AP fetches it from*, kept sealed as a secret since 1.0.143 - a
+  password may be in it -, empty: `tftp://{addr}/{file}`; the command
   itself is the advanced field *Import command*), then `configure terminal`, `wlan
   cert-assignment-profile`, `pki-cert-assign application ui|captive-portal cert-type
   ServerCert certname <name>`, `exit`, `exit`, `commit apply`; `show cert assignment` must

@@ -644,6 +644,7 @@
     q.type = 'search';
     q.id = 'tmx-q';
     q.placeholder = tr('Find a team…');
+    q.setAttribute('aria-label', q.placeholder);   /* a box kept as typed: named in the page's language (1.0.143) */
     q.autocomplete = 'off';
     q.value = UI.q;
     noI18n(q);
