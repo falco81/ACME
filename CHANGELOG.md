@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.141 - not released
+
 ## 1.0.140 - 2026-11-23
 
 - **The agent checks what it deploys (allow issuer, allow names, require key local).** Three new, optional lines of an agent's policy - root's, as every line: `allow issuer sha256=…` (every certificate written must chain to one of these CAs; the agent verifies the signatures itself with openssl, the chain acme sends is never trusted), `allow names *.example.com …` (every name in the certificate must be one of these) and `require key local` (the key must be one the agent made on the server - acme's is refused). The agent checks them before it writes anything; a refusal says which line and which certificate, nothing is written and its audit log has it. A stolen or misused acme can then no longer slip in a certificate of another CA, for a foreign name or with its own key. On Linux, Windows and in the Kubernetes agent (issuer and names); `acme-agent allow issuer CA.pem`, `allow names …`, `require key local` on the server. Without the lines nothing changes, and an older agent is sent nothing new.
