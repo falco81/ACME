@@ -77575,6 +77575,10 @@
   "z_3090": {
    "source": "You asked for it; it is approved (or not) as its team’s rule says. You are told by mail when it is.",
    "text": "Požádali jste o něj; schválí se (nebo ne) podle pravidla jeho týmu. Až se tak stane, dostanete e-mail."
+  },
+  "z_3091": {
+   "source": "it was changed meanwhile - try again",
+   "text": "mezitím se změnila – zkuste to znovu"
   }
  },
  "patterns": {

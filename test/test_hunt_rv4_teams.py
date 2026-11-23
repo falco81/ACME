@@ -209,7 +209,7 @@ class ReviewDeadline(unittest.TestCase):
         self.assertEqual(states, {'local:a': 'kept', 'local:b': 'pending'})
         STORE.db.run('DELETE FROM events')
         G._review_tick(STORE)
-        self.assertFalse(STORE.db.rows("SELECT * FROM events WHERE message LIKE '%overdue%'"))
+        self.assertFalse(STORE.db.rows("SELECT * FROM events WHERE words LIKE '%overdue%'"))
 
     def test_tick_still_works(self):
         G._review_tick(STORE)
