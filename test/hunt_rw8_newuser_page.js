@@ -82,11 +82,11 @@ const path = require('path');
       await page.locator('#tab-certs button.primary:visible').filter({hasText: lang === 'cs' ? /Přidat certifikát/ : /Add a certificate/}).first().click();
       await page.waitForTimeout(1500);
       const dlg = page.getByRole('dialog');
-      await dlg.locator('.ct-src').filter({hasText: 'LetsEncrypt staging'}).first().click();
+      await dlg.locator('.ct-src').filter({hasText: 'OwnAcme'}).first().click();
       const next = dlg.getByRole('button', {name: lang === 'cs' ? 'Další' : 'Next', exact: true});
       await next.click();
       await page.waitForTimeout(1200);
-      await dlg.locator('input[placeholder="www.example.com"]').last().fill('www.rw8.example.test');
+      await dlg.locator('input[placeholder="www.example.com"]').last().fill('localhost');
       for (let i = 0; i < 9 && await next.count(); i++) {
         await next.last().click();
         await page.waitForTimeout(1500);

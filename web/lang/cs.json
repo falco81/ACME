@@ -78475,6 +78475,82 @@
   "z_3315": {
    "source": "it is of another certificate",
    "text": "patří jinému certifikátu"
+  },
+  "z_3316": {
+   "source": "no gateway address is set - Settings → Codes by e-mail and SMS",
+   "text": "není nastavena adresa brány – Nastavení → Kódy e-mailem a SMS"
+  },
+  "z_3317": {
+   "source": "sending SMS is switched off - Settings → Codes by e-mail and SMS",
+   "text": "odesílání SMS je vypnuto – Nastavení → Kódy e-mailem a SMS"
+  },
+  "z_3318": {
+   "source": "Numbers told the same by SMS (Settings → Codes by e-mail and SMS says how SMS go out). Empty: nobody.",
+   "text": "Čísla, kterým se totéž pošle přes SMS (jak SMS odcházejí, říká Nastavení → Kódy e-mailem a SMS). Prázdné: nikomu."
+  },
+  "z_3319": {
+   "source": "Sent after a deployment went well, when Settings → Renewal and notices says to tell what went well too (certs_notify_ok).",
+   "text": "Posílá se po úspěšném nasazení, když Nastavení → Obnovování a upozornění říká, že se má hlásit i to, co se povedlo (certs_notify_ok)."
+  },
+  "z_3320": {
+   "source": "Sent after a renewal (or the first issue), when Settings → Renewal and notices says to tell what went well too (certs_notify_ok).",
+   "text": "Posílá se po obnovení (nebo prvním vydání), když Nastavení → Obnovování a upozornění říká, že se má hlásit i to, co se povedlo (certs_notify_ok)."
+  },
+  "z_3321": {
+   "source": "publishing is switched off (Settings → Renewal and notices: Publish CRLs on acme)",
+   "text": "publikování je vypnuté (Nastavení → Obnovování a upozornění: Publikovat CRL na acme)"
+  },
+  "z_3322": {
+   "source": "A test that starts failing is an event, a mail and an SMS (Settings → Renewal and notices says to whom; the words are on Settings → Message texts) - and one that works again is said too.",
+   "text": "Test, který začne selhávat, je událost, e-mail a SMS (komu, říká Nastavení → Obnovování a upozornění; texty jsou v Nastavení → Texty zpráv) – a test, který zase funguje, se ohlásí taky."
+  },
+  "z_3323": {
+   "source": "What the servers really serve. A test connects as a client of its protocol would - a browser, a mail client, Remote Desktop - and compares the certificate it is sent with the certificate it is attached to: the version deployed, its names, its chain, how long it runs. Defined here, attached to certificates (the certificate → Tests → Attach a test); run after each deployment, by themselves when Settings → Renewal and notices says so, or now. A connector signs in to a Linux server over SSH and runs the tests it carries from there.",
+   "text": "Co servery skutečně posílají. Test se připojí jako klient svého protokolu – prohlížeč, poštovní klient, Vzdálená plocha – a porovná certifikát, který dostane, s certifikátem, ke kterému je připojený: nasazenou verzi, jména, řetězec a jak dlouho platí. Definují se zde, připojují k certifikátům (certifikát → Testy → Připojit test); spouštějí se po každém nasazení, samy podle Nastavení → Obnovování a upozornění, nebo hned. Konektor se přihlásí přes SSH na linuxový server a spustí z něj testy, které nese."
+  },
+  "z_3324": {
+   "source": "What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Renewal and notices says so, or now.",
+   "text": "Co servery skutečně posílají, porovnané s tímto certifikátem – po jeho nasazeních, samy podle Nastavení → Obnovování a upozornění, nebo hned."
+  },
+  "z_3325": {
+   "source": "The regular runs are off now: Settings → Renewal and notices → Test the servers by themselves.",
+   "text": "Pravidelné spouštění je teď vypnuté: Nastavení → Obnovování a upozornění → Testovat servery automaticky."
+  },
+  "z_3326": {
+   "source": "SMS is switched off - Settings → Codes by e-mail and SMS.",
+   "text": "SMS jsou vypnuté – Nastavení → Kódy e-mailem a SMS."
+  },
+  "z_3327": {
+   "source": "Not by itself: the regular runs are off (Settings → Renewal and notices)",
+   "text": "Sám ne: pravidelné spouštění je vypnuté (Nastavení → Obnovování a upozornění)"
+  },
+  "z_3328": {
+   "source": "Tests after a deployment are switched off (Settings → Renewal and notices)",
+   "text": "Testy po nasazení jsou vypnuté (Nastavení → Obnovování a upozornění)"
+  },
+  "z_3329": {
+   "source": "What it will be. \"Create anyway\" keeps it; acme asks the source by itself once what is marked below is in place.",
+   "text": "Jak bude vypadat. „Přesto vytvořit“ ho uloží; acme požádá zdroj samo, jakmile bude na místě to, co je označeno níže."
+  },
+  "z_3330": {
+   "source": "Where the CA reaches these names otherwise than this server sees them, Settings → Renewal and notices → Check the validation before the CA is asked can be switched off: the CA is then asked without this check.",
+   "text": "Pokud CA tato jména dosáhne jinak, než je vidí tento server, lze vypnout Nastavení → Obnovování a upozornění → Ověřit validaci, než se požádá CA: CA se pak zeptá bez této kontroly."
+  },
+  "z_3331": {
+   "source": "No name may be asked for here yet - an administrator says which (Names people may ask for).",
+   "text": "Zatím tu nelze žádat o žádné jméno – o která, určí správce (Jména, o která smějí lidé žádat)."
+  },
+  "z_3332": {
+   "source": "asking for certificates here is not set up - an administrator sets Names people may ask for and Sources people may ask (Settings → The enrolment pages)",
+   "text": "žádání o certifikáty tu není nastavené – správce musí nastavit Jména, o která smějí lidé žádat, a Zdroje, u kterých smějí lidé žádat (Nastavení → Stránky registrace)"
+  },
+  "z_3333": {
+   "source": "asking for certificates here is not set up - an administrator sets Names people may ask for (Settings → The enrolment pages)",
+   "text": "žádání o certifikáty tu není nastavené – správce musí nastavit Jména, o která smějí lidé žádat (Nastavení → Stránky registrace)"
+  },
+  "z_3334": {
+   "source": "asking for certificates here is not set up - an administrator sets Sources people may ask (Settings → The enrolment pages)",
+   "text": "žádání o certifikáty tu není nastavené – správce musí nastavit Zdroje, u kterých smějí lidé žádat (Nastavení → Stránky registrace)"
   }
  },
  "patterns": {
@@ -110301,6 +110377,22 @@
   "pz_1420": {
    "source": "it does not read ({0})",
    "text": "nejde přečíst ({0})"
+  },
+  "pz_1421": {
+   "source": "{0}: in place - tests after a deployment are switched off (Settings → Renewal and notices)",
+   "text": "{0}: na místě – testy po nasazení jsou vypnuté (Nastavení → Obnovování a upozornění)"
+  },
+  "pz_1422": {
+   "source": "{0} - the TLS certificate of the ACME server is not trusted here: for a server of your own, paste its CA under More → CA certificate of the ACME server",
+   "text": "{0} – TLS certifikát ACME serveru zde není důvěryhodný: u vlastního serveru vložte jeho CA do Další → Certifikát CA ACME serveru"
+  },
+  "pz_1423": {
+   "source": "{0} - the CA given under More → CA certificate of the ACME server does not sign it",
+   "text": "{0} – CA zadaná v Další → Certifikát CA ACME serveru ho nepodepisuje"
+  },
+  "pz_1424": {
+   "source": "the CA was not asked - the validation is not ready: {0} - or, where the CA sees the names otherwise than this server, switch off Settings → Renewal and notices → Check the validation before the CA is asked",
+   "text": "CA nebyla požádána – validace není připravená: {0} – nebo, pokud CA vidí jména jinak než tento server, vypněte Nastavení → Obnovování a upozornění → Ověřit validaci, než se požádá CA"
   }
  },
  "rich": {

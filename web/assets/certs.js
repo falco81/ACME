@@ -6559,7 +6559,7 @@ function certWizard(cert, detail, opts) {
     else host.appendChild(el('p', 'note', editing ? 'What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.'
       /* what the validation needs is not in place: no "Add and issue now" or "Add only" below
          to speak of (hunt w8: the note named buttons that were not there) */
-      : planBlocks() ? 'What it will be. "Create anyway" keeps it; acme asks the source by itself once what is marked below is in place.'
+      : planBlocks() && !compatProblems().length ? 'What it will be. "Create anyway" keeps it; acme asks the source by itself once what is marked below is in place.'
       : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" keeps it unissued until Issue now is pressed in its window.'));
     host.appendChild(kvTable(pairs));
     var bad = checkNames();

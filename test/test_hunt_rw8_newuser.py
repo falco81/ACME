@@ -152,16 +152,17 @@ class Pages(RP.Pages):
                                         'password': cls.pw, 'must_change': 0})
         cls.must('POST', '/api/teams/save', {
             'name': 'WNew', 'members': [{'who': 'local:wnu', 'roles': ['Requester']}]})
-        # as the first start makes it (kept when it is there already)
-        cls.call('POST', '/api/sources/save', {'name': 'LetsEncrypt staging', 'kind': 'acme',
-                                               'config': {'directory': 'letsencrypt-staging'}},
-                 cls.admin)
+        # an ACME server of one's own (a public CA would refuse the test's name outright)
+        cls.must('POST', '/api/sources/save', {'name': 'OwnAcme', 'kind': 'acme', 'config': {
+            'directory': 'custom', 'directory_url': 'https://localhost:9/dir'}})
 
     def test_api_refusal_says_what_is_missing(self):
         st, got = self.call('POST', '/api/settings', {'settings': {'portal_cert': 1}}, self.admin)
         self.assertEqual(st, 200, got)
         try:
-            s = self.login('wnu')
+            st, got = self.call('POST', '/api/portal/login', {'name': 'wnu', 'password': self.pw})
+            self.assertEqual(st, 200, got)
+            s = got['token']
             st, got = self.call('POST', '/api/portal/cert_request',
                                 {'names': ['www.example.test'], 'key_type': 'ec-256'}, s)
             self.assertEqual(st, 403, got)
