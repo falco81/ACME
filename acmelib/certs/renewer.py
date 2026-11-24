@@ -1841,7 +1841,11 @@ def report(store, since, lang=None):
                                         'v pořádku' if g['ok'] else 'selhalo', g['n']))
         else:
             lines.append('%s: %d %s' % (g['kind'], g['n'], 'done' if g['ok'] else 'failed'))
+    # what is revoked, switched off or going ends with nothing to do about it (hunt w9: listed
+    # among those that end, as the calendar and the alerts never list them)
     soon = store.db.rows("SELECT name, not_after FROM certs WHERE not_after > ? AND not_after < ? "
+                         "AND COALESCE(enabled, 1) <> 0 AND COALESCE(state, '') NOT IN "
+                         "('revoked', 'disabled', 'declined', 'deleting') "
                          "ORDER BY not_after", (t, t + 30 * 86400))
     for s_ in soon[:20]:
         day = time.strftime('%d.%m.%Y' if cs else '%Y-%m-%d', time.localtime(s_['not_after']))

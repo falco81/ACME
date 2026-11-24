@@ -1419,7 +1419,8 @@ function loadRows(key, again) {
 }
 /* A source's or validation's name acme made itself at the first start ("This server HTTP-01",
    own_name) in the page's language - the row keeps its name, the one commands and the other
-   rows use, said on hover (hunt w9: English on a Czech page). A name a person gave: as it is. */
+   rows use, shown under it in its list (hunt w9: English on a Czech page). A name a person
+   gave: as it is. */
 var OWN_NAMES = {};
 function ownName(r) {
   var n = r && typeof r === 'object' ? String(r.name || '') : String(r || '');
@@ -1427,10 +1428,7 @@ function ownName(r) {
   return known(n);
 }
 function ownNameEl(kind, cls, r) {
-  var n = r && typeof r === 'object' ? String(r.name || '') : String(r || '');
-  var x = data(kind, cls, ownName(r));
-  if (x.textContent !== n) x.title = n;
-  return x;
+  return data(kind, cls, ownName(r));
 }
 /** The default of a list (is_default), or null. */
 function defaultOf(rows) { return arr(rows).filter(function (r) { return r.is_default; })[0] || null; }
@@ -1667,6 +1665,14 @@ function drawModTab(key, live) {
         var nc = el('td', 'ct-modname');
         nc.appendChild(ownNameEl('b', '', r));
         if (r.is_default) nc.appendChild(el('span', 'tag ok small', 'default'));
+        if (ownName(r) !== r.name) {
+          /* the name it is kept by - in commands, in the other rows */
+          var kept = el('div', 'muted small ct-ownname');
+          kept.appendChild(el('span', '', 'kept as'));
+          kept.appendChild(document.createTextNode(' '));
+          kept.appendChild(mono(r.name));
+          nc.appendChild(kept);
+        }
         if (r.note) nc.appendChild(data('div', 'muted small', known(r.note)));
         if (r.tags) nc.appendChild(tagChips(r.tags));
         tr.appendChild(nc);

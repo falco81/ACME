@@ -60,11 +60,10 @@ const path = require('path');
       await page.waitForSelector('#val-list td.ct-modname b', {timeout: 30000});
       await page.waitForTimeout(800);
       Object.assign(s, await page.evaluate(() => {
-        const bs = [...document.querySelectorAll('#val-list td.ct-modname b')];
-        // its stored name said on hover (the title made an explanation: aria-label, the panel)
-        const said = b => b.title || b.getAttribute('aria-label') || '';
-        const own = bs.find(b => said(b) === 'This server HTTP-01') || bs.find(b => b.textContent === 'This server HTTP-01');
-        return {valNames: bs.map(b => b.textContent), valTitle: own ? said(own) : '', dbg: bs.map(b => b.outerHTML).join(' ')};
+        const cells = [...document.querySelectorAll('#val-list td.ct-modname')];
+        // the name it is kept by, under the one shown in the page's language
+        const kept = cells.map(c => c.querySelector('.ct-ownname .mono')).filter(Boolean).map(m => m.textContent);
+        return {valNames: cells.map(c => c.querySelector('b').textContent), valTitle: kept[0] || ''};
       }));
       if (await over(page) > 1) out.overflow[tag + ' validation'] = await over(page);
       await shot(page, `rw9-validation-${tag}`);

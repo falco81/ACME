@@ -599,7 +599,7 @@ class Readers(unittest.TestCase):
 
     def test_dns_answer(self):
         from acmelib.certs import plansandbox as PS
-        from acmelib.certs import dnsserver as D
+        from acmelib.plugins.challenges import _dns as D
         m = D.Message(7, 0x0100)
         m.question = [('_acme-challenge.www.example.co.uk', 16, D.CLASS_IN),
                       ('example.co.uk', 6, D.CLASS_IN), ('www.example.co.uk', 6, D.CLASS_IN),
@@ -675,6 +675,192 @@ class Periods(unittest.TestCase):
         self.assertTrue(lines[0].startswith('4 certifikáty: v pořádku 3, odvolané 1'), lines)
         self.assertIn('nasazení: selhalo 1', lines)
         self.assertTrue(any(x.startswith('končí ') and x.endswith(': soon') for x in lines))
+
+
+
+# ---------------------------------------------------------------------------
+# A Windows agent's policy: what each deployment needs
+# ---------------------------------------------------------------------------
+class WindowsNeeds(unittest.TestCase):
+    def test_deploy_needs(self):
+        from acmelib.certs import agent_policy as P
+        clean()
+        STORE.db.run("DELETE FROM cert_targets WHERE name = 'w9-win'")
+        A.family_save(STORE, 'target', {'name': 'w9-win', 'kind': 'agent_windows',
+                                        'config': {'host': 'win1.example.test'}}, 'boss')
+        cid = add_cert('winc', 60, state='new')
+        opts = {'store': True, 'rdp': True, 'post_ps': ['Write-Host $thumb'],
+                'iis': ['Default Web Site | www.example.test | 443',
+                        'default web site | b.example.test | 443', 'Other | | 8443'],
+                'outputs': ['pfx C:/certs/{name}.pfx'], 'reload_cmd': ['Restart-Service W3SVC'],
+                'test_cmd': ['C:\\scripts\\t.ps1']}
+        STORE.db.insert('cert_deploys', {'cert_id': cid, 'target': 'w9-win', 'enabled': 1,
+                                         'options': json.dumps(opts)})
+        row = S.plugin_row(STORE, 'target', 'w9-win')
+        got = P.deploy_needs(STORE, row)
+        self.assertEqual(len(got), 1)
+        self.assertNotIn('error', got[0])
+        items = got[0]['items']
+        kinds = [i['kind'] for i in items]
+        self.assertEqual(kinds.count('iis'), 2)                 # one site said once
+        allow = [i['allow'] for i in items]
+        for want in ('acme-agent allow store', 'acme-agent allow rdp',
+                     'acme-agent allow iis "Default Web Site"', 'acme-agent allow iis Other',
+                     'acme-agent allow file C:\\certs', 'acme-agent allow service W3SVC restart'):
+            self.assertIn(want, allow)
+        h = [i for i in items if i['kind'] == 'hash']
+        self.assertEqual(len(h), 1)
+        self.assertEqual(h[0]['interp'], 'powershell')
+        self.assertTrue(any(i['kind'] == 'script' and i['step'] == 'test' for i in items))
+        pol = P.builder(STORE, row)
+        self.assertEqual(pol['platform'], 'windows')
+        self.assertEqual(pol['needs'][0]['items'], items)
+
+
+# ---------------------------------------------------------------------------
+# A secret found in clear, sealed for its place at its first use; teams' pairs
+# ---------------------------------------------------------------------------
+class SealedAndPairs(unittest.TestCase):
+    def test_secret_in_clear_sealed(self):
+        if not E.seal_bound():
+            self.skipTest('secrets not bound to their place here')
+        STORE.db.run("DELETE FROM cert_targets WHERE name = 'w9-clear'")
+        tid = STORE.db.insert('cert_targets', {'name': 'w9-clear', 'kind': 'w9list', 'config':
+                                               json.dumps({'host': 'h', 'password': 'in-clear'}),
+                                               'enabled': 1})
+        row = S.plugin_row(STORE, 'target', tid)
+        self.assertEqual(S.plugin_config('target', row)['password'], 'in-clear')
+        kept = json.loads(STORE.db.value('SELECT config FROM cert_targets WHERE id = ?', (tid,)))
+        self.assertTrue(kept['password'].startswith('sealed:'), kept)
+        self.assertEqual(kept['host'], 'h')
+        row = S.plugin_row(STORE, 'target', tid)
+        self.assertEqual(S.plugin_config('target', row)['password'], 'in-clear')
+
+    def test_clean_pairs(self):
+        self.assertIsNone(T.clean_pairs(None))
+        self.assertEqual(T.clean_pairs(''), {})
+        self.assertEqual(T.clean_pairs('{"LE": ["web", "dns"]}'), {'LE': ['web', 'dns']})
+        self.assertEqual(T.clean_pairs({' LE ': None}), {'LE': []})
+        for bad in ('{nope', [1], {'': []}, {'a\x01': []}, {'LE': [], 'le': []},
+                    {'x' * 191: []}):
+            with self.assertRaises(ValueError, msg=bad):
+                T.clean_pairs(bad)
+        with self.assertRaises(ValueError):
+            T.clean_pairs({'s%d' % i: [] for i in range(T.PAIRS_MOST + 1)})
+
+
+# ---------------------------------------------------------------------------
+# The console's Find: each kind opens what it is
+# ---------------------------------------------------------------------------
+class ConsoleFind(unittest.TestCase):
+    def test_find_opens_each_kind(self):
+        from acmelib.certs import console_ui as CU
+        acted = []
+
+        class Con(object):
+            def ask_one(self, *a):
+                return ' www '
+
+            def out(self, *args):
+                self.asked = args
+                return {'groups': {
+                    'cert': [{'name': 'c1'}], 'target': [{'name': 't1'}],
+                    'agent': [{'name': 'a1'}], 'source': [{'name': 's1'}],
+                    'validation': [{'name': 'v1'}], 'test': [{'name': 'k1'}],
+                    'ca': [{'name': 'ca1'}], 'deploy': [{'name': 'c1 → t1', 'cert': 'c1'}],
+                    'team': [{'name': 'Web'}], 'account': [{'name': 'eva', '_x': 1}]}}
+
+            def act(self, *args):
+                acted.append(args)
+
+            def details(self, title, d):
+                acted.append(('details', title, sorted(d)))
+
+            def pick(self, title, load, cols, do, empty):
+                self.title = title
+                for r in load():
+                    for _n, fn, _w, _s in cols:
+                        fn(r)
+                    do(r)
+        con = Con()
+        CU.find(con)
+        self.assertEqual(con.asked, ('--find', 'www'))
+        self.assertEqual(con.title, 'Found: www')
+        self.assertEqual(acted, [
+            ('--cert', 'c1'), ('--target-show', 't1'), ('--target-show', 'a1'),
+            ('--source-show', 's1'), ('--validation-show', 'v1'), ('--check-show', 'k1'),
+            ('--ca-show', 'ca1'), ('--deploys', 'c1'), ('--team-show', 'Web'),
+            ('details', 'account', ['name'])])
+
+        class Empty(Con):
+            def ask_one(self, *a):
+                return '  '
+        CU.find(Empty())                                        # nothing asked
+        self.assertEqual(len(acted), 10)
+
+
+# ---------------------------------------------------------------------------
+# The command line: --check-run, --find
+# ---------------------------------------------------------------------------
+class CommandLine(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix='acme-rw9-cli-')
+        with open(os.path.join(cls.tmp, 'config.json'), 'w') as f:
+            f.write('{}')
+        env = {k: v for k, v in os.environ.items() if not k.startswith('ACME_')}
+        env.update(ACME_STAY_ROOT='1', ACME_CONFIG=os.path.join(cls.tmp, 'config.json'),
+                   ACME_STATE=cls.tmp, ACME_RUN=cls.tmp, ACME_LOGDIR=cls.tmp, NO_COLOR='1',
+                   ACME_CONSOLE_FLAG=os.path.join(cls.tmp, 'console-flag'))
+        cls.env = env
+        for args in (('--selfsigned', 'one', '--names', 'one.example.test'),
+                     ('--selfsigned', 'two', '--names', 'two.example.test'),
+                     ('--check-add', 'closed', '--kind', 'tls', '--set', 'host=127.0.0.1',
+                      '--set', 'port=1'),
+                     ('--check-attach', 'one', 'closed'), ('--check-attach', 'two', 'closed')):
+            got = cls.acme(*args)
+            assert got.returncode == 0, (args, got.stdout, got.stderr)
+
+    @classmethod
+    def acme(cls, *args):
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + list(args),
+                             env=cls.env, capture_output=True, text=True, timeout=120, input='')
+        assert 'Traceback' not in got.stderr + got.stdout, got.stderr
+        return got
+
+    def test_check_run(self):
+        got = self.acme('--check-run', 'all', '--json')
+        self.assertEqual(got.returncode, 1, got.stderr)
+        res = json.loads(got.stdout)
+        self.assertEqual(len(res['results']), 2)
+        self.assertEqual({r['state'] for r in res['results']}, {'unreachable'})
+        self.assertEqual(res['report'], '')
+        got = self.acme('--check-run', 'cert:two')
+        self.assertEqual(got.returncode, 1)
+        self.assertIn('[fail]', got.stdout)
+        self.assertEqual(got.stdout.count('cannot be reached'), 1)
+        got = self.acme('--check-run', 'test:closed', '--json')
+        self.assertEqual(len(json.loads(got.stdout)['results']), 2)
+        got = self.acme('--check-run', 'test:nothing')
+        self.assertEqual(got.returncode, 1)
+        self.assertIn('there is no test to run', got.stderr)
+        got = self.acme('--check-run', 'everything')
+        self.assertIn('--check-run ID, cert:NAME, test:NAME or all', got.stderr)
+        got = self.acme('--check-run', 'all', '--sms-to', '+420777000111')
+        self.assertEqual(got.returncode, 1)
+        self.assertIn('sending SMS is switched off', got.stderr)
+        got = self.acme('--check-run', 'all', '--report-to', 'alerts')
+        self.assertIn('no address to send the report to', got.stderr)
+
+    def test_find(self):
+        got = self.acme('--find', 'two.example')
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertIn('two', got.stdout)
+        got = self.acme('--find', 'nothing-like-it-anywhere')
+        self.assertEqual(got.returncode, 1)
+        self.assertIn('nothing found', got.stdout)
+        got = self.acme('--find', 'one', '--json')
+        self.assertIn('cert', json.loads(got.stdout)['groups'])
 
 
 if __name__ == '__main__':

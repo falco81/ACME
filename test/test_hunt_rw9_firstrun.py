@@ -171,19 +171,19 @@ class Pages(RP.Pages):
         finally:
             php.terminate()
             php.wait(10)
-        print([t.get('dbg') for t in seen.get('tags', {}).values()])
         self.assertNotIn('error', seen, seen.get('error'))
         self.assertEqual(seen['errors'], [])
         self.assertEqual(seen['overflow'], {})
         self.assertEqual(len(seen['tags']), 4, seen)
         for tag, s in seen['tags'].items():
             cs = tag.startswith('cs')
-            # the first start's validation, in the page's language, its name kept on hover
+            # the first start's validation, in the page's language, the name it is kept by under it
             if cs and CS:
                 self.assertIn('Tento server HTTP-01', s['valNames'], tag)
                 self.assertEqual(s['valTitle'], 'This server HTTP-01', tag)
             elif not cs:
                 self.assertIn('This server HTTP-01', s['valNames'], tag)
+                self.assertEqual(s['valTitle'], '', tag)          # shown as it is kept
             # a new source and target: names that read right
             self.assertEqual(s['acmeName'], 'ACME CA', tag)
             self.assertEqual(s['localName'], 'Soubory na tomto stroji' if cs and CS
