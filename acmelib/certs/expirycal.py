@@ -237,7 +237,9 @@ def week_counts(entries, start, end):
         d += datetime.timedelta(days=7)
     for e in entries:
         for key, ts in (('ends', e['not_after']), ('renews', e['renew_at'])):
-            if not ts:
+            # only what falls in the window (hunt w9: an end a day after it, in its last week,
+            # was counted - acme --calendar said 2 ran out and listed 1)
+            if not ts or not start <= float(ts) < end:
                 continue
             day = datetime.date.fromtimestamp(float(ts))
             mon = (day - datetime.timedelta(days=day.weekday())).isoformat()

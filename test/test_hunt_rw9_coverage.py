@@ -176,7 +176,7 @@ class Calendar(unittest.TestCase):
         a = add_cert('a', 10, owner='Web')
         b = add_cert('b', 20, owner='local:eva', issuer='other')
         add_cert('c', 30, created_by='eva')
-        add_cert('gone', -5)                                    # ran out before the window
+        add_cert('gone', -20)                                   # ran out before the window
         add_cert('rev', 15, state='revoked')
         STORE.db.insert('cert_deploys', {'cert_id': b, 'target': 'web1', 'options': '{}'})
         s = sess()
