@@ -223,6 +223,8 @@ def _password(h):
         account_portal_end(h.store, acc['name'])
     except Exception:                                   # noqa: BLE001
         pass
+    # ...and its calendar link (hunt w8): a cookie taken made one that outlived the new password
+    account_calendar_end(h.store, acc['name'], by=acc['name'])
     h.store.add_event('accounts', '%s changed their own password' % acc['name'],
                       who=acc['name'])
     # The first password, written down by the installer, is no use to anybody

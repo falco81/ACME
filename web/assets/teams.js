@@ -4614,7 +4614,9 @@
     return roleOf(x) ? roleChip(x) : dataChip(x, 'legacy');
   }
   function reviewCsv(team, list) {
-    var q = function (v) { v = String(v === undefined || v === null ? '' : v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    /* a cell a spreadsheet would run as a formula starts with a quote (hunt w8: a member's
+       answer note "=HYPERLINK(...)" went into the file as it was) - as every other CSV of acme */
+    var q = function (v) { v = String(v === undefined || v === null ? '' : v); if (/^[=+\-@\t\r]/.test(v) && v !== '-' && !/^-?\d+(\.\d+)?$/.test(v)) v = "'" + v; return /[",\n\r;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var lines = [['team', 'review', 'started', 'started_by', 'due', 'state', 'member', 'roles', 'answer', 'by', 'at', 'note'].join(',')];
     list.forEach(function (r) {
       (r.items || []).forEach(function (i) {

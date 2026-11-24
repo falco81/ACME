@@ -62,6 +62,9 @@ program asks by itself (every 6 hours by default). The link:
 - is the account's own - one per account; a new link replaces the old one, *Take it back* ends it;
 - shows what the account may see **now** - its role and teams as they are when it is asked; an
   account switched off, deleted or no longer of the administration gets nothing (404);
+- is taken back with the account's sign-ins when its password changes (its own, on the portal too,
+  or one an administrator sets) and when its second step is reset - a link made from a session
+  whose cookie was taken does not outlive them; make a new one after;
 - is shown once; acme keeps only its SHA-256 (`meta` `certs:calfeed:<hash>`, beside
   `certs:calfeed-of:<account>`), carried in backups and replication with the rest of `meta`;
 - is answered by `calendar.php` (nginx `location = /calendar.ics`, never logged, its own rate

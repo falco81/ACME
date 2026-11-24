@@ -306,6 +306,7 @@ def _users_do(h):
         h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                        ('admin', acc['name'].lower()))
         account_portal_end(h.store, acc['name'])
+        account_calendar_end(h.store, acc['name'], by=who)
         return {'message': ('the second step of %s is reset: they set it up again at the next '
                             'sign-in; their sign-ins are ended' if had else
                             '%s had no second step set up') % acc['name']}
@@ -342,6 +343,7 @@ def _users_do(h):
         h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                        ('admin', name.lower()))
         account_portal_end(h.store, name)
+        account_calendar_end(h.store, name, by=who)
         h.store.add_event('accounts', '%s set a new password for %s; their sign-ins are ended'
                           % (who, name), 'warn', who=who)
         return {'message': 'the password is set'}
@@ -371,6 +373,18 @@ def account_contact_checked(b):
     except ValueError as e:
         raise ApiError(400, 'the mobile number: %s' % e)
     return mail, mobile
+
+
+def account_calendar_end(store, name, by=None):
+    """The account's calendar link (Certificates → Calendar → Subscribe, 1.0.140) taken back
+    too (hunt w8): a secret that reads the account's certificates for as long as the account
+    may sign in - made from a session whose cookie was taken, it outlived the new password,
+    the second step reset and every sign-in ended."""
+    try:
+        from acmelib.certs import expirycal
+        return expirycal.feed_revoke(store, str(name), by=by)
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def account_portal_end(store, name):

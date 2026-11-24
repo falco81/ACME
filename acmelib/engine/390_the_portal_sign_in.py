@@ -1105,6 +1105,7 @@ def _portal_password(h):
     mine = hashlib.sha256(str(h.headers.get('X-Acme-Session') or '').encode()).hexdigest()
     h.store.db.run('DELETE FROM sessions WHERE kind IN (?, ?) AND LOWER(name) = ? AND '
                    'token_hash <> ?', ('admin', 'portal', acc['name'].lower(), mine))
+    account_calendar_end(h.store, acc['name'], by=acc['name'])      # its calendar link (hunt w8)
     portal_data_set(h, s, must_change=None)
     h.store.add_event('accounts', '%s changed their own password (on the enrolment pages)'
                       % acc['name'], who=acc['name'])

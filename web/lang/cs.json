@@ -78443,6 +78443,38 @@
   "z_3307": {
    "source": "which test: its id - or a module (kind) and its settings to try",
    "text": "který test: jeho id – nebo modul (kind) a nastavení k vyzkoušení"
+  },
+  "z_3308": {
+   "source": "stopped while the answer was being read",
+   "text": "zastaveno během čtení odpovědi"
+  },
+  "z_3309": {
+   "source": "the answer came too slowly",
+   "text": "odpověď přicházela příliš pomalu"
+  },
+  "z_3310": {
+   "source": "saved already",
+   "text": "už je uložen"
+  },
+  "z_3311": {
+   "source": "it runs out",
+   "text": "končí jeho platnost"
+  },
+  "z_3312": {
+   "source": "its names are not the ones asked for now",
+   "text": "jeho jména nejsou ta, která se žádají nyní"
+  },
+  "z_3313": {
+   "source": "not for the key of the CSR",
+   "text": "není pro klíč CSR"
+  },
+  "z_3314": {
+   "source": "its key is not the one asked for now",
+   "text": "jeho klíč není ten, který se žádá nyní"
+  },
+  "z_3315": {
+   "source": "it is of another certificate",
+   "text": "patří jinému certifikátu"
   }
  },
  "patterns": {
@@ -110241,6 +110273,34 @@
   "pz_1413": {
    "source": "which {0}: its id - or a module (kind) and its settings to try",
    "text": "{0}: zadejte id – nebo modul (druh) a nastavení k vyzkoušení"
+  },
+  "pz_1414": {
+   "source": "the answer did not come whole within {0} s - the server sends it too slowly",
+   "text": "odpověď nepřišla celá do {0} s – server ji posílá příliš pomalu"
+  },
+  "pz_1415": {
+   "source": "the database did not take the new certificate ({0}) - tried again in {1} s",
+   "text": "databáze nový certifikát nepřijala ({0}) – další pokus za {1} s"
+  },
+  "pz_1416": {
+   "source": "the database did not take the new certificate: it is kept in {0} and saved at the next try, the CA not asked again",
+   "text": "databáze nový certifikát nepřijala: je uložen v {0} a uloží se při dalším pokusu, aniž by se znovu žádala CA"
+  },
+  "pz_1417": {
+   "source": "the new certificate could not be kept in a file either: {0}",
+   "text": "nový certifikát nešlo uložit ani do souboru: {0}"
+  },
+  "pz_1418": {
+   "source": "{0}the certificate kept when the database did not take it is not used - {1}",
+   "text": "{0}certifikát uschovaný, když ho databáze nepřijala, se nepoužije – {1}"
+  },
+  "pz_1419": {
+   "source": "{0}the certificate issued at the last try, which the database did not take then, is saved now - the CA is not asked again",
+   "text": "{0}certifikát vydaný při minulém pokusu, který databáze tehdy nepřijala, se ukládá nyní – CA se znovu nežádá"
+  },
+  "pz_1420": {
+   "source": "it does not read ({0})",
+   "text": "nejde přečíst ({0})"
   }
  },
  "rich": {

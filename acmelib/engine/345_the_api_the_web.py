@@ -327,7 +327,9 @@ class ApiHandler(BaseHTTPRequestHandler):
                 if left <= 0:
                     self.close_connection = True
                     return
-                self.connection.settimeout(min(left, self.timeout))
+                sock = getattr(self, 'connection', None)       # (a handler with no socket of
+                if sock is not None:                           # its own: none to set)
+                    sock.settimeout(min(left, self.timeout))
                 lump = self.rfile.read1(min(n, 1 << 20))       # one read of the socket at most
                 if not lump:
                     break
@@ -336,7 +338,9 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.close_connection = True
         finally:
             try:
-                self.connection.settimeout(self.timeout)
+                sock = getattr(self, 'connection', None)
+                if sock is not None:
+                    sock.settimeout(self.timeout)
             except OSError:
                 pass
 
