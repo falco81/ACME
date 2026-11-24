@@ -177,7 +177,9 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   they follow, the canary ring - shows an update in rings with it first, or deletes it; *+ a new
   group* makes one (`acme --fleet-group-save NAME --fleet-members A,B --fleet-template REF|-
   --fleet-canary yes|no`, `--fleet-group-del`, `--fleet-rollout plan GROUP`).
-- **Owners and teams** (`o`): *Roles* (`3`) adds a role of your own (*+ add a role of your
+- **Owners and teams** (`o`): *The owners and the tags* (`6`, `acme --teams`) also says, as
+  the page above its tree, when the members see nothing on the enrolment pages or can ask for
+  nothing there (no name or no source open to asking, no request profile). *Roles* (`3`) adds a role of your own (*+ add a role of your
   own*), and Enter on one of your own changes it in a form - its name (its members follow),
   its capabilities, its description - or deletes it (taken off the members who have it):
   `acme --role-add NAME --caps .. [--description ..] [--name NEW]`, `--role-del NAME

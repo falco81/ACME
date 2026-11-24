@@ -957,12 +957,37 @@ class HttpTarget(Base):
         if st not in good:
             # what was sent to sign in, echoed in the answer ("invalid token <it>"), is
             # not put into the error (1.0.143)
-            sent = sent_secrets(url, h, data)
+            sent = sent_secrets(url, h, data) | self.own_secrets()
             raise PluginError(without_sent(self.http_error(st, parsed, raw, method, path, what),
                                            sent),
                               detail=without_sent(text(raw)[:4000], sent),
                               retry=st not in (400, 401, 403, 404, 405, 409, 422))
         return st, hd, parsed
+
+    def own_secrets(self):
+        """The values of this module's own secret settings (hunt w10): an answer echoing one
+        is not put into an error either - sent_secrets knows a secret only by a header's name,
+        and the webhook's More headers (sealed since 1.0.143) carry one under any name
+        ("X-Tenant: ..."): echoed in a refusal it was in the job's words, the target's last
+        error and the notices, for everybody who sees them. Each line, and what follows a
+        line's "Name:", taken too."""
+        out = set()
+        for f in getattr(self, 'fields', None) or []:
+            if not (f.get('type') == 'secret' or f.get('secret')) or not f.get('key'):
+                continue
+            v = (getattr(self, 'config', None) or {}).get(f['key'])
+            if isinstance(v, (list, tuple)):
+                v = '\n'.join(str(x) for x in v)
+            if not isinstance(v, str) or not v.strip():
+                continue
+            for one in [v] + v.splitlines():
+                one = one.strip()
+                _, sep, rest = one.partition(':')
+                rest = rest.strip()
+                for x in (one, rest if sep else '', rest.split()[-1] if sep and rest else ''):
+                    if len(x) >= 6:
+                        out.add(x)
+        return out
 
     def http_error(self, status, parsed, raw, method, path, what=None):
         msg = ''

@@ -536,6 +536,9 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                     store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                                  ('admin', name.lower()))
                     account_portal_end(store, name)
+                    if fields.get('pw') and fields['pw'] != old.get('pw'):
+                        # its calendar link too, as a password set on the pages (hunt w10)
+                        account_calendar_end(store, name, by=by)
             else:
                 if fields['source'] == 'local' and not (isinstance(pw, str) and pw):
                     # Without its password (an export without the secrets): made,

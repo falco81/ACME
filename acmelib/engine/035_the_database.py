@@ -898,6 +898,34 @@ class Db(object):
                 with self._sqlite_copy() as other:
                     yield other
                 return
+        # On a connection of its own (hunt w10): on this one, its lock was held for the whole
+        # copy - every page, job and tick of the daemon waited for the backup to end (a
+        # minute of a large log). The calling thread's own open transaction: read in it.
+        if not getattr(self, 'in_tx', False):
+            own = self._snapshot_conn()
+            if own is not None:
+                try:
+                    with own._snapshot_here() as got:
+                        yield got
+                finally:
+                    own.close()
+                return
+        with self._snapshot_here() as got:
+            yield got
+
+    def _snapshot_conn(self):
+        """A second connection to this database, for a snapshot - None where none can be made
+        (then the snapshot is read on this one, as before)."""
+        try:
+            return Db(self.engine, self.host, self.port, self.name, self.user, self.password,
+                      self.timeout, path=self.path, tls=self.tls, tls_ca=self.tls_ca,
+                      statement_s=self.statement_s)
+        except Exception:                               # noqa: BLE001
+            return None
+
+    @contextlib.contextmanager
+    def _snapshot_here(self):
+        """snapshot()'s read transaction on this Db's connection."""
         with self._pinned(), self.lock:
             if getattr(self, 'in_tx', False):
                 yield self

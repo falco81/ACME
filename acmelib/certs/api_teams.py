@@ -722,7 +722,35 @@ def cli(c):
         print('\nNot defined (acme --teams-adopt makes them): owners %s; tags %s' % (
             ', '.join(o['owner'] for o in lg['owners']) or '-',
             ', '.join(t['tag'] for t in lg['tags']) or '-'))
+    said = portal_words(store)
+    if said:
+        print('\n! ' + said)
     return 0
+
+
+def portal_words(store):
+    """What the page's Owners and teams says above the tree when the members see nothing on
+    the enrolment pages, or can ask for nothing there (hunt w10: acme --teams and the console
+    said none of it) - None when all is well."""
+    if not E.CONFIG.get('portal'):
+        return ('The enrolment pages are switched off: the members see nothing there '
+                '(acme --set portal=1).')
+    if not E.CONFIG.get('portal_cert'):
+        return ('Certificates on the portal is off: the members sign in on the enrolment pages '
+                'and see nothing there - no certificate of their teams, no asking for one '
+                '(acme --set portal_cert=1).')
+    sufs = str(E.CONFIG.get('portal_cert_suffixes') or '').strip()
+    iss = str(E.CONFIG.get('portal_cert_issuers') or '').strip()
+    if sufs and iss:
+        return None
+    if store.db.value('SELECT COUNT(*) FROM cert_req_profiles WHERE COALESCE(enabled, 1) <> 0',
+                      (), 0):
+        return None
+    return ('Certificates on the portal is on, but nobody can ask for one there: %s empty, and '
+            'there is no request profile (acme --set %s=...).' % (
+                'Names people may ask for and Sources people may ask are' if not sufs and not iss
+                else 'Names people may ask for is' if not sufs else 'Sources people may ask is',
+                'portal_cert_suffixes' if not sufs else 'portal_cert_issuers'))
 
 
 def _until_words(u):

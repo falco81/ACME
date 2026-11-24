@@ -87,7 +87,7 @@ Two kinds of backup are made every night at `backup_at` (03:30). They are
 | Kept | the last `backup_keep` (14) | the same number |
 
 Every copy - the nightly one, one made by hand or downloaded, and the one in a
-backup to another machine - is the database as it was at one moment (1.0.143):
+backup to another machine - is the database as it was at one moment (1.0.144):
 all tables are read in one transaction (SQLite in WAL mode, PostgreSQL at
 REPEATABLE READ, MariaDB with InnoDB's consistent snapshot), so a renewal or a
 deployment finished while the copy is made is either wholly in it or not at

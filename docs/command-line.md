@@ -246,7 +246,7 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 
 | | |
 |---|---|
-| `acme --teams [--json]` | the owners with their members and rights, the tags, and what certificates say that is not defined |
+| `acme --teams [--json]` | the owners with their members and rights, the tags, and what certificates say that is not defined; below them, as the page says above its tree, when the members see nothing on the enrolment pages (they or *Certificates on the portal* off) or can ask for nothing there (*Names people may ask for* or *Sources people may ask* empty and no request profile) |
 | `acme --team-add NAME [--team-kind team\|person] [--members 'local:jan=manage,group:Web=view+request'] [--contact-mail ADDR] [--note TEXT]` | a new owner (a member without `=rights`: view+request) |
 | `acme --team-edit NAME [--name NEW] [--members ...] [--contact-mail ...]` | change one; renamed, its certificates follow; `--note ''` / `--description ''` take them away |
 | `acme --team-edit NAME --members '[{"who": "CN=PKI,OU=Groups,DC=example,DC=com", "roles": ["Viewer"], "until": "2026-12-31 18:00", "note": "..."}, "group:Web"]'` | the members as a JSON list (anything starting with `[`): what the simple form cannot say - a DN, a role with `+` or `,` in its name, a member's note, an end at an exact time (`until`: an epoch, `YYYY-MM-DD` the end of that day, `YYYY-MM-DD HH:MM`); a word alone is a `who` with view+request (docs/teams.md) |
@@ -383,7 +383,7 @@ command line.
 |---|---|
 | `--sessions` | who is signed in now, to these pages and to the portal: the id, the account, where, from which address, since and last asked - the ones that sat too long tidied first, as on the page (`--json` too) |
 | `--session-end ID\|NAME` | end that sign-in at once (its id from `--sessions`), or every sign-in of the account NAME; written into Events |
-| `--passwd NAME` | a new password for an account of acme's own; one of the directory is refused - its password is changed in the directory |
+| `--passwd NAME` | a new password for an account of acme's own; one of the directory is refused - its password is changed in the directory. Its sign-ins end, here and on the portal, and its calendar link is taken back (as on the pages; `--reset-2fa NAME` the same) |
 
 ## Signing in with Windows - Kerberos (1.0.99)
 

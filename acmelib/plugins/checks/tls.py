@@ -107,12 +107,16 @@ class HttpsCheck(TlsCheck):
         if isinstance(extra, str):
             extra = extra.splitlines()
         have = set()
-        for h in extra:
+        for n, h in enumerate(extra, 1):
             h = str(h).strip()
             if not h:
                 continue
             if ':' not in h or '\r' in h or '\n' in h:
-                raise PluginError('"%s" is not a header (Name: value)' % h, retry=False)
+                # by its line, not by what it holds (hunt w10): the headers are kept sealed as
+                # a secret (1.0.143) - a token on a line of its own was put into the test's
+                # result for everybody who sees it
+                raise PluginError('line %d of More headers is not a header (Name: value)' % n,
+                                  retry=False)
             have.add(h.split(':', 1)[0].strip().lower())
             lines.append(h)
         if 'user-agent' not in have:

@@ -570,8 +570,8 @@ def build_parser():
     g.add_argument('--users', action='store_true', help='who may open the administration pages')
     g.add_argument('--add-user', metavar='NAME', help='make an account (--role)')
     g.add_argument('--role', choices=ROLES_ALL, default=None, help='its role (with --add-user read-only when not given)')
-    g.add_argument('--passwd', metavar='NAME', help='set or reset a password (ACME_PASSWORD '
-                   'in the environment for a script)')
+    g.add_argument('--passwd', metavar='NAME', help='set or reset a password - its sign-ins and its '
+                   'calendar link end (ACME_PASSWORD in the environment for a script)')
     g.add_argument('--set-role', metavar='NAME', help='change what an account may do (--role)')
     g.add_argument('--del-user', metavar='NAME', help='remove an account')
     g.add_argument('--disable-user', metavar='NAME', help='stop an account signing in')
@@ -4371,6 +4371,8 @@ def cli_main(argv=None):
         store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                      ('admin', args.passwd.lower()))
         account_portal_end(store, args.passwd)
+        # ...and its calendar link, as the pages take it back (hunt w10: kept here)
+        account_calendar_end(store, args.passwd, by=who)
         store.add_event('accounts', 'the password of %s was set on the command line'
                         % args.passwd, who=who)
         return acct_said(args, pal, 'the password of %s is set' % args.passwd,
@@ -4384,6 +4386,7 @@ def cli_main(argv=None):
         store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                      ('admin', acc['name'].lower()))
         account_portal_end(store, acc['name'])
+        account_calendar_end(store, acc['name'], by=who)     # as the pages (hunt w10)
         return acct_said(args, pal, 'the second step of %s is reset - set up again at the next '
                          'sign-in' % acc['name'] if had else '%s had no second step set up'
                          % acc['name'], name=acc['name'], reset=bool(had))
