@@ -35,11 +35,13 @@ Edit [manifests.yaml](manifests.yaml):
 
 * the image;
 * **its policy** (the ConfigMap `acme-agent-policy`): the Secrets and Deployments acme may touch;
-* **one Role and RoleBinding per namespace** - the Secrets named (`get`, `update`, `patch`,
+* **one Role and RoleBinding per namespace** - the Secrets named (`get`, `update`,
   `delete`), `create` (Kubernetes cannot limit it by name: the policy does), `list` only with
-  `allow discover`, the Deployments it may restart (`get`, `patch`). Nothing else - not the
+  `allow discover`, the Deployments it may restart (`patch`). Nothing else - not the
   ConfigMap, not its own namespace;
-* passive: the Service and the NetworkPolicy (acme's addresses only); active: delete both.
+* passive: the Service and the NetworkPolicy (acme's addresses only); active: delete both. The
+  Service keeps `externalTrafficPolicy: Local`: with the default (`Cluster`) the pod and the
+  NetworkPolicy see a node's address instead of acme's, and `allow from` refuses acme.
 
 Then the join code, and everything:
 

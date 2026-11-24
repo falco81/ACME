@@ -582,9 +582,16 @@ def send_udp(server, port, wire, timeout=3.0, match=None):
         s.close()
 
 
-def _recv_exact(s, n):
+def _recv_exact(s, n, deadline=None):
     buf = b''
     while len(buf) < n:
+        if deadline is not None:
+            # the whole answer within the time (hunt w8): a server dripping a byte at a time
+            # held the validation for hours - each byte came within the timeout
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise socket.timeout('the answer came too slowly')
+            s.settimeout(left)
         chunk = s.recv(n - len(buf))
         if not chunk:
             raise DnsError('the connection closed after %d of %d bytes' % (len(buf), n))
@@ -600,8 +607,9 @@ def send_tcp(server, port, wire, timeout=5.0):
     try:
         s.settimeout(timeout)
         s.sendall(struct.pack('>H', len(wire)) + wire)
-        n = struct.unpack('>H', _recv_exact(s, 2))[0]
-        return _recv_exact(s, n)
+        deadline = time.monotonic() + 2 * timeout
+        n = struct.unpack('>H', _recv_exact(s, 2, deadline))[0]
+        return _recv_exact(s, n, deadline)
     except socket.timeout:
         raise DnsError('no answer from %s:%d over TCP' % (server, port))
     except OSError as e:

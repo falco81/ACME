@@ -351,7 +351,17 @@ class AcmeClient(object):
         try:
             status, hdrs, data = self.ctx.http(method, url, body, h, self.timeout, self.verify,
                                                self.ca_pem)
-        except PluginError:
+        except PluginError as e:
+            # an ACME server of one's own whose TLS certificate is from a private CA: said
+            # what to do about it, not only openssl's words
+            words = str(e)
+            if 'CERTIFICATE_VERIFY_FAILED' in words or 'certificate verify failed' in words:
+                raise PluginError(words + (
+                    ' - the CA given under More → CA certificate of the ACME server does not '
+                    'sign it' if self.ca_pem else
+                    ' - the TLS certificate of the ACME server is not trusted here: for a server '
+                    'of your own, paste its CA under More → CA certificate of the ACME server'),
+                    detail=e.detail, retry=False)
             raise
         except Exception as e:                      # noqa: BLE001
             raise PluginError('the CA does not answer (%s): %s - check DNS, the proxy '

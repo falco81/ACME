@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 import random
 import re
 import threading
@@ -560,6 +561,151 @@ def _issued_checked(pki, job, irow, cert_pem, given_chain, chain, sans, what='')
                                retry=False)
 
 
+# An issued certificate the database would not take (hunt w8): SQLite locked, PostgreSQL
+# restarted, MariaDB gone a minute - save_version raised and the certificate the CA had just
+# made (a paid one, or one of Let's Encrypt's few a week) was thrown away; the next try
+# ordered it again. Now the save is tried again for half a minute, and then the certificate
+# (its key sealed) is kept in a file of its own: the next try saves that one, the CA not
+# asked again.
+SAVE_WAITS = (1, 2, 4, 8, 15)
+
+
+def _unsaved_path(cert_id, variant):
+    return os.path.join(str(E.STATE_DIR), 'certs-unsaved', '%d-%s.json' % (
+        int(cert_id), 'alt' if variant == 'alt' else 'main'))
+
+
+def _unsaved_bind(cert_id, variant):
+    return 'certs:unsaved:%d:%s' % (int(cert_id), 'alt' if variant == 'alt' else 'main')
+
+
+def _unsaved_ident(cert):
+    """Which certificate a kept file is of: its number, name and making (a number used again by
+    another one later never takes it)."""
+    return '%s|%s|%s' % (cert.get('id'), cert.get('name'), cert.get('created'))
+
+
+def _unsaved_keep(cert, variant, pem, chain, key):
+    """The certificate written whole (a file of its own, renamed into place) - its path."""
+    cert_id = int(cert['id'])
+    path = _unsaved_path(cert_id, variant)
+    os.makedirs(os.path.dirname(path), 0o700, exist_ok=True)
+    data = json.dumps({'cert_pem': pem, 'chain': list(chain or []), 'at': time.time(),
+                       'of': _unsaved_ident(cert),
+                       'key': E.seal_secret(key, _unsaved_bind(cert_id, variant)) if key else ''})
+    part = path + '.part'
+    fd = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(part, path)
+    except BaseException:
+        try:
+            os.unlink(part)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+def _unsaved_drop(cert_id, variant):
+    try:
+        os.unlink(_unsaved_path(cert_id, variant))
+    except OSError:
+        pass
+
+
+def _unsaved_take(store, job, cert, sans, key_type, given_csr, what=''):
+    """(cert_pem, chain, key, info, {}) kept by a try whose save failed - when it is still
+    good for this certificate as it is asked now - else None (a file no longer fitting is
+    removed)."""
+    variant = 'alt' if what else 'main'
+    path = _unsaved_path(cert['id'], variant)
+    if not os.path.exists(path):
+        return None
+    why = ''
+    try:
+        from acmelib.certs import pki
+        with open(path) as f:
+            got = json.load(f)
+        pem = str(got.get('cert_pem') or '')
+        chain = [str(p) for p in got.get('chain') or []]
+        key = E.unseal_secret(got['key'], _unsaved_bind(cert['id'], variant)) \
+            if got.get('key') else None
+        info = pki.cert_info(pem)
+        fp = S.info_of(pem).get('sha256') or ''
+        if got.get('of') != _unsaved_ident(cert):
+            why = 'it is of another certificate'
+        elif fp and store.db.value('SELECT COUNT(*) FROM cert_versions WHERE cert_id = ? AND '
+                                 'fingerprint = ?', (cert['id'], fp), 0):
+            why = 'saved already'
+        elif float(info.get('not_after') or 0) < time.time() + 86400:
+            why = 'it runs out'
+        elif issued_names_refused(pki, pem, sans):
+            why = 'its names are not the ones asked for now'
+        elif given_csr:
+            if key or info.get('pub_sha256') != pki.csr_info(given_csr, msext_ok=True).get(
+                    'sha256'):
+                why = 'not for the key of the CSR'
+        elif not key or pki.key_matches(pem, key) is False or \
+                pki.key_info(key)['key_type'] != key_type or \
+                str(info.get('pub_sha256') or '').upper() in \
+                {str(k).upper() for k in _revoked_keys(store, cert['id'])}:
+            why = 'its key is not the one asked for now'
+    except Exception as e:                              # noqa: BLE001
+        why = 'it does not read (%s)' % e
+    if why:
+        job.step('%sthe certificate kept when the database did not take it is not used - %s'
+                 % (what, why), 'warn')
+        _unsaved_drop(cert['id'], variant)
+        return None
+    job.step('%sthe certificate issued at the last try, which the database did not take then, '
+             'is saved now - the CA is not asked again' % what, 'ok')
+    return pem, chain, (None if given_csr else key), S.info_of(pem), {}
+
+
+def _saved(store, job, cert, variant, save, pem, chain, key):
+    """save() - tried again while the database is in trouble; at last the certificate kept in
+    a file for the next try. The version saved."""
+    waits = list(SAVE_WAITS)
+    tried = False
+    while True:
+        try:
+            if tried:
+                # its answer lost, the save may have been done all the same: not twice
+                fp = S.info_of(pem).get('sha256') or ''
+                done = store.db.value('SELECT version FROM cert_versions WHERE cert_id = ? AND '
+                                      'fingerprint = ? AND variant = ?',
+                                      (cert['id'], fp, 'alt' if variant == 'alt' else ''),
+                                      None) if fp else None
+                if done is not None:
+                    _unsaved_drop(cert['id'], variant)
+                    return int(done)
+            tried = True
+            version = save()
+        except Exception as e:
+            if not E.db_trouble(e):
+                raise
+            if waits:
+                wait = waits.pop(0)
+                job.step('the database did not take the new certificate (%s) - tried again in '
+                         '%d s' % (str(e)[:200], wait), 'warn')
+                time.sleep(wait)
+                continue
+            try:
+                path = _unsaved_keep(cert, variant, pem, chain, key)
+                job.step('the database did not take the new certificate: it is kept in %s and '
+                         'saved at the next try, the CA not asked again' % path, 'bad')
+            except Exception as e2:                     # noqa: BLE001
+                job.step('the new certificate could not be kept in a file either: %s' % e2,
+                         'bad')
+            raise
+        _unsaved_drop(cert['id'], variant)
+        return version
+
+
 def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_type,
                kept_key, previous, what='', ref=None):
     """One certificate of `key_type` from the issuer: a key (or `kept_key`), a CSR,
@@ -573,6 +719,11 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
     # Every subjectAltName: the names (proved) and the e-mail and URI ones of the profile;
     # the common name its own where the profile says one (compat.py: where allowed).
     sans = S.sans_of(names, profile)
+    if given or not device:
+        # issued at the last try, the database not taking it then (hunt w8)
+        taken = _unsaved_take(store, job, cert, sans, key_type, given, what)
+        if taken:
+            return taken
     if device and not given:
         # The key made by the device (certs.csr_from, devicekey.py): a fresh CSR from the
         # target's device at every issue - then used as one sent in; the key never here.
@@ -683,9 +834,9 @@ def _twin(store, job, cert, irow, issuer, names, profile, challenges, by):
     pem, chain, key, info, iinfo = _issue_one(
         store, job, cert, irow, issuer, names, profile, challenges, alt_type, kept,
         cert.get('alt_cert_pem'), 'the twin: ')     # ARI 'replaces': its own one only
-    version = S.save_alt(store, cert['id'], pem, chain, key,
-                         'renewal' if cert.get('alt_cert_pem') else 'issue', by, info=info,
-                         extra={'alt_ari': json.dumps(_ari_of(info, iinfo))})
+    version = _saved(store, job, cert, 'alt', lambda: S.save_alt(
+        store, cert['id'], pem, chain, key, 'renewal' if cert.get('alt_cert_pem') else 'issue',
+        by, info=info, extra={'alt_ari': json.dumps(_ari_of(info, iinfo))}), pem, chain, key)
     until = _until(info)
     job.step('the twin issued: version %d, %s, serial %s, valid until %s' % (
         version, alt_type, info.get('serial') or '?', until), 'ok')
@@ -892,9 +1043,9 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             job.step('the source\'s certificate is %s from now on' % extra['issuer_ref'])
         if info.get('cn'):
             extra['cn'] = str(info['cn'])[:190]
-        version = S.save_version(store, cert['id'], pem, chain, key_out,
-                                 'renewal' if cert.get('cert_pem') else 'issue', by,
-                                 info=info, extra=extra)
+        version = _saved(store, job, cert, 'main', lambda: S.save_version(
+            store, cert['id'], pem, chain, key_out, 'renewal' if cert.get('cert_pem') else 'issue',
+            by, info=info, extra=extra), pem, chain, key_out)
         if str(cert.get('csr_from') or '').strip() and \
                 not str(cert.get('csr_given') or '').strip():
             # for the CSR its device made (_issue_one): recorded on the version (1.0.96)

@@ -501,7 +501,7 @@ class RunContext(base.Context):
                                  purpose='acme' if proxy else '')
             with got:
                 # bounded (1.0.101): a server's answer read whole into memory, however big
-                data = got.read(HTTP_ANSWER_MAX + 1)
+                data = E.read_within(got, HTTP_ANSWER_MAX + 1, timeout, self.cancelled)
                 if len(data) > HTTP_ANSWER_MAX:
                     raise base.PluginError('%s answered more than %d MB - not read' % (
                         _netloc_shown(url), HTTP_ANSWER_MAX // (1 << 20)))
@@ -509,7 +509,7 @@ class RunContext(base.Context):
                 return got.status, header_dict(got.headers), data
         except urllib.error.HTTPError as e:
             try:
-                data = e.read(HTTP_ANSWER_MAX)
+                data = E.read_within(e, HTTP_ANSWER_MAX, timeout, self.cancelled)
             except Exception:                       # noqa: BLE001
                 data = b''
             self._http_shipped(req.get_method(), url, began, e.code, len(data))

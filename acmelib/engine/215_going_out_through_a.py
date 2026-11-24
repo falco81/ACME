@@ -107,6 +107,34 @@ class _NoCredsRedirect(urllib.request.HTTPRedirectHandler):
         return new
 
 
+# The whole answer read within this long (hunt w8), however slowly it comes: urllib's timeout
+# is per read, so a server dripping a byte every few seconds held the job (or the CA's order)
+# for hours - read(n) waited for all n bytes, each recv within the timeout.
+ANSWER_WITHIN_S = 300.0
+
+
+def read_within(resp, limit, timeout=30, cancelled=None):
+    """At most `limit` bytes of an HTTP answer, read whole within max(ANSWER_WITHIN_S,
+    4 x timeout) seconds - else TimeoutError (an OSError). `cancelled()`: a job's stop,
+    looked at between the pieces."""
+    took = max(float(ANSWER_WITHIN_S), 4.0 * float(timeout or 30))
+    end = time.monotonic() + took
+    piece = getattr(resp, 'read1', None)
+    out = bytearray()
+    while len(out) < limit:
+        if time.monotonic() > end:
+            raise TimeoutError('the answer did not come whole within %d s - the server sends '
+                               'it too slowly' % int(took))
+        if cancelled is not None and cancelled():
+            raise TimeoutError('stopped while the answer was being read')
+        want = min(65536, limit - len(out))
+        got = piece(want) if piece is not None else resp.read(want)
+        if not got:
+            break
+        out += got
+    return bytes(out)
+
+
 def url_open(req, timeout=30, context=None, purpose=''):
     """urllib.request.urlopen - straight, unless asked for a purpose whose
     switch is on, a proxy set and the host not one reached straight; never

@@ -88,6 +88,7 @@ KEYS = {'tls.crt': ('cert-pem', 'fullchain-pem'), 'tls.key': ('key-pem', 'key-tr
 KUBECTL = ('kubectl', '/usr/bin/kubectl', '/usr/local/bin/kubectl')
 DEPLOY_WORDS = ('deployment', 'deployments', 'deploy', 'deployment.apps', 'deployments.apps')
 API_S = 20
+LIST_PAGE = 50                  # Secrets in one answer of a list
 MANAGED_BY = 'acme-agent'
 RESTARTED = 'kubectl.kubernetes.io/restartedAt'
 CERT_SHA = 'acme-agent/certificate-sha256'
@@ -306,10 +307,22 @@ class Kube(object):
     def secret(self, ns, name):
         return self.req('GET', '/api/v1/namespaces/%s/secrets/%s' % (ns, name), ok404=True)[1]
 
-    def secrets_tls(self, ns):
-        q = urllib.parse.urlencode({'fieldSelector': 'type=kubernetes.io/tls'})
-        got = self.req('GET', '/api/v1/namespaces/%s/secrets?%s' % (ns, q))[1] or {}
-        return got.get('items') or []
+    def secrets_tls(self, ns, most=None):
+        # in pages (limit/continue): a namespace of many Secrets - each with its key and chain -
+        # was one answer bigger than the agent reads, cut and said "cannot be reached"
+        most = A.DISCOVER_CERTS_MOST if most is None else most
+        out, cont = [], ''
+        while len(out) < most:
+            q = {'fieldSelector': 'type=kubernetes.io/tls', 'limit': str(LIST_PAGE)}
+            if cont:
+                q['continue'] = cont
+            got = self.req('GET', '/api/v1/namespaces/%s/secrets?%s' % (
+                ns, urllib.parse.urlencode(q)))[1] or {}
+            out += got.get('items') or []
+            cont = str((got.get('metadata') or {}).get('continue') or '')
+            if not cont:
+                break
+        return out[:most]
 
     def put_secret(self, ns, name, obj):
         return self.req('PUT', '/api/v1/namespaces/%s/secrets/%s' % (ns, name), obj)[1]

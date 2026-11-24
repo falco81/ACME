@@ -45,10 +45,11 @@ data:
     allow discover
 ---
 # ---- one Role and RoleBinding per namespace the agent writes Secrets in ------------------------
-# get/update/patch (and delete: a Secret it just made is taken away again when the restart after
+# get/update (and delete: a Secret it just made is taken away again when the restart after
 # it fails) of the Secrets named; create (Kubernetes cannot limit create by name - the
 # agent's policy does); list only for "allow discover" (drop "list" without it); patch of the
-# Deployments it may restart.
+# Deployments it may restart. Nothing more: the agent never patches a Secret (it replaces it,
+# checked against what it read) and never reads a Deployment.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -58,14 +59,14 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     resourceNames: ["web-tls"]
-    verbs: ["get", "update", "patch", "delete"]
+    verbs: ["get", "update", "delete"]
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
     resourceNames: ["web"]
-    verbs: ["get", "patch"]
+    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -89,7 +90,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "create", "update", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -204,6 +205,9 @@ metadata:
   namespace: acme-agent
 spec:
   type: LoadBalancer
+  # acme's own address seen by the pod (`allow from`) and by the NetworkPolicy below - with the
+  # default (Cluster) a node's address took its place and acme was refused
+  externalTrafficPolicy: Local
   selector:
     app.kubernetes.io/name: acme-agent
   ports:

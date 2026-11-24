@@ -234,8 +234,9 @@ def _ask_tls(host, port, name, qtype, timeout, rd=True, tls_name=''):
         with ctx.wrap_socket(raw, server_hostname=tls_name or host) as s:
             s.settimeout(timeout)
             s.sendall(struct.pack('>H', len(q)) + q)
-            n = struct.unpack('>H', D._recv_exact(s, 2))[0]
-            data = D._recv_exact(s, n)
+            deadline = time.monotonic() + 2 * timeout      # the whole answer (hunt w8)
+            n = struct.unpack('>H', D._recv_exact(s, 2, deadline))[0]
+            data = D._recv_exact(s, n, deadline)
     except ssl.SSLError as e:
         raise D.DnsError('%s:%d over TLS: %s' % (host, port, getattr(e, 'reason', None) or e))
     except socket.timeout:

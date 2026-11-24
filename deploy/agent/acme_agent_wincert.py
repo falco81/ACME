@@ -602,6 +602,11 @@ foreach ($w in @($j.iis)) {
       -IPAddress ([string]$w.ip) -SslFlags $sni
     $b = Find-Binding $w
     $created = $true
+    # the address and port (no SNI: shared with another site's binding there) or the host and
+    # port (an http.sys binding left behind) may hold a certificate in http.sys already - the
+    # binding shows it: said as the old one, so it is replaced and put back on an undo (it was
+    # taken away there - another site's https gone - and AddSslCertificate failed on it)
+    if ($b) { $old = [string]$b.certificateHash }
   } else {
     $old = [string]$b.certificateHash
   }
@@ -638,7 +643,13 @@ foreach ($w in @($j.iis)) {
     $b = Find-Binding $w
     if ($b) {
       if ($w.created) {
-        try { $b.RemoveSslCertificate() } catch { }
+        # the certificate http.sys held for its address and port before (a binding of another
+        # site shares it) put back - only a certificate nobody had there is taken away
+        if (-not [string]$w.old) { try { $b.RemoveSslCertificate() } catch { } }
+        elseif ([string]$w.old -ne [string]$j.thumb) {
+          try { $b.AddSslCertificate([string]$w.old, 'My') }
+          catch { $b.RemoveSslCertificate(); $b.AddSslCertificate([string]$w.old, 'My') }
+        }
         $b | Remove-WebBinding
       } elseif ([string]$w.old -ne [string]$j.thumb) {
         if ([string]$w.old) {
@@ -922,7 +933,8 @@ class WinJob(object):
         for want in self.w['iis']:
             have = [b for b in self.now['iis'] if isinstance(b, dict) and
                     str(b.get('site')) == want['site'] and int(b.get('port') or 0) == want['port']
-                    and str(b.get('host') or '') == want['host']]
+                    and str(b.get('host') or '') == want['host'] and
+                    str(b.get('ip') or '*') == (want.get('ip') or '*')]
             if not have or str(have[0].get('thumb') or '').upper() != self.thumb:
                 return False
         if self.w['rdp'] and str(self.now.get('rdp') or '').upper() != self.thumb:
@@ -1216,7 +1228,8 @@ def dry_check(A, w):
     for want in w['iis']:
         b = next((x for x in have if str(x.get('site')) == want['site'] and
                   int(x.get('port') or 0) == want['port'] and
-                  str(x.get('host') or '') == want['host']), {})
+                  str(x.get('host') or '') == want['host'] and
+                  str(x.get('ip') or '*') == (want.get('ip') or '*')), {})
         if not b.get('site_there'):
             out.append({'path': _bind_words(want), 'said': 'there is no IIS site %s'
                         % want['site'], 'bad': True})

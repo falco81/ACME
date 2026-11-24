@@ -150,9 +150,13 @@ class Acme(object):
             req.add_header('Content-Type', 'application/jose+json')
         try:
             with url_open(req, timeout=30, context=_acme_ctx(), purpose='acme') as r:
-                body, headers, status = r.read(1 << 20), r.headers, r.status
+                body, headers, status = read_within(r, 1 << 20, 30), r.headers, r.status
         except urllib.error.HTTPError as e:
-            body, headers, status = e.read(1 << 20), e.headers, e.code
+            try:
+                body = read_within(e, 1 << 20, 30)
+            except OSError:
+                body = b''
+            headers, status = e.headers, e.code
         except (OSError, ssl.SSLError) as e:
             raise AcmeError('the CA did not answer (%s): %s' % (
                 urllib.parse.urlsplit(url).hostname, getattr(e, 'reason', e)))
