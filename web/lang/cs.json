@@ -110501,6 +110501,10 @@
   "pz_1425": {
    "source": "it is taken over already: the certificate {0} is deployed to the same files on {1} - it is there after its next deployment",
    "text": "už je převzatý: certifikát {0} se nasazuje do stejných souborů na {1} – bude tam po svém příštím nasazení"
+  },
+  "pz_1426": {
+   "source": "line {0} of More headers is not a header (Name: value)",
+   "text": "řádek {0} pole „Další hlavičky“ není hlavička (Název: hodnota)"
   }
  },
  "rich": {

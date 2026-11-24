@@ -3469,9 +3469,54 @@ function timePicker(id, opts) {
   }
   prev.onclick = function () { shift(-1); };
   next.onclick = function () { shift(1); };
-  function close() { if (pop) { pop.remove(); pop = null; document.removeEventListener('mousedown', outside, true); } }
+  function close() {
+    if (pop) {
+      pop.remove(); pop = null;
+      document.removeEventListener('mousedown', outside, true);
+      document.removeEventListener('keydown', keys, true);
+      document.removeEventListener('focusin', away, true);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+      clearInterval(gone);
+      main.setAttribute('aria-expanded', 'false');
+    }
+  }
   wrap._close = close;
   function outside(e) { if (pop && !pop.contains(e.target) && !wrap.contains(e.target)) close(); }
+  /* hunt w10: Escape left it open (its window stayed over the next tab too), the keyboard never
+     reached it (put at the end of the page, after everything else) and it stayed where it was
+     opened while the page scrolled under it - as the other pickers: Escape closes it and gives
+     the focus back, it opens with the focus on the window chosen, the focus going elsewhere
+     closes it, and it follows its button (closed once the button is gone from the page). */
+  function keys(e) {
+    if (e.key === 'Escape' && pop) { e.preventDefault(); e.stopPropagation(); close(); main.focus(); }
+  }
+  function away(e) { if (pop && !pop.contains(e.target) && !wrap.contains(e.target)) close(); }
+  var gone = null;
+  function place(e) {
+    if (!pop) return;
+    if (e && e.type === 'scroll' && e.target && e.target.nodeType === 1 && pop.contains(e.target)) return;
+    if (!main.isConnected || !main.getClientRects().length) { close(); return; }
+    var box = wrap.getBoundingClientRect();
+    var w = Math.min(640, window.innerWidth - 16);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.max(8, Math.min(box.right - w, window.innerWidth - w - 8)) + 'px';
+    /* Kept inside the window (1.0.103): on a phone it was 700 px tall from
+       halfway down, its lower half out of reach. Up over the box when there
+       is more room above; scrolled inside itself when neither is enough. */
+    var below = window.innerHeight - box.bottom - 14, above = box.top - 14;
+    pop.style.maxHeight = '';
+    var h = pop.offsetHeight;
+    if (h > below && above > below) {
+      pop.style.maxHeight = above + 'px';
+      pop.style.top = Math.max(8, box.top - 6 - Math.min(h, above)) + 'px';
+    } else {
+      pop.style.maxHeight = Math.max(160, below) + 'px';
+      pop.style.top = (box.bottom + 6) + 'px';
+    }
+  }
+  main.setAttribute('aria-haspopup', 'dialog');
+  main.setAttribute('aria-expanded', 'false');
   main.onclick = function () {
     if (pop) { close(); return; }
     pop = el('div', 'tp-pop');
@@ -3535,24 +3580,17 @@ function timePicker(id, opts) {
     cols.appendChild(own);
     pop.appendChild(cols);
     document.body.appendChild(pop);
-    var box = wrap.getBoundingClientRect();
-    var w = Math.min(640, window.innerWidth - 16);
-    pop.style.width = w + 'px';
-    pop.style.left = Math.max(8, Math.min(box.right - w, window.innerWidth - w - 8)) + 'px';
-    /* Kept inside the window (1.0.103): on a phone it was 700 px tall from
-       halfway down, its lower half out of reach. Up over the box when there
-       is more room above; scrolled inside itself when neither is enough. */
-    var below = window.innerHeight - box.bottom - 14, above = box.top - 14;
-    var h = pop.offsetHeight;
-    if (h > below && above > below) {
-      pop.style.maxHeight = above + 'px';
-      pop.style.top = Math.max(8, box.top - 6 - Math.min(h, above)) + 'px';
-    } else {
-      pop.style.maxHeight = Math.max(160, below) + 'px';
-      pop.style.top = (box.bottom + 6) + 'px';
-    }
+    place();
     pop.style.overflow = 'auto';
-    setTimeout(function () { document.addEventListener('mousedown', outside, true); }, 0);
+    main.setAttribute('aria-expanded', 'true');
+    setTimeout(function () { if (pop) document.addEventListener('mousedown', outside, true); }, 0);
+    document.addEventListener('keydown', keys, true);
+    document.addEventListener('focusin', away, true);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    gone = setInterval(function () { if (!main.isConnected || !main.getClientRects().length) close(); }, 400);
+    var first = pop.querySelector('.tp-q.on') || pop.querySelector('.tp-q');
+    if (first) { try { first.focus({preventScroll: true}); } catch (e) { first.focus(); } }
   };
   wrap._range = function () { var r = tpRange(st); return {from: Math.floor(r.from), to: Math.ceil(r.to), words: tpWords(st)}; };
   wrap._set = function (s) { st = s; fire(); };

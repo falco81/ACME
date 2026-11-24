@@ -1639,7 +1639,7 @@ function drawModTab(key, live) {
     if (key === 'sources' && b) {
       var miss = LISTS[key].filter(function (r) {
         return r.kind === 'acme' && !arr(Array.isArray((r.config || {}).contacts) ? r.config.contacts : String((r.config || {}).contacts || '').split(/[\s,;]+/)).filter(Boolean).length;
-      }).map(function (r) { return r.name; });
+      }).map(function (r) { return ownName(r); });  // in the page's language, as the list shows them (hunt w10)
       contactAsk(b, miss);
     }
     liveFill(host, function (box) {
