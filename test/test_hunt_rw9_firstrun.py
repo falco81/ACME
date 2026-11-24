@@ -11,7 +11,7 @@
   made keep their names.
 - The source and validation acme makes at the first start ("This server HTTP-01", "acme DNS
   server", "LetsEncrypt staging") stayed English on Czech pages - now shown in the page's
-  language (own_name), the stored name kept and said on hover; a row a person made or renamed is
+  language (own_name), the name it is kept by shown under it; a row a person made or renamed is
   shown as it is.
 - Certificates on the portal on with Names people may ask for or Sources people may ask empty:
   the members had an Ask button whose every request was refused, the administrator no word - now
