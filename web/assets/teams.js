@@ -613,7 +613,8 @@
         ? 'The enrolment pages are switched off: the members see nothing there.'
         : 'Certificates on the portal is off: the members sign in on the enrolment pages and see nothing there - no certificate of their teams, no asking for one.'));
       var go = cmdButton('Open the setting', 'gear', 'small');
-      go.onclick = function () { location.hash = '#settings/portal'; };
+      /* to the setting itself, not to the top of the pane - a long way above it (hunt w8) */
+      go.onclick = function () { location.hash = '#settings/portal'; toSetting(d.portal.on ? 'portal_cert' : 'portal'); };
       off.appendChild(go);
       return off;
     }

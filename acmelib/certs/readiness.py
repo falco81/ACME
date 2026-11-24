@@ -669,7 +669,11 @@ def precheck(store, job, cert, names):
     result = check(store, names, cert.get('issuer') or None, cert=cert)
     job_steps(job, result)
     if result['blocking']:
-        raise NotReady('the CA was not asked - the validation is not ready: %s' % fixes(result),
+        # the way on said too, where the CA sees the names otherwise than this server (hunt w8)
+        raise NotReady('the CA was not asked - the validation is not ready: %s - or, where the '
+                       'CA sees the names otherwise than this server, switch off Settings → '
+                       'Renewal and notices → Check the validation before the CA is asked'
+                       % fixes(result),
                        detail=json.dumps(result.get('blocking'), default=str)[:4000],
                        retry=True)
     if not result.get('complete'):

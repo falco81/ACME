@@ -51,16 +51,16 @@ EVENTS = [
      'Sent once when a certificate has run out.',
      ('cert', 'names', 'not_after', 'issuer', 'serial', 'node', 'site'), 'bad', True),
     ('cert_renewed', 'A certificate renewed',
-     'Sent after a renewal (or the first issue), when Settings → Certificates says to tell '
-     'what went well too (certs_notify_ok).',
+     'Sent after a renewal (or the first issue), when Settings → Renewal and notices says '
+     'to tell what went well too (certs_notify_ok).',
      ('cert', 'names', 'version', 'not_after', 'issuer', 'serial', 'node', 'site'), 'ok', True),
     ('cert_renew_failed', 'Renewing a certificate failed',
      'Sent when a renewal fails (at most every 6 hours for one certificate).',
      ('cert', 'names', 'error', 'retry', 'not_after', 'left', 'issuer', 'node', 'site'), 'bad',
      True),
     ('cert_deployed', 'A certificate deployed',
-     'Sent after a deployment went well, when Settings → Certificates says to tell what went '
-     'well too (certs_notify_ok).',
+     'Sent after a deployment went well, when Settings → Renewal and notices says to '
+     'tell what went well too (certs_notify_ok).',
      ('cert', 'names', 'target', 'version', 'not_after', 'serial', 'node', 'site'), 'ok', True),
     ('cert_deploy_failed', 'Deploying a certificate failed',
      'Sent when putting a certificate on a target fails (at most every 6 hours for one '
@@ -113,8 +113,8 @@ def _put(mid, lang, subject, title, lede, note, foot, body, sms=None):
         W[lang][p + '_sms'] = sms
 
 
-FOOT_EN = 'Sent by acme on {node} - {site}. Who is told is set on Settings → Certificates.'
-FOOT_CS = 'Poslal acme na {node} - {site}. Komu se to posílá, je v Nastavení → Certifikáty.'
+FOOT_EN = 'Sent by acme on {node} - {site}. Who is told is set on Settings → Renewal and notices.'
+FOOT_CS = 'Poslal acme na {node} - {site}. Komu se to posílá, je v Nastavení → Obnovování a upozornění.'
 
 _put('cert_expiring', 'en', 'Certificate {cert} ends in {left}', '{site}: a certificate ends soon',
      'The certificate <b>{cert}</b> ({names}) ends in <b>{left}</b>, on {not_after}, and nothing '

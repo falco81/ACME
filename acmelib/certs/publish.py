@@ -419,7 +419,7 @@ def check(store, ca_id):
     def say(level, words):
         steps.append([level, words])
     if not on():
-        say('bad', 'publishing is switched off (Settings → Certificates: Publish CRLs on acme)')
+        say('bad', 'publishing is switched off (Settings → Renewal and notices: Publish CRLs on acme)')
         return {'ok': False, 'steps': steps}
     if not is_published(store, row):
         say('bad', '%s is not published (its switch is off, or it has no certificate yet)'

@@ -5861,7 +5861,7 @@ def checks_phase(store, cert, names):
                               tuple(CK.AFTER_DEPLOY_TRIES) else '')})
         steps.append({'kind': 'wait', 'words': ('By itself every {0} min'.replace(
             '{0}', str(E.CONFIG.get('certs_checks_every_min'))) if auto else
-            'Not by itself: the regular runs are off (Settings → Certificates)'),
+            'Not by itself: the regular runs are off (Settings → Renewal and notices)'),
             'note': 'a test that starts failing is an event, a notice (Settings → Renewal and '
             'notices) and among the alerts (mail, SNMP trap, Prometheus)' if
             E.CONFIG.get('certs_checks_alert', 1) else 'no notice is sent when it fails'})

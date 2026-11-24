@@ -2748,7 +2748,7 @@ class Cli(object):
             if a.sms_to:
                 sms_to = R.phones(a.sms_to)
                 if (self.E.CONFIG.get('sms_mode') or 'off') == 'off':
-                    raise ValueError('sending SMS is switched off - Settings → Codes by mail '
+                    raise ValueError('sending SMS is switched off - Settings → Codes by e-mail '
                                      'and SMS')
         except ValueError as e:
             raise SystemExit('acme: %s' % e)

@@ -181,7 +181,7 @@ def _run(h, s):
     if want_sms and not sms_to:
         raise ValueError('no number to send the SMS to')
     if sms_to and (E.CONFIG.get('sms_mode') or 'off') == 'off':
-        raise ValueError('sending SMS is switched off - Settings → Codes by mail and SMS')
+        raise ValueError('sending SMS is switched off - Settings → Codes by e-mail and SMS')
 
     def fn(job):
         got = C.run_many(h.store, ids, job)

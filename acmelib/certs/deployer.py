@@ -228,7 +228,7 @@ def _tested_words(store, cert, target):
     try:
         from acmelib.certs import checks
         if not E.CONFIG.get('certs_checks_after_deploy', 1):
-            return 'tests after a deployment are switched off (Settings → Certificates)'
+            return 'tests after a deployment are switched off (Settings → Renewal and notices)'
         # as after_deploy picks them (1.0.95): a test switched off, or one gone, checks nothing
         for r in store.db.rows('SELECT c.after_target FROM cert_checks c JOIN cert_tests t ON '
                                't.name = c.test WHERE c.cert_id = ? AND COALESCE(c.enabled, 1) '

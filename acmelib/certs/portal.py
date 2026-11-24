@@ -1360,7 +1360,13 @@ def _portal_request(h):
     sufs = words_list('portal_cert_suffixes')
     allowed = words_list('portal_cert_issuers')
     if not sufs or not allowed:
-        raise E.ApiError(403, 'asking for certificates here is not set up')
+        # what is missing said, for the member to tell the administrator (hunt w8)
+        raise E.ApiError(403, 'asking for certificates here is not set up - an administrator '
+                         'sets %s (Settings → The enrolment pages)' % (
+                             'Names people may ask for and Sources people may ask'
+                             if not sufs and not allowed else
+                             'Names people may ask for' if not sufs else
+                             'Sources people may ask'))
     if used(store, who) >= most():
         raise E.ApiError(403, 'you have asked for as many certificates as one person may (%d)'
                          % most())

@@ -826,7 +826,7 @@ def sms_send(to, text):
 def _sms_send_now(to, text):
     mode = CONFIG.get('sms_mode') or 'off'
     if mode == 'off':
-        raise SmsError('sending SMS is switched off - Settings → Codes by mail and SMS')
+        raise SmsError('sending SMS is switched off - Settings → Codes by e-mail and SMS')
     text = sms_plain(text)
     if mode == 'teltonika':
         return tel_send(to, text)
@@ -864,7 +864,7 @@ def _sms_send_now(to, text):
         return 'written into %s as %s' % (folder, name)
     url = str(CONFIG.get('sms_url') or '').strip()
     if not url:
-        raise SmsError('no gateway address is set - Settings → Codes by mail and SMS')
+        raise SmsError('no gateway address is set - Settings → Codes by e-mail and SMS')
     token = setting_secret('sms_token')
     vals = {'to': to, 'to_digits': to.lstrip('+'), 'text': text, 'token': token}
 

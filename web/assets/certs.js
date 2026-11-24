@@ -4576,7 +4576,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   }
   grid.appendChild(ds);
   /* tests of what the servers serve (1.0.32): attached here as targets are */
-  var tsec = section('Tests', 'What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Certificates says so, or now.', true);
+  var tsec = section('Tests', 'What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Renewal and notices says so, or now.', true);
   tsec._body.appendChild(certTests(c, back, deploys, tsec));
   grid.appendChild(tsec);
   /* versions */
@@ -10927,7 +10927,7 @@ function testAfterPick(targets, have, guess) {
     says.appendChild(ic);
     says.appendChild(el('span', '', how === 'every' ? tr('Every deployment of the certificate runs it - on any of its targets.')
       : how === 'none' ? tr('No deployment runs it: only the regular runs of the tests (and Run it now) - their alerts as every test’s.') +
-        (CK_AUTO === false ? ' ' + tr('The regular runs are off now: Settings → Certificates → Test the servers by themselves.') : '')
+        (CK_AUTO === false ? ' ' + tr('The regular runs are off now: Settings → Renewal and notices → Test the servers by themselves.') : '')
       : (chosen.length === 1 ? tr('Only a deployment on this target runs it.') : tr('A deployment on any of these targets runs it.')) + ' ' +
         tr('When it fails there, the deployment fails.')));
   };
@@ -11292,7 +11292,7 @@ function runTestsDialog(c) {
         var smsSw = switchBox(st.sms);
         smsSw._input.disabled = !info.sms;
         smsSw._input.onchange = function () { st.sms = smsSw._get(); smsBox.disabled = !st.sms; };
-        g.appendChild(formField('By SMS', smsSw, info.sms ? 'one line: how many fine, with a warning, failed - and which' : 'SMS is switched off - Settings → Codes by mail and SMS.'));
+        g.appendChild(formField('By SMS', smsSw, info.sms ? 'one line: how many fine, with a warning, failed - and which' : 'SMS is switched off - Settings → Codes by e-mail and SMS.'));
         smsBox = textBox('', '+420 600 000 000', 'mono');
         smsBox.disabled = true;
         noI18n(smsBox);

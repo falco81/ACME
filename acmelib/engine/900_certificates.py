@@ -149,7 +149,7 @@ SAYS.update({
                          'whose renewal fails) is an event, an alert and a mail every day.',
     'certs_notify_mail': 'Addresses told when a renewal or a deployment fails, or a '
                          'certificate is about to end (comma between them). Empty: nobody.',
-    'certs_notify_sms': 'Numbers told the same by SMS (Settings → Codes by mail and SMS '
+    'certs_notify_sms': 'Numbers told the same by SMS (Settings → Codes by e-mail and SMS '
                         'says how SMS go out). Empty: nobody.',
     'certs_notify_ok': 'Also a mail and an SMS when a certificate is renewed or deployed - not '
                        'only when something fails or runs out. The words are on Settings → '
@@ -171,7 +171,7 @@ SAYS.update({
                          'one, is found without anybody looking.',
     'certs_checks_every_min': 'How often each test is run by itself.',
     'certs_checks_alert': 'A test that starts failing is an event, a mail and an SMS (Settings '
-                          '→ Certificates says to whom; the words are on Settings → Message '
+                          '→ Renewal and notices says to whom; the words are on Settings → Message '
                           'texts) - and one that works again is said too.',
     'certs_checks_warn_days': 'A server serving the right certificate that ends within this '
                               'many days is a warning. 0: never.',

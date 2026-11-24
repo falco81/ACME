@@ -869,10 +869,20 @@ function askDialog() {
     var hint = el('div', 'says small muted');
     hint.appendChild(el('span', '', 'One name a line - the first is the one it is called by.'));
     hint.appendChild(document.createTextNode(' '));
-    hint.appendChild(el('span', '', 'Names under:'));
+    var underW = el('span', '', 'Names under:');
+    hint.appendChild(underW);
     hint.appendChild(document.createTextNode(' '));
     sufsB = data('b', 'mono', sufs.join(', '));
     hint.appendChild(sufsB);
+    /* no name open to asking at all (hunt w8: "Names under:" with nothing after it, and
+       "Only names under may be asked for here" when asked) - said so */
+    var noneW = el('span', 'cp-nosufs', 'No name may be asked for here yet - an administrator says which (Names people may ask for).');
+    hint.appendChild(noneW);
+    var sufsShown = function () {
+      underW.hidden = sufsB.hidden = !sufs.length;
+      noneW.hidden = !!sufs.length;
+    };
+    sufsShown();
     body.lastChild.appendChild(hint);
     chips = el('div', 'cp-chips');
     body.lastChild.appendChild(chips);
@@ -913,6 +923,7 @@ function askDialog() {
       explainWhatWasDrawn(limHost);
       lede.textContent = ledeWords();
       sufsB.textContent = sufs.join(', ');
+      sufsShown();
       namesBox.placeholder = 'www.' + (sufs[0] || 'example.com') + '\n' + 'app.' + (sufs[0] || 'example.com');
       check();
     });
@@ -928,7 +939,7 @@ function askDialog() {
     said.textContent = '';
     if (!names.length) { sayBad(said, 'Which names? One a line.'); namesBox.focus(); return; }
     var bad = names.filter(function (n) { return !underSuffix(n, sufs); });
-    if (bad.length) { sayBad(said, 'Only names under ' + sufs.join(', ') + ' may be asked for here.'); namesBox.focus(); return; }
+    if (bad.length) { sayBad(said, sufs.length ? 'Only names under ' + sufs.join(', ') + ' may be asked for here.' : 'No name may be asked for here yet - an administrator says which (Names people may ask for).'); namesBox.focus(); return; }
     var lim = teamSel && (d.team_limits || {})[teamSel.value];
     if (lim && lim.wildcards === false && names.some(function (n) { return n.indexOf('*.') === 0; })) { sayBad(said, 'The team’s certificates have no wildcard names.'); namesBox.focus(); return; }
     if (lim && !issuerSel.value) { sayBad(said, 'The team’s limits allow none of the sources here.'); return; }

@@ -1964,6 +1964,21 @@ function paneToTop() {
   if (window.scrollY > 0) window.scrollTo(0, 0);
 }
 /** `opts.keepScroll`: Find a setting scrolls to the setting itself. */
+/** One setting brought into view and given the focus, once its pane is shown (hunt w8: "Open
+    the setting" opened the pane at its top, the setting far below a gallery of pictures). */
+function toSetting(key) {
+  var n = 0;
+  (function look() {
+    var it = document.querySelector('.set-item[data-key="' + key + '"]');
+    if (it && it.getClientRects().length) {
+      it.scrollIntoView({block: 'center'});
+      var f = it.querySelector('input:not([type=hidden]), select, textarea');
+      if (f) { try { f.focus({preventScroll: true}); } catch (e) { /* none */ } }
+      return;
+    }
+    if (++n < 50) setTimeout(look, 100);
+  })();
+}
 function showPane(name, opts) {
   if (!name || !$('pane-' + name)) name = firstPane();
   /* a pane the account may not open, from a link (1.0.119: shown, then only a 403 toast) -
@@ -15059,6 +15074,7 @@ function drawRbTop() {
     if (!d.locked) {
       /* never given unlocked (the daemon refuses it since 1.0.136): said here, not offered (1.0.52) */
       toast('set the password of the backups first - a backup is never downloaded unlocked', 'bad');
+      toSetting('rbackup_password');          /* where it is set, below (hunt w8) */
       return;
     }
     toast('the backup is being made - the download starts when it is ready', 'good');

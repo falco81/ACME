@@ -190,7 +190,7 @@ function acme_certs_tab_panels(): void
       would - a browser, a mail client, Remote Desktop - and compares the certificate it is sent
       with the certificate it is attached to: the version deployed, its names, its chain, how long
       it runs. Defined here, attached to certificates (the certificate → Tests → Attach a test);
-      run after each deployment, by themselves when Settings → Certificates says so, or now. A
+      run after each deployment, by themselves when Settings → Renewal and notices says so, or now. A
       connector signs in to a Linux server over SSH and runs the tests it carries from there.</p>
     <div class="btnrow filters">
       <input type="search" id="ts-q" placeholder="a name, a kind, an address…" style="flex:1;min-width:200px">
