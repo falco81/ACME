@@ -6557,6 +6557,9 @@ function certWizard(cert, detail, opts) {
     if (SETUP) host.appendChild(el('p', 'note', 'Saved, the certificate imported stays as it is - valid, in use. Its deployments get it now (those that need its private key once the key is added); its next renewal asks ' + (W.d.issuer || 'the source') + ' for it with what is set here.'));
     else if (editing && c.not_after && devSwitched()) host.appendChild(el('p', 'note warn tm-devswitch', devSwitchWords()));
     else host.appendChild(el('p', 'note', editing ? 'What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.'
+      /* what the validation needs is not in place: no "Add and issue now" or "Add only" below
+         to speak of (hunt w8: the note named buttons that were not there) */
+      : planBlocks() ? 'What it will be. "Create anyway" keeps it; acme asks the source by itself once what is marked below is in place.'
       : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" keeps it unissued until Issue now is pressed in its window.'));
     host.appendChild(kvTable(pairs));
     var bad = checkNames();
@@ -6590,6 +6593,9 @@ function certWizard(cert, detail, opts) {
         hh.appendChild(el('b', '', 'Not in place yet'));
         hh.appendChild(el('span', 'muted small', 'Created now, it waits: acme does not ask the CA until this is there, and tries again by itself.'));
         box.appendChild(hh);
+        /* the way on where the CA sees the names otherwise than this server does (a DNS of
+           its own inside, a proxy) - said where one is stuck (hunt w8) */
+        if (FULL) box.appendChild(el('p', 'muted small ct-rd-skip', 'Where the CA reaches these names otherwise than this server sees them, Settings → Renewal and notices → Check the validation before the CA is asked can be switched off: the CA is then asked without this check.'));
         block.forEach(function (b) {
           box.appendChild(rdStep({what: b.what, said: b.said, fix: b.fix, record: b.record, done: false, blocking: true,
                                   where: b.domain || ''}));
