@@ -272,5 +272,410 @@ class CalendarCli(unittest.TestCase):
         self.assertNotIn('after', got.stdout.split('runs out')[-1])
 
 
+# ---------------------------------------------------------------------------
+# The CRL and certificate published on acme, checked over HTTP
+# ---------------------------------------------------------------------------
+class PkiServer(object):
+    """/pki/ answered as web/pki.php answers it - from publish.serve; `bend` turns answers."""
+    bend = {}
+
+    def __init__(self):
+        outer = self
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                name = self.path.rsplit('/', 1)[-1]
+                b = outer.bend.get(name)
+                if b == 404:
+                    self.send_error(404)
+                    return
+                slug, _, ext = name.partition('.')
+                try:
+                    data, mime, _fn = PUB.serve(STORE, 'crl' if ext.startswith('crl') else 'cert',
+                                                slug, 'pem' if ext in ('crl.pem', 'pem') else 'der')
+                except LookupError:
+                    self.send_error(404)
+                    return
+                if isinstance(b, tuple):
+                    data, mime = b
+                self.send_response(200)
+                self.send_header('Content-Type', mime)
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+        self.srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
+        self.port = self.srv.server_address[1]
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+
+class Published(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from acmelib.certs import ca
+        cls.ca = ca
+        cls.srv = PkiServer()
+        E.CONFIG.update(pki_publish=1, pki_base_url='http://127.0.0.1:%d/pki/' % cls.srv.port)
+        cls.root = ca.ca_create(STORE, 'W9 Root', 'CN=W9 Root', key_type='ec-256', days=400)
+        cls.other = ca.ca_create(STORE, 'W9 Other', 'CN=W9 Other', key_type='ec-256', days=400)
+        ca.ca_crl(STORE, cls.root)
+        ca.ca_crl(STORE, cls.other)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.srv.shutdown()
+        E.CONFIG.pop('pki_base_url', None)
+
+    def setUp(self):
+        PkiServer.bend = {}
+
+    def test_check_right(self):
+        got = PUB.check(STORE, self.root)
+        self.assertTrue(got['ok'], got['steps'])
+        words = ' | '.join(w for _l, w in got['steps'])
+        self.assertIn('its signature is the authority', words)
+        self.assertIn('what is published is right', words)
+        self.assertIn('application/pkix-crl', words)
+
+    def test_check_wrong_answers(self):
+        slug = PUB.slug_of(STORE, PUB._row(STORE, self.root))
+        oslug = PUB.slug_of(STORE, PUB._row(STORE, self.other))
+        other_crl, _m, _f = PUB.serve(STORE, 'crl', oslug)
+        other_crt, _m, _f = PUB.serve(STORE, 'cert', oslug)
+        PkiServer.bend = {slug + '.crl': (other_crl, 'text/plain'),
+                          slug + '.crt': (other_crt, 'application/pkix-cert')}
+        got = PUB.check(STORE, self.root)
+        self.assertFalse(got['ok'])
+        levels = [l for l, _w in got['steps']]
+        words = ' | '.join(w for _l, w in got['steps'])
+        self.assertIn('warn', levels)                       # the content type
+        self.assertIn('is not the authority', words)        # the issuer
+        self.assertIn('does not verify', words)             # the signature
+        self.assertIn('not the authority\'s', words)        # the certificate
+        PkiServer.bend = {slug + '.crl': 404, slug + '.crt': (b'junk', 'text/plain')}
+        got = PUB.check(STORE, self.root)
+        self.assertFalse(got['ok'])
+        words = ' | '.join(w for _l, w in got['steps'])
+        self.assertIn('HTTP 404', words)
+        self.assertIn('not a certificate', words)
+
+    def test_check_not_published(self):
+        PUB.set_published(STORE, self.other, False, 'boss')
+        try:
+            got = PUB.check(STORE, self.other)
+            self.assertFalse(got['ok'])
+            self.assertIn('is not published', got['steps'][0][1])
+            oslug = PUB.slug_of(STORE, PUB._row(STORE, self.other))
+            with self.assertRaises(LookupError):
+                PUB.serve(STORE, 'crl', oslug)
+        finally:
+            PUB.set_published(STORE, self.other, True, 'boss')
+        E.CONFIG['pki_publish'] = 0
+        try:
+            got = PUB.check(STORE, self.root)
+            self.assertIn('switched off', got['steps'][0][1])
+            self.assertEqual(PUB.index(STORE), [])
+        finally:
+            E.CONFIG['pki_publish'] = 1
+        with self.assertRaises(LookupError):
+            PUB.check(STORE, 999999)
+
+    def test_renamed_old_slug_answers(self):
+        from acmelib.certs import api_cas
+        sub = self.ca.ca_create(STORE, 'W9 Renamed', 'CN=W9 Renamed', key_type='ec-256', days=300)
+        before = PUB.slug_of(STORE, PUB._row(STORE, sub))
+        got = api_cas.ca_save(STORE, {'id': sub, 'name': 'W9 Renamed Two', 'crl_url': 'own',
+                                      'aia_url': 'own'}, 'boss')
+        after = PUB.slug_of(STORE, PUB._row(STORE, sub))
+        self.assertNotEqual(before, after)
+        self.assertTrue(any('/pki/%s.crl' % after in w for w in got['warnings']), got)
+        for slug in (before, after):
+            data, mime, fn = PUB.serve(STORE, 'cert', slug, 'pem')
+            self.assertTrue(data.startswith(b'-----BEGIN CERTIFICATE'))
+            self.assertEqual(fn, after + '.pem')
+        row = PUB._row(STORE, sub)
+        self.assertEqual(row['crl_url'], PUB.urls(STORE, row)['crl'])
+        # named back: the first slug is its own again, the second answers still
+        api_cas.ca_save(STORE, {'id': sub, 'name': 'W9 Renamed'}, 'boss')
+        self.assertEqual(PUB.slug_of(STORE, PUB._row(STORE, sub)), before)
+        self.assertEqual(PUB.find(STORE, after)['id'], sub)
+        with self.assertRaises(ValueError):
+            api_cas.ca_save(STORE, {'id': sub, 'ocsp_url': 'own'}, 'boss')
+        got = api_cas.ca_save(STORE, {'id': sub, 'disabled': True}, 'boss')
+        self.assertTrue(any('signs nothing now' in w for w in got['warnings']), got)
+        got = api_cas.ca_save(STORE, {'id': sub, 'enabled': True}, 'boss')
+        self.assertEqual(got['changed'].get('disabled'), [1, 0])
+        self.assertEqual(api_cas.ca_save(STORE, {'id': sub}, 'boss')['message'],
+                         'nothing was changed')
+
+    def test_rate_per_source(self):
+        PUB._RATE_OF.clear()
+        PUB._RATE.update(t=time.monotonic(), tokens=PUB.RATE_ALL_PER_S * 2)
+        n = 0
+        while PUB.allowed('198.51.100.7') and n < 1000:
+            n += 1
+        self.assertLessEqual(n, PUB.RATE_ONE_BURST + 2)
+        self.assertTrue(PUB.allowed('198.51.100.300'))          # not an address: its own bucket
+        self.assertFalse(PUB.allowed('198.51.100.8'))           # the same /24
+        self.assertTrue(PUB.allowed('203.0.113.1'))             # another source
+
+
+# ---------------------------------------------------------------------------
+# The search box: values offered as one types
+# ---------------------------------------------------------------------------
+class SearchValues(unittest.TestCase):
+    def setUp(self):
+        clean()
+        add_cert('one', 50, tags=json.dumps(['prod', 'web']), owner='Web')
+        add_cert('two', 60, tags=json.dumps(['prod']), owner='Db', state='failed')
+        add_cert('three', 70, tags='not json', owner='')
+
+    def test_values(self):
+        h = FakeH()
+        self.assertEqual([(v['val'], v['n']) for v in L.values(h, 'tag', '')],
+                         [('prod', 2), ('web', 1)])
+        self.assertEqual([v['val'] for v in L.values(h, 'tag', 'we*')], ['web'])
+        self.assertEqual([v['val'] for v in L.values(h, 'state', '')], ['ok', 'failed'])
+        self.assertEqual([v['val'] for v in L.values(h, 'renew', 'Y')], ['yes'])
+        self.assertEqual(L.values(h, 'note', ''), [])           # not offered
+        self.assertEqual(L.values(h, 'nothing', ''), [])
+        self.assertEqual([v['val'] for v in L.values(h, 'dns', 'two')], ['two.example.test'])
+        self.assertEqual([v['val'] for v in L.values(h, 'owner', 'd')], ['Db', 'Web'][:1])
+
+    def test_where_serial_with_colons(self):
+        sql, args = L.where('serial:1F:AB:03')
+        self.assertIn('1fab03', ''.join(str(a).lower() for a in args))
+        sql, args = L.where('1F:AB')
+        self.assertIn('%1fab%', [str(a).lower() for a in args])
+        self.assertEqual(L.where(''), ('', []))
+        with self.assertRaises(ValueError):
+            L.where('(state:ok')
+
+
+# ---------------------------------------------------------------------------
+# A module's list loaded (catalog) and a module cloned with its credentials
+# ---------------------------------------------------------------------------
+class CatalogAndCopy(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        STORE.db.run("DELETE FROM cert_targets WHERE name LIKE 'w9-%'")
+        cls.tid = A.family_save(STORE, 'target', {'name': 'w9-list', 'kind': 'w9list', 'config': {
+            'host': 'h1', 'password': 'kept-s3cret', 'vdom': 'root'}}, 'boss')
+
+    def test_catalog_with_the_kept_secret(self):
+        got = api_catalog.catalog(STORE, 'target', {'id': self.tid, 'field': 'product',
+                                                    'config': {'password': '••••••'}})
+        self.assertEqual(got['options'], [['a', 'Product A'], ['b', 'b']])
+        self.assertEqual(got['sets'], {'a': {'vdom': 'x'}})
+        self.assertEqual(got['pick'], 'b')
+        self.assertEqual(got['said'], '2')
+        self.assertIn('asked for products with root', got['steps'])
+
+    def test_catalog_deploy_field_empty_keeps_the_targets(self):
+        got = api_catalog.catalog(STORE, 'target', {'id': self.tid, 'field': 'rule',
+                                                    'config': {'vdom': ''},
+                                                    'names': ['www.example.test', 7, '']})
+        self.assertEqual(got['said'], 'rules of root')
+        self.assertEqual(got['options'], [['www.example.test', 'www.example.test']])
+        self.assertEqual(got['pick'], '')                       # not one of the options
+        got = api_catalog.catalog(STORE, 'target', {'id': self.tid, 'field': 'rule',
+                                                    'config': {'vdom': 'dmz'}})
+        self.assertEqual(got['said'], 'rules of dmz')
+
+    def test_catalog_refusals(self):
+        from acmelib.plugins.base import PluginError
+        with self.assertRaises(ValueError):
+            api_catalog.catalog(STORE, 'target', {'id': self.tid, 'field': 'host'})
+        with self.assertRaises(LookupError):
+            api_catalog.catalog(STORE, 'target', {'id': 987654, 'field': 'product'})
+        with self.assertRaises(ValueError):
+            api_catalog.catalog(STORE, 'target', {'kind': 'no_such_kind', 'field': 'product'})
+        with self.assertRaises(PluginError):        # unsaved: no secret kept to fall back on
+            api_catalog.catalog(STORE, 'target', {'kind': 'w9list', 'field': 'product',
+                                                  'config': {'host': 'h'}})
+
+    def test_save_copy(self):
+        got = api_ctxmenu.save_copy(STORE, 'target', {
+            'copy_of': self.tid, 'name': 'w9-copy', 'kind': 'w9list',
+            'config': {'host': 'h2', 'password': '••••'}}, 'boss')
+        self.assertEqual(got['copied'], ['password'])
+        row = S.plugin_row(STORE, 'target', got['id'])
+        cfg = S.plugin_config('target', row)
+        self.assertEqual((cfg['host'], cfg['password']), ('h2', 'kept-s3cret'))
+        self.assertNotIn('kept-s3cret', row['config'])          # sealed again, for its place
+        got2 = api_ctxmenu.save_copy(STORE, 'target', {
+            'copy_of': self.tid, 'name': 'w9-copy2', 'kind': 'w9list',
+            'config': {'host': 'h3', 'password': 'own-one'}}, 'boss')
+        self.assertEqual(got2['copied'], [])
+        self.assertEqual(S.plugin_config('target', S.plugin_row(STORE, 'target', got2['id']))
+                         ['password'], 'own-one')
+        for bad, err in (({'copy_of': self.tid, 'id': 3, 'name': 'w9-x'}, ValueError),
+                         ({'copy_of': 987654, 'name': 'w9-x'}, LookupError),
+                         ({'copy_of': self.tid, 'name': 'w9-x', 'kind': 'fortigate'}, ValueError),
+                         ('not a dict', ValueError)):
+            with self.assertRaises(err, msg=bad):
+                api_ctxmenu.save_copy(STORE, 'target', bad, 'boss')
+
+
+
+# ---------------------------------------------------------------------------
+# Small readers: times, SCTs, an ACME request shown, the plan's DNS, masks
+# ---------------------------------------------------------------------------
+class Readers(unittest.TestCase):
+    def test_epoch(self):
+        want = 1767225600.0                                     # 2026-01-01 00:00 UTC
+        for v in ('2026-01-01T00:00:00Z', '2026-01-01 00:00:00', 'Jan 01 00:00:00 2026 GMT',
+                  '20260101000000Z', '2026-01-01T01:00:00+0100', want, int(want), str(want),
+                  datetime.datetime(2026, 1, 1),
+                  datetime.datetime(2026, 1, 1, 1, tzinfo=datetime.timezone(
+                      datetime.timedelta(hours=1)))):
+            self.assertEqual(S.epoch(v), want, v)
+        for v in (None, '', 'soon'):
+            self.assertIsNone(S.epoch(v))
+
+    def test_sct_list(self):
+        from acmelib.certs import certview
+        log_id = bytes(range(32))
+
+        def sct(ts_ms, hash_alg=4, sig_alg=3):
+            body = bytes([0]) + log_id + struct.pack('>Q', ts_ms) + struct.pack('>H', 0) + \
+                bytes([hash_alg, sig_alg]) + struct.pack('>H', 3) + b'sig'
+            return struct.pack('>H', len(body)) + body
+        lst = sct(1767225600123) + sct(1767225601000, 5, 1) + struct.pack('>H', 4) + b'tiny'
+        raw = struct.pack('>H', len(lst)) + lst
+        der = b'\x04' + bytes([0x81, len(raw)]) + raw if len(raw) > 127 else \
+            b'\x04' + bytes([len(raw)]) + raw
+        for given in (raw, der):
+            got = certview._sct_list(given)
+            self.assertEqual(len(got), 2)                       # the short one passed over
+            self.assertEqual(got[0]['ts'], 1767225600)
+            self.assertEqual(got[0]['version'], 1)
+            self.assertEqual(got[0]['sig'], 'ECDSA SHA-256')
+            self.assertEqual(got[1]['sig'], 'RSA SHA-384')
+            self.assertEqual(got[0]['log_id_hex'], log_id.hex().upper())
+        self.assertEqual(certview._sct_list(b'\x00'), [])
+
+    def test_jws_shown(self):
+        from acmelib.certs import plansandbox as PS
+
+        def b64u(o):
+            return base64.urlsafe_b64encode(json.dumps(o).encode()).decode().rstrip('=')
+        n = base64.urlsafe_b64encode(b'\x01' * 256).decode().rstrip('=')
+        eab = {'protected': b64u({'alg': 'HS256', 'kid': 'eab-kid', 'url': 'u'}),
+               'payload': b64u({'kty': 'RSA'}), 'signature': 'c2ln'}
+        body = {'protected': b64u({'alg': 'RS256', 'jwk': {'kty': 'RSA', 'e': 'AQAB', 'n': n},
+                                   'nonce': 'n1', 'url': 'https://ca/new-acct'}),
+                'payload': b64u({'termsOfServiceAgreed': True, 'externalAccountBinding': eab,
+                                 'csr': 'A' * 400}),
+                'signature': 'c2lnbmF0dXJl'}
+        got = PS.jws_shown(json.dumps(body).encode(), {})
+        self.assertIn('2048 bits', got['protected']['jwk']['n'])
+        self.assertEqual(got['signature'], '•••• (signature)')
+        self.assertEqual(got['payload']['externalAccountBinding']['protected']['kid'], 'eab-kid')
+        self.assertIn('HMAC', got['payload']['externalAccountBinding']['signature'])
+        self.assertIn('CSR', got['payload']['csr'])
+        post_as_get = dict(body, payload='')
+        self.assertEqual(PS.jws_shown(post_as_get, {})['payload'], '')
+        for bad in (b'not json', {'protected': 'x'}, {'protected': '!!', 'payload': '',
+                                                       'signature': ''}):
+            self.assertIsNone(PS.jws_shown(bad, {}))
+
+    def test_mask_text_base64(self):
+        from acmelib.certs import plansandbox as PS
+        key_pem = '-----BEGIN PRIVATE KEY-----\n' + 'A' * 200 + '\n-----END PRIVATE KEY-----\n'
+        crt_pem = '-----BEGIN CERTIFICATE-----\n' + 'B' * 200 + '\n-----END CERTIFICATE-----\n'
+        b = lambda x: base64.b64encode(x if isinstance(x, bytes) else x.encode()).decode()  # noqa
+        got = PS.mask_text('k=' + b(key_pem), {})
+        self.assertIn('private key, PEM, base64', got)
+        self.assertNotIn(b(key_pem)[:40], got)
+        self.assertIn('certificate PEM, base64', PS.mask_text(b(crt_pem), {}))
+        self.assertIn('binary, base64', PS.mask_text(b(os.urandom(120)), {}))
+        plain = b('just some words that are long enough to be a run of base64 ' * 3)
+        self.assertEqual(PS.mask_text(plain, {}), plain)        # words, not a secret
+        self.assertEqual(PS.mask_text('x PLANSECRET1 y', {'PLANSECRET1': 'password'}),
+                         'x •••• (password) y')
+
+    def test_dns_answer(self):
+        from acmelib.certs import plansandbox as PS
+        from acmelib.certs import dnsserver as D
+        m = D.Message(7, 0x0100)
+        m.question = [('_acme-challenge.www.example.co.uk', 16, D.CLASS_IN),
+                      ('example.co.uk', 6, D.CLASS_IN), ('www.example.co.uk', 6, D.CLASS_IN),
+                      ('example.co.uk', 2, D.CLASS_IN), ('www.example.co.uk', 1, D.CLASS_IN),
+                      ('www.example.co.uk', 28, D.CLASS_IN), ('www.example.co.uk', 15, D.CLASS_IN)]
+        got = D.parse(PS.dns_answer(D, m.to_wire(), {}))
+        self.assertEqual(got.id, 7)
+        self.assertTrue(got.flags & 0x8000)
+        kinds = [(D.norm(x.name), x.rtype) for x in got.answer]
+        self.assertIn(('_acme-challenge.www.example.co.uk', 16), kinds)
+        self.assertIn(('example.co.uk', 6), kinds)
+        self.assertIn(('www.example.co.uk', 1), kinds)
+        self.assertIn(('www.example.co.uk', 28), kinds)
+        self.assertEqual(len([k for k in kinds if k[1] == 2]), 2)
+        self.assertEqual(len(got.authority), 2)                 # below the apex; no MX
+
+
+# ---------------------------------------------------------------------------
+# Periods missed while acme was down, the report's certificates
+# ---------------------------------------------------------------------------
+class Periods(unittest.TestCase):
+    def ts(self, y, m, d, h=0):
+        return time.mktime(datetime.datetime(y, m, d, h, 30).timetuple())
+
+    def test_digest_missed(self):
+        from acmelib.certs import digest as DG
+        daily = {'on': True, 'every': 'daily', 'hour': 8, 'since': self.ts(2026, 5, 1)}
+        self.assertEqual(DG.missed_period(daily, self.ts(2026, 5, 6, 7)), 'd:2026-05-05')
+        self.assertIsNone(DG.missed_period(dict(daily, since=self.ts(2026, 5, 5, 9)),
+                                           self.ts(2026, 5, 6, 7)))
+        self.assertIsNone(DG.missed_period(dict(daily, on=False), self.ts(2026, 5, 6, 7)))
+        weekly = {'on': True, 'every': 'weekly', 'day': 3, 'hour': 6, 'since': self.ts(2026, 4, 1)}
+        # Monday 2026-05-11: last week's Wednesday was missed
+        self.assertEqual(DG.missed_period(weekly, self.ts(2026, 5, 11, 1)), 'w:2026-19')
+        self.assertEqual(DG.due_period(weekly, self.ts(2026, 5, 13, 7)), 'w:2026-20')
+        self.assertIsNone(DG.due_period(weekly, self.ts(2026, 5, 13, 5)))
+
+    def test_reports_missed(self):
+        from acmelib.certs import reports as RP
+        m = {'every': 'monthly', 'day': 31, 'hour': 0, 'since': self.ts(2026, 1, 1)}
+        key, at = RP.missed_period(m, self.ts(2026, 3, 2, 5))
+        self.assertEqual(key, 'm:2026-02')
+        self.assertEqual(datetime.datetime.fromtimestamp(at).day, 28)
+        self.assertEqual(RP.missed_period(dict(m, every='off'))[0], None)
+        key, _at = RP.missed_period(m, self.ts(2026, 1, 15))         # December: before `since`
+        self.assertIsNone(key)
+        w = {'every': 'weekly', 'day': 9, 'hour': 23, 'since': self.ts(2025, 12, 1)}
+        key, at = RP.missed_period(w, self.ts(2026, 1, 5, 1))        # Monday of ISO week 2
+        self.assertEqual(key, 'w:2026-01')
+        self.assertEqual(datetime.datetime.fromtimestamp(at).isoweekday(), 7)
+        self.assertTrue(RP._made('w:2026-02', 'w:2026-01'))
+        self.assertFalse(RP._made('m:2026-02', 'w:2026-01'))
+
+    def test_renewer_report(self):
+        from acmelib.certs import renewer
+        clean()
+        add_cert('soon', 5)
+        add_cert('soon-revoked', 6, state='revoked')
+        add_cert('soon-off', 7, enabled=0)
+        add_cert('later', 90)
+        STORE.db.insert('cert_jobs', {'kind': 'renew', 'ok': 1, 'ts': time.time(), 'state': 'done'})
+        STORE.db.insert('cert_jobs', {'kind': 'deploy', 'ok': 0, 'ts': time.time(), 'state': 'failed'})
+        title, lines = renewer.report(STORE, time.time() - 60, 'en')[0]
+        self.assertEqual(title, 'Certificates')
+        self.assertTrue(lines[0].startswith('4 certificate(s): 3 ok, 1 revoked'), lines)
+        self.assertIn('renew: 1 done', lines)
+        self.assertIn('deploy: 1 failed', lines)
+        ends = [x for x in lines if x.startswith('ends ')]
+        # what is revoked or switched off ends without anything to do about it
+        self.assertEqual([x.split(': ', 1)[1] for x in ends], ['soon'], lines)
+        title, lines = renewer.report(STORE, time.time() - 60, 'cs')[0]
+        self.assertEqual(title, 'Certifikáty')
+        self.assertTrue(lines[0].startswith('4 certifikáty: v pořádku 3, odvolané 1'), lines)
+        self.assertIn('nasazení: selhalo 1', lines)
+        self.assertTrue(any(x.startswith('končí ') and x.endswith(': soon') for x in lines))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
