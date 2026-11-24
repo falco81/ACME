@@ -722,8 +722,9 @@ class WindowsNeeds(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class SealedAndPairs(unittest.TestCase):
     def test_secret_in_clear_sealed(self):
-        if not E.seal_bound():
-            self.skipTest('secrets not bound to their place here')
+        E.seal_bind_all(STORE)
+        E.seal_bound_forget()
+        self.assertTrue(E.seal_bound())
         STORE.db.run("DELETE FROM cert_targets WHERE name = 'w9-clear'")
         tid = STORE.db.insert('cert_targets', {'name': 'w9-clear', 'kind': 'w9list', 'config':
                                                json.dumps({'host': 'h', 'password': 'in-clear'}),
@@ -852,6 +853,21 @@ class CommandLine(unittest.TestCase):
         got = self.acme('--check-run', 'all', '--report-to', 'alerts')
         self.assertIn('no address to send the report to', got.stderr)
 
+    def test_calendar_weeks_zero_refused(self):
+        got = self.acme('--calendar', '--weeks', '0')
+        self.assertEqual(got.returncode, 1)
+        self.assertIn('--weeks is 1 to 110', got.stderr)
+        got = self.acme('--calendar', '--weeks', '2')
+        self.assertEqual(got.returncode, 0, got.stderr)
+        end = datetime.date.today() + datetime.timedelta(days=13)
+        self.assertIn('to %s: 0' % end.isoformat(), got.stdout)
+
+    def test_who_can_words_without_a_team(self):
+        got = self.acme('--who-can', 'cert.view', 'cert:one')
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertIn("who may cert.view (see the team's certificates", got.stdout)
+        self.assertNotIn('()', got.stdout)
+
     def test_find(self):
         got = self.acme('--find', 'two.example')
         self.assertEqual(got.returncode, 0, got.stderr)
@@ -861,6 +877,53 @@ class CommandLine(unittest.TestCase):
         self.assertIn('nothing found', got.stdout)
         got = self.acme('--find', 'one', '--json')
         self.assertIn('cert', json.loads(got.stdout)['groups'])
+
+
+
+# ---------------------------------------------------------------------------
+# Jobs left by a command line that is gone
+# ---------------------------------------------------------------------------
+class CliJobsReaped(unittest.TestCase):
+    def test_reap(self):
+        from acmelib.certs import jobs as J
+        clean()
+        STORE.db.run('DELETE FROM cert_jobs')
+        dead = subprocess.Popen([sys.executable, '-c', 'pass'])
+        dead.wait()
+        c1 = add_cert('killed', 20, state='renewing')
+        c2 = add_cert('reused', 20, state='renewing')
+        c3 = add_cert('alive', 20, state='renewing')
+        STORE.db.insert('cert_deploys', {'cert_id': c1, 'target': 't', 'state': 'deploying',
+                                         'options': '{}'})
+        node = E.node_name()
+        ids = {}
+        for name, cid in (('killed', c1), ('reused', c2), ('alive', c3)):
+            ids[name] = STORE.db.insert('cert_jobs', {'kind': 'renew', 'cert_id': cid,
+                                                      'state': 'running', 'node': node,
+                                                      'ts': time.time()})
+        STORE.db.insert('cert_jobs', {'kind': 'renew', 'cert_id': c3, 'state': 'running',
+                                      'node': node, 'ts': time.time()})   # the daemon's: no mark
+        (E.STATE_DIR / 'cli-jobs').mkdir(parents=True, exist_ok=True)
+        J._cli_mark(ids['killed']).write_text('%d %s\n' % (dead.pid, 'x:1'))
+        J._cli_mark(ids['reused']).write_text('%d %s\n' % (os.getpid(), 'another:boot'))
+        J._cli_mark(ids['alive']).write_text('%d %s\n' % (os.getpid(), J._started(os.getpid())))
+        self.assertTrue(J.cli_alive(ids['alive']))
+        self.assertFalse(J.cli_alive(ids['reused']))
+        self.assertFalse(J.cli_alive(987654))
+        got = J.reap_cli(STORE)
+        self.assertEqual(sorted(x[0] for x in got), sorted([ids['killed'], ids['reused']]))
+        st = {r['name']: r['state'] for r in STORE.db.rows('SELECT name, state FROM certs')}
+        self.assertEqual((st['killed'], st['reused'], st['alive']), ('failed', 'failed',
+                                                                      'renewing'))
+        self.assertEqual(STORE.db.value('SELECT state FROM cert_deploys WHERE cert_id = ?', (c1,)),
+                         'failed')
+        self.assertFalse(J._cli_mark(ids['killed']).exists())
+        self.assertEqual(J.reap_cli(STORE), [])                 # once
+        self.assertTrue(J._pid_gone(node, dead.pid))
+        self.assertFalse(J._pid_gone(node, os.getpid()))
+        self.assertFalse(J._pid_gone('another-node', dead.pid))
+        self.assertFalse(J._pid_gone(node, 'x'))
+        J._cli_mark(ids['alive']).unlink()
 
 
 if __name__ == '__main__':

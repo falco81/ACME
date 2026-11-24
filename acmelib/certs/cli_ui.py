@@ -140,7 +140,8 @@ def _window(c, weeks_default):
         d0 = datetime.date.fromisoformat(start)
     except ValueError:
         raise SystemExit('acme: --from is a day, YYYY-MM-DD')
-    weeks = a.weeks or weeks_default
+    # --weeks 0 refused as --weeks 200 is (hunt w9: taken as "none given", 13 weeks shown)
+    weeks = a.weeks if a.weeks is not None else weeks_default
     if not 1 <= weeks <= 110:
         raise SystemExit('acme: --weeks is 1 to 110')
     end = d0 + datetime.timedelta(days=7 * weeks - 1)

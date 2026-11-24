@@ -78591,6 +78591,70 @@
   "z_3344": {
    "source": "acme manages it now: the certificate is deployed to the same files there at its next deployment - then it is no longer listed here.",
    "text": "acme ho teď spravuje: certifikát se do stejných souborů nasadí při svém příštím nasazení – pak už tu uveden není."
+  },
+  "z_3345": {
+   "source": "Files on this machine",
+   "text": "Soubory na tomto stroji"
+  },
+  "z_3346": {
+   "source": "This acme server",
+   "text": "Tento server acme"
+  },
+  "z_3347": {
+   "source": "This server HTTP-01",
+   "text": "Tento server HTTP-01"
+  },
+  "z_3348": {
+   "source": "acme DNS server",
+   "text": "DNS server acme"
+  },
+  "z_3349": {
+   "source": "LetsEncrypt staging",
+   "text": "LetsEncrypt – zkušební"
+  },
+  "z_3350": {
+   "source": "Check the token from here first",
+   "text": "Nejdřív ověřit token odsud"
+  },
+  "z_3351": {
+   "source": "- port 80, plain HTTP, from the internet. The path and the port are fixed by the ACME standard (RFC 8555) and cannot be set; what can be set is above: whether acme fetches it itself first (Check the token from here first) and the address Test tries. Each name must point at acme - a node or the VIP address - or at a proxy that forwards /.well-known/acme-challenge/ to acme.",
+   "text": "– port 80, prosté HTTP, z internetu. Cestu a port určuje standard ACME (RFC 8555) a nastavit je nelze; co nastavit lze, je výše: zda to acme nejdřív stáhne samo (Nejdřív ověřit token odsud) a adresa, kterou zkouší Test. Každé jméno musí ukazovat na acme – na uzel nebo VIP adresu – nebo na proxy, která /.well-known/acme-challenge/ přeposílá na acme."
+  },
+  "z_3352": {
+   "source": "fetched from this node: where the name is acme's own public address behind NAT, the router may not loop back (no hairpin NAT) although the CA from outside would be answered - then switch \"Check the token from here first\" off",
+   "text": "staženo z tohoto uzlu: je-li jméno vlastní veřejnou adresou acme za NATem, router se nemusí vracet zpět (bez hairpin NAT), i když autorita zvenku by odpověď dostala – pak vypněte „Nejdřív ověřit token odsud“"
+  },
+  "z_3353": {
+   "source": "What it would be - it cannot be created so: the source refuses what is marked below. Go back and change it (or choose another source).",
+   "text": "Jak by vypadal – takto ho vytvořit nelze: zdroj odmítá to, co je označeno níže. Vraťte se a změňte to (nebo zvolte jiný zdroj)."
+  },
+  "z_3354": {
+   "source": "its setup guide",
+   "text": "jeho návodu k nastavení"
+  },
+  "z_3355": {
+   "source": "More in acme’s documentation on the server:",
+   "text": "Více v dokumentaci acme na serveru:"
+  },
+  "z_3356": {
+   "source": "Nobody can ask for a certificate on the portal yet - empty:",
+   "text": "Na portálu zatím nikdo nemůže o certifikát požádat – prázdné je:"
+  },
+  "z_3357": {
+   "source": "Every request of the free form is refused; a request profile (Owners and teams → Request profiles) asks without them.",
+   "text": "Každá žádost z volného formuláře se odmítne; profil žádosti (Vlastníci a týmy → Profily žádostí) žádá i bez nich."
+  },
+  "z_3358": {
+   "source": "Certificates on the portal is on, but nobody can ask for one there: Names people may ask for or Sources people may ask is empty, and there is no request profile.",
+   "text": "Certifikáty na portálu jsou zapnuté, ale nikdo o ně tam nemůže požádat: Jména, o která smějí lidé žádat, nebo Zdroje, u kterých smějí lidé žádat, jsou prázdné a není žádný profil žádosti."
+  },
+  "z_3359": {
+   "source": "and in acme’s documentation on the server:",
+   "text": "a v dokumentaci acme na serveru:"
+  },
+  "z_3360": {
+   "source": "kept as",
+   "text": "uloženo jako"
   }
  },
  "patterns": {

@@ -195,7 +195,9 @@ def who_can(store, cap, team=None, cert=None):
         # no owner (or one not defined): only those who see every certificate
         return {'cap': cap, 'team': team or None, 'cert': crow['name'] if crow else None,
                 'people': [dict(a, cells={cap: []}) for a in _admins(store) if cap in a['caps']],
-                'admins_only': True, 'limit': None}
+                'admins_only': True, 'limit': None,
+                # what it lets do (hunt w9: none here - acme --who-can said "cert.view ()")
+                'words': T.CAP_WORDS.get(cap)}
     m = team_matrix(store, team)
     people = [p for p in m['people'] if cap in p['caps']]
     for p in people:

@@ -38,7 +38,13 @@ A new certificate with no issuer said comes from the default source (`meta
 certs:default_issuer`, "LetsEncrypt"), and one from an ACME CA with no
 validation said is proved by the default validation (`certs:default_challenge`,
 "This server HTTP-01"); the lists mark them (`is_default`, `*` on the
-command line). An ACME account works without a contact e-mail; where an ACME
+command line). The four names acme makes itself are shown on the pages in
+their language (`own_name` in the lists' rows; the list says the name the row
+is kept by under it) - the row keeps its name, the one commands and the other
+rows use; renamed, or a row of the same name a person made, it is shown as it
+is. A new source, validation, target or test is offered a name that reads
+right ("ACME CA", "Files on this machine", "TLS") - made of its module's title
+only where that one does. An ACME account works without a contact e-mail; where an ACME
 source has none, the Sources page and `acme --certs` / `--sources` ask for one
 (`acme --acme-contact MAIL`, `POST /api/sources/contact {email}`).
 

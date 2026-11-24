@@ -206,6 +206,12 @@ set); a profile's form asks only what it leaves to them. A CSR sent in is
 decoded and checked against the profile before it is asked for. With no
 profile defined the portal asks exactly as above.
 
+With neither - `portal_cert_suffixes` or `portal_cert_issuers` empty and no
+request profile - nothing asked for there can be granted: the members' *Ask
+for a certificate* is dimmed with the reason under it, and the administration
+says so under *Certificates on the portal* (Settings → The enrolment pages,
+naming the empty setting) and on Owners and teams.
+
 ## Approving
 
 In the administration, Certificates: a badge "N waiting for approval" next
