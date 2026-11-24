@@ -28,7 +28,7 @@ acme prokazuje jména přes HTTP-01 tak, že soubor s tokenem `.well-known/acme-
 | Account key | key1 nebo key2 (base64) |
 | Folder in the container | Kde v kontejneru je kořen webu; prázdné = jeho kořen |
 | Blob endpoint | (pokročilé) Prázdné = `https://ACCOUNT.blob.core.windows.net`; jiný cloud Azure: jeho vlastní |
-| Check before the CA is asked | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
+| Check the token from here first | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
 | Address the folder is served at | (pokročilé) např. vlastní adresa statického webu `https://mysite.z6.web.core.windows.net/` |
 
 ## Kontrola

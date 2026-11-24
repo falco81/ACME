@@ -543,8 +543,10 @@ if (isset($_GET['api'])) {
     /* The certificate manager's API (docs/architecture.md), relayed under its
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
-       write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|fleet|roles|dir|history|trash|views|search|calendar|reports)(?:[/-]([a-z_]{1,40}(?:/[a-z_]{1,40})?))?$#', $what, $road)) {
+       write, and the daemon decides whether whoever is signed in may. A last word of two
+       (agents/confirm-many, hunt w9: refused here "unknown endpoint" - confirming several
+       agents at once never reached the daemon) relayed as it is. */
+    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|fleet|roles|dir|history|trash|views|search|calendar|reports)(?:[/-]([a-z_]{1,40}(?:[/-][a-z_]{1,40})?))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);

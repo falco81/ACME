@@ -294,11 +294,13 @@ function draw(d) {
   ask._explainHtml = '';
   ask.removeAttribute('aria-label');
   delete ask.dataset.explains;
-  if (!setUp && !profs && !ask.hidden) explain(ask, 'Asking for certificates here is not set up yet: your administrator says which names and sources may be asked for (Settings → The enrolment pages).');
+  if (!setUp && !profs && !ask.hidden) explain(ask, ASK_NOT_SET);
   else if (ask.disabled && !ask.hidden) explain(ask, 'You have asked for as many certificates as one person may. Ask the administrator for more.');
   var said = $('cp-said');
   clear(said);
-  if (!ask.hidden && profs) {
+  /* the button dimmed said nothing to look at (hunt w9): why, in words beside it */
+  if (!setUp && !profs && !ask.hidden) said.appendChild(el('span', 'cp-ask-off', ASK_NOT_SET));
+  else if (!ask.hidden && profs) {
     said.appendChild(document.createTextNode(d.used + ' of ' + d.most + ' requests used'));
   } else if (!ask.hidden && setUp) {
     said.appendChild(document.createTextNode(d.used + ' of ' + d.most + ' requests used'));
@@ -1219,6 +1221,37 @@ function askFree() {
   /* without profiles the free form was always the way (as before) */
   return (d.profiles || []).length ? !!d.free_form : true;
 }
+/* Nothing a member asks for can be granted (hunt w9): Certificates on the portal on, but Names
+   people may ask for or Sources people may ask empty and no request profile - the daemon refuses
+   every free-form request. `d`: the answer of certs (CP.d by default). */
+var ASK_NOT_SET = 'Asking for certificates here is not set up yet: your administrator says which names and sources may be asked for (Settings → The enrolment pages).';
+function askWhyNot(d) {
+  d = d || CP.d || {};
+  var pol = teamPolicy(), profs = d.profiles || [];
+  if (pol && Array.isArray(pol.profiles)) profs = profs.filter(function (p) { return pol.profiles.indexOf(p.name) >= 0; });
+  if (profs.length) return '';
+  return (d.suffixes || []).length && (d.issuers || []).length ? '' : ASK_NOT_SET;
+}
+/* A button to ask (the workspace's) dimmed with the word why when nothing can be asked; the
+   words put after `after` (the button's row by default). */
+function askMark(btn, after) {
+  if (!btn) return;
+  var mark = function (d) {
+    var why = askWhyNot(d);
+    if (!btn.isConnected) return;
+    var at = after || btn.parentNode;
+    var old = at && at.parentNode ? at.parentNode.querySelector('.cp-ask-off') : null;
+    if (old) old.remove();
+    btn.disabled = !!why;
+    if (!why) return;
+    explain(btn, why);
+    var w = el('p', 'note warn cp-ask-off', why);
+    if (at && at.parentNode) at.parentNode.insertBefore(w, at.nextSibling);
+  };
+  if (CP.d && !CP.d.stub) { mark(CP.d); return; }
+  /* its own request: the list's answer (CP.d) is left to the list */
+  api('certs&per=1').then(mark).catch(function () { /* the button stays as it is */ });
+}
 function askStart() {
   var profs = askProfiles(), free = askFree();
   if (!profs.length && !free) {
@@ -1551,6 +1584,7 @@ window.ACME_PORTAL_CERTS = {
       askStart();
     }).catch(oops);
   },
+  askMark: askMark,
   download: downloadDialog, saveB64: saveB64, stateTag: stateTag, daysTag: daysTag, namesChips: namesChips,
   emptyState: emptyState, skeleton: skeletonCard, has: has, jobLog: jobLog, STATE: STATE, FORMATS: FORMATS
 };

@@ -309,6 +309,9 @@
 .fl-to-s.wait .fl-ic{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
 .fl-to-s.wait span,.fl-to-s.ok span{font-weight:600}
 .fl-to-s.ok span{color:var(--ok)}.fl-to-s.wait span{color:var(--warn)}
+.fl-to-s.bad .fl-ic{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 45%,var(--line))}
+.fl-to-s.bad span{font-weight:600;color:var(--crit)}
+.fl-um-taken{color:var(--ok);font-weight:600;overflow-wrap:anywhere}
 .fl-to-items{display:flex;flex-direction:column;gap:3px}
 .fl-to-it{display:flex;gap:8px;align-items:baseline;padding:4px 9px;border-radius:8px;font-size:12px;background:var(--panel2)}
 .fl-to-it code{overflow-wrap:anywhere;font-family:ui-monospace,Menlo,Consolas,monospace}

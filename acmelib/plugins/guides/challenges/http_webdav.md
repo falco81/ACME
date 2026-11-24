@@ -41,7 +41,7 @@ acme proves names by HTTP-01 by uploading the token file over **WebDAV** into th
 | User | The WebDAV user |
 | Password | Its password |
 | Check the server's certificate | (advanced) leave on |
-| Check before the CA is asked | `http://NAME/` (default), the address below, or no check |
+| Check the token from here first | `http://NAME/` (default), the address below, or no check |
 | Address the folder is served at | (advanced) Where the folder can be fetched, if not by the name |
 
 ## Check it

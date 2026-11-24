@@ -41,7 +41,7 @@ acme prokazuje jména přes HTTP-01 tak, že soubor s tokenem nahraje přes **We
 | User | Uživatel WebDAV |
 | Password | Jeho heslo |
 | Check the server's certificate | (pokročilé) nechte zapnuté |
-| Check before the CA is asked | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
+| Check the token from here first | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
 | Address the folder is served at | (pokročilé) Kde lze složku stáhnout, pokud ne přes jméno |
 
 ## Kontrola

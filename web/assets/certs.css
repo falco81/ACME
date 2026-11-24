@@ -1355,6 +1355,8 @@ table.ct-deptable .ct-rowerr{overflow-wrap:break-word;word-break:normal;max-widt
 /* ==== Setup guides of the modules (1.0.94, guides.js) ==================================== */
 .ct-plughead{position:relative}
 .ct-plughead-guide{margin-left:auto;align-self:flex-start;flex:none}
+.ct-plughead-doc .mono{overflow-wrap:anywhere}
+.ct-plughead-doc .linkish:focus-visible{outline:2px solid var(--focus, currentColor);outline-offset:2px}
 .modal .box.gd-full{width:min(2600px,96vw);max-height:94vh;height:94vh}
 .modal .box.gd-full .body{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
 .gd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}

@@ -1149,7 +1149,13 @@ def unmanaged(store):
             if not c or c.get('managed') or c.get('acme'):
                 continue
             served.add(c.get('thumbprint'))
-            out.append(_entry(row, v, f, c))
+            e = _entry(row, v, f, c)
+            # taken over already, not deployed yet (hunt w9): offered again, a second
+            # certificate ("NAME 2") was made, deployed to the same files
+            e['taken'] = _taken(store, row, f.get('prefill') or {})
+            if e['taken']:
+                e['can_take'] = False
+            out.append(e)
         for c in v.get('certs') or []:
             if c.get('managed') or c.get('acme') or c.get('thumbprint') in served:
                 continue
@@ -1164,6 +1170,32 @@ def unmanaged_count(store):
         return len(unmanaged(store))
     except Exception:                                   # noqa: BLE001
         return 0
+
+
+def _out_paths(opts):
+    """The files a deployment's options write (each line of outputs: FORMAT PATH ...)."""
+    outs = (opts or {}).get('outputs') if isinstance(opts, dict) else None
+    lines = outs if isinstance(outs, list) else str(outs or '').splitlines()
+    out = set()
+    for one in lines:
+        parts = str(one or '').split()
+        if len(parts) >= 2:
+            out.add(parts[1])
+    return out
+
+
+def _taken(store, row, opts):
+    """The certificate of acme already deployed to the files a found service's deployment
+    would write on this target ('' for none) - a take-over made and not deployed yet."""
+    from acmelib.certs import store as S
+    mine = _out_paths(opts)
+    if not mine:
+        return ''
+    for d in store.db.rows('SELECT d.options, c.name FROM cert_deploys d JOIN certs c ON '
+                           'c.id = d.cert_id WHERE d.target = ? ORDER BY d.id', (row['name'],)):
+        if _out_paths(S.jload(d.get('options'), {}) or {}) & mine:
+            return str(d.get('name') or '')
+    return ''
 
 
 def _entry(row, v, f, c):
@@ -1265,6 +1297,11 @@ def takeover_preview(store, b):
     if not opts:
         raise ValueError('acme cannot make a deployment of that service by itself - make it by '
                          'hand (Make a deployment)')
+    taken = _taken(store, row, opts)
+    if taken:
+        raise ValueError('it is taken over already: the certificate %s is deployed to the same '
+                         'files on %s - it is there after its next deployment' % (taken,
+                                                                                  row['name']))
     st = G.state(store, row['id'])
     pol = st.get('policy') if isinstance(st.get('policy'), dict) else None
     m = _mod(platform)
@@ -1311,6 +1348,26 @@ def takeover_preview(store, b):
     for k in ('test_cmd', 'reload_cmd'):
         for x in opts.get(k) or []:
             steps.append(['cmd', x])
+    # hunt w9: names the source does not issue for (internal names from a public CA - the
+    # default source) - the preview said "allows all of it" and Take over was then refused
+    refused = ''
+    if iss:
+        try:
+            from acmelib.certs import compat as CP
+            # as the take-over's save checks it (api.cert_save): the source's default
+            # validation unless one is said
+            ch = str(b.get('challenge') or '').strip()
+            if not ch:
+                dc = DF.default_challenge(store, S.plugin_row(store, 'issuer', iss))
+                ch = dc['name'] if dc else ''
+            refused = CP.words(CP.check_cert(store, {
+                'names': json.dumps(names), 'issuer': iss, 'challenge': ch,
+                'key_type': str(b.get('key_type') or '')}))
+        except Exception:                               # noqa: BLE001  (the save says it)
+            refused = ''
+    if refused:
+        steps.append(['bad', 'acme does not make this certificate from this source - choose '
+                              'another source or change the names'])
     if allowed:
         steps.append(['ok', 'the agent\'s policy allows all of it: the certificate goes there '
                             'when it is issued (Issue and deploy now, or the next renewal)'])
@@ -1324,7 +1381,7 @@ def takeover_preview(store, b):
                                  'key_type': 'rsa-2048' if win else 'ec-256'},
             'deploy': {'target': row['name'], 'options': opts}, 'items': items,
             'allowed': allowed, 'policy_known': bool(pol), 'missing': missing,
-            'block': block, 'steps': steps, 'sources': sources}
+            'block': block, 'steps': steps, 'sources': sources, 'refused': refused}
 
 
 def takeover(store, b, by, full=False, s=None):

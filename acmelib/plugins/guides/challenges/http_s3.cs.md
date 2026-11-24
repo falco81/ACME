@@ -44,7 +44,7 @@ acme prokazuje jména přes HTTP-01 tak, že soubor s tokenem `.well-known/acme-
 | Endpoint | (pokročilé) Prázdné = Amazon S3; jiná služba: její adresa S3, např. `https://s3.eu-central-003.backblazeb2.com` |
 | Path style (endpoint/bucket/key) | (pokročilé) Zapnout pro MinIO, Ceph a většinu služeb na vlastním serveru |
 | ACL of the file | (pokročilé) `none` (rozhoduje bucket policy) nebo `public-read` |
-| Check before the CA is asked | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
+| Check the token from here first | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
 | Address the folder is served at | (pokročilé) např. `http://my-bucket.s3-website.eu-central-1.amazonaws.com/` |
 
 ## Kontrola

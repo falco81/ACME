@@ -21,7 +21,7 @@ class HttpLocal(HttpChallenge):
                    'port 80 - the name must point at acme (or a proxy that sends that path to '
                    'it). Not for wildcards.')
     fields = [
-        field('self_check', 'Check before the CA is asked', 'bool', default=False,
+        field('self_check', 'Check the token from here first', 'bool', default=False,
               help='Fetch http://NAME/.well-known/acme-challenge/TOKEN from here first. Off '
                    'where this machine cannot reach its own public name (no hairpin NAT).'),
         field('test_url', 'Address tried by Test', 'text', default='http://127.0.0.1',

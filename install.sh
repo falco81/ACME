@@ -500,6 +500,18 @@ fi
 # ---------------------------------------------------------------------------
 # Taking it away
 # ---------------------------------------------------------------------------
+# Defined before --uninstall below, which asks it through php_fpm_units: defined after it,
+# the uninstall stopped there ("php_fpm_bin: command not found") and php-fpm went on running
+# acme's pool, its file removed.
+php_fpm_bin() {         # the php-fpm that serves the pages: the newest one installed
+    local b
+    b="$(command -v php-fpm 2>/dev/null || true)"
+    [[ -z "$b" && -x /usr/sbin/php-fpm ]] && b=/usr/sbin/php-fpm
+    if [[ -z "$b" ]]; then
+        b="$(ls -1 /usr/sbin/php-fpm[0-9]* 2>/dev/null | sort -V | tail -n 1 || true)"
+    fi
+    echo "$b"
+}
 php_fpm_units() {
     # Not a masked one, and the ones switched on before others (1.0.80): every php*-fpm was
     # enabled and started - an old PHP switched off on purpose came back, a masked one warned.
@@ -670,15 +682,6 @@ fi
 # upload progress off for every PHP on the machine, acme's own pool taking no
 # request body apart, and nginx refusing every multipart body.
 
-php_fpm_bin() {         # the php-fpm that serves the pages: the newest one installed
-    local b
-    b="$(command -v php-fpm 2>/dev/null || true)"
-    [[ -z "$b" && -x /usr/sbin/php-fpm ]] && b=/usr/sbin/php-fpm
-    if [[ -z "$b" ]]; then
-        b="$(ls -1 /usr/sbin/php-fpm[0-9]* 2>/dev/null | sort -V | tail -n 1 || true)"
-    fi
-    echo "$b"
-}
 
 php_fpm_version() {     # its version, 8.3.36 - from php-fpm itself, not from the
     local b v           # command-line php, which may be another one or missing (1.0.36)
@@ -1108,6 +1111,16 @@ if 'location = /calendar.ics' not in text and 'location /assets/' in text:
        re.search(r'fastcgi_pass\s+([^;]+);', text).group(1))
     text = text.replace('    location /assets/', block + '    location /assets/', 1)
     said.append('GET /calendar.ics for the expiry calendar')
+# Nothing of the calendar's place to the error log: nginx writes the request line - the secret
+# of a person's link in it - with every request PHP did not answer (php-fpm restarting, a timeout).
+mcal = re.search(r'(?ms)^([ \t]*)location = /calendar\.ics \{\n.*?^\1\}\n', text)
+if mcal and 'error_log' not in mcal.group(0):
+    pad = mcal.group(1) + '    '
+    body = mcal.group(0)
+    end = body.rstrip().rfind('\n') + 1          # the line of its closing brace
+    body = body[:end] + pad + 'error_log /dev/null;\n' + body[end:]
+    text = text[:mcal.start()] + body + text[mcal.end():]
+    said.append('the calendar\'s secret links kept out of the error log')
 # The CAs' HTTP-01 challenge on port 80, to acme.php: put in
 # front of the redirect to HTTPS where it is missing.
 if '/.well-known/acme-challenge/' not in text:
@@ -1122,6 +1135,38 @@ if '/.well-known/acme-challenge/' not in text:
                  pad + '    fastcgi_read_timeout 10s;\n' + pad + '}\n')
         text = text[:m80.start()] + block + text[m80.start():]
         said.append('the CAs\' HTTP-01 challenges on port 80 go to acme.php')
+# A commercial CA's file-based domain validation (DigiCert http-token, Sectigo FILE) on port 80,
+# to acme.php beside the HTTP-01 challenges: only a new file had it - an upgraded one sent
+# /.well-known/pki-validation/ to HTTPS, where it was refused, and the CA never saw the file.
+if '/.well-known/pki-validation/' not in text:
+    mch = re.search(r'(?m)^([ \t]*)location \^~ /\.well-known/acme-challenge/ \{\n(?:[^}\n]*\n)*?[ \t]*\}\n', text)
+    if mch:
+        pad = mch.group(1)
+        sockm = re.search(r'fastcgi_pass\s+([^;]+);', mch.group(0))
+        zone = re.search(r'limit_req_zone\s+\$binary_remote_addr\s+zone=([A-Za-z0-9_]+):', text)
+        lines = ['# A commercial CA\'s file-based domain validation (DigiCert http-token,',
+                 '# Sectigo FILE) answered by acme.php in the same way (docs/validation.md).',
+                 'location ^~ /.well-known/pki-validation/ {']
+        if zone:
+            lines.append('    limit_req     zone=%s burst=20 nodelay;' % zone.group(1))
+        lines += ['    fastcgi_pass  %s;' % (sockm.group(1) if sockm else 'unix:/run/php-fpm/acme.sock'),
+                  '    fastcgi_param SCRIPT_FILENAME /var/www/acme/acme.php;',
+                  '    include       fastcgi_params;', '    fastcgi_read_timeout 10s;', '}']
+        text = text[:mch.end()] + ''.join(pad + ln + '\n' for ln in lines) + text[mch.end():]
+        said.append('a commercial CA\'s validation file (/.well-known/pki-validation/) goes to acme.php')
+# php2shell on port 80 too: the server everybody reaches (the CAs, CRL fetchers) sent a multipart
+# body on to PHP - only the one on 443 refused it, though the guard said "nginx refuses every
+# multipart body".
+m80 = re.search(r'(?m)^[ \t]*location / \{\n\s*return 301 https://\$host\$request_uri;', text)
+if m80:
+    top80 = text.rfind('server {', 0, m80.start())
+    if top80 >= 0 and 'multipart' not in text[top80:m80.start()]:
+        loc = re.compile(r'(?m)^([ \t]*)location ').search(text, top80)
+        if loc and loc.start() <= m80.start():
+            pad = loc.group(1)
+            text = (text[:loc.start()] + pad + '# php2shell (CVE-2026-109618, CVE-2026-109619), as on 443\n' +
+                    pad + 'if ($http_content_type ~* "multipart") { return 403; }\n' + text[loc.start():])
+            said.append('a multipart body refused on port 80 too (php2shell)')
 # The CRLs and certificates of acme's own authorities at /pki/, on port 80
 # (never sent to HTTPS) and 443, for everybody - to pki.php.
 if 'location ^~ /pki/' not in text:
@@ -2091,7 +2136,7 @@ nginx_upload_guard() {
     local bak
     bak="$NGINX_BAK_DIR/acme.conf.before-upload-guard.$(date +%Y%m%d%H%M%S)"
     mkdir -p "$NGINX_BAK_DIR"; cp -a "$NGINX_CONF" "$bak"
-    python3 - "$NGINX_CONF" <<'PY'
+    python3 - "$NGINX_CONF" <<'PY' >/dev/null      # its count is for a test, not the screen
 import re, sys
 p = sys.argv[1]
 text = open(p).read()

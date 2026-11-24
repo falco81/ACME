@@ -341,8 +341,8 @@ from a template (above) or `acme --api POST /api/reqprofiles/save -` with the bo
 | | |
 |---|---|
 | `acme --fleet` | every agent: kind, version, health and why, its groups, its template and drift; the groups; the update rollout; how many certificates found are not managed |
-| `acme --fleet-unmanaged` | the certificates found on the servers acme does not manage, the most urgent first |
-| `acme --fleet-takeover TARGET SERVICE [--issuer SOURCE] [--yes]` | take one over: what is made and the policy lines it needs said first, then the certificate and its deployment made (`acme --renew NAME` issues it) |
+| `acme --fleet-unmanaged` | the certificates found on the servers acme does not manage, the most urgent first (one taken over and not deployed yet: `taken: NAME`) |
+| `acme --fleet-takeover TARGET SERVICE [--issuer SOURCE] [--yes]` | take one over: what is made and the policy lines it needs said first, then the certificate and its deployment made (`acme --renew NAME` issues it); refused when the source does not issue for its names, or when it is taken over already |
 | `acme --fleet-templates` | the policy templates, built in and your own |
 | `acme --fleet-assign TEMPLATE\|- AGENT...` | the template these agents follow (`-`: none of their own) |
 | `acme --fleet-drift [AGENT...]` | each agent's policy against its template: the lines missing on the server, those there besides; exit 1 when one differs |

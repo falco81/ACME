@@ -21,10 +21,10 @@ default `8.0` has the fix backported (`8.0.30-8.alma.1`).
 2. Checks the version against the fixed one for its branch; for a backport
    under an old number, `rpm -q --changelog php-fpm | grep CVE-2026-109618`
    (on Debian / Ubuntu, the package changelog).
-3. When AppStream has no fixed build yet, offers PHP 8.4 from Remi
-   (`php:remi-8.4`), or takes it with `--remi`.
+3. When AppStream has no fixed build yet, offers PHP 8.3 from Remi
+   (`php:remi-8.3`), or takes it with `--remi`.
 4. A guard whatever the version:
-   - nginx answers 403 to any request with a multipart body — none of acme's
+   - nginx answers 403 to any request with a multipart body, on 443 and on port 80 — none of acme's
      pages sends one;
    - `/etc/php.d/99-php2shell.ini`: no upload progress, strict sessions;
    - acme's own pool: `enable_post_data_reading = off` (PHP never parses a

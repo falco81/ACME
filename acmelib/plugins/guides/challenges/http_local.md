@@ -32,13 +32,13 @@ With this validation the CA fetches `http://NAME/.well-known/acme-challenge/TOKE
    }
    ```
 
-4. If acme cannot reach its own public name (no hairpin NAT), leave *Check before the CA is asked* off.
+4. If acme cannot reach its own public name (no hairpin NAT), leave *Check the token from here first* off.
 
 ## Fill in acme
 
 | acme field | What to put there |
 |---|---|
-| Check before the CA is asked | On: acme fetches `http://NAME/…/TOKEN` itself first. Off where this machine cannot reach its own public name |
+| Check the token from here first | On: acme fetches `http://NAME/…/TOKEN` itself first. Off where this machine cannot reach its own public name |
 | Address tried by Test | (advanced) Where Test fetches a probe from; default `http://127.0.0.1` (acme's own nginx) |
 | Addresses in front of acme | (advanced) Public addresses of a NAT, port forward or proxy the names point at, one per line, so the guide accepts them as "pointing at acme" |
 
@@ -61,4 +61,4 @@ With this validation the CA fetches `http://NAME/.well-known/acme-challenge/TOKE
 | `this server does not answer a probe token` | acme's nginx is not serving port 80 - check the service. |
 | The CA times out | Port 80 is blocked (firewall, ISP) or forwarded to another machine. |
 | The CA reaches another server | The name points elsewhere, or a proxy does not send the challenge path to acme. |
-| The self-check fails but the CA would succeed | No hairpin NAT - turn off *Check before the CA is asked*. |
+| The self-check fails but the CA would succeed | No hairpin NAT - turn off *Check the token from here first*. |

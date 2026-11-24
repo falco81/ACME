@@ -50,7 +50,7 @@ class HttpSsh(HttpChallenge):
         field('command_after', 'Command after writing', 'text', default='', advanced=True,
               placeholder='rsync -a /var/www/acme-challenge/ web-dr:/var/www/acme-challenge/',
               help='Run on each machine after the file is written (and after it is taken away).'),
-        field('check', 'Check before the CA is asked', 'select', default='each',
+        field('check', 'Check the token from here first', 'select', default='each',
               options=[['each', 'each machine by its address (Host: NAME)'],
                        ['at', 'at other addresses - a load balancer, a public IP, NAT (Host '
                               'and SNI: NAME)'],

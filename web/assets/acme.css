@@ -967,6 +967,7 @@
   .set-item.asleep > label,.set-item.asleep > input,.set-item.asleep > select,
   .set-item.asleep > .sw,.set-item.asleep > div:not(.says){opacity:.45}
   .set-item .asleep-why{color:var(--warn);opacity:.85}
+  .set-item .portal-ask-warn{color:var(--warn)}
   /* The ladder: a step at a time, each one picked rather than typed. A dozen
      rows tall, so it takes a line of its own rather than leaving a ragged
      hole beside three one-line boxes - and its own width is held to what it

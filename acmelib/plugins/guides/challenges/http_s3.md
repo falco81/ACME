@@ -44,7 +44,7 @@ acme proves names by HTTP-01 by uploading the token file `.well-known/acme-chall
 | Endpoint | (advanced) Empty = Amazon S3; another service: its S3 address, e.g. `https://s3.eu-central-003.backblazeb2.com` |
 | Path style (endpoint/bucket/key) | (advanced) On for MinIO, Ceph and most self-hosted services |
 | ACL of the file | (advanced) `none` (the bucket policy decides) or `public-read` |
-| Check before the CA is asked | `http://NAME/` (default), the address below, or no check |
+| Check the token from here first | `http://NAME/` (default), the address below, or no check |
 | Address the folder is served at | (advanced) e.g. `http://my-bucket.s3-website.eu-central-1.amazonaws.com/` |
 
 ## Check it

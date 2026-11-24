@@ -32,13 +32,13 @@ S touto validací si CA stahuje `http://JMÉNO/.well-known/acme-challenge/TOKEN`
    }
    ```
 
-4. Nedosáhne-li acme na své vlastní veřejné jméno (chybí hairpin NAT), nechte *Check before the CA is asked* vypnuté.
+4. Nedosáhne-li acme na své vlastní veřejné jméno (chybí hairpin NAT), nechte *Check the token from here first* vypnuté.
 
 ## Vyplnění v acme
 
 | Pole v acme | Co vyplnit |
 |---|---|
-| Check before the CA is asked | Zapnuto: acme si nejdřív samo stáhne `http://NAME/…/TOKEN`. Vypněte tam, kde tento stroj na své veřejné jméno nedosáhne |
+| Check the token from here first | Zapnuto: acme si nejdřív samo stáhne `http://NAME/…/TOKEN`. Vypněte tam, kde tento stroj na své veřejné jméno nedosáhne |
 | Address tried by Test | (pokročilé) Odkud Test stahuje zkušební token; výchozí `http://127.0.0.1` (vlastní nginx acme) |
 | Addresses in front of acme | (pokročilé) Veřejné adresy NAT, přesměrování portu nebo proxy, na které jména vedou, jedna na řádek - průvodce je pak bere jako „vede na acme“ |
 
@@ -61,4 +61,4 @@ S touto validací si CA stahuje `http://JMÉNO/.well-known/acme-challenge/TOKEN`
 | `this server does not answer a probe token` | Nginx acme neobsluhuje port 80 - zkontrolujte službu. |
 | CA vyprší čas | Port 80 je blokovaný (firewall, ISP) nebo přesměrovaný na jiný stroj. |
 | CA dosáhne na jiný server | Jméno vede jinam, nebo proxy neposílá cestu pro ověření na acme. |
-| Vlastní kontrola selže, ale CA by uspěla | Chybí hairpin NAT - vypněte *Check before the CA is asked*. |
+| Vlastní kontrola selže, ale CA by uspěla | Chybí hairpin NAT - vypněte *Check the token from here first*. |

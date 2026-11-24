@@ -627,8 +627,9 @@ function viewHome(main) {
   hl.appendChild(hw);
   hero.appendChild(hl);
   var quick = el('div', 'pw-quick');
+  var ab = null;
   if (can('cert.request')) {
-    var ab = cmdButton('Ask for a certificate', 'add', 'primary');
+    ab = cmdButton('Ask for a certificate', 'add', 'primary');
     ab.id = 'pw-ask';
     ab.onclick = askCert;
     quick.appendChild(ab);
@@ -645,6 +646,9 @@ function viewHome(main) {
   }
   if (quick.children.length) hero.appendChild(quick);
   main.appendChild(hero);
+  /* nothing can be asked for (Names people may ask for or Sources people may ask empty, no
+     request profile): the button dimmed, the word why under it (hunt w9) */
+  if (ab && window.ACME_PORTAL_CERTS && ACME_PORTAL_CERTS.askMark) ACME_PORTAL_CERTS.askMark(ab, quick);
   /* the tiles */
   var tiles = el('div', 'pw-tiles');
   var certs = sum('certs'), exp = sum('expiring'), fail = sum('failing');
@@ -927,6 +931,7 @@ function viewCerts(main) {
     : 'The certificates of the team. Each is renewed by itself before it runs out - click one for everything about it.',
     [window.ACME_CAL && ACME_CAL.portalButtonEl ? ACME_CAL.portalButtonEl() : null, askB]);   /* the calendar (1.0.140) */
   main.appendChild(head);
+  if (askB && window.ACME_PORTAL_CERTS && ACME_PORTAL_CERTS.askMark) ACME_PORTAL_CERTS.askMark(askB, head);   /* hunt w9 */
   var bar = el('div', 'pw-bar');
   bar.appendChild(searchBox(WS.certQ.q, tr('Search names, owners, serials'), function (q) {
     WS.certQ.q = q;

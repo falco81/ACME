@@ -70086,7 +70086,7 @@
   },
   "z_1372": {
    "source": "Allow it in the policy designer…",
-   "text": "Povolit v návrháři zásad…"
+   "text": "Povolit v návrháři politiky…"
   },
   "z_1373": {
    "source": "Its policy is not known yet - Ask it now.",
@@ -78214,7 +78214,7 @@
   },
   "z_3250": {
    "source": "- but the agent's policy does not allow it",
-   "text": "– ale zásady agenta ji nepovolují"
+   "text": "– ale politika agenta ji nepovoluje"
   },
   "z_3251": {
    "source": "only a full administrator may try settings that are not saved - save them first, or use the one saved",
@@ -78551,6 +78551,46 @@
   "z_3334": {
    "source": "asking for certificates here is not set up - an administrator sets Sources people may ask (Settings → The enrolment pages)",
    "text": "žádání o certifikáty tu není nastavené – správce musí nastavit Zdroje, u kterých smějí lidé žádat (Nastavení → Stránky registrace)"
+  },
+  "z_3335": {
+   "source": "A file provider's folder is read by itself - the restart only where it is not.",
+   "text": "Složku poskytovatele souborů Traefik čte sám – restart jen tam, kde ne."
+  },
+  "z_3336": {
+   "source": "Debian's folder; on RHEL it is /etc/openldap/certs.",
+   "text": "Složka Debianu; na RHEL je to /etc/openldap/certs."
+  },
+  "z_3337": {
+   "source": "Its unit and its folder are examples - change them to yours.",
+   "text": "Jeho jednotka a složka jsou příklady – změňte je na své."
+  },
+  "z_3338": {
+   "source": "The container is called web - change it to yours (the test line).",
+   "text": "Kontejner se jmenuje web – změňte ho na svůj (řádek testu)."
+  },
+  "z_3339": {
+   "source": "The same paths on RHEL and Debian (/etc/nginx/ssl).",
+   "text": "Stejné cesty na RHEL i Debianu (/etc/nginx/ssl)."
+  },
+  "z_3340": {
+   "source": "zmcertmgr deploycrt runs as zimbra: put it into a script of your own (the path below), pinned by its SHA-256 on the server.",
+   "text": "zmcertmgr deploycrt běží jako zimbra: dejte ho do vlastního skriptu (cesta níže), na serveru připnutého jeho SHA-256."
+  },
+  "z_3341": {
+   "source": "Start again from it? What was changed here is lost.",
+   "text": "Začít znovu od toho? Co se tu změnilo, se ztratí."
+  },
+  "z_3342": {
+   "source": "Start again",
+   "text": "Začít znovu"
+  },
+  "z_3343": {
+   "source": "acme does not make this certificate from this source - choose another source or change the names",
+   "text": "acme tento certifikát z tohoto zdroje nevytvoří – zvolte jiný zdroj, nebo změňte jména"
+  },
+  "z_3344": {
+   "source": "acme manages it now: the certificate is deployed to the same files there at its next deployment - then it is no longer listed here.",
+   "text": "acme ho teď spravuje: certifikát se do stejných souborů nasadí při svém příštím nasazení – pak už tu uveden není."
   }
  },
  "patterns": {
@@ -109100,11 +109140,11 @@
   },
   "pz_1101": {
    "source": "the policy design of the agent of target {0} was saved by {1} (version {2}{3}, {4} entries) - acme never sends it: root applies it on the server",
-   "text": "návrh zásad agenta cíle {0} uložil {1} (verze {2}{3}, {4} {4:položka|položky|položek}) – acme ho nikdy neposílá: na serveru ho použije root"
+   "text": "návrh politiky agenta cíle {0} uložil {1} (verze {2}{3}, {4} {4:položka|položky|položek}) – acme ho nikdy neposílá: na serveru ho použije root"
   },
   "pz_1102": {
    "source": "the policy design of the agent of target {0} was saved by {1} (version {2}{3}, {4} entry) - acme never sends it: root applies it on the server",
-   "text": "návrh zásad agenta cíle {0} uložil {1} (verze {2}{3}, {4} položka) – acme ho nikdy neposílá: na serveru ho použije root"
+   "text": "návrh politiky agenta cíle {0} uložil {1} (verze {2}{3}, {4} položka) – acme ho nikdy neposílá: na serveru ho použije root"
   },
   "pz_1103": {
    "source": "the enrollment code \"{0}\" was made by {1} ({2}, {3} days, at most {4} servers){5}",
@@ -109992,7 +110032,7 @@
   },
   "pz_1324": {
    "source": "the agent of {0} reaches {1}: {2} template; {3} is offered - but the agent's policy does not allow it",
-   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3} – ale zásady agenta ji nepovolují"
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3} – ale politika agenta ji nepovoluje"
   },
   "pz_1325": {
    "source": "the agent of {0} reaches {1}: {2} templates; {3} is offered",
@@ -110000,7 +110040,7 @@
   },
   "pz_1326": {
    "source": "the agent of {0} reaches {1}: {2} templates; {3} is offered - but the agent's policy does not allow it",
-   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3} – ale zásady agenta ji nepovolují"
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}; nabízí se {3} – ale politika agenta ji nepovoluje"
   },
   "pz_1327": {
    "source": "the CA refused the sign-in of {0} with NTLM (wrong password, a locked account, or NTLM not allowed for it): {1}",
@@ -110393,6 +110433,10 @@
   "pz_1424": {
    "source": "the CA was not asked - the validation is not ready: {0} - or, where the CA sees the names otherwise than this server, switch off Settings → Renewal and notices → Check the validation before the CA is asked",
    "text": "CA nebyla požádána – validace není připravená: {0} – nebo, pokud CA vidí jména jinak než tento server, vypněte Nastavení → Obnovování a upozornění → Ověřit validaci, než se požádá CA"
+  },
+  "pz_1425": {
+   "source": "it is taken over already: the certificate {0} is deployed to the same files on {1} - it is there after its next deployment",
+   "text": "už je převzatý: certifikát {0} se nasazuje do stejných souborů na {1} – bude tam po svém příštím nasazení"
   }
  },
  "rich": {

@@ -28,7 +28,7 @@ acme proves names by HTTP-01 by uploading the token file `.well-known/acme-chall
 | Account key | key1 or key2 (base64) |
 | Folder in the container | Where the site's root is inside the container; empty = its root |
 | Blob endpoint | (advanced) Empty = `https://ACCOUNT.blob.core.windows.net`; another Azure cloud: its own |
-| Check before the CA is asked | `http://NAME/` (default), the address below, or no check |
+| Check the token from here first | `http://NAME/` (default), the address below, or no check |
 | Address the folder is served at | (advanced) e.g. the static website's own address `https://mysite.z6.web.core.windows.net/` |
 
 ## Check it

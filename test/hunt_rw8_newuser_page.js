@@ -114,7 +114,11 @@ const path = require('path');
       await pp.click('#in-go');
       await pp.waitForSelector('#pw-nav, #cp-list', {timeout: 30000});
       await pp.waitForTimeout(1500);
-      await pp.locator('#pw-ask, #pw-ask-c, #cp-ask').filter({visible: true}).first().click();
+      // hunt w9: with nothing open to asking the button is dimmed (its reason under it) - the
+      // form's own words are still looked at, opened as the button would
+      const askBtn = pp.locator('#pw-ask, #pw-ask-c, #cp-ask').filter({visible: true}).first();
+      if (await askBtn.isEnabled()) await askBtn.click();
+      else await pp.evaluate(() => window.ACME_PORTAL_CERTS.askStart());
       await pp.waitForTimeout(1500);
       const pd = pp.getByRole('dialog');
       const hint = await pd.locator('.says').first().innerText();

@@ -1318,11 +1318,19 @@ function build(row, d, opts) {
       b.type = 'button';
       b.onclick = function () {
         if (B.from === c[0]) return;
-        startFrom(c[0]);
-        Array.prototype.forEach.call(seg.children, function (x) { x.classList.remove('on'); });
-        b.classList.add('on');
-        drawAll();
-        refresh();
+        var go = function () {
+          startFrom(c[0]);
+          Array.prototype.forEach.call(seg.children, function (x) { x.classList.remove('on'); });
+          b.classList.add('on');
+          drawAll();
+          refresh();
+          B.startText = fileText(R);
+        };
+        /* hunt w9: what was clicked together or typed since it started from the one before was
+           thrown away by one click here ("nothing" emptied every section) - asked first now,
+           unless it was copied, downloaded or saved (taken) */
+        if (B.startText !== undefined && R && fileText(R) !== B.startText && fileText(R) !== B.kept) modalSure('Start again from it? What was changed here is lost.', go, 'Start again');
+        else go();
       };
       seg.appendChild(b);
     });
@@ -2683,7 +2691,7 @@ function build(row, d, opts) {
     explainWhatWasDrawn($('modal-body'));
     /* what was clicked together (a template, a need, a switch) and not copied, downloaded or
        saved is asked about before Close, its x or Escape take it away - only what was typed was */
-    B.kept = fileText(R);
+    B.kept = B.startText = fileText(R);
     if (typeof modalLeaveGuard === 'function') modalLeaveGuard(function (go) {
       var typed = typeof MODAL_TYPED !== 'undefined' && MODAL_TYPED && MODAL_TYPED === MODAL_GEN;
       if (fileText(R) === B.kept && !typed) return false;

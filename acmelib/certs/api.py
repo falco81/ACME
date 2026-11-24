@@ -2475,8 +2475,21 @@ def _names_in(store, table):
     return {str(r['name']) for r in store.db.rows('SELECT name FROM %s' % table)}
 
 
-# The name a new one of these is offered with, where the module says none.
-SUGGESTED = {('challenge', 'dns_builtin'): DF.DNS_OWN, ('challenge', 'http_local'): DF.HTTP_LOCAL}
+# The name a new one of these is offered with, where the module says none. Made of the title
+# otherwise - where that read wrong with its punctuation gone ("ACME Lets Encrypt and others",
+# "This machine files", "TLS any port"), a name of its own (hunt w9; a row made keeps its name).
+SUGGESTED = {('challenge', 'dns_builtin'): DF.DNS_OWN, ('challenge', 'http_local'): DF.HTTP_LOCAL,
+             ('issuer', 'acme'): 'ACME CA',
+             ('target', 'local'): 'Files on this machine',
+             ('target', 'appliance'): 'This acme server',
+             ('target', 'veeam_vbr'): 'Veeam Backup and Replication',
+             ('target', 'nsx_manager'): 'VMware NSX Manager',
+             ('target', 'fastly'): 'Fastly TLS',
+             ('target', 'haproxy'): 'HAProxy Runtime API',
+             ('target', 'fritzbox'): 'FRITZ Box',
+             ('check', 'tls'): 'TLS',
+             ('check', 'ftps'): 'FTPS', ('check', 'imaps'): 'IMAPS', ('check', 'ldaps'): 'LDAPS',
+             ('check', 'pop3s'): 'POP3S', ('check', 'smtps'): 'SMTPS'}
 
 
 def plugins_view(store, again=False):

@@ -3172,6 +3172,30 @@ function applyOnlyWhen() {
       why.remove();
     }
   }
+  portalAskWarn();
+}
+/* Certificates on the portal switched on while Names people may ask for or Sources people may
+   ask is empty (hunt w9): the members saw an Ask button whose every request was refused, and
+   nothing here said so - said under the switch, with what is missing (what is typed counts). */
+function portalAskWarn() {
+  var item = document.querySelector('.set-item[data-key="portal_cert"]');
+  if (!item) return;
+  var old = item.querySelector('.portal-ask-warn');
+  if (old) old.remove();
+  var val = function (k) { var c = $('set-' + k); return c ? String(c._get ? c._get() : c.value).trim() : null; };
+  var on = val('portal_cert');
+  if (on === null || !(on === '1' || on === 'true')) return;
+  var miss = ['portal_cert_suffixes', 'portal_cert_issuers'].filter(function (k) { return val(k) === ''; });
+  if (!miss.length) return;
+  var w = el('div', 'says warn portal-ask-warn');
+  w.appendChild(el('span', '', 'Nobody can ask for a certificate on the portal yet - empty:'));
+  miss.forEach(function (k, n) {
+    w.appendChild(document.createTextNode(n ? ', ' : ' '));
+    w.appendChild(el('b', '', (settingByKey(k) || {}).name || k));
+  });
+  w.appendChild(document.createTextNode('. '));
+  w.appendChild(el('span', '', 'Every request of the free form is refused; a request profile (Owners and teams → Request profiles) asks without them.'));
+  (item.querySelector('.set-tail') || item).appendChild(w);
 }
 $('set-save').onclick = function () {
   var want = {};

@@ -177,8 +177,11 @@ with its name when it is on), port 80 in each node's firewall, and every
 name of the certificates that use it with what it resolves to: ✔ one of
 acme's addresses, or ✘ *points elsewhere* - then set its DNS to the VIP
 address, or put a proxy there that forwards `/.well-known/acme-challenge/` to
-acme. What can be set is the module's own: *Check before the CA is asked*
-and the address *Test* tries. *Check a name* (`POST /api/validations/check
+acme. What can be set is the module's own: *Check the token from here first*
+(acme fetches each token itself before the CA does - not the same as *Renewal
+and notices → Check the validation before the CA is asked*, `certs_precheck`,
+which checks every validation's DNS and addresses before an order) and the
+address *Test* tries. *Check a name* (`POST /api/validations/check
 {id, host}`, `acme --validation-check NAME HOST`) puts a probe token in place
 (`meta acme:chal:<token>`, taken away after) and fetches it at that name from
 the daemon, step by step in a job. Behind NAT a router may not loop back to

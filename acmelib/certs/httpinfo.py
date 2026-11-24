@@ -264,8 +264,8 @@ def check(store, row, name, by, echo=None):
             job.step(words, 'bad')
             job.step('fetched from this node: where the name is acme\'s own public address '
                      'behind NAT, the router may not loop back (no hairpin NAT) although the '
-                     'CA from outside would be answered - then switch "Check before the CA is '
-                     'asked" off', 'info')
+                     'CA from outside would be answered - then switch "Check the token from here '
+                     'first" off', 'info')
             return False, words
         finally:
             ctx.tidy()

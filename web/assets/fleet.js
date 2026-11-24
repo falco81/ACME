@@ -1191,6 +1191,15 @@ function umRow(r) {
     var tb = cmdButton('Take over…', 'import', 'small primary');
     tb.onclick = function () { takeover(r); };
     a.appendChild(tb);
+  } else if (r.taken) {
+    /* taken over and not deployed yet (hunt w9): Take over… again made a second certificate,
+       deployed to the same files */
+    var tk = el('span', 'small fl-um-taken');
+    tk.appendChild(el('span', '', 'taken over'));
+    tk.appendChild(noI18n(document.createTextNode(' ')));
+    tk.appendChild(data('b', '', r.taken));
+    explain(tk, 'acme manages it now: the certificate is deployed to the same files there at its next deployment - then it is no longer listed here.');
+    a.appendChild(tk);
   } else if (!r.can_take) {
     var why = el('span', 'muted small', r.service ? 'make its deployment by hand' : 'a file of no service');
     explain(why, 'acme takes over a certificate a service found uses: it knows where to put the new one. This one is not one it can place by itself - Import… or a deployment by hand, from the agent’s card.');
@@ -1255,7 +1264,9 @@ function takeover(r) {
       noI18n(ss);
       if (!arr(p.sources).length) { var oo = el('option', '', '-'); oo.value = ''; ss.appendChild(oo); }
       arr(p.sources).forEach(function (s) { var o = el('option', '', s); o.value = s; if (s === (F.issuer || p.cert.issuer)) o.selected = true; ss.appendChild(o); });
-      ss.onchange = function () { F.issuer = ss.value; };
+      /* hunt w9: the preview asked again - "What happens" said the source chosen first, and
+         whether the source issues for these names */
+      ss.onchange = function () { F.issuer = ss.value; refreshPreview(); };
       sl.appendChild(ss);
       f.appendChild(sl);
       var ar = el('label', 'fl-check');
@@ -1283,11 +1294,16 @@ function takeover(r) {
       var ol = el('ol', 'fl-to-steps');
       arr(p.steps).forEach(function (s) {
         var li = el('li', 'fl-to-s ' + s[0]);
-        li.appendChild(icon({cert: 'lock', deploy: 'out', file: 'save', cmd: 'terminal', ok: 'check', wait: 'flag'}[s[0]] || 'info', 13));
+        li.appendChild(icon({cert: 'lock', deploy: 'out', file: 'save', cmd: 'terminal', ok: 'check', wait: 'flag', bad: 'ban'}[s[0]] || 'info', 13));
         li.appendChild(s[0] === 'file' || s[0] === 'cmd' ? data('code', '', s[1]) : el('span', '', s[1]));
         ol.appendChild(li);
       });
       Rr.appendChild(ol);
+      /* the source does not issue for these names: said, and Take over not offered (it was,
+         and the daemon refused it) */
+      if (p.refused) Rr.appendChild(data('p', 'fl-note bad fl-to-refused', p.refused));
+      var tb = $('modal-foot') && $('modal-foot').querySelector('.btn.primary');
+      if (tb) tb.disabled = !!p.refused;
       Rr.appendChild(el('span', 'fl-k', 'What the agent’s policy needs'));
       var its = el('div', 'fl-to-items');
       if (!p.policy_known) its.appendChild(el('p', 'muted small', 'The agent has not said its policy yet - Ask now on its card.'));
@@ -1321,7 +1337,7 @@ function takeover(r) {
     paint();
     refreshPreview();
   }, [{words: 'Cancel', close: true}, {words: 'Take over', cls: 'primary', icon: 'import', noConfirm: true, go: function (b) {
-    if (!P.p || P.p.error) return;
+    if (!P.p || P.p.error || P.p.refused) return;
     busy(b, true);
     ask('fleet/takeover', {target: F.target, service: F.service, names: F.names, name: F.name || P.p.cert.name, issuer: F.issuer || P.p.cert.issuer,
       auto_renew: F.auto_renew, issue_now: !!(F.issue_now && P.p.allowed), confirm: true}, 90).then(function (x) {

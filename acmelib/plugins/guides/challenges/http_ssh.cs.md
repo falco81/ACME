@@ -65,7 +65,7 @@ acme prokazuje jména přes HTTP-01 na **vašich webových serverech**: přihlá
 | Host keys, Trust the first key seen | Připnuté řádky `known_hosts`, nebo důvěra prvnímu viděnému klíči |
 | Folder of the tokens | Výchozí `/var/www/acme-challenge/.well-known/acme-challenge` |
 | Write through sudo | Zapnout, zapisuje-li účet přes `sudo -n install` |
-| Check before the CA is asked | Každý stroj podle jeho adresy (výchozí), na jiných adresách (LB / NAT), podle jména, nebo vůbec |
+| Check the token from here first | Každý stroj podle jeho adresy (výchozí), na jiných adresách (LB / NAT), podle jména, nebo vůbec |
 | Check at, Name for Test | Pro kontrolu na load balanceru / veřejné IP a jméno Host, které posílá Test |
 | Public addresses (NAT, load balancer) | Adresy před webovými servery, na které jména vedou |
 | Names acme's own block answers for, How "Prepare" sets nginx up, Set nginx up by itself, Open port 80 in their firewall | Jak akce *Prepare the hosts* nastaví nginx |

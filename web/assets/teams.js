@@ -618,6 +618,16 @@
       off.appendChild(go);
       return off;
     }
+    /* on, but nothing may be asked for: no name, no source and no request profile (hunt w9) */
+    if (d.portal && d.portal.ask === false) {
+      var no = el('div', 'tmx-note warn tm-portal-off tm-portal-noask');
+      no.appendChild(ic('info', 18));
+      no.appendChild(el('span', '', 'Certificates on the portal is on, but nobody can ask for one there: Names people may ask for or Sources people may ask is empty, and there is no request profile.'));
+      var go2 = cmdButton('Open the setting', 'gear', 'small');
+      go2.onclick = function () { location.hash = '#settings/portal'; toSetting('portal_cert'); };
+      no.appendChild(go2);
+      return no;
+    }
     return null;
   }
 

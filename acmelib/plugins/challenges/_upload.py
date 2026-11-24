@@ -27,7 +27,7 @@ from acmelib.plugins.challenges._common import HttpChallenge, url_host
 WELL_KNOWN = '.well-known/acme-challenge/'
 
 CHECK_FIELDS = [
-    field('check', 'Check before the CA is asked', 'select', default='name',
+    field('check', 'Check the token from here first', 'select', default='name',
           options=[['name', 'http://NAME/ as the CA will (needs this machine to reach it)'],
                    ['url', 'the address below (the bucket\'s or the site\'s own)'],
                    ['none', 'no check']],

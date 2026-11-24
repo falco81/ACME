@@ -64,6 +64,9 @@
 .ag-tile:hover{border-color:color-mix(in srgb,var(--info) 45%,var(--line))}
 .ag-name{all:unset;cursor:pointer;display:inline-flex;align-items:center;min-width:0}
 .ag-name:hover .dbs-tile-n{text-decoration:underline}
+/* hunt w9: a long name without spaces (a host name) wraps, not widens the page at 390 px */
+.ag-name{max-width:100%}
+.ag-name .dbs-tile-n{min-width:0;overflow-wrap:anywhere}
 .ag-name:focus-visible{outline:2px solid var(--info);outline-offset:2px;border-radius:4px}
 .ag-tile-st{margin-left:auto}
 .ag-end.warn{color:var(--warn);font-weight:600}

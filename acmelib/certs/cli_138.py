@@ -607,7 +607,8 @@ def _fleet_unmanaged(c, _v):
         return 0
     rows = [[r['target'], r.get('service') or '-', _short(r.get('where'), 30),
              _short(r.get('names'), 34), '-' if r.get('days') is None else r['days'],
-             r.get('risk'), 'yes' if r.get('can_take') else 'by hand']
+             r.get('risk'), 'yes' if r.get('can_take') else (
+                 ('taken: %s' % _short(r['taken'], 24)) if r.get('taken') else 'by hand')]
             for r in got.get('rows') or []]
     if not rows:
         print('every certificate found on the servers is managed by acme (or nothing was '
@@ -625,7 +626,10 @@ def _fleet_takeover(c, pair):
     pre = c.api('POST', '/api/fleet/takeover_preview', body=body)['preview']
     if not c.json:
         for kind, words in pre.get('steps') or []:
-            print('  %s %s' % ({'ok': '✔', 'wait': '!'}.get(kind, '·'), words))
+            print('  %s %s' % ({'ok': '✔', 'wait': '!', 'bad': '✘'}.get(kind, '·'), words))
+        if pre.get('refused'):
+            # hunt w9: the source does not issue for these names - refused below; said first
+            raise SystemExit('acme: %s (--issuer chooses another source)' % pre['refused'])
         if pre.get('block'):
             print('  on the server:\n    ' + pre['block'].replace('\n', '\n    '))
     _sure(c, 'the certificate %s and its deployment to %s are made' % (pre['cert']['name'],
@@ -1389,6 +1393,10 @@ def _con_unmanaged(con):
              else 'warn')]
 
     def do(r):
+        if r.get('taken'):
+            con.note('Take over', 'It is taken over already: the certificate %s is deployed '
+                     'there at its next deployment.' % r['taken'], 'info')
+            return
         if not r.get('can_take') or not r.get('service'):
             con.note('Take over', 'acme cannot make a deployment of that by itself - make it by '
                      'hand.', 'warn')

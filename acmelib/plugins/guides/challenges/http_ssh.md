@@ -65,7 +65,7 @@ acme proves names by HTTP-01 on **your web servers**: it signs in over SSH to **
 | Host keys, Trust the first key seen | Pinned `known_hosts` lines, or trust the first key seen |
 | Folder of the tokens | Default `/var/www/acme-challenge/.well-known/acme-challenge` |
 | Write through sudo | On if the account writes via `sudo -n install` |
-| Check before the CA is asked | Each machine by its address (default), at other addresses (LB / NAT), by the name, or none |
+| Check the token from here first | Each machine by its address (default), at other addresses (LB / NAT), by the name, or none |
 | Check at, Name for Test | For checks at a load balancer / public IP, and the Host name Test sends |
 | Public addresses (NAT, load balancer) | Addresses the names point at in front of the web servers |
 | Names acme's own block answers for, How "Prepare" sets nginx up, Set nginx up by itself, Open port 80 in their firewall | How the *Prepare the hosts* action configures nginx |

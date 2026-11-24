@@ -1758,7 +1758,7 @@ another block is the default server of port 80 already, name the names in
 IPv6 too* and *Everything else to HTTPS* (else 404) are under *More*. Run
 again, it changes nothing that is in place.
 
-**Check before the CA is asked** - *at other addresses* (`check: at`): the
+**Check the token from here first** - *at other addresses* (`check: at`): the
 token is fetched at each address of *Check at* (`check_at`: an IP or name,
 `:port`, or `https://` for TLS) instead of each web server's own address -
 a load balancer, the public IP, a NAT in front. The URL keeps the
@@ -1816,7 +1816,7 @@ For a site acme cannot sign in to with a shell: a web hosting with an FTP
 account, a static site in a bucket, a CDN in front of storage. Each
 validation acme uploads `.well-known/acme-challenge/TOKEN` under the folder
 set, fetches `http://NAME/.well-known/acme-challenge/TOKEN` as the CA will
-(*Check before the CA is asked*: by the name, by *Address the folder is
+(*Check the token from here first*: by the name, by *Address the folder is
 served at* - the bucket's own website address - or not at all) and takes
 the file away afterwards. *Test* uploads a probe, reads it back where it can
 and takes it away. The guide checks the sign-in and the folder (read only),

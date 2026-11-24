@@ -34,7 +34,7 @@ acme prokazuje jména přes HTTP-01 tak, že soubor s tokenem `.well-known/acme-
 | Web root of the site | Složka, ze které se servíruje `http://NAME/`, např. `/www` |
 | Check the server's certificate (FTPS) | (pokročilé) nechte zapnuté |
 | Timeout (s) | (pokročilé) Výchozí `30` |
-| Check before the CA is asked | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
+| Check the token from here first | `http://NAME/` (výchozí), adresa níže, nebo bez kontroly |
 
 ## Kontrola
 

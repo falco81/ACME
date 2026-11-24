@@ -34,7 +34,7 @@ acme proves names by HTTP-01 by uploading the token file `.well-known/acme-chall
 | Web root of the site | The folder `http://NAME/` is served from, e.g. `/www` |
 | Check the server's certificate (FTPS) | (advanced) leave on |
 | Timeout (s) | (advanced) Default `30` |
-| Check before the CA is asked | `http://NAME/` (default), the address below, or no check |
+| Check the token from here first | `http://NAME/` (default), the address below, or no check |
 
 ## Check it
 

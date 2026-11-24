@@ -670,6 +670,9 @@ def plugin_public(store, family, row, full=False, pre=None):
     from acmelib.certs import defaults as DF
     dflt = pre['default'] if pre and 'default' in pre else DF.default_name(store, family)
     out['is_default'] = bool(dflt) and dflt == row.get('name')
+    # a name acme made at the first start ("This server HTTP-01"): shown in the page's language,
+    # kept as it is (hunt w9)
+    out['own_name'] = DF.own_name(row)
     if family == 'issuer':
         out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM certs WHERE issuer = ?',
                                             (row['name'],), 0) or 0)

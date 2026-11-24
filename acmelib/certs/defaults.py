@@ -49,6 +49,16 @@ VALIDATIONS = [('http_local', HTTP_LOCAL, 'http_local', {},
 DNS_VALIDATION = ('dns_builtin', DNS_OWN, 'dns_builtin', {},
                   'DNS-01 answered by acme\'s own DNS server: delegate _acme-challenge of the '
                   'names to it (wildcards too).')
+# The names above are acme's own words: the pages show them in their language (web/lang) while
+# the row keeps its name - the name commands, files and the other rows use (hunt w9).
+OWN_NAMES = frozenset([LE, LE_STAGING, HTTP_LOCAL, DNS_OWN])
+
+
+def own_name(row):
+    """True for a row acme made itself (the first start) that still has the name it made it
+    with - a name the pages may translate. A row a person made or renamed: False."""
+    return bool(row) and str(row.get('created_by') or '') == BY and \
+        str(row.get('name') or '') in OWN_NAMES
 
 
 def _todo(store, key):

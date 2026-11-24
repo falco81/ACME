@@ -1345,15 +1345,28 @@ function plugHead(p, family, row) {
   tagsInto(t, modTags(family, p, row || null));
   w.appendChild(t);
   if (p.description) w.appendChild(el('div', 'muted small', p.description));
+  /* "More in docs/X.md" was a file the pages cannot open (hunt w9): the guide opens here, the
+     document is said where it is - on the server, beside acme */
+  var guideOk = !!(window.ACME_GUIDES && p.kind && family);
   if (p.doc) {
-    var d = el('div', 'small muted');
-    d.appendChild(document.createTextNode('More in '));
-    d.appendChild(mono(p.doc));
+    var d = el('div', 'small muted ct-plughead-doc');
+    if (guideOk) {
+      var gl = el('button', 'linkish', 'its setup guide');
+      gl.type = 'button';
+      gl.onclick = function (ev) { ev.preventDefault(); ev.stopPropagation(); window.ACME_GUIDES.show(p._base || p, family, row && row.version !== undefined ? row.version : (p.version !== undefined ? p.version : ''), {over: true}); };
+      d.appendChild(el('span', '', 'More in'));
+      d.appendChild(document.createTextNode(' '));
+      d.appendChild(gl);
+      d.appendChild(document.createTextNode(' '));
+      d.appendChild(el('span', '', 'and in acme’s documentation on the server:'));
+    } else d.appendChild(el('span', '', 'More in acme’s documentation on the server:'));
+    d.appendChild(document.createTextNode(' '));
+    d.appendChild(mono('/usr/local/lib/acme/' + p.doc));
     w.appendChild(d);
   }
   h.appendChild(w);
   /* How to set up the other side, for this version (1.0.94, guides.js) */
-  if (window.ACME_GUIDES && p.kind && family) {
+  if (guideOk) {
     var gb = window.ACME_GUIDES.button(p, family, null);
     gb.classList.add('ct-plughead-guide');
     h.appendChild(gb);
@@ -1398,11 +1411,26 @@ function loadRows(key, again) {
   var gen = FRESH.n;
   return capi(m.list).then(function (d) {
     var rows = rowsOf.apply(null, [d].concat(m.keys));
-    rows.forEach(function (r) { r.config = obj(r.config); });
+    rows.forEach(function (r) { r.config = obj(r.config); if (r.own_name) OWN_NAMES[r.name] = 1; });
     rows._gen = gen;
     if (!LISTS[key] || gen >= (LISTS[key]._gen || 0)) LISTS[key] = rows;
     return rows;
   });
+}
+/* A source's or validation's name acme made itself at the first start ("This server HTTP-01",
+   own_name) in the page's language - the row keeps its name, the one commands and the other
+   rows use, said on hover (hunt w9: English on a Czech page). A name a person gave: as it is. */
+var OWN_NAMES = {};
+function ownName(r) {
+  var n = r && typeof r === 'object' ? String(r.name || '') : String(r || '');
+  if (!(r && typeof r === 'object' ? r.own_name : OWN_NAMES[n])) return n;
+  return known(n);
+}
+function ownNameEl(kind, cls, r) {
+  var n = r && typeof r === 'object' ? String(r.name || '') : String(r || '');
+  var x = data(kind, cls, ownName(r));
+  if (x.textContent !== n) x.title = n;
+  return x;
 }
 /** The default of a list (is_default), or null. */
 function defaultOf(rows) { return arr(rows).filter(function (r) { return r.is_default; })[0] || null; }
@@ -1637,7 +1665,7 @@ function drawModTab(key, live) {
       box.appendChild(listTable(heads, rows, function (r) {
         var tr = el('tr');
         var nc = el('td', 'ct-modname');
-        nc.appendChild(data('b', '', r.name));
+        nc.appendChild(ownNameEl('b', '', r));
         if (r.is_default) nc.appendChild(el('span', 'tag ok small', 'default'));
         if (r.note) nc.appendChild(data('div', 'muted small', known(r.note)));
         if (r.tags) nc.appendChild(tagChips(r.tags));
@@ -2114,7 +2142,7 @@ function httpHere(row) {
   var lead = el('p', 'note');
   lead.appendChild(el('span', '', 'The CA fetches '));
   lead.appendChild(mono('http://NAME' + HTTP_PATH + '<token>'));
-  lead.appendChild(el('span', '', ' - port 80, plain HTTP, from the internet. The path and the port are fixed by the ACME standard (RFC 8555) and cannot be set; what can be set is above: whether acme fetches it itself first (Check before the CA is asked) and the address Test tries. Each name must point at acme - a node or the VIP address - or at a proxy that forwards ' + HTTP_PATH + ' to acme.'));
+  lead.appendChild(el('span', '', ' - port 80, plain HTTP, from the internet. The path and the port are fixed by the ACME standard (RFC 8555) and cannot be set; what can be set is above: whether acme fetches it itself first (Check the token from here first) and the address Test tries. Each name must point at acme - a node or the VIP address - or at a proxy that forwards ' + HTTP_PATH + ' to acme.'));
   box.appendChild(lead);
   var host = el('div');
   box.appendChild(host);
@@ -4456,8 +4484,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var prof = obj(c.profile);
   var cmap = obj(c.challenge_map);
   rs._body.appendChild(kvTable([
-    ['Source', c.issuer ? data('span', '', c.issuer) : (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
-    ['Validation', c.challenge ? c.challenge + (Object.keys(cmap).length ? ' · ' + Object.keys(cmap).length + ' name(s) otherwise' : '') : '–'],
+    ['Source', c.issuer ? ownNameEl('span', '', c.issuer) : (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
+    ['Validation', c.challenge ? ownName(c.challenge) + (Object.keys(cmap).length ? ' · ' + Object.keys(cmap).length + ' name(s) otherwise' : '') : '–'],
     /* the list and Details follow (hunt Ru2: window.CT is never set - the list kept "auto" and
        Details "only when asked" after the switch here) */
     ['Renews', autoCan(c) ? autoRenew(c, false, function () { CT.refresh(); if (details && details._show) details._show(); }) : renewsWords(c)],
@@ -5504,7 +5532,7 @@ function certWizard(cert, detail, opts) {
       ic.innerHTML = iconMarkup(sourceIcon(s.kind), 22);
       t.appendChild(ic);
       var w = el('span', 'ct-src-w');
-      w.appendChild(data('b', '', s.name));
+      w.appendChild(ownNameEl('b', '', s));
       w.appendChild(el('span', 'muted small', p ? p.title : s.kind));
       var cn = issuerCan(s.kind);
       var chips = el('span', 'ct-src-chips');
@@ -5992,7 +6020,7 @@ function certWizard(cert, detail, opts) {
       return bad.length === list.length ? (obj(f.names)[bad[0]] || f.why) : '';
     };
     var label = function (v) {
-      return v.name + ' · ' + tr(plugTitle('challenge', v.kind)) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '');
+      return ownName(v) + ' · ' + tr(plugTitle('challenge', v.kind)) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '');
     };
     var pairs = W.vals.map(function (v) { return [v.name, label(v)]; });
     var good = W.vals.filter(function (v) { return !fitsNone(v.name); });
@@ -6023,7 +6051,7 @@ function certWizard(cert, detail, opts) {
       ub.appendChild(el('div', 'muted small', 'Not offered for this source and these names:'));
       unfit.forEach(function (v) {
         var line = el('div', 'ct-unfit-line');
-        line.appendChild(data('b', '', v.name));
+        line.appendChild(ownNameEl('b', '', v));
         line.appendChild(el('span', 'muted small', fitsNone(v.name)));
         ub.appendChild(line);
       });
@@ -6525,14 +6553,14 @@ function certWizard(cert, detail, opts) {
     var pairs = [
       /* its name as it is, its kind in the page's language (1.0.80: "Self-signed" translated
          as a name - "Podepsaný sám sebou · Podepsaný sám sebou") */
-      ['Source', s ? data('span', '', s.name + ' · ' + tr(plugTitle('issuer', s.kind))) : data('span', '', W.d.issuer || '')],
+      ['Source', s ? data('span', '', ownName(s) + ' · ' + tr(plugTitle('issuer', s.kind))) : data('span', '', W.d.issuer || '')],
       ['Name in acme', W.d.name || (list[0] ? certName(list[0]) : '–')],
       ['Common name (CN)', data('span', 'mono', String(W.d.cn || '').trim() || list[0] || '–')],
       ['Names', namesChips(list.concat(sanOther()))],
       ['Key', W.d.csr_from ? data('span', '', tr(keyWords(W.d.key_type)) + ' · ' + tr('key made by') + ' ' + W.d.csr_from)
         : keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
     ];
-    if (can().challenge) pairs.push(['Validation', W.d.challenge + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
+    if (can().challenge) pairs.push(['Validation', ownName(W.d.challenge) + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
     pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + renewDays(W.d.renew_days) + ' days before the end' : 'only when asked']);
     pairs.push(['Key on renewal', W.d.csr_from ? data('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from) : (W.d.reuse_key ? 'kept' : 'a new one each time')]);
     if (W.d.days) pairs.push(['Valid for', W.d.days + ' days']);
@@ -6560,6 +6588,9 @@ function certWizard(cert, detail, opts) {
       /* what the validation needs is not in place: no "Add and issue now" or "Add only" below
          to speak of (hunt w8: the note named buttons that were not there) */
       : planBlocks() && !compatProblems().length ? 'What it will be. "Create anyway" keeps it; acme asks the source by itself once what is marked below is in place.'
+      /* the source refuses it outright (a .test name from a public CA): no Add button at all -
+         what to do is going back (hunt w9: the note still named "Add and issue now") */
+      : compatProblems().length ? 'What it would be - it cannot be created so: the source refuses what is marked below. Go back and change it (or choose another source).'
       : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" keeps it unissued until Issue now is pressed in its window.'));
     host.appendChild(kvTable(pairs));
     var bad = checkNames();
