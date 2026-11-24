@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.144 - not released
+## 1.0.144 - 2026-11-24
 
 - **Backups are a snapshot of one moment.** a copy of the database (the nightly one, one made by hand or downloaded, the backup to another machine) read its tables one by one, so a renewal or deployment finished meanwhile could leave a certificate older in the copy than its versions and jobs; every copy is now read in one transaction - SQLite in WAL mode (a file not in WAL mode is read from SQLite's own backup of it), PostgreSQL at REPEATABLE READ, MariaDB with a consistent InnoDB snapshot - and is the database of one moment, without holding the daemon's writes.
 - Targets through an agent: closing the connection through a server's agent left a thread waiting for good with its socket open - one more thread and file descriptor in the daemon each time; now the thread ends and the socket is closed (also when the agent's connection fails half way), and a folder that cannot be set up is not left behind.
