@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.147 - not released
+## 1.0.147 - 2026-11-26
 
 - Agent fleet → Templates: **New template…** writes a template of your own by hand (title, platform, start from any template, note, the policy text) and **Edit…** changes one of yours - each save a new version, its text checked as the agent reads it, a line it would not read said under the text.
 - Templates show and copy their lines as the policy file or as `acme-agent ...` commands (no sudo) - one choice for every card, kept; an agent's saved design has **Copy as commands** too.
