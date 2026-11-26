@@ -294,6 +294,9 @@
   .ctl-pane > div:not(.card):not(.ctl-head):not(.grid):not(:empty) + .card,
   .ctl-pane > .card + div:not(.card):not(.grid) > .card:first-child,
   .ctl-pane > div:not(.card):not(.ctl-head):not(.grid):not(:empty) + div:not(.card):not(.grid) > .card:first-child{margin-top:14px}
+  /* a card above a pane's own block that does not begin with a card (Trash and history: its tabs
+     stuck to the card above) - the same room as between two cards */
+  .ctl-pane > .card + div:not(.card):not(.grid):not(:empty) > :first-child:not(.card){margin-top:14px}
   p.note{color:var(--tx-dim);font-size:13px;margin:0 0 14px;max-width:940px;overflow-wrap:anywhere}
   p.note b{color:var(--tx);font-weight:600}
   .btnhelp{color:var(--tx-mut);font-size:12.5px;margin:6px 0 4px}

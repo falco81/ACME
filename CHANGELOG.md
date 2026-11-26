@@ -9,7 +9,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - The agent's "What its policy allows" shows everything the policy on the server allows: also what a deployment may deploy (allow issuer, allow names, require key local), the audit chain and the limits of one job.
 - Anything waiting for an answer (Ask it now, Look now, Verify now, Test…) shows a thin running bar along the bottom of its button.
 - The files a discovered service uses (certificate, key) are aligned: the role and owner on one line, the path below; the rows of the cards of "Watching this agent" stay aligned in a narrow card (the name above, the value below).
-- Trash: more even room between the days left, the icon buttons and Restore.
+- Trash: more even room between the days left, the icon buttons and Restore; the Trash / Latest changes tabs no longer stick to the card above them (the same room as between two cards, on every such pane).
 
 ## 1.0.145 - 2026-11-26
 
