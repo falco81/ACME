@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.149 - not released
+
 ## 1.0.148 - 2026-11-26
 
 - Agent fleet → Templates: **New template…** opens the policy builder itself (no agent: every section, its checks and output, Linux or Windows) and saves what is clicked together as a fleet template; **Edit…** opens one of yours there - each save a new version.
