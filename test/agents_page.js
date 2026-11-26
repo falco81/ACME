@@ -573,11 +573,16 @@ const path = require('path');
       out.checks[tag + 'card_design'] = await page.evaluate(() => {
         var d = document.querySelector('#card-host .ag-design');
         return !!d && d.classList.contains('differs') && d.querySelectorAll('.pb-d.add').length === 1 && d.querySelectorAll('.pb-d.del').length === 2
-          && d.querySelectorAll('.btn').length === 5 && !!d.querySelector('.ag-design-hist') && d.textContent.indexOf('nginx on web1') >= 0;
+          && d.querySelectorAll('.btn').length === 6 && !!d.querySelector('.ag-design-hist') && d.textContent.indexOf('nginx on web1') >= 0;
       });
       if (shots) await page.locator('#card-host .ag-design').screenshot({path: path.join(shots, 'card-design-' + lang + width + '.png')});
       await page.evaluate(() => { window.copyText = function (t) { window.COPIED = t; }; document.querySelectorAll('#card-host .ag-design .btnrow .btn')[1].click(); });
       out.checks[tag + 'card_design_copy'] = await page.evaluate(() => window.COPIED === DESIGN.text);
+      out.checks[tag + 'card_design_cmds'] = await page.evaluate(() => {
+        window.COPIED = null; document.querySelectorAll('#card-host .ag-design .btnrow .btn')[2].click();
+        var t = String(window.COPIED || ''), l = t.split('\n').filter(Boolean);
+        return l.length > 0 && l.every(function (x) { return x.indexOf('acme-agent ') === 0; }) && t.indexOf('sudo') < 0;
+      });
       await page.evaluate(() => document.querySelector('#card-host .ag-design .btn.danger').click());
       await page.waitForTimeout(150);
       await page.evaluate(() => document.querySelector('#modal-foot .btn.danger').click());
