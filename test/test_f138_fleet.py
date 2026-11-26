@@ -1234,10 +1234,15 @@ class Pages(unittest.TestCase):
             self.assertIs(c[tag + 'as_back'], True, tag)
         self.assertIn('acme-agent', c['cs1400_as_words'])
         self.assertIn('Nová šablona', c['cs1400_as_words'])
+        # 1.0.148: New template… is the builder with no agent (no "What the deployments need",
+        # no "What changes"), its output numbered lines with one copy each, nothing across
+        self.assertEqual(c['tpl_builder'], 'New fleet template · Linux | true true 3 nothing')
         self.assertIs(c['tpl_bad_kept'], True)
-        self.assertEqual(c['tpl_new'], '2 true')
+        self.assertIs(c['tpl_out'], True)
+        self.assertIs(c['tpl_line_copy'], True)
+        self.assertEqual(c['tpl_new'], 'true true true')
         self.assertIs(c['tpl_edit_pl_locked'], True)
-        self.assertEqual(c['tpl_edit'], '3 true 1')
+        self.assertEqual(c['tpl_edit'], 'true true 1')
         self.assertIs(c['builder_sudo_on'], True)
         self.assertIs(c['builder_sudo_off'], True)
         self.assertIn('builder_fleet', c)

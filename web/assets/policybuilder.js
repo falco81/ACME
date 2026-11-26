@@ -922,6 +922,46 @@ function oneShot(R) {
   return "sudo acme-agent policy apply - <<'EOF'\n" + fileText(R) + 'EOF' +
     (R.pins.length ? '\n' + R.pins.map(function (p) { return 'sudo acme-agent allow script ' + quote(p); }).join('\n') : '');
 }
+/* 1.0.148: a line of a policy or a command, coloured as the shell reads it - each word kept
+   whole (a line wraps between words, a long path after a /), the text exactly the line */
+function wbrText(x, w) {
+  var bits = String(w).split(/(?<=\/)(?=[^\/])/);
+  bits.forEach(function (b, i) { if (i) x.appendChild(document.createElement('wbr')); x.appendChild(document.createTextNode(b)); });
+}
+var VERBS = {allow: 1, limit: 1, require: 1, audit: 1, policy: 1};
+function paintWords(t, l) {
+  var parts = l.match(/\s+|'[^']*'?|"[^"]*"?|[^\s'"]+(?:'[^']*'?|"[^"]*"?|[^\s'"]+)*/g) || [l];
+  var seen = 0, after = '';
+  parts.forEach(function (w) {
+    if (/^\s+$/.test(w)) { t.appendChild(document.createTextNode(w)); return; }
+    var c = '';
+    if (w === 'sudo') c = 'k-sudo';
+    else if (w === 'acme-agent' || w === 'acme-agent.exe') c = 'k-bin';
+    else if (VERBS[w] && (after === 'acme-agent' || seen === 0)) c = 'k-verb';
+    else if (VERBS[after]) c = 'k-kind';
+    else if (w === '--' || w === '-' || w === '|' || w === '<<\'EOF\'' || w === 'EOF' || w === "@'" || w === "'@") c = 'k-op';
+    else if (/^--?[a-z]/.test(w)) c = 'k-opt';
+    else if (/^[a-z][a-z0-9_-]*=/.test(w)) {
+      var i = w.indexOf('=');
+      var kv = el('span', 'k-w');
+      var k = el('span', 'k-key');
+      k.textContent = w.slice(0, i + 1);
+      kv.appendChild(k);
+      var v = el('span', 'k-val');
+      wbrText(v, w.slice(i + 1));
+      kv.appendChild(v);
+      t.appendChild(kv);
+      seen++; after = w;
+      return;
+    }
+    else if (/^['"]/.test(w)) c = 'k-str';
+    else if (/^[0-9]+$/.test(w)) c = 'k-num';
+    var x = el('span', 'k-w' + (c ? ' ' + c : ''));
+    wbrText(x, w);
+    t.appendChild(x);
+    seen++; after = w;
+  });
+}
 /** The lines of two policies compared: [{op: ' '|'+'|'-', line}] (longest common run). */
 function diff(a, b) {
   var n = a.length, m = b.length, i, j, t = [];
@@ -1146,7 +1186,7 @@ function hasTemplate(s, R, t) {
 var CORE = {setFacts: setFacts, facts: function () { return F; }, discKinds: discKinds, quote: quote, split: split, normDir: normDir, normUnit: normUnit,
   wq: wq, splitWin: splitWin, normWin: normWin, protectedWhyWin: protectedWhyWin,
   ipNetwork: ipNetwork, normHostport: normHostport, protectedWhy: protectedWhy, empty: empty, fromPolicy: fromPolicy,
-  fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, asCommands: asCommands, oneShot: oneShot, diff: diff, covers: covers,
+  fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, asCommands: asCommands, paintWords: paintWords, oneShot: oneShot, diff: diff, covers: covers,
   addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, mergeState: mergeState, oct4: oct4, Bad: Bad,
   namePattern: namePattern};
 if (typeof module === 'object' && module.exports) { module.exports = CORE; return; }
@@ -1234,7 +1274,10 @@ function open(row, opts) {
   var go = function () {
     if (OPENING) return;
     OPENING = true;
-    ask('agents/builder?id=' + encodeURIComponent(row.id || row.name)).then(function (d) { OPENING = false; build(row, d, opts); }).catch(function (e) { OPENING = false; oops(e); });
+    /* 1.0.148: a fleet template on its own - no agent, no server (fleet.js "New template…") */
+    var url = opts.template ? 'fleet/builder?platform=' + encodeURIComponent(opts.template.platform === 'windows' ? 'windows' : 'linux')
+      : 'agents/builder?id=' + encodeURIComponent(row.id || row.name);
+    ask(url).then(function (d) { OPENING = false; build(row, d, opts); }).catch(function (e) { OPENING = false; oops(e); });
   };
   var h = hands();
   if (h.over && opts.over !== false) h.over(go, opts.back); else go();
@@ -1246,8 +1289,11 @@ function build(row, d, opts) {
   var serverLines = A.policy ? check(serverState).lines : null;
   var version = !!(opts.state || opts.text);
   /* 1.0.138: opened from the fleet with a template (fleet.js): it is what the builder starts from */
-  var FT = opts.fleetTemplate && (opts.fleetTemplate.state || opts.fleetTemplate.text) ? opts.fleetTemplate : null;
-  var B = {from: FT ? 'fleet' : (version ? 'version' : (opts.from || (D ? 'design' : 'server'))), tab: 'file', q: '', fleet: null, sudo: true};
+  var TM = !!(opts.template && d.blank);
+  var OT = TM ? opts.template : null;
+  var FT = TM ? (OT.text || OT.state ? OT : null)
+    : (opts.fleetTemplate && (opts.fleetTemplate.state || opts.fleetTemplate.text) ? opts.fleetTemplate : null);
+  var B = {from: FT ? 'fleet' : (TM ? 'empty' : (version ? 'version' : (opts.from || (D ? 'design' : 'server')))), tab: 'file', q: '', fleet: null, sudo: true};
   try { B.sudo = localStorage.getItem('acme.pb.sudo') !== '0'; } catch (e) { /* the default: with sudo */ }
   var S;
   function startFrom(w) {
@@ -1332,15 +1378,16 @@ function build(row, d, opts) {
     var t = el('div', 'pb-hero-t');
     t.appendChild(el('b', '', 'acme proposes, the server decides'));
     w.appendChild(t);
-    w.appendChild(el('p', 'small', W() ? 'Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where an administrator writes it - checked there again, as here.'
+    if (TM) w.appendChild(el('p', 'small', 'Click together what the agent may do on every server of this kind. Saved as a fleet template: agents and groups follow it, and the builder of each server starts from it. acme never sends a policy to a server.'));
+    else w.appendChild(el('p', 'small', W() ? 'Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where an administrator writes it - checked there again, as here.'
       : 'Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where root writes it - checked there again, as here.'));
     var from = el('div', 'pb-from');
     from.appendChild(el('span', 'pb-k', 'Start from'));
     var seg = el('div', 'pb-seg');
-    var choices = [['server', A.policy ? 'its policy on the server' : 'its policy (not said yet)']];
+    var choices = TM ? [] : [['server', A.policy ? 'its policy on the server' : 'its policy (not said yet)']];
     if (D) choices.push(['design', 'the saved design']);
     if (version) choices.push(['version', 'the version opened']);
-    if (FT) choices.push(['fleet', 'the fleet template']);
+    if (FT) choices.push(['fleet', TM ? 'the template' : 'the fleet template']);
     choices.push(['empty', 'nothing']);
     choices.forEach(function (c) {
       var b = el('button', 'pb-seg-b' + (B.from === c[0] ? ' on' : ''), c[1]);
@@ -1365,6 +1412,25 @@ function build(row, d, opts) {
     });
     from.appendChild(seg);
     w.appendChild(from);
+    /* a new template: its platform, the builder of that platform's agent */
+    if (TM && !OT.ref) {
+      var pf = el('div', 'pb-from');
+      pf.appendChild(el('span', 'pb-k', 'Platform'));
+      var ps = el('div', 'pb-seg pb-plat');
+      [['linux', 'Linux'], ['windows', 'Windows']].forEach(function (c) {
+        var b = el('button', 'pb-seg-b' + ((W() ? 'windows' : 'linux') === c[0] ? ' on' : ''), c[1]);
+        b.type = 'button';
+        b.onclick = function () {
+          if ((W() ? 'windows' : 'linux') === c[0]) return;
+          var go = function () { closeModal(true); open(row, Object.assign({}, opts, {template: {platform: c[0], title: refs.title ? refs.title.value : '', note: refs.note ? refs.note.value : ''}})); };
+          if (R && fileText(R) !== B.startText && fileText(R) !== B.kept) modalSure('Start again for the other platform? What was changed here is lost.', go, 'Start again');
+          else go();
+        };
+        ps.appendChild(b);
+      });
+      pf.appendChild(ps);
+      w.appendChild(pf);
+    }
     h.appendChild(w);
     var st = el('div', 'pb-hero-st');
     refs.badge = el('span', 'pb-badge');
@@ -1380,6 +1446,7 @@ function build(row, d, opts) {
     ['hashes', 'Script hashes', 'hash'], ['from', 'Allow from', 'in'], ['probe', 'Tests from here', 'pulse'],
     ['connect', 'Connections for acme', 'plug'], ['discover', 'Discovery', 'search'], ['guard', 'What it deploys', 'cert'], ['update', 'Updates from acme', 'up'], ['limits', 'Limits', 'gauge']
   ];
+  if (TM) SECTIONS = SECTIONS.filter(function (x) { return x[0] !== 'needs'; });
   /* 1.0.125: what the last discovery found on the server, with the lines each needs */
   var FOUND = arr(d.discovered && !d.discovered.refused && d.discovered.found).filter(function (f) { return arr(f.items).length; });
   if (FOUND.length) SECTIONS.splice(2, 0, ['found', 'From discovery', 'eye']);
@@ -1434,7 +1501,7 @@ function build(row, d, opts) {
     refs.rows = {};
     (W() ? [drawTemplates, drawNeeds, drawFound, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawRoles, drawKeyRead, drawAdcs, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawDiscover, drawGuard, drawUpdate, drawLimits]
       : [drawTemplates, drawNeeds, drawFound, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawDiscover, drawGuard, drawUpdate, drawLimits])
-      .forEach(function (f) { var n = f(); if (n) refs.main.appendChild(n); });
+      .forEach(function (f) { if (TM && f === drawNeeds) return; var n = f(); if (n) refs.main.appendChild(n); });
   }
   function redraw(key, fn) {
     var old = sec[key];
@@ -1504,7 +1571,15 @@ function build(row, d, opts) {
           .concat(t.store ? ['Cert:\\LocalMachine\\My'] : []).concat(arr(t.iis).map(function (x) { return 'IIS ' + x; })).concat(t.rdp ? ['RDP'] : [])
           .concat(roleRows(t.roles).map(function (r) { return 'role ' + r.role + (r.extra ? ' ' + r.extra : ''); }))
           .concat(adcsRows(t.adcs).map(function (r) { return 'AD CS ' + r.templates.join(',') + ' @ ' + r.ca; })).join(' · ');
-        w.appendChild(noI18n(el('span', 'pb-tpl-s', sub)));
+        /* every word whole: wraps between them, a long path after a / */
+        var sw = noI18n(el('span', 'pb-tpl-s'));
+        String(sub).split(' · ').forEach(function (part, i) {
+          if (i) sw.appendChild(document.createTextNode(' · '));
+          var x = el('span', 'k-w');
+          wbrText(x, part);
+          sw.appendChild(x);
+        });
+        w.appendChild(sw);
         b.appendChild(w);
         var mk = noI18n(el('span', 'pb-tpl-mk', ''));
         b.appendChild(mk);
@@ -2084,6 +2159,7 @@ function build(row, d, opts) {
       'Add a CA', function () { S.adcs = arr(S.adcs); S.adcs.push({ca: '', templates: []}); redraw('adcs', drawAdcs); focusLast('adcs'); });
     s.body.appendChild(switcher(S.adcs_read, 'acme may list every CA of the domain and its templates (read-only) - else only the CAs named below', function (on) { S.adcs_read = on; refresh(); }));
     var bar = el('div', 'pb-offer pb-adcs-load');
+    if (TM) bar.hidden = true;
     var load = cmdButton(B.adcsLoading ? 'Loading…' : 'Load the CAs and templates from the agent', 'refresh', 'small');
     load.disabled = !!B.adcsLoading;
     load.onclick = function () {
@@ -2464,6 +2540,7 @@ function build(row, d, opts) {
     tabs.setAttribute('role', 'tablist');
     refs.tabs = {};
     TABS.forEach(function (t) {
+      if (TM && t[0] === 'diff') return;
       var b = el('button', 'pb-tab' + (B.tab === t[0] ? ' on' : ''));
       b.type = 'button';
       b.setAttribute('role', 'tab');
@@ -2496,8 +2573,18 @@ function build(row, d, opts) {
     card.appendChild(tabs);
     refs.outSay = el('p', 'pb-out-say small');
     card.appendChild(refs.outSay);
-    refs.pre = noI18n(el('pre', 'pb-pre mono'));
-    card.appendChild(refs.pre);
+    /* a terminal window: its title says what it is, the lines below it */
+    var term = el('div', 'pb-term');
+    var tb = el('div', 'pb-term-bar');
+    tb.appendChild(noI18n(el('span', 'pb-term-dots', '')));
+    refs.termT = noI18n(el('span', 'pb-term-t', ''));
+    tb.appendChild(refs.termT);
+    refs.termN = el('span', 'pb-term-n', '');
+    tb.appendChild(refs.termN);
+    term.appendChild(tb);
+    refs.pre = noI18n(el('pre', 'pb-pre mono k-code'));
+    term.appendChild(refs.pre);
+    card.appendChild(term);
     var bar = el('div', 'pb-out-bar');
     var cp = cmdButton('Copy', 'copy', 'primary small');
     cp.onclick = function () { copyText(outText(), cp, 'on the clipboard'); taken(); };
@@ -2528,7 +2615,19 @@ function build(row, d, opts) {
     SAY.file = 'C:\\ProgramData\\acme-agent\\etc\\policy - in place of the one there: acme-agent policy apply FILE in an elevated prompt (checked first; the one before kept).';
     SAY.once = 'Paste it whole into an elevated PowerShell on the server (Run as administrator): the agent checks it, writes it in place of the one there and says what changed. Ask it now on the card then shows it.';
   }
+  function termTitle() {
+    if (B.tab === 'file') return W() ? 'C:\\ProgramData\\acme-agent\\etc\\policy' : '/etc/acme-agent/policy';
+    if (B.tab === 'diff') return W() ? 'policy - the server → here' : 'policy · the server → here';
+    return W() ? 'PowerShell (Administrator)' : (B.sudo ? 'bash · sudo' : 'bash · root');
+  }
   function paintOut() {
+    if (refs.termT) {
+      refs.termT.textContent = termTitle();
+      var nl = B.tab === 'diff' ? diff(serverLines || [], R.lines).filter(function (x) { return x.op !== ' '; }).length
+        : (B.tab === 'allow' ? allowLines(R).length : R.lines.length);
+      refs.termN.textContent = (B.tab === 'diff' ? 'changes: ' : (B.tab === 'allow' ? 'commands: ' : 'entries: ')) + nl;
+      refs.pre.parentNode.className = 'pb-term t-' + B.tab;
+    }
     clear(refs.outSay);
     refs.outSay.appendChild(document.createTextNode(SAY[B.tab]));
     clear(refs.pre);
@@ -2552,13 +2651,80 @@ function build(row, d, opts) {
       hs.title = tr('the head of the file: what each entry is - click to fold or unfold');
       hs.onclick = function () { B.head = !B.head; hs.classList.toggle('open', B.head); };
       refs.pre.appendChild(hs);
-      refs.pre.appendChild(document.createTextNode(text.slice(head.length) || ''));
+      codeLines(refs.pre, text.slice(head.length) || '', false);
       if (!R.lines.length) { var n = el('span', 'pb-c', ''); n.textContent = '# ' + tr('nothing is allowed: acme can do nothing here'); refs.pre.appendChild(n); }
       return;
     }
-    refs.pre.textContent = text;
+    codeLines(refs.pre, text, B.tab === 'allow');
+  }
+  /* 1.0.148: the output as lines - numbered, coloured as the shell reads them, wrapped under
+     themselves (nothing cut off, no scrollbar across); "As allow lines" copies each one. The
+     pre's text stays the text exactly (the numbers are drawn by the stylesheet). */
+  function codeLines(pre, text, each) {
+    var lines = String(text || '').split('\n');
+    var nl = lines.length > 1 && lines[lines.length - 1] === '';
+    if (nl) lines.pop();
+    lines.forEach(function (l, i) { pre.appendChild(codeLine(l, each, nl || i < lines.length - 1)); });
+  }
+  function codeLine(l, each, nl) {
+    var row = el('span', 'pb-ln');
+    var t = el('span', 'pb-ln-t');
+    if (/^\s*#/.test(l)) { t.className += ' k-com'; t.textContent = l; }
+    else if (!l.trim()) t.textContent = '';
+    else paintWords(t, l);
+    row.appendChild(t);
+    if (nl) row.appendChild(document.createTextNode('\n'));
+    if (each && l.trim() && l.charAt(0) !== '#') {
+      var b = el('button', 'pb-ln-cp');
+      b.type = 'button';
+      b.title = tr('Copy this command');
+      b.setAttribute('aria-label', tr('Copy this command'));
+      b.appendChild(icon('copy', 13));
+      b.onclick = function (e) { e.stopPropagation(); copyText(l + '\n', null, 'on the clipboard'); b.classList.add('done'); setTimeout(function () { b.classList.remove('done'); }, 1200); taken(); };
+      row.appendChild(b);
+    }
+    return row;
+  }
+
+  function tplCard() {
+    var c = el('div', 'pb-save pb-save-tpl');
+    var h = el('div', 'pb-out-h');
+    h.appendChild(icon('people', 16));
+    h.appendChild(el('b', '', OT.ref ? 'The fleet template' : 'A new fleet template'));
+    c.appendChild(h);
+    c.appendChild(el('p', 'small pb-save-say', OT.ref ? 'Each save is a new version of it; the agents that follow it then show whether they drift from it.' : 'Kept in acme: agents and groups follow it; acme never sends it to a server.'));
+    var t = input(OT.title || '', 'A title - nginx on the web servers', 'pb-title');
+    t.maxLength = 120;
+    var n = el('textarea', 'pb-in pb-note');
+    n.rows = 2;
+    n.placeholder = 'A note - what it is for, why it allows what it allows';
+    n.value = OT.note || '';
+    refs.title = t;
+    refs.note = n;
+    c.appendChild(t);
+    c.appendChild(n);
+    var b = cmdButton(OT.ref ? 'Save a new version' : 'Save the template', 'save', 'primary small');
+    b.onclick = function () {
+      if (R.counts.bad) { toast(tr('the design has lines the agent would not read - fix the red ones first'), 'bad'); return; }
+      var title = t.value.trim();
+      if (!title) { toast(tr('give the template a title'), 'bad'); t.focus(); return; }
+      if (!R.lines.length) { toast(tr('the template allows nothing yet - click together what the agent may do'), 'bad'); return; }
+      busy(b, true);
+      ask('fleet/template_save', {ref: OT.ref || '', title: title, note: n.value.trim(), platform: W() ? 'windows' : 'linux',
+        text: fileText(R), design_state: S}).then(function (x) {
+        taken();
+        toast(tr('the fleet template is saved') + ': ' + ((x && x.template && x.template.title) || title), 'good');
+        closeModal(true);
+        if (opts.fleetDone) opts.fleetDone(x && x.template);
+      }).catch(function (e) { busy(b, false); oops(e); });
+    };
+    var br = el('div', 'btnrow');
+    br.appendChild(b);
+    c.appendChild(br);
+    return c;
   }
   function saveCard() {
+    if (TM) return tplCard();
     var c = el('div', 'pb-save');
     var h = el('div', 'pb-out-h');
     h.appendChild(icon('save', 16));
@@ -2720,7 +2886,7 @@ function build(row, d, opts) {
   function taken() { B.kept = fileText(R); try { MODAL_TYPED = 0; } catch (e) { } }
   /* drawn once everything below is defined */
   function show() {
-    modal('Design the policy of ' + row.name, function (body) {
+    modal(TM ? (OT.ref ? 'Edit the fleet template' : 'New fleet template') + (W() ? ' · Windows' : ' · Linux') : 'Design the policy of ' + row.name, function (body) {
       var pb = el('div', 'pb');
       body.appendChild(pb);
       refs.hero = hero();

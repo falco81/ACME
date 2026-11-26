@@ -28,7 +28,7 @@ const { chromium } = require('playwright');
     document.querySelectorAll('#fl-root *').forEach((x) => {
       const r = x.getBoundingClientRect();
       if (!r.width || !x.offsetParent) return;
-      if (x.closest('.fl-tabs, .fl-diff, .fl-cmd, .fl-tpl-lines')) return;       /* they scroll by themselves */
+      if (x.closest('.fl-tabs, .fl-diff, .fl-cmd')) return;       /* they scroll by themselves */
       if (r.right > window.innerWidth + 1 || r.left < -1) bad.push((x.className || x.tagName) + ' ' + Math.round(r.left) + '-' + Math.round(r.right));
     });
     const mb = document.getElementById('modal-body');
@@ -141,27 +141,48 @@ const { chromium } = require('playwright');
         await page.waitForTimeout(200);
         out.checks[tag + 'as_back'] = await page.evaluate(() => !document.querySelector('.fl-tpl-lines.cmds') && /^allow /.test(document.querySelector('.fl-tpl-lines code').textContent));
       }
+      // ---- 1.0.148: New template… is the policy builder with no agent, saved as a template ----
       if (lang === 'en' && w === 1400) {
+        const appTile = (n) => page.evaluate((k) => document.querySelectorAll('#pb-s-tpl .pb-tpl:not(.pb-ftpl)')[k].click(), n);
         await page.evaluate(() => document.querySelector('.fl-tpl-top .btn.primary').click());
-        await page.waitForFunction(() => document.querySelector('.fl-tpl-ed textarea.mono'), null, {timeout: 10000});
-        await page.fill('.fl-tpl-ed input[type=text]', 'Hand made');
-        await page.fill('.fl-tpl-ed textarea.mono', 'allow nonsense here');
-        await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
-        await page.waitForTimeout(1200);
-        out.checks.tpl_bad_kept = await page.evaluate(() => !!document.querySelector('.fl-tpl-ed'));
-        await page.fill('.fl-tpl-ed textarea.mono', 'allow file /etc/hand owner=root:root mode=0640\nallow unit hand.service reload\n');
+        await page.waitForFunction(() => document.querySelector('.pb-save-tpl') && document.querySelector('#pb-s-tpl .pb-tpl'), null, {timeout: 20000});
+        out.checks.tpl_builder = await page.evaluate(() => document.getElementById('modal-title').textContent + ' | ' + !!document.querySelector('.pb-plat') + ' ' +
+          !document.getElementById('pb-s-needs') + ' ' + document.querySelectorAll('.pb-tab').length + ' ' + document.querySelector('.pb-seg-b.on').textContent);
+        await page.fill('.pb-save-tpl .pb-title', 'Hand made');
+        await page.evaluate(() => document.querySelector('.pb-save-tpl .btn.primary').click());
+        await page.waitForTimeout(700);
+        out.checks.tpl_bad_kept = await page.evaluate(() => !!document.querySelector('.pb-save-tpl'));
+        await appTile(0);
+        await page.waitForTimeout(300);
+        /* the output: numbered lines wrapped under themselves - nothing across, one copy each */
+        await page.evaluate(() => document.querySelectorAll('.pb-tab')[1].click());
+        await page.waitForTimeout(200);
+        out.checks.tpl_out = await page.evaluate(() => { const p = document.querySelector('.pb-pre');
+          return p.querySelectorAll('.pb-ln').length > 0 && p.querySelectorAll('.pb-ln-cp').length === p.querySelectorAll('.pb-ln').length &&
+            p.scrollWidth <= p.clientWidth + 1 && !!p.querySelector('.k-bin') && /acme-agent allow/.test(p.textContent) && !!document.querySelector('.pb-term-bar .pb-term-n'); });
+        await page.evaluate(() => { window.copyText = function (t) { window.COPIED = t; }; document.querySelector('.pb-pre .pb-ln-cp').click(); });
+        out.checks.tpl_line_copy = await page.evaluate(() => /^(sudo )?acme-agent allow \S/.test(window.COPIED || '') && !/\n./.test(window.COPIED || ''));
+        await page.evaluate(() => document.querySelectorAll('.pb-tab')[0].click());
         await shot(page, 'tpl_new', '#modal-box');
-        await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+        const n1 = await page.evaluate(() => document.querySelectorAll('.pb-pre .pb-ln').length);
+        await page.evaluate(() => document.querySelector('.pb-save-tpl .btn.primary').click());
         await page.waitForFunction(() => Array.from(document.querySelectorAll('.fl-tpl.own b')).some(b => b.textContent === 'Hand made'), null, {timeout: 15000});
-        out.checks.tpl_new = await page.evaluate(() => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made/.test(c.textContent))[0]; return c.querySelectorAll('.fl-tpl-lines code').length + ' ' + c.innerText.includes('v1'); });
+        await page.waitForTimeout(300);
+        out.checks.tpl_new = await page.evaluate((n) => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made/.test(c.textContent))[0];
+          return (c.querySelectorAll('.fl-tpl-lines code').length === n) + ' ' + c.innerText.includes('v1') + ' ' + !document.querySelector('.pb-save-tpl'); }, n1);
         await page.evaluate(() => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made/.test(c.textContent))[0]; Array.from(c.querySelectorAll('.btn')).filter(b => /Edit/.test(b.textContent))[0].click(); });
-        await page.waitForFunction(() => document.querySelector('.fl-tpl-ed select[disabled]') && /hand.service/.test(document.querySelector('.fl-tpl-ed textarea.mono').value), null, {timeout: 10000}).catch(() => {});
-        out.checks.tpl_edit_pl_locked = await page.evaluate(() => document.querySelectorAll('.fl-tpl-ed').length === 1 && document.querySelector('.fl-tpl-ed select').disabled);
-        await page.fill('.fl-tpl-ed textarea.mono', 'allow file /etc/hand owner=root:root mode=0640\nallow unit hand.service reload\nallow test -- hand -t\n');
-        await page.fill('.fl-tpl-ed input[type=text]', 'Hand made 2');
-        await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+        await page.waitForFunction(() => document.querySelector('.pb-save-tpl') && document.querySelectorAll('.pb-pre .pb-ln').length > 0, null, {timeout: 20000});
+        out.checks.tpl_edit_pl_locked = await page.evaluate((n) => !document.querySelector('.pb-plat') && document.querySelectorAll('.pb-pre .pb-ln').length === n &&
+          document.querySelector('.pb-save-tpl .pb-title').value === 'Hand made' && /Edit the fleet template/.test(document.getElementById('modal-title').textContent), n1);
+        await appTile(1);
+        await page.waitForTimeout(300);
+        const n2 = await page.evaluate(() => document.querySelectorAll('.pb-pre .pb-ln').length);
+        await page.fill('.pb-save-tpl .pb-title', 'Hand made 2');
+        await page.evaluate(() => document.querySelector('.pb-save-tpl .btn.primary').click());
         await page.waitForFunction(() => Array.from(document.querySelectorAll('.fl-tpl.own b')).some(b => b.textContent === 'Hand made 2'), null, {timeout: 15000});
-        out.checks.tpl_edit = await page.evaluate(() => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made 2/.test(c.textContent))[0]; return c.querySelectorAll('.fl-tpl-lines code').length + ' ' + c.innerText.includes('v2') + ' ' + Array.from(document.querySelectorAll('.fl-tpl.own b')).filter(b => /^Hand made/.test(b.textContent)).length; });
+        await page.waitForTimeout(300);
+        out.checks.tpl_edit = await page.evaluate((n) => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made 2/.test(c.textContent))[0];
+          return (c.querySelectorAll('.fl-tpl-lines code').length === n && n > 0) + ' ' + c.innerText.includes('v2') + ' ' + Array.from(document.querySelectorAll('.fl-tpl.own b')).filter(b => /^Hand made/.test(b.textContent)).length; }, n2);
         await shot(page, 'tpl_after_edit');
       }
       // ---- the builder from a template: its fleet templates ----

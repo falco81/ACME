@@ -596,6 +596,28 @@ def builder(store, row):
             'design': design_view(store, row, a.get('policy'))}
 
 
+def builder_blank(store, platform):
+    """The builder for a fleet template (1.0.148): no agent, no server - the facts of the
+    platform's agent, the CAs acme knows, the templates; nothing found, nothing deployed."""
+    G = _G()
+    windows = platform == 'windows'
+    m = G.agent_mod_windows() if windows else G.agent_mod()
+    facts = m.policy_facts()
+    if windows:
+        facts = dict(facts, platform='windows')
+    try:
+        from acmelib.certs import agent_deployguard
+        cas = [{k: c[k] for k in ('fp', 'title', 'subject', 'root', 'kind', 'sources', 'certs',
+                                  'here', 'not_after')} for c in agent_deployguard.known_cas(store)]
+    except Exception:                                   # noqa: BLE001
+        cas = []
+    return {'agent': {}, 'facts': facts, 'discovered': None,
+            'guard': {'cas': cas, 'names': [], 'keys': None},
+            'templates': templates_windows() if windows else templates(),
+            'platform': 'windows' if windows else 'linux',
+            'needs': [], 'acme_from': acme_addresses(store), 'design': None, 'blank': True}
+
+
 # ---- the design kept with the target --------------------------------------------------------------
 def _canon_lines(m, pol_or_text):
     """The policy as its lines (`acme-agent policy show`): of a policy the agent said, or of

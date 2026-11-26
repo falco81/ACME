@@ -10,6 +10,7 @@ The pages ask them as fleet, fleet/templates, fleet/act ... (admin/index.php rel
     GET  /api/fleet/templates[?platform=]   the templates with their builder state (the policy
                                             builder prefills from them)
     GET  /api/fleet/template?ref=           one template with its policy text
+    GET  /api/fleet/builder?platform=       the policy builder with no agent (a new template)
     POST /api/fleet/template_save {ref?, title, note, platform, text, design_state}
                                                                              full administrator
     POST /api/fleet/template_delete {ref}                                    full administrator
@@ -64,6 +65,13 @@ def _template(h, s):
     if not t:
         raise LookupError('there is no such template')
     return {'template': t}
+
+
+@A.api('GET', '/api/fleet/builder')
+def _blank_builder(h, s):
+    _whole(s)
+    from acmelib.certs import agent_policy as P
+    return P.builder_blank(h.store, 'windows' if h.arg('platform') == 'windows' else 'linux')
 
 
 @A.api('POST', '/api/fleet/template_save', 'fulladmin')

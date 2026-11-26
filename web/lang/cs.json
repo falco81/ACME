@@ -78759,6 +78759,86 @@
   "z_3386": {
    "source": "Copies the lines as acme-agent commands, one entry a command.",
    "text": "Zkopíruje řádky jako příkazy acme-agent, jeden příkaz na položku."
+  },
+  "z_3387": {
+   "source": "New fleet template · Linux",
+   "text": "Nová šablona flotily · Linux"
+  },
+  "z_3388": {
+   "source": "New fleet template · Windows",
+   "text": "Nová šablona flotily · Windows"
+  },
+  "z_3389": {
+   "source": "Edit the fleet template · Linux",
+   "text": "Upravit šablonu flotily · Linux"
+  },
+  "z_3390": {
+   "source": "Edit the fleet template · Windows",
+   "text": "Upravit šablonu flotily · Windows"
+  },
+  "z_3391": {
+   "source": "Click together what the agent may do on every server of this kind. Saved as a fleet template: agents and groups follow it, and the builder of each server starts from it. acme never sends a policy to a server.",
+   "text": "Naklikejte, co smí agent dělat na každém serveru tohoto druhu. Uloží se jako šablona flotily: řídí se jí agenti i skupiny a návrhář každého serveru z ní může vyjít. acme nikdy politiku na server neposílá."
+  },
+  "z_3392": {
+   "source": "the template",
+   "text": "šablona"
+  },
+  "z_3393": {
+   "source": "Start again for the other platform? What was changed here is lost.",
+   "text": "Začít znovu pro druhou platformu? Co jste tu změnili, se ztratí."
+  },
+  "z_3394": {
+   "source": "The fleet template",
+   "text": "Šablona flotily"
+  },
+  "z_3395": {
+   "source": "A new fleet template",
+   "text": "Nová šablona flotily"
+  },
+  "z_3396": {
+   "source": "Each save is a new version of it; the agents that follow it then show whether they drift from it.",
+   "text": "Každé uložení je její nová verze; agenti, kteří se jí řídí, pak ukážou, zda se od ní odchylují."
+  },
+  "z_3397": {
+   "source": "Kept in acme: agents and groups follow it; acme never sends it to a server.",
+   "text": "Uložena v acme: řídí se jí agenti i skupiny; acme ji nikdy na server neposílá."
+  },
+  "z_3398": {
+   "source": "A title - nginx on the web servers",
+   "text": "Název – nginx na webových serverech"
+  },
+  "z_3399": {
+   "source": "A note - what it is for, why it allows what it allows",
+   "text": "Poznámka – k čemu je a proč povoluje, co povoluje"
+  },
+  "z_3400": {
+   "source": "the template allows nothing yet - click together what the agent may do",
+   "text": "šablona zatím nic nepovoluje – naklikejte, co smí agent dělat"
+  },
+  "z_3401": {
+   "source": "Copy this command",
+   "text": "Kopírovat tento příkaz"
+  },
+  "z_3402": {
+   "source": "A template is a whole policy for one kind of server. New template… opens the policy builder and keeps what is clicked together there as your own. acme never sends a policy: root writes it on the server.",
+   "text": "Šablona je celá politika pro jeden druh serveru. Nová šablona… otevře návrhář politiky a to, co v něm naklikáte, uloží jako vaši vlastní. acme politiku nikdy neposílá: na serveru ji zapíše root."
+  },
+  "z_3403": {
+   "source": "bash · sudo",
+   "text": "bash · sudo"
+  },
+  "z_3404": {
+   "source": "bash · root",
+   "text": "bash · root"
+  },
+  "z_3405": {
+   "source": "PowerShell (Administrator)",
+   "text": "PowerShell (správce)"
+  },
+  "z_3406": {
+   "source": "policy · the server → here",
+   "text": "politika · server → zde"
   }
  },
  "patterns": {
@@ -110625,6 +110705,18 @@
   "pz_1430": {
    "source": "{0} a file at most",
    "text": "nejvýš {0} na soubor"
+  },
+  "pz_1431": {
+   "source": "changes: {0}",
+   "text": "změn: {0}"
+  },
+  "pz_1432": {
+   "source": "commands: {0}",
+   "text": "příkazů: {0}"
+  },
+  "pz_1433": {
+   "source": "entries: {0}",
+   "text": "položek: {0}"
   }
  },
  "rich": {

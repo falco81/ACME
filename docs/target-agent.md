@@ -226,6 +226,10 @@ agent checks it, and copied to the server. acme never sends a policy: root write
   to what is there), **one block to paste** into a root shell, and what changes against the
   server's policy (+ / -). Copy, Download policy file; **with sudo** (Linux, on by default, kept
   in the browser) - off, the lines and the block are as typed in a root shell, without `sudo`.
+  Shown in a terminal window (1.0.148): its title says what it is (the policy file's path, bash
+  with sudo or as root, PowerShell), numbered lines coloured as the shell reads them, wrapped
+  between words under themselves - no scrollbar across; *As allow lines* copies each command on
+  its own (the button at the line's end).
 
 ```
 sudo acme-agent policy apply - <<'EOF'

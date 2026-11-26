@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.148 - not released
 
+- Agent fleet → Templates: **New template…** opens the policy builder itself (no agent: every section, its checks and output, Linux or Windows) and saves what is clicked together as a fleet template; **Edit…** opens one of yours there - each save a new version.
+- The policy builder's output is a terminal window: numbered lines coloured as the shell reads them, wrapped between words - no scrollbar across, nothing cut off; *As allow lines* copies each command on its own.
+- Template cards show every line of the policy whole (no "more lines", no cut-off ends), coloured the same way; the builder's template tiles wrap their paths instead of cutting them.
+
 ## 1.0.147 - 2026-11-26
 
 - Agent fleet → Templates: **New template…** writes a template of your own by hand (title, platform, start from any template, note, the policy text) and **Edit…** changes one of yours - each save a new version, its text checked as the agent reads it, a line it would not read said under the text.
