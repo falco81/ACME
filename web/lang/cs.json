@@ -78655,6 +78655,30 @@
   "z_3360": {
    "source": "kept as",
    "text": "uloženo jako"
+  },
+  "z_3361": {
+   "source": "Deployed only when",
+   "text": "Nasadí se jen, když"
+  },
+  "z_3362": {
+   "source": "its key was made on this server (require key local)",
+   "text": "jeho klíč vznikl na tomto serveru (require key local)"
+  },
+  "z_3363": {
+   "source": "issued by one of",
+   "text": "ho vydala jedna z"
+  },
+  "z_3364": {
+   "source": "its names among",
+   "text": "jeho jména jsou mezi"
+  },
+  "z_3365": {
+   "source": "Audit",
+   "text": "Audit"
+  },
+  "z_3366": {
+   "source": "every operation also into the hash chain",
+   "text": "každá operace také do řetězce hashů"
   }
  },
  "patterns": {
@@ -110513,6 +110537,14 @@
   "pz_1428": {
    "source": "adding {0}: the device said 409 - {1}",
    "text": "přidání {0}: zařízení odpovědělo 409 - {1}"
+  },
+  "pz_1429": {
+   "source": "{0} files in one job",
+   "text": "{0} souborů v jedné úloze"
+  },
+  "pz_1430": {
+   "source": "{0} a file at most",
+   "text": "nejvýš {0} na soubor"
   }
  },
  "rich": {

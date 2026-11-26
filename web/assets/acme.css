@@ -495,7 +495,13 @@
   .btn.danger:hover:not(:disabled){border-color:var(--crit);color:var(--crit)}
   .btn.primary{background:var(--info-bg);border-color:rgba(88,166,255,.35);color:var(--info)}
   .btn.small{padding:5px 10px;font-size:12.5px;border-radius:8px}
-  .btn.busy{opacity:.6;cursor:progress}
+  .btn.busy{opacity:.75;cursor:progress;position:relative;overflow:hidden}
+  /* anything waiting for an answer (Ask it now, Look now, Test…): a thin bar running along
+     the bottom of its button - quiet, only where the wait is */
+  .btn.busy::after{content:'';position:absolute;left:-30%;bottom:0;width:30%;height:2px;
+    border-radius:2px;background:linear-gradient(90deg,transparent,var(--info),transparent);
+    animation:asking 1.1s ease-in-out infinite;pointer-events:none}
+  @media (prefers-reduced-motion: reduce){.btn.busy::after{animation-duration:2.6s}}
   .btn svg{flex:0 0 auto;opacity:.85}
   .btn:hover:not(:disabled) svg{opacity:1}
   .btn.cmd{display:inline-flex;align-items:center;gap:9px;padding:10px 16px}

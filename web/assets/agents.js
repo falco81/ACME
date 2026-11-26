@@ -1514,7 +1514,35 @@ function policyView(pol, at) {
   group('Discovery', arr(pol.discover).length ? [1] : [], function () {
     return arr(pol.discover)[0] === '*' ? line('every kind this agent knows (read-only)', '') : line('read-only:', arr(pol.discover).join(', '));
   });
+  /* what a deployment may deploy (allow issuer / names, require key local) and the hash chain:
+     allowed on the server, not shown here before */
+  group('Deployed only when', (pol.key_local ? [{key: true}] : []).concat(arr(pol.issuers).length ? [{iss: true}] : []).concat(arr(pol.names).length ? [{names: true}] : []), function (x) {
+    if (x.key) return line('its key was made on this server (require key local)', '');
+    var r;
+    if (x.iss) {
+      r = line('issued by one of', '');
+      var m = el('span', 'ag-pol-m');
+      arr(pol.issuers).forEach(function (fp) { var f = mono(String(fp).slice(0, 16) + '…'); explain(f, 'SHA-256 ' + fp); m.appendChild(f); });
+      r.appendChild(m);
+      return r;
+    }
+    r = line('its names among', '');
+    var mn = el('span', 'ag-pol-m');
+    arr(pol.names).forEach(function (n) { mn.appendChild(mono(String(n))); });
+    r.appendChild(mn);
+    return r;
+  });
+  group('Audit', pol.audit_chain ? [1] : [], function () { return line('every operation also into the hash chain', 'audit chain'); });
   if (!any) box.appendChild(el('p', 'ag-pol-none', 'Nothing is allowed yet: acme can do nothing on this server. Allow what its deployments need there (acme-agent allow …) - each deployment says what it needs.'));
+  /* the limits of one job - always in effect, said even when they are the defaults */
+  var lim = pol.limits && typeof pol.limits === 'object' ? pol.limits : {};
+  if (any && (lim.files || lim.size)) {
+    var lr = el('div', 'ag-pol-lim');
+    lr.appendChild(el('span', 'dbw-k', 'Limits'));
+    if (lim.files) lr.appendChild(data('span', 'small', tr('{0} files in one job').replace('{0}', lim.files)));
+    if (lim.size) lr.appendChild(data('span', 'small', tr('{0} a file at most').replace('{0}', sizeWords(lim.size))));
+    box.appendChild(lr);
+  }
   arr(pol.problems).forEach(function (p) { box.appendChild(data('div', 'note warn small', String(p))); });
   return box;
 }

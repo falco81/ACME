@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.146 - not released
 
+- The agent's "What its policy allows" shows everything the policy on the server allows: also what a deployment may deploy (allow issuer, allow names, require key local), the audit chain and the limits of one job.
+- Anything waiting for an answer (Ask it now, Look now, Verify now, Test…) shows a thin running bar along the bottom of its button.
+- The files a discovered service uses (certificate, key) are aligned: the role and owner on one line, the path below; the rows of the cards of "Watching this agent" stay aligned in a narrow card (the name above, the value below).
+- Trash: more even room between the days left, the icon buttons and Restore.
+
 ## 1.0.145 - 2026-11-26
 
 - NetScaler target: when the intermediate was on the device already under another certkey (added by hand or by another tool, e.g. `LE-YE2-…` after switching the CA), NITRO refused adding it 409 / errorcode 273 "Resource already exists [certkeyName Contents, <name>]" and the deployment failed - tried again every 5 minutes, failing the same, the server sending no intermediate; that certkey is linked now (left as it is, the copy uploaded deleted again), and at later renewals the certificate's link to it is seen by its serial number, nothing uploaded. Another 409 there stays an error, not tried again by itself.
