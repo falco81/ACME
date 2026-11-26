@@ -1229,6 +1229,17 @@ class Pages(unittest.TestCase):
         self.assertEqual(c['en1400_tab'], 'Groups')
         self.assertEqual(c['cs1400_tab'], 'Skupiny')
         self.assertNotIn('Groups', c['cs1400_words'])
+        for tag in ('en1400_', 'cs1400_'):
+            self.assertIs(c[tag + 'as_cmds'], True, tag)
+            self.assertIs(c[tag + 'as_back'], True, tag)
+        self.assertIn('acme-agent', c['cs1400_as_words'])
+        self.assertIn('Nová šablona', c['cs1400_as_words'])
+        self.assertIs(c['tpl_bad_kept'], True)
+        self.assertEqual(c['tpl_new'], '2 true')
+        self.assertIs(c['tpl_edit_pl_locked'], True)
+        self.assertEqual(c['tpl_edit'], '3 true 1')
+        self.assertIs(c['builder_sudo_on'], True)
+        self.assertIs(c['builder_sudo_off'], True)
         self.assertIn('builder_fleet', c)
         self.assertGreaterEqual(c['builder_fleet'], 5)
 

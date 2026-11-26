@@ -1279,6 +1279,16 @@ function designBox(row, a, reload) {
     var cb = cmdButton('Copy policy', 'copy', 'small');
     cb.onclick = function () { copyText(String(D.text || ''), cb, 'on the clipboard'); };
     bar.appendChild(cb);
+    /* 1.0.147: the same entries as acme-agent commands (no sudo: a root shell) */
+    var cc = cmdButton('Copy as commands', 'terminal', 'small');
+    cc.onclick = function () {
+      var C = window.ACME_POLICY_CORE;
+      var win = (a.platform || row.platform) === 'windows';
+      var lines = String(D.text || '').split('\n');
+      copyText((C && C.asCommands ? C.asCommands(lines, win, false) : lines.filter(function (l) { return l.trim() && l.trim()[0] !== '#'; }).map(function (l) { return 'acme-agent ' + l.trim(); })).join('\n') + '\n', cc, 'on the clipboard');
+    };
+    explain(cc, 'Each entry of the design as the command that adds it on the server - acme-agent allow ..., in a root shell (an elevated prompt on Windows).');
+    bar.appendChild(cc);
     var db = cmdButton('Download', 'download', 'small');
     db.onclick = function () {
       var x = document.createElement('a');

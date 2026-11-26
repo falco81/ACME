@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.147 - not released
 
+- Agent fleet → Templates: **New template…** writes a template of your own by hand (title, platform, start from any template, note, the policy text) and **Edit…** changes one of yours - each save a new version, its text checked as the agent reads it, a line it would not read said under the text.
+- Templates show and copy their lines as the policy file or as `acme-agent ...` commands (no sudo) - one choice for every card, kept; an agent's saved design has **Copy as commands** too.
+- Policy builder: the allow lines and the block to paste have a **with sudo** switch (on, as before; off for a root shell).
+
 ## 1.0.146 - 2026-11-26
 
 - The agent's "What its policy allows" shows everything the policy on the server allows: also what a deployment may deploy (allow issuer, allow names, require key local), the audit chain and the limits of one job.

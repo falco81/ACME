@@ -353,3 +353,12 @@
   .pb-cas{grid-template-columns:minmax(0,1fr)}
   .pb-gcard-sw{margin-left:0}
 }
+
+/* 1.0.147: the commands with sudo or without */
+.pb-sudo{appearance:none;display:inline-flex;align-items:center;gap:7px;margin-left:auto;padding:5px 10px;border:1px solid var(--line);border-radius:999px;
+  background:transparent;color:var(--tx-dim);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.pb-sudo:hover{border-color:color-mix(in srgb,var(--info) 45%,var(--line));color:var(--tx)}
+.pb-sudo-mk{width:14px;height:14px;border-radius:4px;border:1px solid var(--tx-mut);display:grid;place-items:center;font-size:10px;line-height:1;color:#fff}
+.pb-sudo.on{color:var(--tx)}
+.pb-sudo.on .pb-sudo-mk{background:var(--info);border-color:var(--info)}
+.pb-out-bar{align-items:center}

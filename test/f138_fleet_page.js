@@ -128,6 +128,42 @@ const { chromium } = require('playwright');
         await shot(page, tag + 'group_edit', '#modal-box');
         await close(page);
       }
+      // ---- 1.0.147: the lines as acme-agent commands; a template written and edited by hand ----
+      if (w === 1400) {
+        await tab(page, 2);
+        await page.evaluate(() => document.querySelectorAll('.fl-tpl-as button')[1].click());
+        await page.waitForFunction(() => document.querySelector('.fl-tpl-lines.cmds'), null, {timeout: 10000});
+        out.checks[tag + 'as_cmds'] = await page.evaluate(() => Array.from(document.querySelectorAll('.fl-tpl-lines.cmds code')).every(c => /^acme-agent (allow|limit|require|audit) /.test(c.textContent)) &&
+          !Array.from(document.querySelectorAll('.fl-tpl-lines code')).some(c => /sudo/.test(c.textContent)));
+        out.checks[tag + 'as_words'] = await page.evaluate(() => document.querySelector('.fl-tpl-as').innerText + ' | ' + document.querySelector('.fl-tpl-top .btn.primary').innerText);
+        await shot(page, tag + 'templates_cmds');
+        await page.evaluate(() => document.querySelectorAll('.fl-tpl-as button')[0].click());
+        await page.waitForTimeout(200);
+        out.checks[tag + 'as_back'] = await page.evaluate(() => !document.querySelector('.fl-tpl-lines.cmds') && /^allow /.test(document.querySelector('.fl-tpl-lines code').textContent));
+      }
+      if (lang === 'en' && w === 1400) {
+        await page.evaluate(() => document.querySelector('.fl-tpl-top .btn.primary').click());
+        await page.waitForFunction(() => document.querySelector('.fl-tpl-ed textarea.mono'), null, {timeout: 10000});
+        await page.fill('.fl-tpl-ed input[type=text]', 'Hand made');
+        await page.fill('.fl-tpl-ed textarea.mono', 'allow nonsense here');
+        await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+        await page.waitForTimeout(1200);
+        out.checks.tpl_bad_kept = await page.evaluate(() => !!document.querySelector('.fl-tpl-ed'));
+        await page.fill('.fl-tpl-ed textarea.mono', 'allow file /etc/hand owner=root:root mode=0640\nallow unit hand.service reload\n');
+        await shot(page, 'tpl_new', '#modal-box');
+        await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+        await page.waitForFunction(() => Array.from(document.querySelectorAll('.fl-tpl.own b')).some(b => b.textContent === 'Hand made'), null, {timeout: 15000});
+        out.checks.tpl_new = await page.evaluate(() => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made/.test(c.textContent))[0]; return c.querySelectorAll('.fl-tpl-lines code').length + ' ' + c.innerText.includes('v1'); });
+        await page.evaluate(() => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made/.test(c.textContent))[0]; Array.from(c.querySelectorAll('.btn')).filter(b => /Edit/.test(b.textContent))[0].click(); });
+        await page.waitForFunction(() => document.querySelector('.fl-tpl-ed textarea.mono') && /hand.service/.test(document.querySelector('.fl-tpl-ed textarea.mono').value), null, {timeout: 10000});
+        out.checks.tpl_edit_pl_locked = await page.evaluate(() => document.querySelector('.fl-tpl-ed select').disabled);
+        await page.fill('.fl-tpl-ed textarea.mono', 'allow file /etc/hand owner=root:root mode=0640\nallow unit hand.service reload\nallow test -- hand -t\n');
+        await page.fill('.fl-tpl-ed input[type=text]', 'Hand made 2');
+        await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+        await page.waitForFunction(() => Array.from(document.querySelectorAll('.fl-tpl.own b')).some(b => b.textContent === 'Hand made 2'), null, {timeout: 15000});
+        out.checks.tpl_edit = await page.evaluate(() => { const c = Array.from(document.querySelectorAll('.fl-tpl.own')).filter(c => /Hand made 2/.test(c.textContent))[0]; return c.querySelectorAll('.fl-tpl-lines code').length + ' ' + c.innerText.includes('v2') + ' ' + Array.from(document.querySelectorAll('.fl-tpl.own b')).filter(b => /^Hand made/.test(b.textContent)).length; });
+        await shot(page, 'tpl_after_edit');
+      }
       // ---- the builder from a template: its fleet templates ----
       if (lang === 'en' && w === 1400) {
         await tab(page, 2);
@@ -141,6 +177,16 @@ const { chromium } = require('playwright');
         out.checks.builder_from = await page.evaluate(() => document.querySelector('.pb-seg-b.on').textContent);
         await page.evaluate(() => document.querySelector('.pb-fleet').scrollIntoView());
         await shot(page, 'builder_fleet', '#modal-box');
+        /* 1.0.147: the allow lines with sudo or without */
+        await page.evaluate(() => document.querySelectorAll('.pb-tab')[1].click());
+        await page.waitForTimeout(200);
+        out.checks.builder_sudo_on = await page.evaluate(() => /^sudo acme-agent /m.test(document.querySelector('.pb-pre').textContent));
+        await page.evaluate(() => document.querySelector('.pb-sudo').click());
+        await page.waitForTimeout(200);
+        out.checks.builder_sudo_off = await page.evaluate(() => !/sudo/.test(document.querySelector('.pb-pre').textContent) && /^acme-agent allow /m.test(document.querySelector('.pb-pre').textContent));
+        await page.evaluate(() => document.querySelector('.pb-sudo').scrollIntoView({block: 'center'}));
+        await shot(page, 'builder_sudo', '#modal-box');
+        await page.evaluate(() => document.querySelector('.pb-sudo').click());
         await close(page);
       }
       await ctx.close();

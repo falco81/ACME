@@ -60,6 +60,21 @@ same title again saves a new version of it (the last ten kept). Its text is read
 reads a policy file: a line it would not read is refused. A template saved through the API
 without the builder's state gets one made from its lines.
 
+**By hand** (1.0.147, a full administrator): **New template…** on the Templates view - a title,
+the platform, *Start from* (empty, or a copy of any template of that platform), a note and the
+policy text, one entry a line as in the agent's policy file. **Edit…** on a template of your own
+opens the same with its text (the platform fixed); each save is a new version, a changed title
+included. The text is checked on save as the agent reads it: a line it would not read is refused
+and said under the text, nothing saved. The builder's state is made from the lines.
+
+**Policy lines / acme-agent commands** (1.0.147) above the cards: the cards' lines - and what
+*Copy* copies - as the policy file, or as the commands that write the same entries on the server,
+one each, without sudo (a root shell; an elevated prompt on Windows): `allow file DIR
+owner=U:G mode=M` is `acme-agent allow file DIR --owner U:G --mode M` (Windows `readers=` is
+`--readers`), a script `acme-agent allow script PATH` (its SHA-256 read there), `audit chain` is
+`acme-agent audit on`, any other entry `acme-agent` and the line. The choice is kept in the
+browser. The agent's saved design has **Copy as commands** the same way.
+
 **In the builder**, the section *Templates* starts with **Fleet templates** (those of the agent's
 platform): one click adds all of one to what is there (nothing taken away); a template whose
 lines are all there is ticked. *Open in the builder…* on the Templates view starts the builder

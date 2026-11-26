@@ -224,7 +224,8 @@ agent checks it, and copied to the server. acme never sends a policy: root write
 * **The output**, live: the policy file in the agent's own format (its head, then the lines as
   `acme-agent policy show` writes them), the same as `sudo acme-agent allow ...` lines (each adds
   to what is there), **one block to paste** into a root shell, and what changes against the
-  server's policy (+ / -). Copy, Download policy file.
+  server's policy (+ / -). Copy, Download policy file; **with sudo** (Linux, on by default, kept
+  in the browser) - off, the lines and the block are as typed in a root shell, without `sudo`.
 
 ```
 sudo acme-agent policy apply - <<'EOF'

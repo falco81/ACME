@@ -238,6 +238,17 @@
   overflow:hidden;font-size:11.5px}
 .fl-tpl-lines code{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx-dim);font-family:ui-monospace,Menlo,Consolas,monospace}
 .fl-tpl-a{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+/* 1.0.147: lines as policy or as acme-agent commands; a template written by hand */
+.fl-tpl-top{justify-content:space-between;align-items:flex-start;gap:10px 16px}
+.fl-tpl-top > .muted{flex:1 1 380px;max-width:900px}
+.fl-tpl-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fl-tpl-as button{padding:5px 11px;font-size:12px}
+.fl-tpl-lines.cmds code{color:var(--tx)}
+.fl-tpl-ed-row{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:11px}
+.fl-tpl-ed-text{min-height:230px;font-size:12.5px !important;line-height:1.55;white-space:pre;overflow:auto;resize:vertical}
+
+.fl-tpl-ed-err{margin:0;padding:8px 11px;border-radius:9px;border:1px solid color-mix(in srgb,var(--crit) 45%,var(--line));background:color-mix(in srgb,var(--crit) 9%,transparent);color:var(--crit);font-weight:600}
+@media (max-width:560px){.fl-tpl-ed-row{grid-template-columns:minmax(0,1fr)}}
 
 /* ---- updates ---- */
 .fl-upd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:12px;align-items:start}

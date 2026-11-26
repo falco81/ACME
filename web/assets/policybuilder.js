@@ -884,6 +884,34 @@ function allowLinesWin(R) {
   });
   return out;
 }
+/** Policy lines (a template's, a design's) as the commands that write them on the server
+    (1.0.147): one `acme-agent ...` per entry - a file's owner=/mode= (Windows readers=) as the
+    command's options, a script's sha256= read again there (allow script PATH pins it), the
+    audit chain `audit on`. sudo only when asked (never on Windows: an elevated prompt). */
+function asCommands(lines, win, sudo) {
+  var A = (sudo && !win ? 'sudo ' : '') + 'acme-agent ', out = [], q = win ? wq : quote;
+  arr(lines).forEach(function (raw) {
+    var l = String(raw == null ? '' : raw).trim();
+    if (!l || l.charAt(0) === '#') return;
+    if (l === 'audit chain') { out.push(A + 'audit on'); return; }
+    var w = null;
+    try { w = win ? splitWin(l) : split(l); } catch (e) { w = null; }
+    if (w && w[0] === 'allow' && (w[1] === 'file' || w[1] === 'script')) {
+      var kv = {}, rest = [];
+      w.slice(2).forEach(function (x) { var m = /^([a-z0-9_-]+)=(.*)$/.exec(x); if (m) kv[m[1]] = m[2]; else rest.push(x); });
+      if (rest.length === 1) {
+        if (w[1] === 'script') { out.push(A + 'allow script ' + q(rest[0])); return; }
+        var c = A + 'allow file ' + q(rest[0]);
+        if (win) { if (kv.readers) c += ' --readers ' + wq(kv.readers); }
+        else { if (kv.owner) c += ' --owner ' + quote(kv.owner); if (kv.mode) c += ' --mode ' + quote(kv.mode); }
+        out.push(c);
+        return;
+      }
+    }
+    out.push(A + l);
+  });
+  return out;
+}
 /** One block to paste on the server: the whole policy written (checked first there). */
 function oneShot(R) {
   if (W()) {
@@ -1118,7 +1146,7 @@ function hasTemplate(s, R, t) {
 var CORE = {setFacts: setFacts, facts: function () { return F; }, discKinds: discKinds, quote: quote, split: split, normDir: normDir, normUnit: normUnit,
   wq: wq, splitWin: splitWin, normWin: normWin, protectedWhyWin: protectedWhyWin,
   ipNetwork: ipNetwork, normHostport: normHostport, protectedWhy: protectedWhy, empty: empty, fromPolicy: fromPolicy,
-  fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, oneShot: oneShot, diff: diff, covers: covers,
+  fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, asCommands: asCommands, oneShot: oneShot, diff: diff, covers: covers,
   addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, mergeState: mergeState, oct4: oct4, Bad: Bad,
   namePattern: namePattern};
 if (typeof module === 'object' && module.exports) { module.exports = CORE; return; }
@@ -1219,7 +1247,8 @@ function build(row, d, opts) {
   var version = !!(opts.state || opts.text);
   /* 1.0.138: opened from the fleet with a template (fleet.js): it is what the builder starts from */
   var FT = opts.fleetTemplate && (opts.fleetTemplate.state || opts.fleetTemplate.text) ? opts.fleetTemplate : null;
-  var B = {from: FT ? 'fleet' : (version ? 'version' : (opts.from || (D ? 'design' : 'server'))), tab: 'file', q: '', fleet: null};
+  var B = {from: FT ? 'fleet' : (version ? 'version' : (opts.from || (D ? 'design' : 'server'))), tab: 'file', q: '', fleet: null, sudo: true};
+  try { B.sudo = localStorage.getItem('acme.pb.sudo') !== '0'; } catch (e) { /* the default: with sudo */ }
   var S;
   function startFrom(w) {
     B.from = w;
@@ -2445,6 +2474,25 @@ function build(row, d, opts) {
       refs.tabs[t[0]] = b;
       tabs.appendChild(b);
     });
+    /* 1.0.147: the commands with sudo or without (a root shell already) - kept for next time */
+    var su = null;
+    if (!W()) {
+      su = el('button', 'pb-sudo' + (B.sudo ? ' on' : ''));
+      su.type = 'button';
+      su.setAttribute('aria-pressed', B.sudo ? 'true' : 'false');
+      su.appendChild(noI18n(el('span', 'pb-sudo-mk', B.sudo ? '✓' : '')));
+      su.appendChild(el('span', '', 'with sudo'));
+      explain(su, 'The commands begin with sudo. Off: as they are typed in a root shell (sudo -i, su -).');
+      su.onclick = function () {
+        B.sudo = !B.sudo;
+        try { localStorage.setItem('acme.pb.sudo', B.sudo ? '1' : '0'); } catch (e) { /* not kept */ }
+        su.classList.toggle('on', B.sudo);
+        su.setAttribute('aria-pressed', B.sudo ? 'true' : 'false');
+        su.firstChild.textContent = B.sudo ? '✓' : '';
+        paintOut();
+      };
+      refs.sudo = su;
+    }
     card.appendChild(tabs);
     refs.outSay = el('p', 'pb-out-say small');
     card.appendChild(refs.outSay);
@@ -2458,13 +2506,15 @@ function build(row, d, opts) {
     dl.onclick = function () { saveFile('policy', fileText(R)); taken(); };
     bar.appendChild(cp);
     bar.appendChild(dl);
+    if (su) bar.appendChild(su);
     card.appendChild(bar);
     o.appendChild(card);
     o.appendChild(saveCard());
   }
+  function noSudo(t) { return W() || B.sudo ? t : t.replace(/^sudo /gm, ''); }
   function outText() {
-    if (B.tab === 'allow') return allowLines(R).join('\n');
-    if (B.tab === 'once') return oneShot(R);
+    if (B.tab === 'allow') return noSudo(allowLines(R).join('\n'));
+    if (B.tab === 'once') return noSudo(oneShot(R));
     if (B.tab === 'diff') return diff(serverLines || [], R.lines).filter(function (x) { return x.op !== ' '; }).map(function (x) { return x.op + ' ' + x.line; }).join('\n');
     return fileText(R);
   }

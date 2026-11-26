@@ -73226,7 +73226,7 @@
   },
   "z_2003": {
    "source": "give the template a title",
-   "text": "dejte šabloně název"
+   "text": "zadejte název šablony"
   },
   "z_2004": {
    "source": "the fleet template is saved",
@@ -73278,7 +73278,7 @@
   },
   "z_2016": {
    "source": "the template has no policy text",
-   "text": "šablona nemá text politiky"
+   "text": "šablona nemá žádný text politiky"
   },
   "z_2017": {
    "source": "there is no such template",
@@ -78679,6 +78679,86 @@
   "z_3366": {
    "source": "every operation also into the hash chain",
    "text": "každá operace také do řetězce hashů"
+  },
+  "z_3367": {
+   "source": "Show the lines as",
+   "text": "Zobrazit řádky jako"
+  },
+  "z_3368": {
+   "source": "Policy lines",
+   "text": "Řádky politiky"
+  },
+  "z_3369": {
+   "source": "acme-agent commands",
+   "text": "Příkazy acme-agent"
+  },
+  "z_3370": {
+   "source": "Policy lines are the policy file as it is. acme-agent commands are the same entries as commands for a root shell on the server (an elevated prompt on Windows) - each adds to what is allowed there. Copy copies what is shown.",
+   "text": "Řádky politiky jsou soubor politiky tak, jak je. Příkazy acme-agent jsou tytéž položky jako příkazy pro root shell na serveru (na Windows pro příkazový řádek správce) – každý přidá k tomu, co je tam povoleno. Kopírovat zkopíruje to, co je zobrazeno."
+  },
+  "z_3371": {
+   "source": "New template…",
+   "text": "Nová šablona…"
+  },
+  "z_3372": {
+   "source": "Copy commands",
+   "text": "Kopírovat příkazy"
+  },
+  "z_3373": {
+   "source": "Edit the template",
+   "text": "Upravit šablonu"
+  },
+  "z_3374": {
+   "source": "New template",
+   "text": "Nová šablona"
+  },
+  "z_3375": {
+   "source": "A whole policy for one kind of server, kept in acme - the builder adds it with a click, agents and groups follow it. Each save is a new version; acme never sends it to a server.",
+   "text": "Celá politika pro jeden druh serveru, uložená v acme – návrhář ji přidá jedním klepnutím, agenti a skupiny se jí řídí. Každé uložení je nová verze; acme ji na server nikdy neposílá."
+  },
+  "z_3376": {
+   "source": "The policy",
+   "text": "Politika"
+  },
+  "z_3377": {
+   "source": "nginx on the web servers",
+   "text": "nginx na webových serverech"
+  },
+  "z_3378": {
+   "source": "(mine)",
+   "text": "(moje)"
+  },
+  "z_3379": {
+   "source": "What it is for - why it allows what it allows",
+   "text": "K čemu je – proč povoluje to, co povoluje"
+  },
+  "z_3380": {
+   "source": "One entry a line, as in the agent’s policy file (# begins a comment). Saved, it is read as the agent reads it: a line it would not read is refused.",
+   "text": "Jedna položka na řádek, jako v souboru politiky agenta (# začíná komentář). Při uložení se přečte tak, jak ji čte agent: řádek, který by nepřečetl, se odmítne."
+  },
+  "z_3381": {
+   "source": "Save a new version",
+   "text": "Uložit novou verzi"
+  },
+  "z_3382": {
+   "source": "with sudo",
+   "text": "se sudo"
+  },
+  "z_3383": {
+   "source": "The commands begin with sudo. Off: as they are typed in a root shell (sudo -i, su -).",
+   "text": "Příkazy začínají sudo. Vypnuto: tak, jak se píší v root shellu (sudo -i, su -)."
+  },
+  "z_3384": {
+   "source": "Copy as commands",
+   "text": "Kopírovat jako příkazy"
+  },
+  "z_3385": {
+   "source": "Each entry of the design as the command that adds it on the server - acme-agent allow ..., in a root shell (an elevated prompt on Windows).",
+   "text": "Každá položka návrhu jako příkaz, který ji přidá na serveru – acme-agent allow … v root shellu (na Windows v příkazovém řádku správce)."
+  },
+  "z_3386": {
+   "source": "Copies the lines as acme-agent commands, one entry a command.",
+   "text": "Zkopíruje řádky jako příkazy acme-agent, jeden příkaz na položku."
   }
  },
  "patterns": {

@@ -873,9 +873,41 @@ function driftCard(r) {
 }
 
 /* ---- templates ------------------------------------------------------------------------------- */
+/* 1.0.147: the lines shown and copied as they are in the policy file, or as the commands that
+   write them on the server (acme-agent allow ..., no sudo) - one choice for every card, kept */
+try { V.tplAs = localStorage.getItem('acme.fleet.tplAs') === 'commands' ? 'commands' : 'policy'; } catch (e) { V.tplAs = 'policy'; }
+function asCmds(lines, platform) {
+  var C = window.ACME_POLICY_CORE;
+  return C && C.asCommands ? C.asCommands(lines, platform === 'windows', false) : arr(lines).map(function (l) { return 'acme-agent ' + l; });
+}
 function drawTemplates(body, d) {
-  var top = el('div', 'fl-bar');
+  var top = el('div', 'fl-bar fl-tpl-top');
   top.appendChild(el('span', 'muted small', 'A template is a whole policy for one kind of server. The policy builder adds one with a click; Save as a fleet template there keeps your own. acme never sends a policy: root writes it on the server.'));
+  var tools = el('div', 'fl-tpl-tools');
+  var seg = el('div', 'seg fl-tpl-as');
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', tr('Show the lines as'));
+  [['policy', 'Policy lines'], ['commands', 'acme-agent commands']].forEach(function (o) {
+    var b = el('button', V.tplAs === o[0] ? 'on' : '', o[1]);
+    b.type = 'button';
+    b.setAttribute('aria-pressed', V.tplAs === o[0] ? 'true' : 'false');
+    b.onclick = function () {
+      if (V.tplAs === o[0]) return;
+      V.tplAs = o[0];
+      try { localStorage.setItem('acme.fleet.tplAs', V.tplAs); } catch (e) { /* not kept */ }
+      clear(body);
+      drawTemplates(body, d);
+    };
+    seg.appendChild(b);
+  });
+  explain(seg, 'Policy lines are the policy file as it is. acme-agent commands are the same entries as commands for a root shell on the server (an elevated prompt on Windows) - each adds to what is allowed there. Copy copies what is shown.');
+  tools.appendChild(seg);
+  if (FULL) {
+    var nb = cmdButton('New template…', 'add', 'small primary');
+    nb.onclick = function () { tplEdit(null, d); };
+    tools.appendChild(nb);
+  }
+  top.appendChild(tools);
   body.appendChild(top);
   [['linux', 'Linux'], ['windows', 'Windows']].forEach(function (p) {
     var ts = arr(d.templates).filter(function (t) { return t.platform === p[0]; });
@@ -904,19 +936,30 @@ function tplCard(t) {
   if (t.used) h.appendChild(el('span', 'tag info', cnt(t.used, 'agent', 'agents')));
   c.appendChild(h);
   if (t.note) c.appendChild(t.builtin ? el('p', 'fl-tpl-note', t.note) : data('p', 'fl-tpl-note', t.note));
-  var pre = el('div', 'fl-tpl-lines');
-  arr(t.lines).slice(0, 6).forEach(function (l) { pre.appendChild(data('code', '', l)); });
-  if (arr(t.lines).length > 6) pre.appendChild(el('span', 'muted small', cnt(t.lines.length - 6, 'more line', 'more lines')));
+  var cmds = V.tplAs === 'commands';
+  var shown = cmds ? asCmds(t.lines, t.platform) : arr(t.lines);
+  var pre = el('div', 'fl-tpl-lines' + (cmds ? ' cmds' : ''));
+  shown.slice(0, 6).forEach(function (l) { var x = data('code', '', l); x.title = l; pre.appendChild(x); });
+  if (shown.length > 6) pre.appendChild(el('span', 'muted small', cnt(shown.length - 6, 'more line', 'more lines')));
   c.appendChild(pre);
   var a = el('div', 'fl-tpl-a');
   var cp = cmdButton('Copy', 'copy', 'small');
+  if (cmds) explain(cp, 'Copies the lines as acme-agent commands, one entry a command.');
   cp.onclick = function () {
-    ask('fleet/template?ref=' + encodeURIComponent(t.ref)).then(function (x) { copyText(String(x.template.text || ''), cp, 'on the clipboard'); }).catch(oops);
+    ask('fleet/template?ref=' + encodeURIComponent(t.ref)).then(function (x) {
+      var text = String(x.template.text || '');
+      copyText(cmds ? asCmds(text.split('\n'), t.platform).join('\n') + '\n' : text, cp, 'on the clipboard');
+    }).catch(oops);
   };
   a.appendChild(cp);
   var ob = cmdButton('Open in the builder…', 'shield', 'small');
   ob.onclick = function () { openInBuilder(t); };
   a.appendChild(ob);
+  if (FULL && !t.builtin) {
+    var eb = cmdButton('Edit…', 'edit', 'small');
+    eb.onclick = function () { tplEdit(t, V.d); };
+    a.appendChild(eb);
+  }
   if (FULL && !t.builtin) {
     var del = cmdButton('Delete', 'trash', 'small');
     del.onclick = function () {
@@ -928,6 +971,114 @@ function tplCard(t) {
   }
   c.appendChild(a);
   return c;
+}
+/** A template of your own written or changed by hand (1.0.147): its title, note and policy
+    text - checked on save as the agent reads a policy file (fleet.template_save: a line it would
+    not read is refused, and said). A new one may start from any template of its platform. */
+function tplEdit(t, d) {
+  var all = arr((d || V.d || {}).templates);
+  var F = {platform: t ? t.platform : 'linux'};
+  var go = function (full) {
+    var ti, pl, from, note, text, say;
+    var fillFrom = function () {
+      clear(from);
+      var o0 = el('option', '', 'Empty');
+      o0.value = '';
+      from.appendChild(o0);
+      all.filter(function (x) { return x.platform === F.platform; }).forEach(function (x) {
+        var o = noI18n(el('option', '', x.title + (x.builtin ? '' : ' · v' + (x.n || 1))));
+        o.value = x.ref;
+        from.appendChild(o);
+      });
+    };
+    modal(t ? 'Edit the template' : 'New template', function (body0) {
+      var body = el('div', 'fl-form fl-tpl-ed');
+      body0.appendChild(body);
+      body.appendChild(el('p', 'small muted', 'A whole policy for one kind of server, kept in acme - the builder adds it with a click, agents and groups follow it. Each save is a new version; acme never sends it to a server.'));
+      var row = el('div', 'fl-tpl-ed-row');
+      var l1 = el('label', 'fl-field');
+      l1.appendChild(el('span', 'fl-k', 'Title'));
+      ti = el('input', '');
+      ti.type = 'text';
+      ti.maxLength = 120;
+      ti.value = t ? t.title : '';
+      ti.placeholder = tr('nginx on the web servers');
+      noI18n(ti);
+      l1.appendChild(ti);
+      row.appendChild(l1);
+      var l2 = el('label', 'fl-field fl-tpl-ed-pl');
+      l2.appendChild(el('span', 'fl-k', 'Platform'));
+      pl = el('select', '');
+      [['linux', 'Linux'], ['windows', 'Windows']].forEach(function (p) { var o = el('option', '', p[1]); o.value = p[0]; pl.appendChild(o); });
+      pl.value = F.platform;
+      pl.disabled = !!t;
+      l2.appendChild(pl);
+      row.appendChild(l2);
+      body.appendChild(row);
+      if (!t) {
+        var l3 = el('label', 'fl-field');
+        l3.appendChild(el('span', 'fl-k', 'Start from'));
+        from = el('select', '');
+        fillFrom();
+        from.onchange = function () {
+          if (!from.value) return;
+          ask('fleet/template?ref=' + encodeURIComponent(from.value)).then(function (x) {
+            var T = x.template || {};
+            text.value = String(T.text || '');
+            if (!note.value.trim()) note.value = String(T.note || '');
+            if (!ti.value.trim()) ti.value = String(T.title || '') + ' ' + tr('(mine)');
+          }).catch(oops);
+        };
+        pl.onchange = function () { F.platform = pl.value; fillFrom(); text.placeholder = ph(); };
+        l3.appendChild(from);
+        body.appendChild(l3);
+      }
+      var l4 = el('label', 'fl-field');
+      l4.appendChild(el('span', 'fl-k', 'Note'));
+      note = el('textarea', '');
+      note.rows = 2;
+      note.maxLength = 2000;
+      note.value = t ? String(t.note || '') : '';
+      note.placeholder = tr('What it is for - why it allows what it allows');
+      noI18n(note);
+      l4.appendChild(note);
+      body.appendChild(l4);
+      var l5 = el('label', 'fl-field');
+      l5.appendChild(el('span', 'fl-k', 'The policy'));
+      text = el('textarea', 'mono fl-tpl-ed-text');
+      text.rows = 14;
+      text.spellcheck = false;
+      text.value = full ? String(full.text || '') : '';
+      var ph = function () {
+        return F.platform === 'windows' ? 'allow store\nallow iis *\nallow probe local'
+          : 'allow file /etc/ssl/acme owner=root:root mode=0640\nallow unit nginx.service reload\nallow test -- nginx -t\nallow probe local';
+      };
+      text.placeholder = ph();
+      noI18n(text);
+      l5.appendChild(text);
+      body.appendChild(l5);
+      say = el('p', 'small muted', 'One entry a line, as in the agent’s policy file (# begins a comment). Saved, it is read as the agent reads it: a line it would not read is refused.');
+      body.appendChild(say);
+    }, [{words: 'Cancel', close: true}, {words: t ? 'Save a new version' : 'Save the template', cls: 'primary', icon: 'save', go: function (b) {
+      var title = ti.value.trim();
+      if (!title) { toast(tr('give the template a title'), 'bad'); ti.focus(); return; }
+      if (!text.value.trim()) { toast(tr('the template has no policy text'), 'bad'); text.focus(); return; }
+      busy(b, true);
+      ask('fleet/template_save', {ref: t ? t.ref : '', title: title, note: note.value.trim(), platform: t ? t.platform : pl.value,
+        text: text.value.replace(/\r\n/g, '\n')}).then(function (x) {
+        closeModal();
+        toast(tr('the fleet template is saved') + ': ' + ((x && x.template && x.template.title) || title), 'good');
+        again();
+      }).catch(function (e) {
+        /* said where it is typed: the line the agent would not read */
+        say.className = 'small fl-tpl-ed-err';
+        say.textContent = String((e && e.message) || e || '');
+        text.focus();
+      }).then(function () { busy(b, false); });
+    }}]);
+  };
+  if (!t) { go(null); return; }
+  ask('fleet/template?ref=' + encodeURIComponent(t.ref)).then(function (x) { go(x.template || {}); }).catch(oops);
 }
 /** The builder needs an agent of the template's platform (its checks are the agent's own). */
 function openInBuilder(t) {
