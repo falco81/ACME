@@ -619,6 +619,95 @@ class NetScalerTest(unittest.TestCase):
         self.assertTrue(ctx.find('POST', 'action=unlink'))
 
 
+class NetScalerCaThereTest(unittest.TestCase):
+    """The intermediate is on the NetScaler already under another certkey (added by hand):
+    NITRO answers 409 / 273 "Resource already exists [certkeyName Contents, NAME]" - NAME is
+    linked instead of failing the deploy (1.0.145); at the next renewal the leaf's link to
+    it is seen and nothing is uploaded to be refused again."""
+    def run_with(self, answer, leaf=None, held=None):
+        def certkey_get(call):
+            n = call['path'].rsplit('/', 1)[1]
+            if n == 'acme-www.example.test':
+                return 200, {'errorcode': 0, 'sslcertkey': [leaf or {'certkey': n,
+                                                                     'cert': 'old.crt'}]}
+            if held and n == held['certkey']:
+                return 200, {'errorcode': 0, 'sslcertkey': [held]}
+            return 599, {'errorcode': 1540, 'message': 'Certificate does not exist'}
+        ctx = FakeCtx([
+            ('POST', r'/login$', (201, {'sessionid': 'SID'})),
+            ('POST', r'/logout$', (201, {})),
+            ('DELETE', r'/systemfile/', (200, {})),
+            ('POST', r'/systemfile$', (201, {})),
+            ('GET', r'/nitro/v1/config/sslcertkey/', certkey_get),
+            ('POST', r'/nitro/v1/config/sslcertkey$', answer),
+            ('POST', r'action=update', (200, {'errorcode': 0})),
+            ('POST', r'action=unlink', (200, {'errorcode': 0})),
+            ('POST', r'action=link', (200, {'errorcode': 0})),
+            ('POST', r'action=save', (200, {})),
+            ('GET', r'/systemfile\?', (200, {'systemfile': []})),
+        ])
+        t = make('netscaler', {'host': 'adc', 'user': 'u', 'password': 'p'}, ctx)
+        return ctx, t
+
+    def ca_file(self):
+        return 'acme-ca-' + C.chain_id(FakeBundle().chain_pems[0]) + '.crt'
+
+    def test_existing_certkey_linked(self):
+        ctx, t = self.run_with((409, {'errorcode': 273, 'severity': 'ERROR', 'message':
+                                      'Resource already exists [certkeyName Contents, LE-YE2-97658de8]'}))
+        t.deploy(FakeBundle(), {})
+        link = ctx.json(ctx.find('POST', 'action=link')[0])['sslcertkey']
+        self.assertEqual(link, {'certkey': 'acme-www.example.test',
+                                'linkcertkeyname': 'LE-YE2-97658de8'})
+        self.assertTrue([c for c in ctx.find('DELETE', 'systemfile/') if self.ca_file() in c['path']],
+                        'the uploaded copy is deleted again')
+        self.assertTrue(any('already as LE-YE2-97658de8' in s[1] for s in ctx.steps))
+
+    def test_other_409_stays_an_error(self):
+        ctx, t = self.run_with((409, {'errorcode': 273, 'message': 'Resource already exists'}))
+        with self.assertRaises(PluginError) as e:
+            t.deploy(FakeBundle(), {})
+        self.assertIn('409', str(e.exception))
+        self.assertFalse(e.exception.retry, 'the same refusal again in 5 minutes helps nothing')
+        self.assertIn('adding acme-ca-', str(e.exception), 'the certkey named, not dots')
+
+    def test_renewal_uses_the_link_without_uploading(self):
+        from cryptography import x509
+        pem = FakeBundle().chain_pems[0]
+        serial = '%X' % x509.load_pem_x509_certificate(pem.encode()).serial_number
+        ctx, t = self.run_with((500, {'errorcode': 1, 'message': 'must not be added'}),
+                               leaf={'certkey': 'acme-www.example.test', 'cert': 'old.crt',
+                                     'linkcertkeyname': 'LE-YE2-97658de8'},
+                               held={'certkey': 'LE-YE2-97658de8', 'serial': '00' + serial})
+        t.deploy(FakeBundle(), {})
+        self.assertFalse([c for c in ctx.find('POST', 'systemfile$')
+                          if self.ca_file() in ctx.json(c)['systemfile']['filename']], 'the intermediate not uploaded')
+        self.assertFalse(ctx.find('POST', 'sslcertkey$'), 'nothing added')
+        self.assertFalse(ctx.find('POST', 'action=link'), 'linked already')
+
+    def test_other_serial_is_not_taken(self):
+        ctx, t = self.run_with((201, {'errorcode': 0}),
+                               leaf={'certkey': 'acme-www.example.test', 'cert': 'old.crt',
+                                     'linkcertkeyname': 'some-other-ca'},
+                               held={'certkey': 'some-other-ca', 'serial': '0123'})
+        t.deploy(FakeBundle(), {})
+        add = ctx.json(ctx.find('POST', 'sslcertkey$')[0])['sslcertkey']
+        self.assertTrue(add['certkey'].startswith('acme-ca-'))
+        link = ctx.json(ctx.find('POST', 'action=link')[0])['sslcertkey']
+        self.assertEqual(link['linkcertkeyname'], add['certkey'])
+
+
+class SentNamesTest(unittest.TestCase):
+    """A name of something on a device whose field says "key" (a NetScaler's certkey) is
+    not taken for a secret sent; a real key still is (1.0.145)."""
+    def test_names(self):
+        from acmelib.plugins.base import sent_secrets
+        got = sent_secrets('', {}, {'sslcertkey': {'certkey': 'acme-ca-97658de8',
+                                                   'linkcertkeyname': 'LE-YE2-97658de8',
+                                                   'apikey': 'S3cr3t-value'}})
+        self.assertEqual(got, {'S3cr3t-value'})
+
+
 class NetScaler599Test(unittest.TestCase):
     """NITRO says "not there" as HTTP 599 with an errorcode (1540 "Certificate does not
     exist" for a certkey, as a NetScaler answered; 258 "No such resource"): the certkey

@@ -862,7 +862,14 @@ Over NITRO:
 3. the **certkey** (default `acme-<name>`, kept across renewals): `update`
    with `nodomaincheck` when it exists - bindings stay - else `add`;
 4. each intermediate as a certkey `acme-ca-<id>`, and `link` from the
-   certificate up the chain (unlinking an old link first);
+   certificate up the chain (unlinking an old link first). A NetScaler keeps one
+   certificate under one certkey only: when the intermediate is there already under
+   another name (added by hand or by another tool, e.g. `LE-YE2-97658de8`), the add is
+   answered 409, errorcode 273 `Resource already exists [certkeyName Contents, <name>]`
+   - that certkey is linked instead, left as it is, and the copy just uploaded deleted
+   again (1.0.145). At later renewals the certificate's link to it is seen (the same
+   serial number) and nothing is uploaded. Any other 409 stays an error and is not
+   tried again by itself;
 5. binds the certkey to each listed SSL virtual server (`name sni` for an SNI
    certificate) when not bound yet;
 6. `save ns config`, and deletes older acme files beyond *keep*.

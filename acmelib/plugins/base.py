@@ -105,6 +105,14 @@ class PluginError(Exception):
 
 _SENT_SECRET = re.compile(r'(key|token|pass|secret|sig|auth|credential|session|cookie|code)',
                           re.I)
+# a name of something on the device, not a secret, though its name says "key" (1.0.145: a
+# NetScaler's "certkey" / "linkcertkeyname" - "adding ••••••••: the device said 409")
+_SENT_NOT_SECRET = re.compile(r'(name|certkey)$', re.I)
+
+
+def _says_secret(name):
+    name = str(name)
+    return bool(_SENT_SECRET.search(name)) and not _SENT_NOT_SECRET.search(name)
 
 
 def sent_secrets(url='', headers=None, body=None):
@@ -119,7 +127,7 @@ def sent_secrets(url='', headers=None, body=None):
             out.add(v)
 
     for k, v in (headers or {}).items():
-        if _SENT_SECRET.search(str(k)):
+        if _says_secret(k):
             v = str(v or '')
             add(v)
             add(v.split(' ', 1)[1] if ' ' in v else '')     # "Bearer T", "sso-key K:S"
@@ -133,7 +141,7 @@ def sent_secrets(url='', headers=None, body=None):
             for k, v in o.items():
                 if isinstance(v, (dict, list)):
                     walk(v, depth + 1)
-                elif _SENT_SECRET.search(str(k)) and isinstance(v, str):
+                elif _says_secret(k) and isinstance(v, str):
                     add(v)
         elif isinstance(o, list):
             for v in o:
@@ -144,7 +152,7 @@ def sent_secrets(url='', headers=None, body=None):
         import urllib.parse
         query = urllib.parse.urlsplit(str(url or '')).query
         for k, v in urllib.parse.parse_qsl(query, keep_blank_values=False):
-            if _SENT_SECRET.search(k):
+            if _says_secret(k):
                 add(v)
         if isinstance(body, (bytes, bytearray)):
             body = bytes(body).decode('utf-8', 'replace')
@@ -157,7 +165,7 @@ def sent_secrets(url='', headers=None, body=None):
                 pass
         elif isinstance(body, str) and '=' in body and len(body) < 65536:
             for k, v in urllib.parse.parse_qsl(body, keep_blank_values=False):
-                if _SENT_SECRET.search(k):
+                if _says_secret(k):
                     add(v)
     except Exception:                                   # noqa: BLE001
         pass

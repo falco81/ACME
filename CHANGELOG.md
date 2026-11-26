@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.145 - not released
 
+- NetScaler target: when the intermediate was on the device already under another certkey (added by hand or by another tool, e.g. `LE-YE2-…` after switching the CA), NITRO refused adding it 409 / errorcode 273 "Resource already exists [certkeyName Contents, <name>]" and the deployment failed - tried again every 5 minutes, failing the same, the server sending no intermediate; that certkey is linked now (left as it is, the copy uploaded deleted again), and at later renewals the certificate's link to it is seen by its serial number, nothing uploaded. Another 409 there stays an error, not tried again by itself.
+- Targets: a name on the device sent under a field whose name says "key" (a NetScaler's `certkey`, `linkcertkeyname`) was taken for a secret and shown as dots in the error ("adding ••••••••: the device said 409"); names are shown now, real keys and tokens still as dots.
+
 ## 1.0.144 - 2026-11-24
 
 - **Backups are a snapshot of one moment.** a copy of the database (the nightly one, one made by hand or downloaded, the backup to another machine) read its tables one by one, so a renewal or deployment finished meanwhile could leave a certificate older in the copy than its versions and jobs; every copy is now read in one transaction - SQLite in WAL mode (a file not in WAL mode is read from SQLite's own backup of it), PostgreSQL at REPEATABLE READ, MariaDB with a consistent InnoDB snapshot - and is the database of one moment, without holding the daemon's writes.

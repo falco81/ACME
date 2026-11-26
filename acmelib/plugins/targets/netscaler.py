@@ -12,7 +12,7 @@ import urllib.parse
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, object_name, name_prefix, prune,
     label_of, http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text,
-    seg, SEG_PATTERN)
+    pem_to_der, seg, SEG_PATTERN)
 
 SSL_DIR = '/nsconfig/ssl'
 # NITRO says an object is not there as HTTP 599 (NetScaler's own status) with an
@@ -25,6 +25,20 @@ NOT_THERE = (258, 1540)
 def b64(data):
     import base64
     return base64.b64encode(data if isinstance(data, bytes) else data.encode()).decode()
+
+
+def ca_serial(pem):
+    """The serial number of a CA certificate in hex, '' when it cannot be read."""
+    try:
+        from cryptography import x509
+        return '%x' % x509.load_der_x509_certificate(pem_to_der(pem)).serial_number
+    except Exception:                                   # noqa: BLE001
+        return ''
+
+
+def norm_serial(s):
+    """A serial as hex digits only, lower case, no leading zeros ("03:E5:.." = "3e5..")."""
+    return re.sub(r'[^0-9a-f]', '', text(s).lower()).lstrip('0')
 
 
 class NetScalerTarget(HttpTarget):
@@ -141,6 +155,46 @@ class NetScalerTarget(HttpTarget):
             'certkey': name, 'linkcertkeyname': ca}}, what='linking %s to %s' % (name, ca))
         return True
 
+    def add_ca(self, ca, pem):
+        """Adds the intermediate as the certkey `ca` -> the name of the certkey holding it.
+        A NetScaler keeps one certificate under one certkey only: the same intermediate added
+        there before by hand or by another tool ("LE-YE2-97658de8") is answered 409, errorcode
+        273 "Resource already exists [certkeyName Contents, LE-YE2-97658de8]" - that certkey is
+        linked instead, left as it is, and the copy just uploaded deleted again (1.0.145: the
+        deployment failed and was tried again every 5 minutes, failing the same). Another 409
+        stays an error, not tried again by itself."""
+        self.upload(ca + '.crt', pem.encode())
+        st, d = self.nitro('POST', 'sslcertkey', {'sslcertkey': {
+            'certkey': ca, 'cert': ca + '.crt'}}, ok=(200, 201, 409), what='adding %s' % ca)
+        if st != 409:
+            self.ctx.step('added the intermediate %s' % ca)
+            return ca
+        m = re.search(r'certkeyName\s+Contents\s*,\s*([^\]]+?)\s*\]', text(d.get('message')))
+        if not m:
+            raise PluginError('adding %s: the device said 409 - %s' % (
+                ca, d.get('message') or 'error %s' % (d.get('errorcode') or '?')),
+                detail=str(d), retry=False)
+        have = m.group(1).strip()
+        self.req('DELETE', '/nitro/v1/config/systemfile/%s?args=filelocation:%s' % (
+            urllib.parse.quote(ca + '.crt'), urllib.parse.quote(SSL_DIR, safe='')),
+            ok=range(0, 600))
+        self.ctx.step('the intermediate is on the NetScaler already as %s - used' % have)
+        return have
+
+    def held_as(self, below, pem):
+        """The certkey `below` is linked to already when it holds this very intermediate
+        (its serial number the same) - a renewal after add_ca took a certkey made by hand
+        uses it straight away, without uploading the file to be refused 409 again. None:
+        not known (no link, no serial said)."""
+        want = norm_serial(ca_serial(pem))
+        if not want:
+            return None
+        name = text((self.certkey(below) or {}).get('linkcertkeyname')).strip()
+        if not name:
+            return None
+        other = self.certkey(name) or {}
+        return name if norm_serial(other.get('serial')) == want else None
+
     def deploy(self, bundle, options):
         options = options or {}
         ck = (options.get('certkey') or '').strip() or ('acme-' + label_of(bundle, options, 26))
@@ -179,10 +233,13 @@ class NetScalerTarget(HttpTarget):
             for pem in chain_list(bundle):
                 ca = 'acme-ca-%s' % chain_id(pem)
                 if not self.certkey(ca):
-                    self.upload(ca + '.crt', pem.encode())
-                    self.nitro('POST', 'sslcertkey', {'sslcertkey': {
-                        'certkey': ca, 'cert': ca + '.crt'}}, what='adding %s' % ca)
-                    self.ctx.step('added the intermediate %s' % ca)
+                    held = self.held_as(below, pem)
+                    if held:
+                        self.ctx.step('the intermediate is on the NetScaler already as %s - '
+                                      'used' % held)
+                        ca = held
+                    else:
+                        ca = self.add_ca(ca, pem)
                 else:
                     self.ctx.step('the intermediate %s is there already' % ca)
                 if self.link(below, ca):
