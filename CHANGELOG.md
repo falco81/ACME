@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.146 - not released
+## 1.0.146 - 2026-11-26
 
 - The agent's "What its policy allows" shows everything the policy on the server allows: also what a deployment may deploy (allow issuer, allow names, require key local), the audit chain and the limits of one job.
 - Anything waiting for an answer (Ask it now, Look now, Verify now, Test…) shows a thin running bar along the bottom of its button.
