@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.150 - not released
+
 ## 1.0.149 - 2026-11-27
 
 - The policy builder grows on a wide monitor (from 1800 px up to 94 % of the screen) and the terminal with the commands beside it takes 42-46 % of it, so lines seldom wrap; on smaller screens nothing changes.
