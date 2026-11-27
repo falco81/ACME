@@ -269,6 +269,16 @@
 .pb-note{width:100%;min-height:54px;font-family:inherit !important;font-size:13px !important}
 
 /* a phone: one column, the output below */
+/* 1.0.149: on a wide monitor the builder grows and so does the terminal beside it, so the
+   commands seldom wrap; below 1800px everything stays as it was. */
+@media (min-width: 1800px){
+  .modal .box.pb-box{width:min(94vw,2400px,100%)}
+  .pb-grid{grid-template-columns:minmax(0,1fr) minmax(440px,42%)}
+  .pb-pre{max-height:clamp(260px,58vh,760px)}
+}
+@media (min-width: 2400px){
+  .pb-grid{grid-template-columns:minmax(0,1fr) minmax(440px,46%)}
+}
 @media (max-width: 900px){
   .pb-grid{grid-template-columns:minmax(0,1fr)}
   .pb-out{position:static}

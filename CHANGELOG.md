@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.149 - not released
 
+- The policy builder grows on a wide monitor (from 1800 px up to 94 % of the screen) and the terminal with the commands beside it takes 42-46 % of it, so lines seldom wrap; on smaller screens nothing changes.
+
 ## 1.0.148 - 2026-11-26
 
 - Agent fleet → Templates: **New template…** opens the policy builder itself (no agent: every section, its checks and output, Linux or Windows) and saves what is clicked together as a fleet template; **Edit…** opens one of yours there - each save a new version.
